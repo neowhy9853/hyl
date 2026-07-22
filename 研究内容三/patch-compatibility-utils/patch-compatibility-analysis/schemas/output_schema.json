@@ -1,0 +1,542 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://patch-compatibility-analyzer.skill/output-v1.json",
+  "title": "Patch Compatibility Analysis Output",
+  "description": "Structured output schema for Patch Compatibility Analyzer",
+  "type": "object",
+  "required": [
+    "repo",
+    "analysis_repo",
+    "artifact_dir",
+    "base_commit",
+    "patch_id",
+    "patch_apply_status",
+    "summary",
+    "findings"
+  ],
+  "properties": {
+    "repo": {
+      "type": "string",
+      "description": "Source repository path used for artifact placement"
+    },
+    "analysis_repo": {
+      "type": "string",
+      "description": "Isolated patched worktree used for source context and callgraph construction"
+    },
+    "artifact_dir": {
+      "type": "string",
+      "description": "Directory containing generated analysis artifacts, either user-specified or the default <repo>/pca-results/<patch_id[:6]>"
+    },
+    "base_ref": {
+      "type": "string",
+      "description": "Baseline git ref the patch applies to"
+    },
+    "base_commit": {
+      "type": "string",
+      "description": "Resolved baseline commit used to create the analysis worktree"
+    },
+    "patch_apply_status": {
+      "type": "string",
+      "enum": ["applied", "already_applied", "applied_3way"],
+      "description": "How the patch was materialized in analysis_repo"
+    },
+    "patch_apply_message": {
+      "type": "string",
+      "description": "Human-readable patch application status"
+    },
+    "analysis_worktree_status": {
+      "type": "string",
+      "enum": ["available", "cleaned"],
+      "description": "Whether analysis_repo currently exists on disk. Cleaned worktrees can be recreated from repo, base_commit, and patch.diff."
+    },
+    "patch_id": {
+      "type": "string",
+      "description": "Identifier for the analyzed patch"
+    },
+    "patch_source": {
+      "type": "object",
+      "description": "Original patch input metadata, including local file or target commit/patch URL resolution",
+      "properties": {
+        "kind": { "type": "string", "enum": ["local_file", "url"] },
+        "input": { "type": "string" },
+        "download_url": { "type": "string" },
+        "cached_patch": { "type": "string" },
+        "commit": { "type": "string" },
+        "base_ref_inferred": { "type": "string" },
+        "base_ref_inference": { "type": "string" }
+      }
+    },
+    "package_profile": {
+      "type": "string",
+      "description": "Package profile used for analysis"
+    },
+    "effective_profile": {
+      "type": "string",
+      "description": "Relative path to the resolved profile after applying extends and matching variants"
+    },
+    "analysis_mode": {
+      "type": "string",
+      "enum": ["normal", "heavy"],
+      "description": "Whether the patch was analyzed as one normal unit or split into heavy-mode shards"
+    },
+    "analysis_mode_requested": {
+      "type": "string",
+      "enum": ["auto", "normal", "heavy"],
+      "description": "Mode requested by the caller before threshold enforcement"
+    },
+    "heavy_reason": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Threshold or caller reasons that selected the analysis mode"
+    },
+    "heavy_thresholds": {
+      "type": "object",
+      "description": "Soft and hard threshold values used by auto heavy-mode selection"
+    },
+    "patch_metrics": {
+      "type": "object",
+      "description": "Patch size and candidate-context metrics used for heavy-mode decisions",
+      "properties": {
+        "patch_bytes": { "type": "integer" },
+        "patch_lines": { "type": "integer" },
+        "raw_hunks": { "type": "integer" },
+        "candidate_hunks": { "type": "integer" },
+        "changed_files": { "type": "integer" },
+        "churn": { "type": "integer" },
+        "candidate_context_bytes": { "type": "integer" },
+        "candidates_json_bytes": { "type": "integer" }
+      }
+    },
+    "shard_artifacts": {
+      "type": "object",
+      "description": "Heavy-mode shard plan and workspace artifacts",
+      "properties": {
+        "plan": { "type": "string" },
+        "workspace": { "type": "string" },
+        "shard_count": { "type": "integer" }
+      }
+    },
+    "shard_aggregation": {
+      "type": "object",
+      "description": "Information recorded after aggregating shard result files"
+    },
+    "candidate_artifacts": {
+      "type": "object",
+      "description": "Deterministic candidate-stage artifacts available to the agent",
+      "properties": {
+        "analysis_context": {
+          "type": "string",
+          "description": "Relative path to compact low-context candidate summary for agent adjudication"
+        },
+        "candidates": {
+          "type": "string",
+          "description": "Relative path to full candidate hunk artifact"
+        },
+        "callchains": {
+          "type": "string",
+          "description": "Relative path to static call-chain artifact"
+        },
+        "callchain_count": {
+          "type": "integer"
+        },
+        "effective_profile": {
+          "type": "string"
+        },
+        "patch_metrics": {
+          "type": "string"
+        }
+      }
+    },
+    "test_entry_artifacts": {
+      "type": "object",
+      "description": "Deprecated legacy field retained for reading older analysis results; new test-entry artifacts are owned by patch-compatibility-testing and are not written into analysis.json",
+      "properties": {
+        "tasks": { "type": "string" },
+        "plan": { "type": "string" },
+        "entries": { "type": "string" },
+        "report": { "type": "string" },
+        "workspace": { "type": "string" },
+        "draft_entries_generated": { "type": "boolean" },
+        "min_priority": {
+          "type": "string",
+          "enum": ["high", "medium", "low", "all"]
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total_changed_files",
+        "total_candidates",
+        "compatibility_changes",
+        "high_priority",
+        "medium_priority",
+        "low_priority"
+      ],
+      "properties": {
+        "total_changed_files": {
+          "type": "integer",
+          "description": "Total number of files changed in the patch"
+        },
+        "total_candidates": {
+          "type": "integer",
+          "description": "Total number of candidate hunks analyzed"
+        },
+        "compatibility_changes": {
+          "type": "integer",
+          "description": "Number of confirmed compatibility changes"
+        },
+        "high_priority": {
+          "type": "integer",
+          "description": "Confirmed compatibility changes recommended for highest-priority regression testing, existing assertion review, test-entry generation, or fuzzing seeds"
+        },
+        "medium_priority": {
+          "type": "integer",
+          "description": "Confirmed compatibility changes recommended for normal-priority regression testing or assertion review"
+        },
+        "low_priority": {
+          "type": "integer",
+          "description": "Confirmed compatibility changes recommended for low-priority regression testing or record-only follow-up"
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "compatibility_type",
+          "test_priority",
+          "confidence",
+          "affected_api",
+          "location",
+          "old_behavior",
+          "new_behavior",
+          "compatibility_reason",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique finding ID, e.g. PCA-0001",
+            "pattern": "^PCA-\\d{4}$"
+          },
+          "compatibility_type": {
+            "type": "string",
+            "enum": [
+              "API_SIGNATURE_CHANGE",
+              "ABI_CHANGE",
+              "INPUT_CONTRACT_CHANGE",
+              "RETURN_CONTRACT_CHANGE",
+              "ERROR_EXCEPTION_CHANGE",
+              "SIDE_EFFECT_CHANGE",
+              "OUTPUT_FORMAT_CHANGE",
+              "PROC_SYS_OUTPUT_CHANGE",
+              "SYSCALL_SEMANTIC_CHANGE",
+              "IOCTL_NETLINK_ABI_CHANGE",
+              "CONFIG_CLI_BEHAVIOR_CHANGE",
+              "RESOURCE_LIFETIME_CHANGE",
+              "PERFORMANCE_RESOURCE_SEMANTIC_CHANGE"
+            ]
+          },
+          "test_priority": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+            "description": "Recommended regression testing and assertion-review priority. Higher means more likely to affect existing tests, user-visible assertions, API/ABI contracts, CLI/config/protocol behavior, or valuable fuzzing seeds. This is not a security-risk-only ranking."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "package_profile": {
+            "type": "string"
+          },
+          "affected_surface": {
+            "type": "string",
+            "description": "Human-readable description of the affected API surface"
+          },
+          "affected_api": {
+            "type": "object",
+            "required": ["name", "kind", "language"],
+            "properties": {
+              "name": { "type": "string" },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "exported_function",
+                  "public_method",
+                  "public_class",
+                  "public_function",
+                  "public_header",
+                  "shared_library_symbol",
+                  "symbol_version",
+                  "pkgconfig_module",
+                  "syscall",
+                  "ioctl",
+                  "netlink_family",
+                  "procfs_entry",
+                  "sysfs_attribute",
+                  "sysctl_entry",
+                  "cli_command",
+                  "cli_option",
+                  "config_key",
+                  "env_variable",
+                  "plugin_api",
+                  "callback_type",
+                  "struct_type",
+                  "enum_type",
+                  "macro",
+                  "module_parameter",
+                  "tracepoint",
+                  "bpf_helper",
+                  "daemon_handler"
+                ]
+              },
+              "language": {
+                "type": "string",
+                "enum": ["c", "cpp", "python", "go", "ruby", "tcl"]
+              },
+              "signature_old": { "type": "string" },
+              "signature_new": { "type": "string" }
+            }
+          },
+          "location": {
+            "type": "object",
+            "required": ["file", "old_lines", "new_lines", "symbol"],
+            "properties": {
+              "file": { "type": "string" },
+              "old_lines": {
+                "type": "array",
+                "items": { "type": "integer" },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "new_lines": {
+                "type": "array",
+                "items": { "type": "integer" },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "symbol": { "type": "string" }
+            }
+          },
+          "old_behavior": {
+            "type": "string",
+            "description": "Description of behavior before the patch"
+          },
+          "new_behavior": {
+            "type": "string",
+            "description": "Description of behavior after the patch"
+          },
+          "compatibility_reason": {
+            "type": "string",
+            "description": "Why this change may break existing clients"
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["file", "lines", "snippet"],
+              "properties": {
+                "file": { "type": "string" },
+                "lines": {
+                  "type": "array",
+                  "items": { "type": "integer" },
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "snippet": { "type": "string" }
+              }
+            }
+          },
+          "static_call_chains": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "entry_kind": {
+                  "type": "string",
+                  "enum": [
+                    "test_entry",
+                    "cli_entry",
+                    "http_handler",
+                    "config_parser",
+                    "plugin_callback",
+                    "exported_api",
+                    "syscall",
+                    "daemon_handler",
+                    "ioctl",
+                    "netlink",
+                    "sysfs",
+                    "procfs",
+                    "sysctl"
+                  ]
+                },
+                "entry": { "type": "string" },
+                "chain": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          },
+          "why_not_internal_only": {
+            "type": "string",
+            "description": "Counterfactual: why this is not purely internal"
+          },
+          "uncertainty": {
+            "type": "string",
+            "description": "Uncertainty factors in the analysis"
+          },
+          "manual_review_required": {
+            "type": "boolean"
+          },
+          "recommended_review": {
+            "type": "string",
+            "description": "Recommended manual review focus points"
+          },
+          "test_recommendation": {
+            "type": "string",
+            "description": "Recommended regression testing, existing assertion review, test-entry, or fuzzing focus for this compatibility change"
+          },
+          "test_priority_reason": {
+            "type": "string",
+            "description": "Why this finding has the assigned testing priority"
+          },
+          "priority_decision": {
+            "type": "object",
+            "description": "Deterministic profile-based priority recommendation and Agent final priority decision",
+            "properties": {
+              "agent_priority": {
+                "type": "string",
+                "enum": ["high", "medium", "low"]
+              },
+              "recommended_priority": {
+                "type": "string",
+                "enum": ["high", "medium", "low"]
+              },
+              "deterministic_priority": {
+                "type": "string",
+                "description": "Backward-compatible alias for recommended_priority",
+                "enum": ["high", "medium", "low"]
+              },
+              "final_priority": {
+                "type": "string",
+                "description": "Agent-final priority used by findings[].test_priority",
+                "enum": ["high", "medium", "low"]
+              },
+              "decision_policy": {
+                "type": "string",
+                "description": "Policy used to choose final_priority, normally agent_final_with_deterministic_recommendation"
+              },
+              "agent_decision_reason": {
+                "type": "string",
+                "description": "Agent explanation for the final priority, especially when it differs from recommended_priority"
+              },
+              "recommendation_disagreed": {
+                "type": "boolean",
+                "description": "Whether Agent-final final_priority differs from recommended_priority"
+              },
+              "recommendation_disagreement_reasons": {
+                "type": "array",
+                "description": "Structured reason labels required when final_priority differs from recommended_priority",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "opt_out_available",
+                    "additive_behavior_only",
+                    "internal_or_test_only",
+                    "narrow_surface",
+                    "no_external_observable_break",
+                    "profile_overmatched"
+                  ]
+                }
+              },
+              "invalid_disagreement_reasons": {
+                "type": "array",
+                "description": "Invalid labels found by priority_calibrator.py; should be empty",
+                "items": { "type": "string" }
+              },
+              "missing_disagreement_reasons": {
+                "type": "boolean",
+                "description": "Whether a disagreement exists but no structured reason label was supplied"
+              },
+              "deterministic_trace": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "matched_candidate_count": {
+                "type": "integer"
+              },
+              "matched_surfaces": {
+                "type": "array",
+                "description": "Candidate or fallback surfaces used for deterministic priority calibration"
+              }
+            }
+          },
+          "test_entries": {
+            "type": "array",
+            "description": "Deprecated legacy field retained for older analysis results; new runnable entries are stored under the testing result directory",
+            "items": {
+              "type": "object",
+              "properties": {
+                "entry_id": { "type": "string" },
+                "entry_kind": { "type": "string" },
+                "status": {
+                  "type": "string",
+                  "enum": ["generated", "refined", "draft_needs_refinement", "manual_required", "not_feasible"]
+                },
+                "artifact_path": { "type": "string" },
+                "build_command": { "type": "string" },
+                "run_command": { "type": "string" },
+                "reachability_signal": { "type": "string" },
+                "input_strategy": { "type": "string" },
+                "source": {
+                  "type": "string",
+                  "description": "Where this entry came from, such as commit_message_reproducer, project_native_test, existing_fuzzer_corpus, documentation_example, static_call_chain, or synthetic_harness"
+                },
+                "commit_message_evidence": {
+                  "type": "object",
+                  "description": "Commit-message commands, crash/fuzz terms, or seed-file signals used to construct this entry"
+                },
+                "seed_artifacts": {
+                  "type": "array",
+                  "description": "Seed files or generated seed artifacts suitable for regression or fuzzing",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": { "type": "string" },
+                      "kind": { "type": "string" },
+                      "provenance": { "type": "string" },
+                      "minimized": { "type": "boolean" }
+                    }
+                  }
+                },
+                "fuzzing": {
+                  "type": "object",
+                  "description": "Optional fuzzing-specific guidance: target, corpus path, mutation axes, expected signal, and coverage signal"
+                },
+                "expected_signal": {
+                  "type": "string",
+                  "description": "Assertion, sanitizer, output, errno, exception, coverage, or crash signal that distinguishes old/new behavior"
+                },
+                "coverage_command": {
+                  "type": "string",
+                  "description": "Optional command for proving target-line reachability with coverage, breakpoint, tracepoint, or instrumentation"
+                },
+                "execution": {
+                  "type": "object",
+                  "description": "How to execute the entry safely: cwd, timeout, source copy strategy, and side-effect boundaries"
+                },
+                "limitations": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

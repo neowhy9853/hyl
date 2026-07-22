@@ -1,0 +1,121 @@
+# systemd Profile
+
+name: systemd
+language: c
+description: systemd manager, systemctl CLI, D-Bus APIs, unit files, and init/system side effects
+extends:
+  - c_project
+  - cli_tool
+  - daemon_network
+
+api_surfaces:
+  root_transition_and_manager_state_contract:
+    paths:
+      - src/systemctl/**
+      - src/core/**
+      - src/shared/**
+      - src/basic/**
+    patterns:
+      - switch-root
+      - soft-reboot
+      - reboot
+      - kexec
+      - initrd
+      - running_in_initrd
+      - verb_switch_root
+      - method_switch_root
+      - bus_call
+      - sd_bus_error
+    public: true
+    stability: stable
+    test_priority: high
+    semantic_dimensions:
+      - side_effect
+      - input_contract
+      - return_contract
+      - error_contract
+      - manager_state
+    description: >
+      General systemctl and manager root-transition/state-change contract
+      surface. Recall changes that can affect switch-root, soft-reboot, reboot,
+      kexec, boot-environment preconditions, D-Bus methods, authorization,
+      diagnostics, exit status, and externally visible system state transitions.
+
+  systemctl_cli:
+    paths:
+      - src/systemctl/**
+      - src/shared/**
+    patterns:
+      - systemctl
+      - verb_
+      - dispatch_verb
+      - log_error
+      - bus_call
+    public: true
+    stability: stable
+    test_priority: high
+    semantic_dimensions:
+      - input_contract
+      - return_contract
+      - error_contract
+      - side_effect
+    description: >
+      systemctl command behavior, diagnostics, exit status, and system state
+      transitions, including but not limited to root-transition commands.
+
+  manager_dbus_api:
+    paths:
+      - src/core/**
+      - src/shared/**
+    patterns:
+      - sd_bus
+      - method_
+      - DBUS
+      - org.freedesktop.systemd
+      - sd_bus_error
+    public: true
+    stability: stable
+    test_priority: high
+    semantic_dimensions:
+      - input_contract
+      - return_contract
+      - error_contract
+      - side_effect
+    description: >
+      systemd manager D-Bus methods, errors, authorization, and visible state
+      changes, including but not limited to boot-environment and root-transition
+      precondition checks.
+
+  units_and_config:
+    paths:
+      - units/**
+      - src/core/load-fragment*
+      - src/core/dbus-*.c
+      - man/**
+    patterns:
+      - Unit
+      - Service
+      - config
+      - parse
+    public: true
+    stability: stable
+    test_priority: medium
+    semantic_dimensions:
+      - config
+      - input_contract
+      - side_effect
+    description: Unit/config file grammar, defaults, and documented system behavior
+
+compatibility_types:
+  - CONFIG_CLI_BEHAVIOR_CHANGE: systemctl or unit/config behavior, default, or validation changed
+  - SIDE_EFFECT_CHANGE: Boot, shutdown, switch-root, reload, service, filesystem, or manager state effect changed
+  - INPUT_CONTRACT_CHANGE: Accepted command, unit, D-Bus argument, or state precondition changed
+  - RETURN_CONTRACT_CHANGE: Exit status, D-Bus reply, or result state changed
+  - ERROR_EXCEPTION_CHANGE: D-Bus error name, errno, or diagnostic changed
+  - OUTPUT_FORMAT_CHANGE: User-visible systemctl or journal-style output changed
+
+ignore_patterns:
+  - test/**
+  - tests/**
+  - fuzz/**
+  - docs/**

@@ -1,0 +1,244 @@
+# Kernel 6.6 Profile
+# API surface definitions for Linux Kernel 6.6 compatibility analysis
+
+name: kernel_6_6
+language: c
+description: Linux Kernel 6.6 LTS branch
+extends:
+  - default
+  - c_family
+  - kernel_base
+
+variants:
+  openeuler_olk:
+    detect:
+      remotes:
+        - '*atomgit.com/openeuler/kernel*'
+      branches:
+        - 'OLK-*'
+        - '*openEuler*'
+    overlay:
+      api_surfaces:
+        openeuler_kabi:
+          paths:
+            - kabi/**
+            - include/linux/**
+            - Module.symvers
+          patterns:
+            - EXPORT_SYMBOL
+            - kABI
+            - KABI
+          public: true
+          stability: stable
+          test_priority: high
+          description: openEuler downstream kABI and module compatibility surface.
+
+api_surfaces:
+  # User-space ABI — ANY change here is high test priority
+  uapi:
+    paths:
+      - include/uapi/**
+      - arch/*/include/uapi/**
+    test_priority: high
+    description: Userspace API headers — stable ABI
+
+  # Exported kernel symbols
+  exported_symbols:
+    patterns:
+      - EXPORT_SYMBOL
+      - EXPORT_SYMBOL_GPL
+      - EXPORT_SYMBOL_NS
+    test_priority: high
+    description: Exported kernel symbols used by modules
+
+  # System calls
+  syscall:
+    patterns:
+      - SYSCALL_DEFINE
+      - COMPAT_SYSCALL_DEFINE
+      - __SYSCALL
+      - syscall.tbl
+      - __NR_
+    paths:
+      - kernel/**
+      - fs/**
+      - mm/**
+      - net/**
+      - ipc/**
+      - include/uapi/asm-generic/unistd.h
+      - arch/*/entry/syscalls/**
+    test_priority: high
+    description: |
+      System call interface and user-visible syscall tables. Changes to syscall
+      number, argument validation, errno, flag semantics, copy_to/from_user
+      behavior, compat handling, blocking, or timeout behavior are high-priority
+      compatibility candidates.
+
+  # IOCTL
+  ioctl:
+    patterns:
+      - .ioctl\s*=
+      - unlocked_ioctl
+      - compat_ioctl
+      - _IO
+      - _IOR
+      - _IOW
+      - _IOWR
+    test_priority: high
+    description: Device ioctl interface
+
+  # Netlink
+  netlink:
+    paths:
+      - net/netlink/**
+      - include/net/netlink/**
+      - include/uapi/linux/netlink/**
+    test_priority: high
+    patterns:
+      - nla_policy
+      - genl_family
+      - genl_ops
+      - nla_put
+      - nla_parse
+    description: Netlink protocol interface, attributes, families, and policies
+
+  # Procfs
+  procfs:
+    patterns:
+      - proc_create
+      - proc_create_data
+      - proc_create_seq
+      - proc_ops
+      - single_open
+      - seq_printf
+      - seq_puts
+      - seq_putc
+      - seq_read
+      - remove_proc_entry
+    test_priority: medium
+    description: |
+      /proc entries and text output. Treat field addition/removal, ordering,
+      delimiter, unit, header, permission, missing-entry, and error behavior
+      changes as compatibility candidates, especially for documented or widely
+      scraped entries.
+
+  # Sysfs
+  sysfs:
+    patterns:
+      - sysfs_create_file
+      - sysfs_create_group
+      - device_create_file
+      - DEVICE_ATTR
+      - DEVICE_ATTR_RO
+      - DEVICE_ATTR_RW
+      - __ATTR
+      - sysfs_emit
+      - sysfs_emit_at
+      - kobj_attribute
+    test_priority: medium
+    description: |
+      /sys attributes and show/store output. Treat value format, unit, accepted
+      input, permission, attribute name, and error behavior changes as
+      compatibility candidates.
+
+  # proc/sys sysctl interface
+  sysctl:
+    paths:
+      - kernel/sysctl.c
+      - fs/proc/**
+      - net/**
+    patterns:
+      - register_sysctl
+      - unregister_sysctl_table
+      - ctl_table
+      - proc_dointvec
+      - proc_douintvec
+      - proc_dostring
+      - proc_dobool
+      - proc_doulongvec_minmax
+    test_priority: high
+    description: /proc/sys sysctl names, permissions, parsers, ranges, defaults, and output
+
+  # Device Tree bindings
+  dt_binding:
+    paths:
+      - Documentation/devicetree/bindings/**
+    test_priority: high
+    description: Device tree binding documentation
+
+  # Kconfig
+  kconfig:
+    paths:
+      - '**/Kconfig*'
+    test_priority: medium
+    description: Kernel build configuration options
+
+  # Module parameters
+  module_param:
+    patterns:
+      - module_param
+      - module_param_named
+      - module_param_string
+      - module_param_array
+    test_priority: medium
+    description: Module parameters
+
+  # BPF
+  bpf:
+    paths:
+      - kernel/bpf/**
+      - include/uapi/linux/bpf.h
+    test_priority: high
+    description: BPF helper functions and verifier behavior
+
+  # Tracepoints
+  tracepoint:
+    patterns:
+      - TRACE_EVENT
+      - DECLARE_EVENT_CLASS
+      - DEFINE_EVENT
+    test_priority: medium
+    description: Tracepoint definitions
+
+  # Debugfs (considered unstable)
+  debugfs:
+    patterns:
+      - debugfs_create_file
+      - debugfs_create_dir
+    test_priority: low
+    description: Debug filesystem (not stable ABI)
+
+abi_breaking_changes:
+  - struct layout change (size, field order, field type)
+  - enum value change
+  - macro value change
+  - exported function signature change
+  - errno return value change
+  - NULL pointer handling change
+  - lock ordering change
+  - reference counting change
+  - memory lifecycle change
+
+compatibility_types:
+  - API_SIGNATURE_CHANGE: Kernel exported function or UAPI prototype change
+  - ABI_CHANGE: UAPI struct layout, enum, macro, symbol, or binary ABI change
+  - INPUT_CONTRACT_CHANGE: Input validation or accepted flag/range change
+  - RETURN_CONTRACT_CHANGE: Return value or output buffer contract change
+  - ERROR_EXCEPTION_CHANGE: errno or diagnostic behavior change
+  - SIDE_EFFECT_CHANGE: Observable state, namespace, permission, or resource side effect change
+  - OUTPUT_FORMAT_CHANGE: Generic visible text/binary output change
+  - PROC_SYS_OUTPUT_CHANGE: /proc, /proc/sys, or /sys entry output/attribute change
+  - SYSCALL_SEMANTIC_CHANGE: syscall number, argument, errno, flag, compat, blocking, or timeout semantic change
+  - IOCTL_NETLINK_ABI_CHANGE: ioctl command or netlink family/attribute/policy ABI change
+  - CONFIG_CLI_BEHAVIOR_CHANGE: Kconfig, module parameter, or tool behavior change
+  - RESOURCE_LIFETIME_CHANGE: reference count, fd, memory, lock, or lifetime change
+  - PERFORMANCE_RESOURCE_SEMANTIC_CHANGE: timeout, retry, limit, or resource consumption semantic change
+
+ignore_patterns:
+  # Internal kernel changes that are NOT compatibility issues
+  - static functions
+  - functions in .c files not in headers unless EXPORT_SYMBOL
+  - arch/*/kernel/** (unless in uapi)
+  - tools/** (userspace tools)
+  - samples/**
+  - scripts/**

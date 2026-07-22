@@ -1,0 +1,107 @@
+﻿# CPython Profile
+# API surface definitions for CPython compatibility analysis
+
+name: cpython
+language: c,python
+description: CPython interpreter and standard library
+extends:
+  - default
+  - python_base
+  - c_family
+  - cli_tool
+
+api_surfaces:
+  # Python-level public API
+  python_stdlib:
+    paths:
+      - Lib/**
+    exclude:
+      - Lib/test/**
+      - Lib/**/test_*
+      - Lib/**/tests/**
+    test_priority: high
+    description: Python standard library public API
+    visibility_rules:
+      - Symbols in __all__ are public
+      - Functions/classes without _ prefix in __init__.py are public
+      - Underscore-prefixed symbols (_internal) are NOT public API
+
+  # C API (Include/)
+  c_api:
+    paths:
+      - Include/**
+      - Include/**/*.h
+    patterns:
+      - PyAPI_FUNC
+      - PyAPI_DATA
+    test_priority: high
+    description: CPython C API
+
+  # Stable ABI
+  stable_abi:
+    paths:
+      - Include/stable_abi.h
+      - PC/python3dll.c
+    patterns:
+      - Py_LIMITED_API
+    test_priority: high
+    description: Limited API / Stable ABI
+
+  # Exception types
+  exceptions:
+    patterns:
+      - PyExc_
+      - raise
+      - ValueError
+      - TypeError
+      - RuntimeError
+      - OSError
+    test_priority: high
+    description: Exception type and message changes
+
+  # Warning/Deprecation
+  deprecation:
+    patterns:
+      - DeprecationWarning
+      - PendingDeprecationWarning
+      - FutureWarning
+      - "@deprecated"
+      - __deprecated__
+    test_priority: medium
+    description: Deprecation and warning changes
+
+  # Return value conventions
+  return_conventions:
+    test_priority: high
+    description: |
+      Python conventions that, if changed, are breaking:
+      - None return vs raising exception
+      - False vs None for falsy returns
+      - Empty list/dict/string vs None
+      - Integer 0 vs None
+
+  # CLI
+  cli:
+    paths:
+      - Modules/main.c
+      - Lib/**/__main__.py
+    test_priority: medium
+    description: Command-line interface behavior
+
+compatibility_types:
+  - API_SIGNATURE_CHANGE: Function/method signature changes
+  - RETURN_CONTRACT_CHANGE: Return value semantics change
+  - ERROR_EXCEPTION_CHANGE: Exception type/message changes
+  - INPUT_CONTRACT_CHANGE: Input validation tightening
+  - SIDE_EFFECT_CHANGE: Observable side effect changes
+  - OUTPUT_FORMAT_CHANGE: Output/string formatting changes
+
+ignore_patterns:
+  - Lib/test/**
+  - Lib/**/test_*
+  - Lib/**/tests/**
+  - Tools/**
+  - Doc/**
+  - Misc/**
+  - Internal _ prefixed module-level symbols
+  - Private methods (__method__ except special methods that are documented)

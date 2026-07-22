@@ -1,0 +1,216 @@
+# Reusable Linux kernel compatibility surface layer.
+
+name: kernel_base
+language: c
+description: Linux kernel UAPI, syscall, ioctl, netlink, procfs, sysfs, sysctl, module, BPF, and tracepoint rules
+profile_kind: base
+
+api_surfaces:
+  uapi:
+    paths:
+      - include/uapi/**
+      - arch/*/include/uapi/**
+    public: true
+    stability: stable
+    test_priority: high
+    semantic_dimensions:
+      - signature
+      - abi_layout
+      - input_contract
+      - return_contract
+      - output_format
+    description: Userspace API headers and stable ABI.
+
+  exported_symbols:
+    patterns:
+      - EXPORT_SYMBOL
+      - EXPORT_SYMBOL_GPL
+      - EXPORT_SYMBOL_NS
+    public: true
+    stability: stable
+    test_priority: high
+    semantic_dimensions:
+      - signature
+      - return_contract
+      - resource_lifetime
+      - side_effect
+    description: Exported kernel symbols used by modules.
+
+  syscall:
+    paths:
+      - kernel/**
+      - fs/**
+      - mm/**
+      - net/**
+      - ipc/**
+      - include/uapi/asm-generic/unistd.h
+      - arch/*/entry/syscalls/**
+    patterns:
+      - SYSCALL_DEFINE
+      - COMPAT_SYSCALL_DEFINE
+      - __SYSCALL
+      - syscall.tbl
+      - __NR_
+    public: true
+    stability: stable
+    test_priority: high
+    semantic_dimensions:
+      - input_contract
+      - return_contract
+      - error_contract
+      - timeout_retry
+      - side_effect
+    description: Syscall tables, validation, errno, flags, compat, blocking, and timeout behavior.
+
+  ioctl:
+    patterns:
+      - .ioctl\s*=
+      - unlocked_ioctl
+      - compat_ioctl
+      - _IO
+      - _IOR
+      - _IOW
+      - _IOWR
+    public: true
+    stability: stable
+    test_priority: high
+    semantic_dimensions:
+      - input_contract
+      - abi_layout
+      - return_contract
+    description: Device ioctl command, structure, validation, and errno behavior.
+
+  netlink:
+    paths:
+      - net/netlink/**
+      - include/net/netlink/**
+      - include/uapi/linux/netlink/**
+    patterns:
+      - nla_policy
+      - genl_family
+      - genl_ops
+      - nla_put
+      - nla_parse
+    public: true
+    stability: stable
+    test_priority: high
+    semantic_dimensions:
+      - input_contract
+      - abi_layout
+      - return_contract
+      - output_format
+    description: Netlink family, operation, attribute, policy, and message behavior.
+
+  procfs:
+    patterns:
+      - proc_create
+      - proc_create_data
+      - proc_create_seq
+      - proc_ops
+      - single_open
+      - seq_printf
+      - seq_puts
+      - seq_putc
+      - seq_read
+      - remove_proc_entry
+    public: true
+    stability: semi_stable
+    test_priority: medium
+    semantic_dimensions:
+      - output_format
+      - permission
+      - error_contract
+    description: /proc entry existence, permissions, and text output format.
+
+  sysfs:
+    patterns:
+      - sysfs_create_file
+      - sysfs_create_group
+      - device_create_file
+      - DEVICE_ATTR
+      - DEVICE_ATTR_RO
+      - DEVICE_ATTR_RW
+      - __ATTR
+      - sysfs_emit
+      - sysfs_emit_at
+      - kobj_attribute
+    public: true
+    stability: semi_stable
+    test_priority: medium
+    semantic_dimensions:
+      - input_contract
+      - output_format
+      - permission
+      - error_contract
+    description: /sys attribute names, permissions, show/store format, and accepted input.
+
+  sysctl:
+    paths:
+      - kernel/sysctl.c
+      - fs/proc/**
+      - net/**
+    patterns:
+      - register_sysctl
+      - unregister_sysctl_table
+      - ctl_table
+      - proc_dointvec
+      - proc_douintvec
+      - proc_dostring
+      - proc_dobool
+      - proc_doulongvec_minmax
+    public: true
+    stability: stable
+    test_priority: high
+    semantic_dimensions:
+      - input_contract
+      - output_format
+      - permission
+      - default_value
+    description: /proc/sys names, permissions, parsers, ranges, defaults, and output.
+
+  module_parameters:
+    patterns:
+      - module_param
+      - module_param_named
+      - module_param_string
+      - module_param_array
+    public: true
+    stability: stable
+    test_priority: medium
+    semantic_dimensions:
+      - input_contract
+      - default_value
+      - permission
+    description: Kernel module parameter names, permissions, defaults, and parsing behavior.
+
+  bpf:
+    paths:
+      - kernel/bpf/**
+      - include/uapi/linux/bpf.h
+    public: true
+    stability: stable
+    test_priority: high
+    semantic_dimensions:
+      - input_contract
+      - return_contract
+      - verifier_semantics
+    description: BPF helper, UAPI, verifier, and observable program behavior.
+
+  tracepoints:
+    patterns:
+      - TRACE_EVENT
+      - DECLARE_EVENT_CLASS
+      - DEFINE_EVENT
+    public: true
+    stability: semi_stable
+    test_priority: medium
+    semantic_dimensions:
+      - output_format
+      - abi_layout
+    description: Tracepoint name, field, and event format.
+
+ignore_patterns:
+  - tools/** unless analyzing the user-space tool itself
+  - samples/**
+  - scripts/**
+  - debugfs-only output unless documented or consumed by tests/tools

@@ -1,0 +1,185 @@
+# openEuler 24.03 System Interface Profile
+
+name: openeuler_24_03
+language: c,cpp
+description: openEuler 24.03 C/C++ libraries and Linux system interfaces
+extends:
+  - default
+  - c_family
+  - kernel_base
+  - cli_tool
+  - daemon_network
+
+api_surfaces:
+  c_cpp_public_headers:
+    paths:
+      - include/**
+      - src/include/**
+      - lib*/include/**
+      - api/**
+      - '**/*.h'
+      - '**/*.hpp'
+    exclude:
+      - '**/*private*.h'
+      - '**/internal/**'
+      - tests/**
+    patterns:
+      - __attribute__\(\(visibility\("default"\)\)\)
+      - extern
+      - typedef
+    test_priority: high
+    description: Public C/C++ library headers shipped through devel packages
+
+  shared_library_abi:
+    files:
+      - '*.map'
+      - '*.symver'
+      - '*.ver'
+      - '*.sym'
+      - '*.symbols'
+      - '*.def'
+      - '*.exports'
+    patterns:
+      - __attribute__\(\(visibility\("default"\)\)\)
+      - __declspec\(dllexport\)
+      - version
+    test_priority: high
+    description: Shared-library exported symbols, version scripts, and ABI metadata
+
+  pkgconfig_and_cmake:
+    files:
+      - '*.pc'
+      - '*.pc.in'
+      - '*Config.cmake'
+      - '*Targets.cmake'
+    test_priority: high
+    description: Build-time discovery metadata exposed to downstream packages
+
+  syscall_uapi:
+    paths:
+      - include/uapi/**
+      - arch/*/include/uapi/**
+      - arch/*/entry/syscalls/**
+      - kernel/**
+      - fs/**
+      - mm/**
+      - net/**
+      - ipc/**
+    patterns:
+      - SYSCALL_DEFINE
+      - COMPAT_SYSCALL_DEFINE
+      - __SYSCALL
+      - __NR_
+      - syscall.tbl
+      - copy_to_user
+      - copy_from_user
+    test_priority: high
+    description: System calls and UAPI visible to openEuler user space
+
+  ioctl_netlink_abi:
+    patterns:
+      - unlocked_ioctl
+      - compat_ioctl
+      - _IO
+      - _IOR
+      - _IOW
+      - _IOWR
+      - nla_policy
+      - genl_family
+      - genl_ops
+      - nla_put
+      - nla_parse
+    paths:
+      - include/uapi/**
+      - drivers/**
+      - net/**
+    test_priority: high
+    description: ioctl commands and netlink family/attribute ABI
+
+  procfs_output:
+    patterns:
+      - proc_create
+      - proc_create_data
+      - proc_create_seq
+      - proc_ops
+      - single_open
+      - seq_printf
+      - seq_puts
+      - seq_putc
+      - seq_read
+    test_priority: high
+    description: /proc entry existence, permissions, and text output format
+
+  sysfs_output:
+    patterns:
+      - sysfs_create_file
+      - sysfs_create_group
+      - device_create_file
+      - DEVICE_ATTR
+      - DEVICE_ATTR_RO
+      - DEVICE_ATTR_RW
+      - __ATTR
+      - sysfs_emit
+      - sysfs_emit_at
+      - kobj_attribute
+    test_priority: high
+    description: /sys attribute existence, show/store semantics, and text output format
+
+  proc_sys_sysctl:
+    patterns:
+      - register_sysctl
+      - unregister_sysctl_table
+      - ctl_table
+      - proc_dointvec
+      - proc_douintvec
+      - proc_dostring
+      - proc_dobool
+      - proc_doulongvec_minmax
+    paths:
+      - kernel/sysctl.c
+      - fs/proc/**
+      - net/**
+    test_priority: high
+    description: /proc/sys names, default values, ranges, permissions, and parser/output behavior
+
+  cli_config_system_behavior:
+    patterns:
+      - getopt
+      - getopt_long
+      - argp_parse
+      - getenv
+      - secure_getenv
+    paths:
+      - src/*main*
+      - tools/**
+      - cli/**
+      - '**/*.conf*'
+      - '**/*.cfg*'
+    test_priority: medium
+    description: Command-line, configuration, and environment behavior used by system tools
+
+compatibility_types:
+  - API_SIGNATURE_CHANGE: Public C/C++ function prototype or visibility change
+  - ABI_CHANGE: Struct layout, enum, macro, exported symbol, version, or binary ABI change
+  - INPUT_CONTRACT_CHANGE: Accepted input, flag, range, NULL, size, or parser contract change
+  - RETURN_CONTRACT_CHANGE: Return value, output parameter, ownership, or buffer contract change
+  - ERROR_EXCEPTION_CHANGE: errno, diagnostic, warning, or failure-mode change
+  - SIDE_EFFECT_CHANGE: Visible state, permission, namespace, file, process, or resource side effect change
+  - OUTPUT_FORMAT_CHANGE: Generic visible text/binary output format change
+  - PROC_SYS_OUTPUT_CHANGE: /proc, /proc/sys, or /sys entry output/attribute change
+  - SYSCALL_SEMANTIC_CHANGE: syscall number, argument, errno, flag, compat, blocking, or timeout semantic change
+  - IOCTL_NETLINK_ABI_CHANGE: ioctl command or netlink family/attribute/policy ABI change
+  - CONFIG_CLI_BEHAVIOR_CHANGE: CLI/config/environment behavior change
+  - RESOURCE_LIFETIME_CHANGE: memory, fd, lock, refcount, or handle lifecycle change
+  - PERFORMANCE_RESOURCE_SEMANTIC_CHANGE: timeout, retry, limit, scheduling, or resource consumption semantic change
+
+ignore_patterns:
+  - tests/**
+  - test/**
+  - t/**
+  - fuzz/**
+  - examples/**
+  - docs/**
+  - doc/**
+  - private/internal helpers not reachable from public headers, CLI, syscall, procfs, sysfs, sysctl, ioctl, or netlink
+  - debugfs-only output unless documented or consumed by shipped tools

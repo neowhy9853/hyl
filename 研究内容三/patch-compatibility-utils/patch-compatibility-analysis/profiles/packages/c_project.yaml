@@ -1,0 +1,216 @@
+# Generic C/C++ Project Profile
+# Used for: libsoup, grub2, libxml2, httpd, vim, git, glib2,
+#           NetworkManager, dnsmasq, haproxy, rsyslog, lvm2, openldap
+
+name: c_project
+language: c,cpp
+description: Generic C/C++ project compatibility analysis
+extends:
+  - default
+  - c_family
+  - cli_tool
+
+api_surfaces:
+  # Public headers
+  public_headers:
+    paths:
+      - include/**
+      - src/include/**
+      - lib*/include/**
+      - api/**
+    test_priority: high
+    description: Public C/C++ headers
+
+  # Exported symbols
+  exported_symbols:
+    patterns:
+      - __declspec(dllexport)
+      - __attribute__((visibility("default")))
+    files:
+      - '*.map'
+      - '*.symver'
+      - '*.sym'
+      - '*.def'
+      - '*.exports'
+    test_priority: high
+    description: Exported shared library symbols
+
+  # pkg-config
+  pkgconfig:
+    files:
+      - '*.pc.in'
+      - '*.pc'
+    test_priority: high
+    description: pkg-config exposed API
+
+  # openEuler/system library syscall wrappers
+  syscall_wrappers:
+    patterns:
+      - syscall
+      - SYS_
+      - __NR_
+      - seccomp
+      - clone3
+      - openat2
+      - statx
+      - pidfd_
+      - io_uring
+    test_priority: high
+    description: |
+      C/C++ library wrappers or consumers of Linux system calls. Treat signature,
+      errno, flag validation, blocking/retry, timeout, and fallback-path changes
+      as compatibility candidates when reachable from public APIs or commands.
+
+  # ioctl and netlink user/kernel ABI consumers
+  ioctl_netlink:
+    patterns:
+      - ioctl
+      - _IO
+      - _IOR
+      - _IOW
+      - _IOWR
+      - NETLINK_
+      - nla_
+      - genl_
+    test_priority: high
+    description: ioctl command, netlink attribute, and kernel ABI consumers
+
+  # proc/sys parsers and output consumers
+  proc_sys_consumers:
+    patterns:
+      - /proc/
+      - /sys/
+      - procfs
+      - sysfs
+      - sysctl
+      - fscanf
+      - sscanf
+      - getline
+      - readdir
+    test_priority: medium
+    description: |
+      User-space parsing or generation of /proc, /proc/sys, or /sys text output.
+      Field order, delimiter, unit, default value, missing-entry, and error-path
+      changes can break scripts, monitoring, installers, and service managers.
+
+  # CLI
+  cli:
+    patterns:
+      - getopt
+      - getopt_long
+      - argparse
+      - argp_parse
+      - command
+      - subcommand
+    paths:
+      - src/*main*
+      - tools/**
+      - cli/**
+    test_priority: high
+    description: Command-line interface
+
+  # Configuration files
+  config:
+    paths:
+      - '**/*.conf*'
+      - '**/*.cfg*'
+      - '**/*.ini*'
+    test_priority: medium
+    description: Configuration file format and keys
+
+  # Environment variables
+  env_vars:
+    patterns:
+      - getenv
+      - secure_getenv
+      - setenv
+    test_priority: medium
+    description: Environment variable behavior
+
+  # Plugin/Module API
+  plugin_api:
+    patterns:
+      - plugin
+      - module_init
+      - module_exit
+      - hook
+      - callback
+    paths:
+      - modules/**
+      - plugins/**
+    test_priority: high
+    description: Plugin or module API
+
+  # Struct/Enum/Macro
+  struct_layout:
+    paths:
+      - include/**
+    test_priority: high
+    description: |
+      ABI-sensitive definitions:
+      - Struct layout (size, field order, field type)
+      - Enum values
+      - Macro definitions
+      - Constants
+
+  # Library callbacks
+  callbacks:
+    patterns:
+      - callback
+      - cb_
+      - _cb
+      - "*callback*"
+    test_priority: high
+    description: Library callback function type changes
+
+  # Protocol/Daemon behavior
+  protocol:
+    paths:
+      - src/*proto*
+      - src/*http*
+      - src/*dns*
+      - src/*dhcp*
+      - src/*ldap*
+    test_priority: high
+    description: Network protocol behavior
+
+  # Logging
+  logging:
+    patterns:
+      - syslog
+      - journal
+      - log_
+      - LOG_
+    test_priority: low
+    description: Log output format (usually low test priority)
+
+compatibility_types:
+  - API_SIGNATURE_CHANGE: Function prototype/visibility change
+  - ABI_CHANGE: Struct layout/enum/macro/exported symbol change
+  - INPUT_CONTRACT_CHANGE: Input validation change
+  - RETURN_CONTRACT_CHANGE: Return value/errno change
+  - ERROR_EXCEPTION_CHANGE: Error code/exception change
+  - SIDE_EFFECT_CHANGE: Observable side effect change
+  - OUTPUT_FORMAT_CHANGE: Output/formatting change
+  - PROC_SYS_OUTPUT_CHANGE: /proc, /proc/sys, or /sys visible output/attribute change
+  - SYSCALL_SEMANTIC_CHANGE: System call wrapper, errno, flag, or fallback semantic change
+  - IOCTL_NETLINK_ABI_CHANGE: ioctl command or netlink attribute ABI/semantic change
+  - CONFIG_CLI_BEHAVIOR_CHANGE: Configuration or CLI change
+  - RESOURCE_LIFETIME_CHANGE: Memory/fd/lock lifecycle change
+  - PERFORMANCE_RESOURCE_SEMANTIC_CHANGE: Performance/timeout/retry change
+
+ignore_patterns:
+  - static functions (in .c files, not in public headers)
+  - tests/**
+  - t/**
+  - test/**
+  - "*_test.c"
+  - "*_test.cpp"
+  - examples/**
+  - tools/**
+  - scripts/**
+  - contrib/**
+  - doc/**
+  - man/**
+  - Internal/private headers
+  - "#ifdef DEBUG blocks"

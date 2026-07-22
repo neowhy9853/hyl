@@ -1,0 +1,94 @@
+﻿# dnsmasq Profile
+
+name: dnsmasq
+language: c
+description: dnsmasq DNS, DHCP, TFTP, router advertisement, and daemon behavior
+extends:
+  - c_project
+  - cli_tool
+  - daemon_network
+
+variants:
+  openeuler:
+    detect:
+      remotes:
+        - '*atomgit.com/openeuler*'
+    overlay:
+      api_surfaces:
+        downstream_service:
+          paths:
+            - '*.service'
+            - packaging/**
+            - rpm/**
+          public: true
+          stability: semi_stable
+          test_priority: medium
+          description: Downstream service unit and packaging behavior.
+
+api_surfaces:
+  config_cli:
+    paths:
+      - src/option.c
+      - src/config.h
+      - man/**
+    patterns:
+      - myoption
+      - one_opt
+      - option
+      - getopt
+    test_priority: high
+    description: Command-line and dnsmasq.conf option behavior
+
+  dns_protocol:
+    paths:
+      - src/rfc1035.c
+      - src/dnsmasq.c
+      - src/forward.c
+      - src/cache.c
+      - src/dnssec.c
+    patterns:
+      - DNS
+      - query
+      - answer
+      - cache
+    test_priority: high
+    description: DNS query, response, cache, and DNSSEC semantics
+
+  dhcp_protocol:
+    paths:
+      - src/dhcp*.c
+      - src/rfc2131.c
+      - src/rfc3315.c
+    patterns:
+      - DHCP
+      - lease
+      - option
+    test_priority: high
+    description: DHCPv4/v6 lease and option behavior
+
+  daemon_interfaces:
+    paths:
+      - src/dbus.c
+      - src/ubus.c
+      - src/metrics.c
+    patterns:
+      - dbus
+      - ubus
+      - metrics
+    test_priority: medium
+    description: Runtime daemon control and metrics interfaces
+
+compatibility_types:
+  - INPUT_CONTRACT_CHANGE: DNS/DHCP/config input validation change
+  - RETURN_CONTRACT_CHANGE: Protocol response or status convention change
+  - ERROR_EXCEPTION_CHANGE: SERVFAIL/NXDOMAIN/logged error behavior change
+  - OUTPUT_FORMAT_CHANGE: Lease/log/metrics output format change
+  - CONFIG_CLI_BEHAVIOR_CHANGE: Option or config behavior change
+  - SIDE_EFFECT_CHANGE: Cache, lease, network, or daemon state side effect change
+  - PERFORMANCE_RESOURCE_SEMANTIC_CHANGE: Timeout, retry, cache, or rate behavior change
+
+ignore_patterns:
+  - test/**
+  - contrib/**
+  - bld/**
+  - static helpers not reachable from config/protocol/daemon interfaces

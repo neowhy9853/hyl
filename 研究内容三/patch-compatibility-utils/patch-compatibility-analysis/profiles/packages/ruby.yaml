@@ -1,0 +1,93 @@
+﻿# Ruby Profile
+# API surface definitions for Ruby compatibility analysis
+
+name: ruby
+language: c,ruby
+description: Ruby interpreter and standard library
+extends:
+  - default
+  - ruby_base
+  - c_family
+  - cli_tool
+
+api_surfaces:
+  # Ruby public methods
+  ruby_public_api:
+    description: Ruby public methods and classes
+    visibility_rules:
+      - public methods (not private/protected)
+      - Classes and modules defined in stdlib
+      - Methods without `:nodoc:` marker
+    test_priority: high
+
+  # C extension API
+  c_ext_api:
+    paths:
+      - include/ruby/**
+      - include/ruby/*.h
+    patterns:
+      - rb_
+      - ruby_
+      - VALUE
+    test_priority: high
+    description: Ruby C extension API
+
+  # Exception types
+  exceptions:
+    patterns:
+      - raise
+      - rescue
+      - Exception
+      - StandardError
+      - RuntimeError
+      - ArgumentError
+      - TypeError
+    test_priority: high
+    description: Exception type and hierarchy changes
+
+  # Nil/false semantics
+  nil_semantics:
+    test_priority: medium
+    description: |
+      Return value conventions:
+      - nil vs false
+      - nil vs empty string/array/hash
+      - nil vs raising exception
+
+  # Keyword arguments
+  keyword_args:
+    test_priority: high
+    description: Keyword argument changes (adding required kwargs, renaming kwargs)
+
+  # Encoding
+  encoding:
+    paths:
+      - lib/**/encoding*
+      - enc/**
+    test_priority: medium
+    description: String encoding behavior
+
+  # CLI
+  cli:
+    paths:
+      - ruby.c
+      - lib/optparse*
+    test_priority: medium
+    description: Ruby CLI options and behavior
+
+compatibility_types:
+  - API_SIGNATURE_CHANGE: Method signature/arity change
+  - RETURN_CONTRACT_CHANGE: Return value semantics change
+  - ERROR_EXCEPTION_CHANGE: Exception type/message/hierarchy change
+  - INPUT_CONTRACT_CHANGE: Input validation change
+  - SIDE_EFFECT_CHANGE: Side effect change
+  - OUTPUT_FORMAT_CHANGE: String/encoding/formatting change
+
+ignore_patterns:
+  - test/**
+  - spec/**
+  - sample/**
+  - tool/**
+  - benchmark/**
+  - Private methods (after `private` keyword in class body)
+  - "`:nodoc:` marked symbols"
