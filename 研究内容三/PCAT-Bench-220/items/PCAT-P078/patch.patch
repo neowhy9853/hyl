@@ -1,0 +1,240 @@
+diff --git a/doc/man/man5/slapd.access.5 b/doc/man/man5/slapd.access.5
+index 68525b23834abf41087ca131de532bc5d530854b..2bb3883a365ce3fbb6eccf4b61cca92145bdd7ca 100644
+--- a/doc/man/man5/slapd.access.5
++++ b/doc/man/man5/slapd.access.5
+@@ -154,6 +154,8 @@ It can have the forms
+ 	dn[.<dnstyle>]=<dnpattern>
+ 	filter=<ldapfilter>
+ 	attrs=<attrlist>[ val[/matchingRule][.<attrstyle>]=<attrval>]
++	op=<operation>|<oid>
++	control=<oid>
+ .fi
+ .LP
+ with
+@@ -275,10 +277,26 @@ or
+ .BR children ,
+ resulting in base, onelevel, subtree or children match, respectively.
+ .LP
+-The dn, filter, and attrs statements are additive; they can be used in sequence 
+-to select entities the access rule applies to based on naming context,
+-value and attribute type simultaneously.
+-Submatches resulting from
++The statement
++.B op=<operation>|<oid>
++narrows the rule to a specific operation (e.g. search, rename) or, if
++.B oid
++is provided, a specific extended operation.
++.B objectIdentifier macros
++are also resolved but keep in mind that those are currently case-sensitive.
++.LP
++The statement
++.B control=<oid>
++narrows the rule to when a specific control has been requested. Same as with
++the
++.B op=<oid>
++case, you can make use of
++.B objectIdentifier macros
++from the schema.
++.LP
++The dn, filter, attrs, op and control statements are additive; they can be used
++in sequence to select entities the access rule applies to based on naming
++context, value and attribute type simultaneously. Submatches resulting from
+ .B regex
+ matching can be dereferenced in the
+ .B <who>
+diff --git a/servers/slapd/acl.c b/servers/slapd/acl.c
+index 36d526f6d4922001a8b404efd27e6cec9c208a50..2589febbc53b5b2ff33d79c002896aad79160126 100644
+--- a/servers/slapd/acl.c
++++ b/servers/slapd/acl.c
+@@ -545,6 +545,20 @@ slap_acl_get(
+ 		if ( a != frontendDB->be_acl && state->as_fe_done )
+ 			state->as_fe_done++;
+ 
++		if ( a->acl_op ) {
++			slap_restrictop_t restrictop = SLAP_OP2RESTRICT(slap_req2op( op->o_tag ));
++			if ( !(a->acl_op & restrictop) )
++				continue;
++
++			if ( restrictop == SLAP_RESTRICT_OP_EXTENDED && !BER_BVISNULL( &a->acl_oid ) &&
++					ber_bvcmp( &a->acl_oid, &op->oq_extended.rs_reqoid ) != 0 )
++				continue;
++		}
++
++		if ( a->acl_control &&
++				_SCM(op->o_ctrlflag[a->acl_control]) <= SLAP_CONTROL_IGNORED )
++			continue;
++
+ 		if ( a->acl_dn_pat.bv_len || ( a->acl_dn_style != ACL_STYLE_REGEX )) {
+ 			if ( a->acl_dn_style == ACL_STYLE_REGEX ) {
+ 				Debug( LDAP_DEBUG_ACL, "=> dnpat: [%d] %s nsub: %d\n", 
+diff --git a/servers/slapd/aclparse.c b/servers/slapd/aclparse.c
+index ff2c3fe3681a33541ddca8468e1b4272ea106fad..dc22b184ac031d47c66c17fefec215c3248432b2 100644
+--- a/servers/slapd/aclparse.c
++++ b/servers/slapd/aclparse.c
+@@ -1691,6 +1691,51 @@ parse_acl(
+ 						}
+ 					}
+ 
++				} else if ( strcasecmp( left, "control" ) == 0 ) {
++					char *oid = oidm_find( right );
++
++					if ( !oid ) {
++						snprintf( c->cr_msg, sizeof( c->cr_msg ),
++							"bad control OID \"%s\" in to clause", right );
++						Debug( LDAP_DEBUG_ANY, "%s: %s.\n", c->log, c->cr_msg );
++						goto fail;
++					}
++
++					if ( slap_find_control_id( oid, &a->acl_control ) ) {
++						if ( oid != right ) {
++							ch_free( oid );
++						}
++						snprintf( c->cr_msg, sizeof( c->cr_msg ),
++							"unknown control \"%s\" in to clause", right );
++						Debug( LDAP_DEBUG_ANY, "%s: %s.\n", c->log, c->cr_msg );
++						goto fail;
++					}
++					ber_str2bv( right, 0, 1, &a->acl_controlval );
++					if ( oid != right ) {
++						ch_free( oid );
++					}
++				} else if ( strcasecmp( left, "op" ) == 0 ) {
++					int i = verb_to_mask( right, slap_restrictable_ops );
++
++					a->acl_op = slap_restrictable_ops[i].mask;
++					if ( !a->acl_op ) {
++						char *oid = oidm_find( right );
++						if ( oid ) {
++							ber_str2bv( oid, 0, oid == right, &a->acl_oid );
++							a->acl_op = SLAP_RESTRICT_OP_EXTENDED;
++						}
++					}
++
++					/* Also filter out "extended=..." because those should be
++					 * specified by OID directly */
++					a->acl_op &= SLAP_RESTRICT_OP_MASK;
++					if ( !a->acl_op ) {
++						snprintf( c->cr_msg, sizeof( c->cr_msg ),
++							"unsupported operation type \"%s\" in to clause", right );
++						Debug( LDAP_DEBUG_ANY, "%s: %s.\n", c->log, c->cr_msg );
++						goto fail;
++					}
++					ber_str2bv( right, 0, 1, &a->acl_opval );
+ 				} else {
+ 					snprintf( c->cr_msg, sizeof( c->cr_msg ),
+ 						"expecting <what> got \"%s\"",
+@@ -2196,9 +2241,11 @@ acl_usage(void)
+ 				"[ by <who> [ <access> ] [ <control> ] ]+ \n";
+ 	char *what =
+ 		"<what> ::= * | dn[.<dnstyle>=<DN>] [filter=<filter>] [attrs=<attrspec>]\n"
++			"\t[op=<opspec>] [control=<oid>]\n"
+ 		"<attrspec> ::= <attrname> [val[/<matchingRule>][.<attrstyle>]=<value>] | <attrlist>\n"
+ 		"<attrlist> ::= <attr> [ , <attrlist> ]\n"
+-		"<attr> ::= <attrname> | @<objectClass> | !<objectClass> | entry | children\n";
++		"<attr> ::= <attrname> | @<objectClass> | !<objectClass> | entry | children\n"
++		"<opspec> ::= <LDAPOperation> | <oid>\n";
+ 
+ 	char *who =
+ 		"<who> ::= [ * | anonymous | users | self | dn[.<dnstyle>]=<DN> ]\n"
+@@ -2394,6 +2441,13 @@ acl_free( AccessControl *a )
+ 			ber_memfree( a->acl_attrval.bv_val );
+ 		}
+ 	}
++	if ( !BER_BVISNULL( &a->acl_controlval ) ) {
++		free( a->acl_controlval.bv_val );
++	}
++	if ( !BER_BVISNULL( &a->acl_opval ) ) {
++		free( a->acl_opval.bv_val );
++		free( a->acl_oid.bv_val );
++	}
+ 	for ( ; a->acl_access; a->acl_access = n ) {
+ 		n = a->acl_access->a_next;
+ 		access_free( a->acl_access );
+@@ -2815,6 +2869,20 @@ acl_unparse( AccessControl *a, struct berval *bv )
+ 		ptr = acl_safe_strcopy( ptr, "\"\n" );
+ 	}
+ 
++	if ( !BER_BVISNULL( &a->acl_opval ) ) {
++		to++;
++		ptr = acl_safe_strcopy( ptr, " op=" );
++		ptr = acl_safe_strbvcopy( ptr, &a->acl_opval );
++		ptr = acl_safe_strcopy( ptr, "\n" );
++	}
++
++	if ( !BER_BVISNULL( &a->acl_controlval ) ) {
++		to++;
++		ptr = acl_safe_strcopy( ptr, " control=" );
++		ptr = acl_safe_strbvcopy( ptr, &a->acl_controlval );
++		ptr = acl_safe_strcopy( ptr, "\n" );
++	}
++
+ 	if ( !to ) {
+ 		ptr = acl_safe_strcopy( ptr, " *\n" );
+ 	}
+diff --git a/servers/slapd/slap.h b/servers/slapd/slap.h
+index 36353b5a456f0827fbf960a92b4b84ecccb4246c..6b19ae2b545422dd35d39aabe6c9f17e788d2eaa 100644
+--- a/servers/slapd/slap.h
++++ b/servers/slapd/slap.h
+@@ -1612,6 +1612,13 @@ typedef struct AccessControl {
+ 	slap_style_t	acl_attrval_style;
+ 	regex_t		acl_attrval_re;
+ 	struct berval	acl_attrval;
++	slap_restrictop_t	acl_op;
++	struct berval	acl_oid;
++	int		acl_control;
++
++	/* Preserved op= and control= parts as configured */
++	struct berval	acl_opval;
++	struct berval	acl_controlval;
+ 
+ 	/* "by" part: list of who has what access to the entries */
+ 	Access	*acl_access;
+diff --git a/tests/data/slapd-acl.conf b/tests/data/slapd-acl.conf
+index 803acba85a8c3f0ef5fdb321009e42c59f8808ce..a761851372b7cfa637577a79ff8563735d371f42 100644
+--- a/tests/data/slapd-acl.conf
++++ b/tests/data/slapd-acl.conf
+@@ -131,6 +131,12 @@ access		to dn.exact="cn=Alumni Assoc Staff,ou=Groups,dc=example,dc=com"
+ access		to filter="(name=X*Y*Z)"
+ 		by * continue
+ 
++access		to dn.subtree="ou=Add & Delete,dc=example,dc=com" control=manageDSAiT
++		by * read
++
++access		to dn.subtree="ou=Add & Delete,dc=example,dc=com" op=search
++		by * write
++
+ access		to dn.subtree="ou=Add & Delete,dc=example,dc=com"
+ 		by dn.exact="cn=Bjorn Jensen,ou=Information Technology Division,ou=People,dc=example,dc=com" add
+ 		by dn.exact="cn=Barbara Jensen,ou=Information Technology Division,ou=People,dc=example,dc=com" delete
+diff --git a/tests/scripts/test006-acls b/tests/scripts/test006-acls
+index 4cfb15336f3cc10be09d3be98f02bb18e7161eb7..cfcec9d349f7b96fa58b4914f67970d916e438b5 100755
+--- a/tests/scripts/test006-acls
++++ b/tests/scripts/test006-acls
+@@ -613,6 +613,27 @@ case $RC in
+ 	;;
+ esac
+ 
++$LDAPMODIFY -D "$BABSDN" -H $URI1 -w bjensen -M >> \
++	$TESTOUT 2>&1 << EOMODS15a
++dn: cn=Added by Bjorn (will be deleted),ou=Add & Delete,dc=example,dc=com
++changetype: delete
++EOMODS15a
++RC=$?
++case $RC in
++50)
++	;;
++0)
++	echo "ldapmodify should have failed ($RC)!"
++	test $KILLSERVERS != no && kill -HUP $KILLPIDS
++	exit 1
++	;;
++*)
++	echo "ldapmodify failed ($RC)!"
++	test $KILLSERVERS != no && kill -HUP $KILLPIDS
++	exit $RC
++	;;
++esac
++
+ $LDAPMODIFY -D "$BABSDN" -H $URI1 -w bjensen >> \
+ 	$TESTOUT 2>&1 << EOMODS15
+ dn: cn=Added by Bjorn (will be deleted),ou=Add & Delete,dc=example,dc=com

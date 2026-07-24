@@ -1,0 +1,1153 @@
+diff --git a/doc/source/configuration/actions.rst b/doc/source/configuration/actions.rst
+index e426830d938bdfd2e1ccc72cc7eab504ce4b5106..5ebc7020a720dfa1dbda3d51a4898c0de377be63 100644
+--- a/doc/source/configuration/actions.rst
++++ b/doc/source/configuration/actions.rst
+@@ -185,6 +185,14 @@ Note: parameter names are case-insensitive.
+   causes queue to refer to the original message object, with
+   reference-counting. (Introduced with 8.10.0).
+ 
++- **action.ratelimit.name** string
++
++  References a named :doc:`ratelimit object <../rainerscript/configuration_objects/ratelimit>`
++  whose external YAML policy has ``scope: output``. The action carries only
++  the policy name; interval, burst, mode, and future output-limit settings are
++  defined in the policy file so they can be reloaded. ``mode: pace`` requires a
++  non-direct action queue.
++
+ Useful Links
+ ------------
+ 
+diff --git a/doc/source/rainerscript/configuration_objects/ratelimit.rst b/doc/source/rainerscript/configuration_objects/ratelimit.rst
+index 28cf2fc77698611a76397f4ffb160c8de4a56aba..2291cd8239a64876137e59b7086b58e554a30584 100644
+--- a/doc/source/rainerscript/configuration_objects/ratelimit.rst
++++ b/doc/source/rainerscript/configuration_objects/ratelimit.rst
+@@ -5,8 +5,10 @@ ratelimit Object
+ 
+ .. versionadded:: 8.2602.0
+ 
+-The ``ratelimit`` object allows defining named rate limit policies that can be reused across multiple inputs.
+-This is particularly useful for applying a consistent policy to a group of listeners or for managing rate limits centrally.
++The ``ratelimit`` object allows defining named rate limit policies that can be
++reused across multiple inputs and, when explicitly scoped in a YAML policy
++file, output actions. This is useful for applying a consistent policy to a
++group of listeners or for managing action output limits centrally.
+ 
+ Parameters
+ ----------
+@@ -132,7 +134,8 @@ policy
+    "string", "no", "none"
+ 
+ Path to a YAML file that defines rate limit settings. The file can contain
+-global settings and, for new configurations, a nested ``perSource`` section:
++global settings and, for new input configurations, a nested ``perSource``
++section:
+ 
+ .. code-block:: yaml
+ 
+@@ -163,6 +166,51 @@ per-source parameters on the same ``ratelimit()`` object, such as
+ ``perSource``, ``perSourcePolicy``, ``perSourceKeyTpl``,
+ ``perSourceMaxStates``, or ``perSourceTopN``.
+ 
++Output policies
++---------------
++
++Output rate limiting uses the same named ``ratelimit()`` handle, but all
++tunable settings must be defined in the external YAML policy file. The action
++references only the policy name via ``action.ratelimit.name``. This keeps
++output limits reloadable through HUP or ``policyWatch`` and avoids duplicating
++interval, burst, or mode settings on every action.
++
++An output policy must set ``scope: output`` and ``mode`` in the YAML file:
++
++.. code-block:: yaml
++
++   scope: output
++   mode: drop
++   interval: 1
++   burst: 500
++
++Supported output modes are:
++
++``drop``
++   Excess messages are discarded before the output module is invoked. The
++   action reports them through its ratelimit counters.
++
++``pace``
++   Messages are preserved by waiting in the action queue worker until the next
++   rate-limit window permits delivery. ``pace`` requires a non-direct action
++   queue so the wait does not block the main processing path.
++
++Example:
++
++.. code-block:: none
++
++   ratelimit(name="siem_eps" policy="/etc/rsyslog.d/siem-eps.yaml"
++             policyWatch="on")
++
++   action(type="omfwd" target="siem.example.net" port="514" protocol="tcp"
++          queue.type="linkedlist"
++          action.ratelimit.name="siem_eps")
++
++Output policies do not support ``severity`` or ``perSource`` in this version.
++Future output-policy work is expected to add fair per-source scheduling,
++byte-rate limits, and source-key overrides without changing the action
++reference shape.
++
+ .. _ratelimit_persourcepolicy:
+ 
+ perSourcePolicy
+diff --git a/runtime/action.c b/runtime/action.c
+index 17b43d1cd967f9fa7dfe159c738a925e8e362c3a..6cad0666d4d5dcfab44b943b1145d21b2f07e4a4 100644
+--- a/runtime/action.c
++++ b/runtime/action.c
+@@ -90,6 +90,7 @@
+ #include "parserif.h"
+ #include "statsobj.h"
+ #include "runtime/translate.h"
++#include "ratelimit.h"
+ 
+ /* AIXPORT : cs renamed to legacy_cs as clashes with libpthreads variable in complete file*/
+ #ifdef _AIX
+@@ -175,6 +176,7 @@ static struct cnfparamdescr cnfparamdescr[] = {
+     {"action.resumeintervalmax", eCmdHdlrPositiveInt, 0},
+     {"action.resumeinterval", eCmdHdlrInt, 0},
+     {"action.externalstate.file", eCmdHdlrString, 0},
++    {"action.ratelimit.name", eCmdHdlrString, 0},
+     {"action.copymsg", eCmdHdlrBinary, 0}};
+ static struct cnfparamblk pblk = {CNFPARAMBLK_VERSION, sizeof(cnfparamdescr) / sizeof(struct cnfparamdescr),
+                                   cnfparamdescr};
+@@ -317,12 +319,14 @@ rsRetVal actionDestruct(action_t *const pThis) {
+      */
+     if (pThis->statsobj != NULL) statsobj.Destruct(&pThis->statsobj);
+ 
++    if (pThis->ratelimiter != NULL) ratelimitDestruct(pThis->ratelimiter);
+     if (pThis->fdErrFile != -1) close(pThis->fdErrFile);
+     pthread_mutex_destroy(&pThis->mutErrFile);
+     pthread_mutex_destroy(&pThis->mutAction);
+     pthread_mutex_destroy(&pThis->mutWrkrDataTable);
+     free((void *)pThis->pszErrFile);
+     free((void *)pThis->pszExternalStateFile);
++    free(pThis->pszRatelimitName);
+     free(pThis->pszName);
+     nvlstDestruct(pThis->pSyntaxLst);
+     free(pThis->ppTpl);
+@@ -371,6 +375,8 @@ rsRetVal actionConstruct(action_t **ppThis) {
+     pThis->maxErrFileSize = 0;
+     pThis->currentErrFileSize = 0;
+     pThis->pszExternalStateFile = NULL;
++    pThis->pszRatelimitName = NULL;
++    pThis->ratelimiter = NULL;
+     pThis->fdErrFile = -1;
+     pThis->bWriteAllMarkMsgs = 1;
+     pThis->iExecEveryNthOccur = 0;
+@@ -500,6 +506,19 @@ rsRetVal actionConstructFinalize(action_t *__restrict__ const pThis, struct nvls
+     CHKiRet(statsobj.AddCounter(pThis->statsobj, UCHAR_CONSTANT("resumed"), ctrType_IntCtr, CTR_FLAG_RESETTABLE,
+                                 &pThis->ctrResume));
+ 
++    STATSCOUNTER_INIT(pThis->ctrRateLimitAllowed, pThis->mutCtrRateLimitAllowed);
++    CHKiRet(statsobj.AddCounter(pThis->statsobj, UCHAR_CONSTANT("ratelimit.allowed"), ctrType_IntCtr,
++                                CTR_FLAG_RESETTABLE, &pThis->ctrRateLimitAllowed));
++    STATSCOUNTER_INIT(pThis->ctrRateLimitDropped, pThis->mutCtrRateLimitDropped);
++    CHKiRet(statsobj.AddCounter(pThis->statsobj, UCHAR_CONSTANT("ratelimit.dropped"), ctrType_IntCtr,
++                                CTR_FLAG_RESETTABLE, &pThis->ctrRateLimitDropped));
++    STATSCOUNTER_INIT(pThis->ctrRateLimitPaced, pThis->mutCtrRateLimitPaced);
++    CHKiRet(statsobj.AddCounter(pThis->statsobj, UCHAR_CONSTANT("ratelimit.paced"), ctrType_IntCtr, CTR_FLAG_RESETTABLE,
++                                &pThis->ctrRateLimitPaced));
++    STATSCOUNTER_INIT(pThis->ctrRateLimitPacedUsec, pThis->mutCtrRateLimitPacedUsec);
++    CHKiRet(statsobj.AddCounter(pThis->statsobj, UCHAR_CONSTANT("ratelimit.paced_usec"), ctrType_IntCtr,
++                                CTR_FLAG_RESETTABLE, &pThis->ctrRateLimitPacedUsec));
++
+     CHKiRet(statsobj.ConstructFinalize(pThis->statsobj));
+ 
+     /* create our queue */
+@@ -582,6 +601,24 @@ rsRetVal actionConstructFinalize(action_t *__restrict__ const pThis, struct nvls
+     }
+     qqueueCorrectParams(pThis->pQueue);
+ 
++    if (pThis->pszRatelimitName != NULL) {
++        CHKiRet(ratelimitNewFromConfigForScope(&pThis->ratelimiter, loadConf, (char *)pThis->pszRatelimitName, "action",
++                                               (char *)pThis->pszName, RATELIMIT_SCOPE_OUTPUT));
++        ratelimitSetNoTimeCache(pThis->ratelimiter);
++        ratelimitSetThreadSafe(pThis->ratelimiter);
++        if (pThis->pQueue->qType == QUEUETYPE_DIRECT) {
++            ratelimitForbidOutputPace(pThis->ratelimiter);
++        }
++        if (ratelimitGetOutputMode(pThis->ratelimiter) == RATELIMIT_OUTPUT_MODE_PACE &&
++            pThis->pQueue->qType == QUEUETYPE_DIRECT) {
++            LogError(0, RS_RET_CONFIG_ERROR,
++                     "action '%s': action.ratelimit.name='%s' uses pace mode, which requires a non-direct action "
++                     "queue",
++                     pThis->pszName, pThis->pszRatelimitName);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++    }
++
+ #undef setQPROP
+ #undef setQPROPstr
+ 
+@@ -705,6 +742,45 @@ static void actionCommitted(action_t *const pThis, wti_t *const pWti) {
+     actionSetState(pThis, __func__, pWti, ACT_STATE_RDY);
+ }
+ 
++static rsRetVal ATTR_NONNULL() actionCheckOutputRatelimit(action_t *const pAction, wti_t *const pWti) {
++    unsigned int wait_usec;
++    unsigned int sleep_usec;
++    ratelimit_output_mode_t mode;
++    DEFiRet;
++
++    if (pAction->ratelimiter == NULL) FINALIZE;
++
++    mode = ratelimitGetOutputMode(pAction->ratelimiter);
++    if (mode == RATELIMIT_OUTPUT_MODE_DROP) {
++        iRet = ratelimitMsgCount(pAction->ratelimiter, NO_TIME_PROVIDED, (char *)pAction->pszName);
++        if (iRet == RS_RET_OK) {
++            STATSCOUNTER_INC(pAction->ctrRateLimitAllowed, pAction->mutCtrRateLimitAllowed);
++        } else if (iRet == RS_RET_DISCARDMSG) {
++            STATSCOUNTER_INC(pAction->ctrRateLimitDropped, pAction->mutCtrRateLimitDropped);
++        }
++        FINALIZE;
++    }
++
++    for (;;) {
++        wait_usec = 0;
++        iRet = ratelimitMsgCountWait(pAction->ratelimiter, NO_TIME_PROVIDED, (char *)pAction->pszName, &wait_usec);
++        if (iRet == RS_RET_OK) {
++            STATSCOUNTER_INC(pAction->ctrRateLimitAllowed, pAction->mutCtrRateLimitAllowed);
++            FINALIZE;
++        }
++        if (iRet != RS_RET_DISCARDMSG) FINALIZE;
++        if (wtiIsShutdownImmediate(pWti)) {
++            ABORT_FINALIZE(RS_RET_FORCE_TERM);
++        }
++        sleep_usec = wait_usec > 1000000U ? 1000000U : wait_usec;
++        STATSCOUNTER_INC(pAction->ctrRateLimitPaced, pAction->mutCtrRateLimitPaced);
++        STATSCOUNTER_ADD(pAction->ctrRateLimitPacedUsec, pAction->mutCtrRateLimitPacedUsec, sleep_usec);
++        srSleep(sleep_usec / 1000000U, sleep_usec % 1000000U);
++    }
++
++finalize_it:
++    RETiRet;
++}
+ 
+ /* set action state according to external state file (if configured)
+  */
+@@ -1906,6 +1982,13 @@ static rsRetVal processMsgMain(action_t *__restrict__ const pAction,
+         ABORT_FINALIZE(RS_RET_DISABLE_ACTION);
+     }
+ 
++    iRet = actionCheckOutputRatelimit(pAction, pWti);
++    if (iRet == RS_RET_DISCARDMSG) {
++        iRet = RS_RET_OK;
++        FINALIZE;
++    }
++    CHKiRet(iRet);
++
+     CHKiRet(prepareDoActionParams(pAction, pWti, pMsg, ttNow));
+ 
+     if (pAction->isTransactional) {
+@@ -1918,10 +2001,11 @@ static rsRetVal processMsgMain(action_t *__restrict__ const pAction,
+ 
+     iRet = actionProcessMessage(pAction, pWti->actWrkrInfo[pAction->iActionNbr].p.nontx.actParams, pWti);
+     if (pAction->bNeedReleaseBatch) releaseDoActionParams(pAction, pWti, 0);
+-finalize_it:
+     if (iRet == RS_RET_OK) {
+         if (pWti->execState.bDoAutoCommit) iRet = actionCommit(pAction, pWti);
+     }
++
++finalize_it:
+     RETiRet;
+ }
+ 
+@@ -2336,6 +2420,7 @@ static rsRetVal doSubmitToActionQNotAllMark(action_t *const pAction, wti_t *cons
+  */
+ static rsRetVal actionApplyCnfParam(action_t *const pAction, struct cnfparamvals *const pvals) {
+     int i;
++    DEFiRet;
+ 
+     for (i = 0; i < pblk.nParams; ++i) {
+         if (!pvals[i].bUsed) continue;
+@@ -2373,6 +2458,8 @@ static rsRetVal actionApplyCnfParam(action_t *const pAction, struct cnfparamvals
+             pAction->iResumeInterval = pvals[i].val.d.n;
+         } else if (!strcmp(pblk.descr[i].name, "action.resumeintervalmax")) {
+             pAction->iResumeIntervalMax = pvals[i].val.d.n;
++        } else if (!strcmp(pblk.descr[i].name, "action.ratelimit.name")) {
++            CHKmalloc(pAction->pszRatelimitName = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));
+         } else {
+             dbgprintf(
+                 "action: program error, non-handled "
+@@ -2380,7 +2467,9 @@ static rsRetVal actionApplyCnfParam(action_t *const pAction, struct cnfparamvals
+                 pblk.descr[i].name);
+         }
+     }
+-    return RS_RET_OK;
++
++finalize_it:
++    RETiRet;
+ }
+ 
+ 
+diff --git a/runtime/action.h b/runtime/action.h
+index 91751ad79c6fc349136245532f4196ffe74ecc39..c33cb2ecd75584befc3c3502fef7c97dbfde2a55 100644
+--- a/runtime/action.h
++++ b/runtime/action.h
+@@ -40,6 +40,8 @@
+ #include "syslogd-types.h"
+ #include "queue.h"
+ 
++typedef struct ratelimit_s ratelimit_t;
++
+ /* external data */
+ extern int glbliActionResumeRetryCount;
+ 
+@@ -95,6 +97,8 @@ struct action_s {
+     qqueue_t *pQueue; /* action queue */
+     pthread_mutex_t mutAction; /* primary action mutex */
+     uchar *pszName; /* action name */
++    uchar *pszRatelimitName; /* optional output ratelimit policy name */
++    ratelimit_t *ratelimiter; /* optional action-level output ratelimiter */
+     DEF_ATOMIC_HELPER_MUT(mutCAS);
+     /* error file */
+     const char *pszErrFile;
+@@ -117,6 +121,10 @@ struct action_s {
+     STATSCOUNTER_DEF(ctrSuspend, mutCtrSuspend)
+     STATSCOUNTER_DEF(ctrSuspendDuration, mutCtrSuspendDuration)
+     STATSCOUNTER_DEF(ctrResume, mutCtrResume)
++    STATSCOUNTER_DEF(ctrRateLimitAllowed, mutCtrRateLimitAllowed)
++    STATSCOUNTER_DEF(ctrRateLimitDropped, mutCtrRateLimitDropped)
++    STATSCOUNTER_DEF(ctrRateLimitPaced, mutCtrRateLimitPaced)
++    STATSCOUNTER_DEF(ctrRateLimitPacedUsec, mutCtrRateLimitPacedUsec)
+ };
+ 
+ static inline int actionLoadDisabled(action_t *const pAction) {
+diff --git a/runtime/ratelimit.c b/runtime/ratelimit.c
+index 7fbe4d6bc3515885f4c0375c426e8446c0bfb851..8fe3b9829c548e6f679d8eb0b45fd76bdc3f1ea2 100644
+--- a/runtime/ratelimit.c
++++ b/runtime/ratelimit.c
+@@ -266,9 +266,13 @@ struct ratelimit_ps_policy_s {
+ typedef struct ratelimit_ps_policy_s ratelimit_ps_policy_t;
+ 
+ typedef struct ratelimit_policy_file_s {
++    sbool has_scope;
++    sbool has_output_mode;
+     sbool has_interval;
+     sbool has_burst;
+     sbool has_severity;
++    ratelimit_scope_t scope;
++    ratelimit_output_mode_t output_mode;
+     unsigned int interval;
+     unsigned int burst;
+     int severity;
+@@ -456,6 +460,38 @@ finalize_it:
+     RETiRet;
+ }
+ 
++static rsRetVal parsePolicyScopeValue(const char *value, ratelimit_scope_t *out) {
++    DEFiRet;
++
++    if (value == NULL || out == NULL) ABORT_FINALIZE(RS_RET_PARAM_ERROR);
++    if (!strcasecmp(value, "input")) {
++        *out = RATELIMIT_SCOPE_INPUT;
++    } else if (!strcasecmp(value, "output")) {
++        *out = RATELIMIT_SCOPE_OUTPUT;
++    } else {
++        ABORT_FINALIZE(RS_RET_CONF_PARAM_INVLD);
++    }
++
++finalize_it:
++    RETiRet;
++}
++
++static rsRetVal parseOutputModeValue(const char *value, ratelimit_output_mode_t *out) {
++    DEFiRet;
++
++    if (value == NULL || out == NULL) ABORT_FINALIZE(RS_RET_PARAM_ERROR);
++    if (!strcasecmp(value, "drop")) {
++        *out = RATELIMIT_OUTPUT_MODE_DROP;
++    } else if (!strcasecmp(value, "pace")) {
++        *out = RATELIMIT_OUTPUT_MODE_PACE;
++    } else {
++        ABORT_FINALIZE(RS_RET_CONF_PARAM_INVLD);
++    }
++
++finalize_it:
++    RETiRet;
++}
++
+ static rsRetVal parseSeverityValue(const char *value, int *out) {
+     char *end = NULL;
+     long numeric;
+@@ -620,7 +656,21 @@ static rsRetVal parsePolicyFile(const char *policy_file, ratelimit_policy_file_t
+                     sbool boolval = 0;
+ 
+                     if (ctxStack[depth - 1] == CTX_TOP) {
+-                        if (last_key != NULL && !strcmp(last_key, "interval")) {
++                        if (last_key != NULL && !strcmp(last_key, "scope")) {
++                            if (parsePolicyScopeValue(val, &policy->scope) != RS_RET_OK) {
++                                LogError(0, RS_RET_CONF_PARAM_INVLD, "ratelimit: invalid scope value '%s' in %s", val,
++                                         policy_file);
++                                ABORT_FINALIZE(RS_RET_CONF_PARAM_INVLD);
++                            }
++                            policy->has_scope = 1;
++                        } else if (last_key != NULL && !strcmp(last_key, "mode")) {
++                            if (parseOutputModeValue(val, &policy->output_mode) != RS_RET_OK) {
++                                LogError(0, RS_RET_CONF_PARAM_INVLD, "ratelimit: invalid mode value '%s' in %s", val,
++                                         policy_file);
++                                ABORT_FINALIZE(RS_RET_CONF_PARAM_INVLD);
++                            }
++                            policy->has_output_mode = 1;
++                        } else if (last_key != NULL && !strcmp(last_key, "interval")) {
+                             if (parseUnsignedInt(val, &uintval) != RS_RET_OK) {
+                                 LogError(0, RS_RET_CONF_PARAM_INVLD, "ratelimit: invalid interval value '%s' in %s",
+                                          val, policy_file);
+@@ -1311,6 +1361,8 @@ static rsRetVal ratelimitReloadPolicyFile(ratelimit_shared_t *shared, const char
+     unsigned int interval;
+     unsigned int burst;
+     int severity;
++    ratelimit_scope_t scope;
++    ratelimit_output_mode_t output_mode;
+     ratelimit_policy_file_t policy = {0};
+     DEFiRet;
+ 
+@@ -1321,11 +1373,68 @@ static rsRetVal ratelimitReloadPolicyFile(ratelimit_shared_t *shared, const char
+     interval = ratelimitSharedLoadUInt(&shared->interval, &shared->mut);
+     burst = ratelimitSharedLoadUInt(&shared->burst, &shared->mut);
+     severity = ratelimitSharedLoadSeverity(&shared->severity, &shared->mut);
++    pthread_mutex_lock(&shared->mut);
++    output_mode = shared->output_mode;
++    pthread_mutex_unlock(&shared->mut);
+ 
+     CHKiRet(parsePolicyFile(shared->policy_file, &policy));
++    scope = policy.has_scope ? policy.scope : RATELIMIT_SCOPE_INPUT;
++    if (scope != shared->scope) {
++        LogError(0, RS_RET_CONFIG_ERROR,
++                 "ratelimit: %s reload of policy '%s' from file '%s' rejected because scope changed", trigger,
++                 shared->name, shared->policy_file);
++        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++    }
++    if (shared->scope == RATELIMIT_SCOPE_OUTPUT) {
++        if (!policy.has_output_mode) {
++            LogError(0, RS_RET_CONFIG_ERROR,
++                     "ratelimit: %s reload of output policy '%s' from file '%s' rejected because mode is missing",
++                     trigger, shared->name, shared->policy_file);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++        if (!policy.has_interval || !policy.has_burst) {
++            LogError(0, RS_RET_CONFIG_ERROR,
++                     "ratelimit: %s reload of output policy '%s' from file '%s' rejected because interval or burst "
++                     "is missing",
++                     trigger, shared->name, shared->policy_file);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++        if (policy.has_severity || policy.has_per_source) {
++            LogError(0, RS_RET_CONFIG_ERROR,
++                     "ratelimit: %s reload of output policy '%s' from file '%s' rejected due to unsupported fields",
++                     trigger, shared->name, shared->policy_file);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++        output_mode = policy.output_mode;
++    } else if (policy.has_output_mode) {
++        LogError(0, RS_RET_CONFIG_ERROR,
++                 "ratelimit: %s reload of input policy '%s' from file '%s' rejected because output mode is set",
++                 trigger, shared->name, shared->policy_file);
++        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++    }
+     if (policy.has_interval) interval = policy.interval;
+     if (policy.has_burst) burst = policy.burst;
+     if (policy.has_severity) severity = policy.severity;
++    if (shared->scope == RATELIMIT_SCOPE_OUTPUT && output_mode == RATELIMIT_OUTPUT_MODE_PACE) {
++        sbool output_pace_forbidden;
++        if (burst == 0) {
++            LogError(0, RS_RET_CONFIG_ERROR,
++                     "ratelimit: %s reload of output policy '%s' from file '%s' rejected because pace mode requires "
++                     "burst greater than zero",
++                     trigger, shared->name, shared->policy_file);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++        pthread_mutex_lock(&shared->mut);
++        output_pace_forbidden = shared->output_pace_forbidden;
++        pthread_mutex_unlock(&shared->mut);
++        if (output_pace_forbidden) {
++            LogError(0, RS_RET_CONFIG_ERROR,
++                     "ratelimit: %s reload of output policy '%s' from file '%s' rejected because a direct action uses "
++                     "this policy",
++                     trigger, shared->name, shared->policy_file);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++    }
+     if (policy.has_per_source) {
+         CHKiRet(ratelimitApplyPolicyPerSource(shared, &policy, runConf, shared->policy_file));
+     } else if (shared->per_source_policy_from_policy_file) {
+@@ -1335,6 +1444,9 @@ static rsRetVal ratelimitReloadPolicyFile(ratelimit_shared_t *shared, const char
+     ratelimitSharedStoreUInt(&shared->interval, &shared->mut, interval);
+     ratelimitSharedStoreUInt(&shared->burst, &shared->mut, burst);
+     ratelimitSharedStoreSeverity(&shared->severity, &shared->mut, severity);
++    pthread_mutex_lock(&shared->mut);
++    shared->output_mode = output_mode;
++    pthread_mutex_unlock(&shared->mut);
+ 
+     LogMsg(0, RS_RET_OK, LOG_INFO, "ratelimit: %s reloaded policy '%s' from file '%s'", trigger, shared->name,
+            shared->policy_file);
+@@ -1498,7 +1610,9 @@ rsRetVal ratelimitAddConfig(rsconf_t *conf,
+                             const char *per_source_policy_file,
+                             const char *per_source_key_tpl_name,
+                             unsigned int per_source_max_states,
+-                            unsigned int per_source_topn) {
++                            unsigned int per_source_topn,
++                            sbool has_inline_policy_params,
++                            sbool has_legacy_per_source_params) {
+     DEFiRet;
+     ratelimit_shared_t *shared = NULL;
+     ratelimit_shared_t *existing_shared = NULL;
+@@ -1508,6 +1622,8 @@ rsRetVal ratelimitAddConfig(rsconf_t *conf,
+     unsigned int debounce_ms = RATELIMIT_POLICY_WATCH_DEBOUNCE_DFLT_MS;
+     sbool per_source_from_policy_file = 0;
+     sbool bLocked = 0;
++    ratelimit_scope_t scope = RATELIMIT_SCOPE_INPUT;
++    ratelimit_output_mode_t output_mode = RATELIMIT_OUTPUT_MODE_DROP;
+ 
+ 
+     if (name == NULL) {
+@@ -1520,6 +1636,8 @@ rsRetVal ratelimitAddConfig(rsconf_t *conf,
+ 
+     if (policy_file != NULL) {
+         CHKiRet(parsePolicyFile(policy_file, &file_policy));
++        if (file_policy.has_scope) scope = file_policy.scope;
++        if (file_policy.has_output_mode) output_mode = file_policy.output_mode;
+         if (file_policy.has_interval) interval = file_policy.interval;
+         if (file_policy.has_burst) burst = file_policy.burst;
+         if (file_policy.has_severity) severity = file_policy.severity;
+@@ -1546,6 +1664,41 @@ rsRetVal ratelimitAddConfig(rsconf_t *conf,
+         }
+     }
+ 
++    if (scope == RATELIMIT_SCOPE_OUTPUT) {
++        if (policy_file == NULL) {
++            LogError(0, RS_RET_CONFIG_ERROR, "ratelimit: output policy '%s' must use a YAML policy file", name);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++        if (has_inline_policy_params || has_legacy_per_source_params) {
++            LogError(0, RS_RET_CONFIG_ERROR,
++                     "ratelimit: output policy '%s' must define limits only in the YAML policy file", name);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++        if (!file_policy.has_output_mode) {
++            LogError(0, RS_RET_CONFIG_ERROR, "ratelimit: output policy '%s' must define mode in the YAML policy file",
++                     name);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++        if (!file_policy.has_interval || !file_policy.has_burst) {
++            LogError(0, RS_RET_CONFIG_ERROR,
++                     "ratelimit: output policy '%s' must define interval and burst in the YAML policy file", name);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++        if (file_policy.has_severity || file_policy.has_per_source) {
++            LogError(0, RS_RET_CONFIG_ERROR,
++                     "ratelimit: output policy '%s' does not support severity or perSource in this version", name);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++        if (output_mode == RATELIMIT_OUTPUT_MODE_PACE && burst == 0) {
++            LogError(0, RS_RET_CONFIG_ERROR, "ratelimit: output policy '%s' pace mode requires burst greater than zero",
++                     name);
++            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++        }
++    } else if (file_policy.has_output_mode) {
++        LogError(0, RS_RET_CONFIG_ERROR, "ratelimit: input policy '%s' must not define output mode", name);
++        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++    }
++
+     if (per_source_enabled && per_source_policy == NULL) {
+         if (per_source_policy_file == NULL) {
+             LogError(0, RS_RET_CONFIG_ERROR,
+@@ -1580,6 +1733,8 @@ rsRetVal ratelimitAddConfig(rsconf_t *conf,
+     CHKmalloc(shared = calloc(1, sizeof(ratelimit_shared_t)));
+     CHKmalloc(key = strdup(name));
+     shared->name = key;
++    shared->scope = scope;
++    shared->output_mode = output_mode;
+     shared->interval = interval;
+     shared->burst = burst;
+     shared->severity = severity;
+@@ -1671,8 +1826,12 @@ finalize_it:
+     RETiRet;
+ }
+ 
+-rsRetVal ratelimitNewFromConfig(
+-    ratelimit_t **ppThis, rsconf_t *conf, const char *configname, const char *modname, const char *dynname) {
++rsRetVal ratelimitNewFromConfigForScope(ratelimit_t **ppThis,
++                                        rsconf_t *conf,
++                                        const char *configname,
++                                        const char *modname,
++                                        const char *dynname,
++                                        ratelimit_scope_t scope) {
+     DEFiRet;
+     ratelimit_shared_t *shared;
+ 
+@@ -1687,6 +1846,11 @@ rsRetVal ratelimitNewFromConfig(
+         LogError(0, RS_RET_NOT_FOUND, "ratelimit config '%s' not found", configname);
+         ABORT_FINALIZE(RS_RET_NOT_FOUND);
+     }
++    if (shared->scope != scope) {
++        pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);
++        LogError(0, RS_RET_CONFIG_ERROR, "ratelimit config '%s' has incompatible scope for %s", configname, modname);
++        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);
++    }
+     pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);
+ 
+     /* We use ratelimitNew to allocate the instance, but we override the shared ptr */
+@@ -1706,6 +1870,11 @@ finalize_it:
+     RETiRet;
+ }
+ 
++rsRetVal ratelimitNewFromConfig(
++    ratelimit_t **ppThis, rsconf_t *conf, const char *configname, const char *modname, const char *dynname) {
++    return ratelimitNewFromConfigForScope(ppThis, conf, configname, modname, dynname, RATELIMIT_SCOPE_INPUT);
++}
++
+ /* generate a "repeated n times" message */
+ static smsg_t *ratelimitGenRepMsg(ratelimit_t *ratelimit) {
+     smsg_t *repMsg;
+@@ -1867,6 +2036,78 @@ finalize_it:
+     RETiRet;
+ }
+ 
++rsRetVal ratelimitMsgCountWait(ratelimit_t *__restrict__ const ratelimit,
++                               time_t tt,
++                               const char *const appname,
++                               unsigned int *const wait_usec) {
++    unsigned int interval;
++    unsigned int burst;
++    time_t resume_time;
++    time_t wait_sec;
++    DEFiRet;
++
++    if (ratelimit == NULL || wait_usec == NULL) return RS_RET_PARAM_ERROR;
++    (void)appname;
++    *wait_usec = 0;
++
++    if (ratelimit->bThreadSafe) {
++        pthread_mutex_lock(&ratelimit->mut);
++    }
++
++    interval = ratelimitSharedLoadUInt(&ratelimit->pShared->interval, &ratelimit->pShared->mut);
++    burst = ratelimitSharedLoadUInt(&ratelimit->pShared->burst, &ratelimit->pShared->mut);
++    if (interval == 0) goto finalize_it;
++
++    if (ratelimit->bNoTimeCache || tt == 0) tt = time(NULL);
++    if (ratelimit->begin == 0) ratelimit->begin = tt;
++
++    if ((tt >= (time_t)(ratelimit->begin + interval)) || (tt < ratelimit->begin)) {
++        ratelimit->begin = tt;
++        ratelimit->done = 0;
++        tellLostCnt(ratelimit);
++    }
++
++    if (burst > ratelimit->done) {
++        ratelimit->done++;
++    } else {
++        resume_time = ratelimit->begin + interval;
++        wait_sec = (resume_time > tt) ? resume_time - tt : 1;
++        if (wait_sec > (time_t)(UINT_MAX / 1000000U)) {
++            *wait_usec = UINT_MAX;
++        } else {
++            *wait_usec = (unsigned int)wait_sec * 1000000U;
++        }
++        ABORT_FINALIZE(RS_RET_DISCARDMSG);
++    }
++
++finalize_it:
++    if (ratelimit->bThreadSafe) {
++        pthread_mutex_unlock(&ratelimit->mut);
++    }
++    RETiRet;
++}
++
++ratelimit_scope_t ratelimitGetScope(const ratelimit_t *ratelimit) {
++    if (ratelimit == NULL || ratelimit->pShared == NULL) return RATELIMIT_SCOPE_INPUT;
++    return ratelimit->pShared->scope;
++}
++
++ratelimit_output_mode_t ratelimitGetOutputMode(const ratelimit_t *ratelimit) {
++    ratelimit_output_mode_t mode;
++    if (ratelimit == NULL || ratelimit->pShared == NULL) return RATELIMIT_OUTPUT_MODE_DROP;
++    pthread_mutex_lock(&ratelimit->pShared->mut);
++    mode = ratelimit->pShared->output_mode;
++    pthread_mutex_unlock(&ratelimit->pShared->mut);
++    return mode;
++}
++
++void ratelimitForbidOutputPace(ratelimit_t *ratelimit) {
++    if (ratelimit == NULL || ratelimit->pShared == NULL) return;
++    pthread_mutex_lock(&ratelimit->pShared->mut);
++    ratelimit->pShared->output_pace_forbidden = 1;
++    pthread_mutex_unlock(&ratelimit->pShared->mut);
++}
++
+ /* ratelimit a message, that means:
+  * - handle "last message repeated n times" logic
+  * - handle actual (discarding) rate-limiting
+@@ -2163,6 +2404,8 @@ rsRetVal ratelimitNew(ratelimit_t **ppThis, const char *modname, const char *dyn
+     /* Allocate default shared structure for standalone instance */
+     CHKmalloc(pThis->pShared = calloc(1, sizeof(ratelimit_shared_t)));
+     pThis->bOwnsShared = 1;
++    pThis->pShared->scope = RATELIMIT_SCOPE_INPUT;
++    pThis->pShared->output_mode = RATELIMIT_OUTPUT_MODE_DROP;
+     pthread_mutex_init(&pThis->pShared->mut, NULL);
+ 
+     DBGPRINTF("ratelimit:%s:new ratelimiter\n", pThis->name);
+diff --git a/runtime/ratelimit.h b/runtime/ratelimit.h
+index d4c720f4a83b8d605dea5fd6d0038365b3545a4a..e7ea58474bd8e82408d2643e76413da737bf6230 100644
+--- a/runtime/ratelimit.h
++++ b/runtime/ratelimit.h
+@@ -31,8 +31,18 @@ struct ratelimit_ps_state_s;
+ struct template;
+ typedef struct statsobj_s statsobj_t;
+ 
++typedef enum ratelimit_scope_e { RATELIMIT_SCOPE_INPUT = 0, RATELIMIT_SCOPE_OUTPUT } ratelimit_scope_t;
++
++typedef enum ratelimit_output_mode_e {
++    RATELIMIT_OUTPUT_MODE_DROP = 0,
++    RATELIMIT_OUTPUT_MODE_PACE
++} ratelimit_output_mode_t;
++
+ typedef struct ratelimit_shared_s {
+     char *name;
++    ratelimit_scope_t scope;
++    ratelimit_output_mode_t output_mode;
++    sbool output_pace_forbidden;
+     unsigned int interval;
+     unsigned int burst;
+     int severity;
+@@ -102,6 +112,12 @@ typedef struct rsconf_s rsconf_t;
+ rsRetVal ratelimitNew(ratelimit_t **ppThis, const char *modname, const char *dynname);
+ rsRetVal ratelimitNewFromConfig(
+     ratelimit_t **ppThis, rsconf_t *conf, const char *configname, const char *modname, const char *dynname);
++rsRetVal ratelimitNewFromConfigForScope(ratelimit_t **ppThis,
++                                        rsconf_t *conf,
++                                        const char *configname,
++                                        const char *modname,
++                                        const char *dynname,
++                                        ratelimit_scope_t scope);
+ rsRetVal ratelimitAddConfig(rsconf_t *conf,
+                             const char *name,
+                             unsigned int interval,
+@@ -114,7 +130,9 @@ rsRetVal ratelimitAddConfig(rsconf_t *conf,
+                             const char *per_source_policy_file,
+                             const char *per_source_key_tpl_name,
+                             unsigned int per_source_max_states,
+-                            unsigned int per_source_topn);
++                            unsigned int per_source_topn,
++                            sbool has_inline_policy_params,
++                            sbool has_legacy_per_source_params);
+ void ratelimit_cfgsInit(ratelimit_cfgs_t *cfgs);
+ void ratelimit_cfgsDestruct(ratelimit_cfgs_t *cfgs);
+ void ratelimitSetThreadSafe(ratelimit_t *ratelimit);
+@@ -122,6 +140,13 @@ void ratelimitSetLinuxLike(ratelimit_t *ratelimit, unsigned int interval, unsign
+ void ratelimitSetNoTimeCache(ratelimit_t *ratelimit);
+ void ratelimitSetSeverity(ratelimit_t *ratelimit, int severity);
+ rsRetVal ratelimitMsgCount(ratelimit_t *ratelimit, time_t tt, const char *const appname);
++rsRetVal ratelimitMsgCountWait(ratelimit_t *ratelimit,
++                               time_t tt,
++                               const char *const appname,
++                               unsigned int *const wait_usec);
++ratelimit_scope_t ratelimitGetScope(const ratelimit_t *ratelimit);
++ratelimit_output_mode_t ratelimitGetOutputMode(const ratelimit_t *ratelimit);
++void ratelimitForbidOutputPace(ratelimit_t *ratelimit);
+ rsRetVal ATTR_NONNULL(1, 2, 3) ratelimitMsg(ratelimit_t *ratelimit, smsg_t *pMsg, smsg_t **ppRep);
+ rsRetVal ATTR_NONNULL(1, 3) ratelimitAddMsg(ratelimit_t *ratelimit, multi_submit_t *pMultiSub, smsg_t *pMsg);
+ void ratelimitDestruct(ratelimit_t *pThis);
+diff --git a/runtime/rsconf.c b/runtime/rsconf.c
+index 9a6d976ab6f0cc35bbc58056dc9a093750626049..617160521f11d064f25923feca58549a331547e2 100644
+--- a/runtime/rsconf.c
++++ b/runtime/rsconf.c
+@@ -382,9 +382,9 @@ BEGINobjDestruct(rsconf) /* be sure to specify the object type also in END and C
+     free(pThis->globals.stdlog_chanspec);
+ #endif
+     lookupDestroyCnf();
+-    ratelimit_cfgsDestruct(&pThis->ratelimit_cfgs);
+     freeActionNames(pThis);
+     llDestroy(&(pThis->rulesets.llRulesets));
++    ratelimit_cfgsDestruct(&pThis->ratelimit_cfgs);
+ ENDobjDestruct(rsconf)
+ 
+ 
+@@ -524,6 +524,8 @@ static rsRetVal initFunc_ratelimit(struct cnfobj *o) {
+     uchar *per_source_key_tpl = NULL;
+     int per_source_max_states = 0;
+     int per_source_topn = 0;
++    sbool has_inline_policy_params = 0;
++    sbool has_legacy_per_source_params = 0;
+     DEFiRet;
+ 
+     pvals = nvlstGetParams(o->nvlst, &ratelimitpblk, NULL);
+@@ -537,10 +539,13 @@ static rsRetVal initFunc_ratelimit(struct cnfobj *o) {
+             CHKmalloc(name = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));
+         } else if (!strcmp(ratelimitpblk.descr[i].name, "interval")) {
+             interval = (int)pvals[i].val.d.n;
++            has_inline_policy_params = 1;
+         } else if (!strcmp(ratelimitpblk.descr[i].name, "burst")) {
+             burst = (int)pvals[i].val.d.n;
++            has_inline_policy_params = 1;
+         } else if (!strcmp(ratelimitpblk.descr[i].name, "severity")) {
+             severity = (int)pvals[i].val.d.n;
++            has_inline_policy_params = 1;
+         } else if (!strcmp(ratelimitpblk.descr[i].name, "policy")) {
+             CHKmalloc(policy = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));
+         } else if (!strcmp(ratelimitpblk.descr[i].name, "policyWatch")) {
+@@ -549,14 +554,19 @@ static rsRetVal initFunc_ratelimit(struct cnfobj *o) {
+             CHKmalloc(policy_watch_debounce = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));
+         } else if (!strcmp(ratelimitpblk.descr[i].name, "perSource")) {
+             per_source_enabled = (int)pvals[i].val.d.n;
++            has_legacy_per_source_params = 1;
+         } else if (!strcmp(ratelimitpblk.descr[i].name, "perSourcePolicy")) {
+             CHKmalloc(per_source_policy = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));
++            has_legacy_per_source_params = 1;
+         } else if (!strcmp(ratelimitpblk.descr[i].name, "perSourceKeyTpl")) {
+             CHKmalloc(per_source_key_tpl = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));
++            has_legacy_per_source_params = 1;
+         } else if (!strcmp(ratelimitpblk.descr[i].name, "perSourceMaxStates")) {
+             per_source_max_states = (int)pvals[i].val.d.n;
++            has_legacy_per_source_params = 1;
+         } else if (!strcmp(ratelimitpblk.descr[i].name, "perSourceTopN")) {
+             per_source_topn = (int)pvals[i].val.d.n;
++            has_legacy_per_source_params = 1;
+         }
+     }
+ 
+@@ -580,7 +590,7 @@ static rsRetVal initFunc_ratelimit(struct cnfobj *o) {
+     CHKiRet(ratelimitAddConfig(loadConf, (char *)name, (unsigned)interval, (unsigned)burst, severity, (char *)policy,
+                                policy_watch, (char *)policy_watch_debounce, per_source_enabled,
+                                (char *)per_source_policy, (char *)per_source_key_tpl, (unsigned)per_source_max_states,
+-                               (unsigned)per_source_topn));
++                               (unsigned)per_source_topn, has_inline_policy_params, has_legacy_per_source_params));
+ 
+ finalize_it:
+     free(name);
+diff --git a/tests/Makefile.am b/tests/Makefile.am
+index 6dd26a980b8f32181a80aa7cf6ee23ecb150e97a..4b2b993971dcd7162876f27cef5841ef6db6cb9a 100644
+--- a/tests/Makefile.am
++++ b/tests/Makefile.am
+@@ -653,6 +653,10 @@ TESTS_LIBYAML = \
+ 	compat-configformat-yaml.sh \
+ 	compat-defaults-secure-dynafile-yaml.sh \
+ 	global-maxopenfiles-yaml.sh \
++	action-ratelimit-drop.sh \
++	action-ratelimit-pace.sh \
++	action-ratelimit-reload.sh \
++	action-ratelimit-validation.sh \
+ 	ratelimit_hup.sh \
+ 	yaml-basic.sh \
+ 	yaml-basic-yamlonly.sh \
+diff --git a/tests/action-ratelimit-drop.sh b/tests/action-ratelimit-drop.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..99d38199d24479203d1a5e67cede8000010b0707
+--- /dev/null
++++ b/tests/action-ratelimit-drop.sh
+@@ -0,0 +1,31 @@
++#!/bin/bash
++# Verify generic action-level output rate limiting in drop mode.
++# The policy allows five messages in a long window; the oracle is that exactly
++# the first five injected messages reach omfile and later matching messages are
++# intentionally discarded before the output module runs.
++. ${srcdir:=.}/diag.sh init
++
++POLICY_FILE="$(pwd)/${RSYSLOG_DYNNAME}.output-drop.yaml"
++cat > "$POLICY_FILE" << 'YAMLEOF'
++scope: output
++mode: drop
++interval: 60
++burst: 5
++YAMLEOF
++
++generate_conf
++add_conf '
++ratelimit(name="out_drop" policy="'$POLICY_FILE'")
++template(name="outfmt" type="string" string="%msg:F,58:2%\n")
++:msg, contains, "msgnum:" action(type="omfile" file="'$RSYSLOG_OUT_LOG'"
++                                 template="outfmt"
++                                 action.ratelimit.name="out_drop")
++'
++startup
++injectmsg 0 20
++shutdown_when_empty
++wait_shutdown
++
++content_count_check "000000" 5 "$RSYSLOG_OUT_LOG"
++seq_check 0 4
++exit_test
+diff --git a/tests/action-ratelimit-pace.sh b/tests/action-ratelimit-pace.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..94cf55e9bf591a147360728c9e70906874b98b69
+--- /dev/null
++++ b/tests/action-ratelimit-pace.sh
+@@ -0,0 +1,40 @@
++#!/bin/bash
++# Verify generic action-level output rate limiting in pace mode.
++# The linked-list action queue is required so pacing sleeps only the action
++# worker. Four messages with burst two must all be delivered, and elapsed time
++# must show that the second window was reached instead of dropping excess
++# messages.
++. ${srcdir:=.}/diag.sh init
++
++POLICY_FILE="$(pwd)/${RSYSLOG_DYNNAME}.output-pace.yaml"
++cat > "$POLICY_FILE" << 'YAMLEOF'
++scope: output
++mode: pace
++interval: 1
++burst: 2
++YAMLEOF
++
++generate_conf
++add_conf '
++ratelimit(name="out_pace" policy="'$POLICY_FILE'")
++template(name="outfmt" type="string" string="%msg:F,58:2%\n")
++:msg, contains, "msgnum:" action(type="omfile" file="'$RSYSLOG_OUT_LOG'"
++                                 template="outfmt"
++                                 queue.type="linkedlist"
++                                 action.ratelimit.name="out_pace")
++'
++startup
++start_time=$(date +%s)
++injectmsg 0 4
++shutdown_when_empty
++wait_shutdown
++end_time=$(date +%s)
++
++wait_file_lines --abort-on-oversize "$RSYSLOG_OUT_LOG" 4 1
++seq_check 0 3
++elapsed=$((end_time - start_time))
++if [ "$elapsed" -lt 1 ]; then
++	echo "FAIL: pace mode delivered all messages without observable pacing (elapsed ${elapsed}s)"
++	error_exit 1
++fi
++exit_test
+diff --git a/tests/action-ratelimit-reload.sh b/tests/action-ratelimit-reload.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..2c9fe745873efaa8902aa64b4704aea5a7c03239
+--- /dev/null
++++ b/tests/action-ratelimit-reload.sh
+@@ -0,0 +1,57 @@
++#!/bin/bash
++# Verify reload behavior for output-scoped rate limit policies.
++# A HUP with an invalid scope change must keep the previous policy active; a
++# later valid HUP lowers burst to zero, proving output policy reload applies
++# without changing the action reference.
++. ${srcdir:=.}/diag.sh init
++
++POLICY_FILE="$(pwd)/${RSYSLOG_DYNNAME}.output-reload.yaml"
++write_policy() {
++	cat > "$POLICY_FILE" << YAMLEOF
++$1
++YAMLEOF
++}
++
++write_policy 'scope: output
++mode: drop
++interval: 60
++burst: 100'
++
++generate_conf
++add_conf '
++ratelimit(name="out_reload" policy="'$POLICY_FILE'")
++template(name="outfmt" type="string" string="%msg:F,58:2%\n")
++:msg, contains, "msgnum:" action(type="omfile" file="'$RSYSLOG_OUT_LOG'"
++                                 template="outfmt"
++                                 action.ratelimit.name="out_reload")
++'
++startup
++injectmsg 0 5
++wait_queueempty
++content_count_check "000000" 5 "$RSYSLOG_OUT_LOG"
++
++: > "$RSYSLOG_OUT_LOG"
++write_policy 'scope: input
++mode: drop
++interval: 60
++burst: 0'
++issue_HUP
++./msleep 1000
++injectmsg 5 5
++wait_queueempty
++content_count_check "000000" 5 "$RSYSLOG_OUT_LOG"
++
++: > "$RSYSLOG_OUT_LOG"
++write_policy 'scope: output
++mode: drop
++interval: 60
++burst: 0'
++issue_HUP
++./msleep 1000
++injectmsg 10 5
++wait_queueempty
++content_count_check "000000" 0 "$RSYSLOG_OUT_LOG"
++
++shutdown_when_empty
++wait_shutdown
++exit_test
+diff --git a/tests/action-ratelimit-validation.sh b/tests/action-ratelimit-validation.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..6665ef54ca117219bfc1b0f5277fc5e955f60ab0
+--- /dev/null
++++ b/tests/action-ratelimit-validation.sh
+@@ -0,0 +1,86 @@
++#!/bin/bash
++# Validate generic output rate-limit configuration errors with rsyslogd -N1.
++# The oracle is that each invalid configuration fails before startup: actions
++# cannot reference input-scoped policies, output policies cannot use inline
++# tunables or omit required YAML limits, pace mode needs usable burst capacity,
++# and pace mode cannot run on a direct action queue.
++. ${srcdir:=.}/diag.sh init
++
++check_invalid() {
++	conf="$1"
++	../tools/rsyslogd -u2 -N1 -f"$conf" -M../runtime/.libs:../.libs
++	rc=$?
++	if [ "$rc" -eq 0 ]; then
++		echo "FAIL: expected invalid config $conf to fail validation"
++		error_exit 1
++	fi
++}
++
++INPUT_POLICY="$(pwd)/${RSYSLOG_DYNNAME}.input-policy.yaml"
++OUTPUT_DROP_POLICY="$(pwd)/${RSYSLOG_DYNNAME}.output-drop-policy.yaml"
++OUTPUT_MISSING_LIMIT_POLICY="$(pwd)/${RSYSLOG_DYNNAME}.output-missing-limit-policy.yaml"
++OUTPUT_PACE_POLICY="$(pwd)/${RSYSLOG_DYNNAME}.output-pace-policy.yaml"
++OUTPUT_PACE_ZERO_POLICY="$(pwd)/${RSYSLOG_DYNNAME}.output-pace-zero-policy.yaml"
++
++cat > "$INPUT_POLICY" << 'YAMLEOF'
++interval: 60
++burst: 10
++YAMLEOF
++
++cat > "$OUTPUT_DROP_POLICY" << 'YAMLEOF'
++scope: output
++mode: drop
++interval: 60
++burst: 10
++YAMLEOF
++
++cat > "$OUTPUT_MISSING_LIMIT_POLICY" << 'YAMLEOF'
++scope: output
++mode: drop
++YAMLEOF
++
++cat > "$OUTPUT_PACE_POLICY" << 'YAMLEOF'
++scope: output
++mode: pace
++interval: 1
++burst: 1
++YAMLEOF
++
++cat > "$OUTPUT_PACE_ZERO_POLICY" << 'YAMLEOF'
++scope: output
++mode: pace
++interval: 1
++burst: 0
++YAMLEOF
++
++cat > "${RSYSLOG_DYNNAME}.input-used-by-action.conf" << CONFEOF
++ratelimit(name="input_only" policy="$INPUT_POLICY")
++action(type="omfile" file="$RSYSLOG_OUT_LOG" action.ratelimit.name="input_only")
++CONFEOF
++check_invalid "${RSYSLOG_DYNNAME}.input-used-by-action.conf"
++
++cat > "${RSYSLOG_DYNNAME}.output-inline.conf" << CONFEOF
++ratelimit(name="bad_output" policy="$OUTPUT_DROP_POLICY" interval="60")
++action(type="omfile" file="$RSYSLOG_OUT_LOG" action.ratelimit.name="bad_output")
++CONFEOF
++check_invalid "${RSYSLOG_DYNNAME}.output-inline.conf"
++
++cat > "${RSYSLOG_DYNNAME}.output-missing-limit.conf" << CONFEOF
++ratelimit(name="bad_output_missing_limit" policy="$OUTPUT_MISSING_LIMIT_POLICY")
++action(type="omfile" file="$RSYSLOG_OUT_LOG" action.ratelimit.name="bad_output_missing_limit")
++CONFEOF
++check_invalid "${RSYSLOG_DYNNAME}.output-missing-limit.conf"
++
++cat > "${RSYSLOG_DYNNAME}.pace-zero-burst.conf" << CONFEOF
++ratelimit(name="out_pace_zero" policy="$OUTPUT_PACE_ZERO_POLICY")
++action(type="omfile" file="$RSYSLOG_OUT_LOG" queue.type="linkedlist" action.ratelimit.name="out_pace_zero")
++CONFEOF
++check_invalid "${RSYSLOG_DYNNAME}.pace-zero-burst.conf"
++
++cat > "${RSYSLOG_DYNNAME}.pace-direct.conf" << CONFEOF
++ratelimit(name="out_pace" policy="$OUTPUT_PACE_POLICY")
++action(type="omfile" file="$RSYSLOG_OUT_LOG" action.ratelimit.name="out_pace")
++CONFEOF
++check_invalid "${RSYSLOG_DYNNAME}.pace-direct.conf"
++
++exit_test
+diff --git a/tests/stats-cee-vg.sh b/tests/stats-cee-vg.sh
+index 0432183e15db2ced22c139fca23051e70d104898..2b058ea306ae2e24c70b19d39031b99753026a55 100755
+--- a/tests/stats-cee-vg.sh
++++ b/tests/stats-cee-vg.sh
+@@ -3,7 +3,7 @@
+ # This file is part of the rsyslog project, released under ASL 2.0
+ 
+ uname
+-if [ $(uname) = "FreeBSD" ] ; then
++if [ "$(uname)" = "FreeBSD" ] ; then
+    echo "This test currently does not work on FreeBSD."
+    exit 77
+ fi
+@@ -32,5 +32,5 @@ shutdown_when_empty
+ echo wait on shutdown
+ wait_shutdown_vg
+ check_exit_vg
+-custom_content_check '@cee: { "name": "an_action_that_is_never_called", "origin": "core.action", "processed": 0, "batchesprocessed": 0, "failed": 0, "suspended": 0, "suspended.duration": 0, "resumed": 0 }' "${RSYSLOG_DYNNAME}.out.stats.log"
++custom_content_check '@cee: { "name": "an_action_that_is_never_called", "origin": "core.action", "processed": 0, "batchesprocessed": 0, "failed": 0, "suspended": 0, "suspended.duration": 0, "resumed": 0, "ratelimit.allowed": 0, "ratelimit.dropped": 0, "ratelimit.paced": 0, "ratelimit.paced_usec": 0 }' "${RSYSLOG_DYNNAME}.out.stats.log"
+ exit_test
+diff --git a/tests/stats-cee.sh b/tests/stats-cee.sh
+index 2dc728e8cf34defd6808c77b3e0c4df1b4691470..0f897eec238c7de461936fa92ac73f865284b229 100755
+--- a/tests/stats-cee.sh
++++ b/tests/stats-cee.sh
+@@ -24,5 +24,5 @@ echo doing shutdown
+ shutdown_when_empty
+ echo wait on shutdown
+ wait_shutdown
+-custom_content_check '@cee: { "name": "an_action_that_is_never_called", "origin": "core.action", "processed": 0, "batchesprocessed": 0, "failed": 0, "suspended": 0, "suspended.duration": 0, "resumed": 0 }' "${RSYSLOG_DYNNAME}.out.stats.log"
++custom_content_check '@cee: { "name": "an_action_that_is_never_called", "origin": "core.action", "processed": 0, "batchesprocessed": 0, "failed": 0, "suspended": 0, "suspended.duration": 0, "resumed": 0, "ratelimit.allowed": 0, "ratelimit.dropped": 0, "ratelimit.paced": 0, "ratelimit.paced_usec": 0 }' "${RSYSLOG_DYNNAME}.out.stats.log"
+ exit_test
+diff --git a/tests/stats-json-es.sh b/tests/stats-json-es.sh
+index e8f19f685fabe013e12729ae78b9f647aa3ce812..c368202627cd697ec9b1212fc09c54917a39925c 100755
+--- a/tests/stats-json-es.sh
++++ b/tests/stats-json-es.sh
+@@ -24,6 +24,6 @@ echo doing shutdown
+ shutdown_when_empty
+ echo wait on shutdown
+ wait_shutdown
+-custom_content_check '{ "name": "an_action_that_is_never_called", "origin": "core.action", "processed": 0, "batchesprocessed": 0, "failed": 0, "suspended": 0, "suspended!duration": 0, "resumed": 0 }' "${RSYSLOG_DYNNAME}.out.stats.log"
++custom_content_check '{ "name": "an_action_that_is_never_called", "origin": "core.action", "processed": 0, "batchesprocessed": 0, "failed": 0, "suspended": 0, "suspended!duration": 0, "resumed": 0, "ratelimit!allowed": 0, "ratelimit!dropped": 0, "ratelimit!paced": 0, "ratelimit!paced_usec": 0 }' "${RSYSLOG_DYNNAME}.out.stats.log"
+ custom_assert_content_missing '@cee' "${RSYSLOG_DYNNAME}.out.stats.log"
+ exit_test
+diff --git a/tests/stats-json-vg.sh b/tests/stats-json-vg.sh
+index e47faaa87703582a7f4cc02763b4849ed348f476..285db76b2424586e7fd87ef34a4dbb91837e9b73 100755
+--- a/tests/stats-json-vg.sh
++++ b/tests/stats-json-vg.sh
+@@ -3,7 +3,7 @@
+ # This file is part of the rsyslog project, released under ASL 2.0
+ 
+ uname
+-if [ $(uname) = "FreeBSD" ] ; then
++if [ "$(uname)" = "FreeBSD" ] ; then
+    echo "This test currently does not work on FreeBSD."
+    exit 77
+ fi
+@@ -32,6 +32,6 @@ shutdown_when_empty
+ echo wait on shutdown
+ wait_shutdown_vg
+ check_exit_vg
+-custom_content_check '{ "name": "an_action_that_is_never_called", "origin": "core.action", "processed": 0, "batchesprocessed": 0, "failed": 0, "suspended": 0, "suspended.duration": 0, "resumed": 0 }' "${RSYSLOG_DYNNAME}.out.stats.log"
++custom_content_check '{ "name": "an_action_that_is_never_called", "origin": "core.action", "processed": 0, "batchesprocessed": 0, "failed": 0, "suspended": 0, "suspended.duration": 0, "resumed": 0, "ratelimit.allowed": 0, "ratelimit.dropped": 0, "ratelimit.paced": 0, "ratelimit.paced_usec": 0 }' "${RSYSLOG_DYNNAME}.out.stats.log"
+ custom_assert_content_missing '@cee' "${RSYSLOG_DYNNAME}.out.stats.log"
+ exit_test
+diff --git a/tests/stats-json.sh b/tests/stats-json.sh
+index fa6ae1ab71df7ed65072666dfdfdf73a2738eff5..66aa08189cd15e996f6be1caff3a70c4f26a70d3 100755
+--- a/tests/stats-json.sh
++++ b/tests/stats-json.sh
+@@ -23,6 +23,6 @@ echo doing shutdown
+ shutdown_when_empty
+ echo wait on shutdown
+ wait_shutdown
+-custom_content_check '{ "name": "an_action_that_is_never_called", "origin": "core.action", "processed": 0, "batchesprocessed": 0, "failed": 0, "suspended": 0, "suspended.duration": 0, "resumed": 0 }' "${RSYSLOG_DYNNAME}.out.stats.log"
++custom_content_check '{ "name": "an_action_that_is_never_called", "origin": "core.action", "processed": 0, "batchesprocessed": 0, "failed": 0, "suspended": 0, "suspended.duration": 0, "resumed": 0, "ratelimit.allowed": 0, "ratelimit.dropped": 0, "ratelimit.paced": 0, "ratelimit.paced_usec": 0 }' "${RSYSLOG_DYNNAME}.out.stats.log"
+ custom_assert_content_missing '@cee' "${RSYSLOG_DYNNAME}.out.stats.log"
+ exit_test

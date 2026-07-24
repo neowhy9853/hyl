@@ -1,0 +1,80 @@
+From e59fbed6bc5136c240d4ba6a67200d652736cd87 Mon Sep 17 00:00:00 2001
+From: Alex Brainman <alex.brainman@gmail.com>
+Date: Fri, 17 Jul 2026 12:21:01 +1000
+Subject: [PATCH] cmd/internal/script: make TestInterruptCmd pass on plan9
+
+This CL should have been part of CL 796480, but was mistakenly omitted.
+
+Updates #77485.
+
+Change-Id: Ib18dbbcd01ad2080d14c64494e2c71421a1bd2f5
+Reviewed-on: https://go-review.googlesource.com/c/go/+/801960
+Reviewed-by: Richard Miller <millerresearch@gmail.com>
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+Reviewed-by: Michael Pratt <mpratt@google.com>
+Reviewed-by: David Chase <drchase@google.com>
+---
+ src/cmd/internal/script/engine_test.go | 33 ++++++++++++++++++++------
+ 1 file changed, 26 insertions(+), 7 deletions(-)
+
+diff --git a/src/cmd/internal/script/engine_test.go b/src/cmd/internal/script/engine_test.go
+index 19d18364eee8840e658fdc6019d3c63cbc3e9446..778089b296144424070116fe9f4c12bb465e216d 100644
+--- a/src/cmd/internal/script/engine_test.go
++++ b/src/cmd/internal/script/engine_test.go
+@@ -13,6 +13,7 @@ import (
+ 	"os/exec"
+ 	"runtime"
+ 	"slices"
++	"strings"
+ 	"testing"
+ 	"time"
+ )
+@@ -59,13 +60,7 @@ func TestInterruptCmd(t *testing.T) {
+ 	if err == nil {
+ 		t.Fatal("expected Wait failure")
+ 	} else if err, ok := err.(*exec.ExitError); ok {
+-		expectedError := "signal: interrupt"
+-		if runtime.GOOS == "windows" {
+-			expectedError = "exit status 1"
+-		}
+-		if err.Error() != expectedError {
+-			t.Fatalf("unexpected error while exiting executable: got=%q, want=%q", err.Error(), expectedError)
+-		}
++		checkInterruptCmdError(t, err)
+ 	} else {
+ 		t.Fatalf("unexpected error while running executable: %s\n%s", err, string(buf))
+ 	}
+@@ -76,6 +71,30 @@ func TestInterruptCmd(t *testing.T) {
+ 	}
+ }
+ 
++// checkInterruptCmdError calls t.Fatal if err is interrupt cmd error.
++func checkInterruptCmdError(t *testing.T, err error) {
++	errstr := err.Error()
++	if runtime.GOOS == "plan9" {
++		expectedPrefixError := "exit status: "
++		if !strings.HasPrefix(errstr, expectedPrefixError) {
++			t.Fatalf("unexpected error prefix while exiting executable: got=%q, want=%q", errstr, expectedPrefixError)
++		}
++		expectedSuffixError := ": interrupt'"
++		if !strings.HasSuffix(errstr, expectedSuffixError) {
++			t.Fatalf("unexpected error suffix while exiting executable: got=%q, want=%q", errstr, expectedSuffixError)
++		}
++		return
++	}
++
++	expectedError := "signal: interrupt"
++	if runtime.GOOS == "windows" {
++		expectedError = "exit status 1"
++	}
++	if errstr != expectedError {
++		t.Fatalf("unexpected error while exiting executable: got=%q, want=%q", errstr, expectedError)
++	}
++}
++
+ func FuzzQuoteArgs(f *testing.F) {
+ 	state, err := NewState(context.Background(), f.TempDir(), nil /* env */)
+ 	if err != nil {
+-- 
+2.34.1
+

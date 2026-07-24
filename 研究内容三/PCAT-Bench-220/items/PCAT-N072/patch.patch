@@ -1,0 +1,142 @@
+From c25263921018fe83cad7916a3bebef020ce9875a Mon Sep 17 00:00:00 2001
+From: Cuong Manh Le <cuong.manhle.vn@gmail.com>
+Date: Thu, 16 Jul 2026 20:59:09 +0700
+Subject: [PATCH] cmd/compile: fix broken 386 softfloat builder
+
+CL 782461 added new test for avoiding temporary on non-softfloat system.
+However, the test was set to be run unconditionally, thus it would be
+failed on softfloat builders.
+
+Fixing this by moving the test to be run under cmd/internal/testdir, so
+it's possible to exclude unwanted softfloat platforms. While at it, also
+tighten the test to ensure there would be temporary if the compiler is
+forced to emit softfloat code.
+
+Updates #28698
+Fixes #80422
+
+Cq-Include-Trybots: luci.golang.try:gotip-linux-386-softfloat
+Change-Id: I5f7b3a19fe36d070d819d58cc29d43e4b44bb1fe
+Reviewed-on: https://go-review.googlesource.com/c/go/+/801560
+Auto-Submit: Cuong Manh Le <cuong.manhle.vn@gmail.com>
+Reviewed-by: Keith Randall <khr@golang.org>
+Reviewed-by: Michael Pratt <mpratt@google.com>
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+Reviewed-by: Keith Randall <khr@google.com>
+---
+ .../compile/testdata/script/issue28698.txt    | 15 ----
+ test/fixedbugs/issue28698.go                  | 80 +++++++++++++++++++
+ 2 files changed, 80 insertions(+), 15 deletions(-)
+ delete mode 100644 src/cmd/compile/testdata/script/issue28698.txt
+ create mode 100644 test/fixedbugs/issue28698.go
+
+diff --git a/src/cmd/compile/testdata/script/issue28698.txt b/src/cmd/compile/testdata/script/issue28698.txt
+deleted file mode 100644
+index 87b39bd0c1e71b5cb14144612bdcb568fe1783d7..0000000000000000000000000000000000000000
+--- a/src/cmd/compile/testdata/script/issue28698.txt
++++ /dev/null
+@@ -1,15 +0,0 @@
+-# Float division does not require a temporary when preparing call arguments.
+-
+-go tool compile -W p.go
+-stdout 'DIV float64'
+-! stdout 'autotmp_.*float64'
+-
+--- p.go --
+-package p
+-
+-//go:noinline
+-func sink(i int, f float64) {}
+-
+-func div(i int, x, y float64) {
+-	sink(i, x/y)
+-}
+diff --git a/test/fixedbugs/issue28698.go b/test/fixedbugs/issue28698.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..b76ebe36cc0af744e6fa01daed9e7205569e6633
+--- /dev/null
++++ b/test/fixedbugs/issue28698.go
+@@ -0,0 +1,80 @@
++// run
++
++//go:build !js && !wasip1
++
++// Copyright 2026 The Go Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++package main
++
++import (
++	"bytes"
++	"fmt"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"strings"
++)
++
++const src = `package p
++
++//go:noinline
++func sink(i int, f float64) {}
++
++func div(i int, x, y float64) {
++	sink(i, x/y)
++}
++`
++
++func isSoftFloat(s string) bool {
++	for _, v := range strings.Split(s, ",") {
++		if v == "softfloat" {
++			return true
++		}
++	}
++	return false
++}
++
++func main() {
++	for _, env := range []string{"GO386", "GOMIPS", "GOMIPS64", "GOARM"} {
++		if isSoftFloat(os.Getenv(env)) {
++			return
++		}
++	}
++
++	dir, err := os.MkdirTemp("", "issue28698")
++	if err != nil {
++		panic(err)
++	}
++	defer os.RemoveAll(dir)
++
++	fn := filepath.Join(dir, "p.go")
++	if err := os.WriteFile(fn, []byte(src), 0644); err != nil {
++		panic(err)
++	}
++
++	// Float division does not require a temporary when preparing call arguments.
++	cmd := exec.Command("go", "tool", "compile", "-W", fn)
++	out, err := cmd.CombinedOutput()
++	if err != nil {
++		panic(err)
++	}
++
++	if bytes.Contains(out, []byte(".autotmp_")) {
++		fmt.Println(string(out))
++		panic("unexpected autotmp")
++	}
++
++	// Forcing softfloat should still emit temporary.
++	cmd = exec.Command("go", "tool", "compile", "-W", "-d=softfloat", fn)
++	out, err = cmd.CombinedOutput()
++	if err != nil {
++		panic(err)
++	}
++
++	if !bytes.Contains(out, []byte(".autotmp_")) {
++		fmt.Println(string(out))
++		panic("no autotmp")
++	}
++}
+-- 
+2.34.1
+

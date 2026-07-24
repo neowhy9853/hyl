@@ -1,0 +1,153 @@
+From 71ca70a0f62cfc30dfacfd2ee0952a86e2e64055 Mon Sep 17 00:00:00 2001
+From: Patrick Griffis <pgriffis@igalia.com>
+Date: Tue, 22 Jun 2021 11:05:30 -0500
+Subject: [PATCH] Enable ssl-use-system-ca-file on deprecated Sync and Async
+ sessions
+
+The default was disabled for backwards compatability however it
+was an unsafe default and many projects unknowingly did not enable
+it.
+
+This is a break in behavior however the security concerns are important.
+The belief that all projects would switch to the safer SoupSession
+didn't happen and the number of under-maintained projects is too
+many to fix quickly.
+
+This brings a base level of security to all of them and will likely
+not actually break much as the modern internet depends on CAs heavily.
+
+For users who are broken by it, the possible fixes are:
+
+- Add the CA for the service you can no longer connect to to the
+  system CA database on your computer
+- Get the administrator of the service you were connecting to to
+  switch to using a certificate signed by a public CA
+- Use http rather than https
+- Wait for, or request, the app to be updated
+
+For system administrators who provide a service whose users have been broken by this, the possible fixes are:
+
+- Update your service to use a certificate signed by a public CA
+- Get each user to add the CA to their system CA db, as above
+- Get each user to move to an alternative app
+
+For developers of apps whose users have been broken by this, the possible fixes are:
+
+- Document how users can add CAs to the system CA DB, as above
+- Add a config option to allow users to turn ssl-use-system-ca-file off again.
+  (Note that this will probably eventually result in someone filing a CVE against your app.)
+- Add a config option to allow users to configure a file containing a CA to be trusted,
+  and then read that in as a GTlsDatabaseFile and set it as SoupSession:tls-database
+- Add a ton of code to allow users to accept certificates signed by unknown CAs and then
+  remember the certificates for next time. (We have no easily-copied examples of how to do this.)
+---
+ libsoup/soup-session.c | 20 +++++++++++---------
+ tests/no-ssl-test.c    |  4 ++--
+ tests/ssl-test.c       | 10 +++++-----
+ 3 files changed, 18 insertions(+), 16 deletions(-)
+
+diff --git a/libsoup/soup-session.c b/libsoup/soup-session.c
+index dd3cdc46..10f0075b 100644
+--- a/libsoup/soup-session.c
++++ b/libsoup/soup-session.c
+@@ -270,16 +270,19 @@ soup_session_constructor (GType                  type,
+ 			  GObjectConstructParam *construct_params)
+ {
+ 	GObject *object;
++	SoupSession *session;
++	SoupSessionPrivate *priv;
+ 
+ 	object = G_OBJECT_CLASS (soup_session_parent_class)->constructor (type, n_construct_properties, construct_params);
++	session = SOUP_SESSION (object);
++	priv = soup_session_get_instance_private (session);
++
++	priv->tlsdb_use_default = TRUE;
+ 
+ 	/* If this is a "plain" SoupSession, fix up the default
+ 	 * properties values, etc.
+ 	 */
+ 	if (type == SOUP_TYPE_SESSION) {
+-		SoupSession *session = SOUP_SESSION (object);
+-		SoupSessionPrivate *priv = soup_session_get_instance_private (session);
+-
+ 		g_clear_pointer (&priv->async_context, g_main_context_unref);
+ 		priv->async_context = g_main_context_ref_thread_default ();
+ 		priv->use_thread_context = TRUE;
+@@ -293,7 +296,6 @@ soup_session_constructor (GType                  type,
+ 		 * we just set flags saying to do it later.
+ 		 */
+ 		priv->proxy_use_default = TRUE;
+-		priv->tlsdb_use_default = TRUE;
+ 
+ 		soup_session_add_feature_by_type (session, SOUP_TYPE_CONTENT_DECODER);
+ 	}
+@@ -3413,10 +3415,9 @@ soup_session_class_init (SoupSessionClass *session_class)
+ 	 * See #SoupSession:ssl-strict for more information on how
+ 	 * https certificate validation is handled.
+ 	 *
+-	 * Note that the default value of %TRUE only applies to plain
+-	 * #SoupSessions. If you are using #SoupSessionAsync or
+-	 * #SoupSessionSync, the default value is %FALSE, for backward
+-	 * compatibility.
++	 * If you are using #SoupSessionAsync or
++	 * #SoupSessionSync, on libsoup older than 2.72.1, the default value
++	 * is %FALSE, for backward compatibility.
+ 	 *
+ 	 * Since: 2.38
+ 	 **/
+@@ -3453,7 +3454,8 @@ soup_session_class_init (SoupSessionClass *session_class)
+ 	 * #SoupSession:ssl-use-system-ca-file will be %TRUE by
+ 	 * default, and so this property will be a copy of the system
+ 	 * CA database. If you are using #SoupSessionAsync or
+-	 * #SoupSessionSync, this property will be %NULL by default.
++	 * #SoupSessionSync, on libsoup older than 2.72.1, this property
++	 * will be %NULL by default.
+ 	 *
+ 	 * Since: 2.38
+ 	 **/
+diff --git a/tests/no-ssl-test.c b/tests/no-ssl-test.c
+index c9d9bcad..36706fc0 100644
+--- a/tests/no-ssl-test.c
++++ b/tests/no-ssl-test.c
+@@ -72,8 +72,8 @@ do_session_property_tests (void)
+ 		      "tls-database", &tlsdb,
+ 		      "ssl-ca-file", &ca_file,
+ 		      NULL);
+-	soup_test_assert (!use_system, "ssl-use-system-ca-file defaults to TRUE");
+-	soup_test_assert (tlsdb == NULL, "tls-database set by default");
++	soup_test_assert (use_system, "ssl-use-system-ca-file defaults to FALSE");
++	soup_test_assert (tlsdb != NULL, "tls-database not set by default");
+ 	soup_test_assert (ca_file == NULL, "ca-file set by default");
+ 
+ 	g_object_set (G_OBJECT (session),
+diff --git a/tests/ssl-test.c b/tests/ssl-test.c
+index 2c93ca85..501c3479 100644
+--- a/tests/ssl-test.c
++++ b/tests/ssl-test.c
+@@ -174,10 +174,10 @@ do_session_property_tests (void)
+ 		      "tls-database", &tlsdb,
+ 		      "ssl-ca-file", &ca_file,
+ 		      NULL);
+-	soup_test_assert (!use_system,
+-			  "ssl-use-system-ca-file defaults to TRUE");
+-	soup_test_assert (tlsdb == NULL,
+-			  "tls-database set by default");
++	soup_test_assert (use_system,
++			  "ssl-use-system-ca-file defaults to FALSE");
++	soup_test_assert (tlsdb != NULL,
++			  "tls-database not set by default");
+ 	soup_test_assert (ca_file == NULL,
+ 			  "ca-file set by default");
+ 
+@@ -195,7 +195,7 @@ do_session_property_tests (void)
+ 	g_assert_true (use_system_changed);
+ 	soup_test_assert (tlsdb != NULL,
+ 			  "setting ssl-use-system-ca-file didn't set tls-database");
+-	g_assert_true (tlsdb_changed);
++	g_assert_false (tlsdb_changed);
+ 	g_clear_object (&tlsdb);
+ 	soup_test_assert (ca_file == NULL,
+ 			  "setting ssl-use-system-ca-file set ssl-ca-file");
+-- 
+2.34.1
+

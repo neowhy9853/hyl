@@ -1,0 +1,128 @@
+From 4b5d8a0163fe4e9a4ac074f407e0599ba27acf68 Mon Sep 17 00:00:00 2001
+From: Michael Montalbo <mmontalbo@gmail.com>
+Date: Thu, 28 May 2026 20:47:46 +0000
+Subject: [PATCH 08/50] line-log: allow non-patch diff formats with -L
+
+Now that -L flows through log_tree_diff_flush() and diff_flush(),
+metadata-only diff formats work because they only read filepair
+fields (status, mode, path, oid) already set on the pre-computed
+pairs.
+
+Expand the allowlist in setup_revisions() to also accept --raw,
+--name-only, --name-status, and --summary.  Diff stat formats
+(--stat, --numstat, --shortstat, --dirstat) remain blocked because
+they call compute_diffstat() on full blob content and would show
+whole-file statistics rather than range-scoped ones.
+
+Signed-off-by: Michael Montalbo <mmontalbo@gmail.com>
+Signed-off-by: Junio C Hamano <gitster@pobox.com>
+---
+ Documentation/line-range-options.adoc | 10 +++---
+ revision.c                            |  4 ++-
+ t/t4211-line-log.sh                   | 47 +++++++++++++++++++++++++--
+ 3 files changed, 54 insertions(+), 7 deletions(-)
+
+diff --git a/Documentation/line-range-options.adoc b/Documentation/line-range-options.adoc
+index ecb2c79fb..72f639b5e 100644
+--- a/Documentation/line-range-options.adoc
++++ b/Documentation/line-range-options.adoc
+@@ -8,12 +8,14 @@
+ 	give zero or one positive revision arguments, and
+ 	_<start>_ and _<end>_ (or _<funcname>_) must exist in the starting revision.
+ 	You can specify this option more than once. Implies `--patch`.
+-	Patch output can be suppressed using `--no-patch`, but other diff formats
+-	(namely `--raw`, `--numstat`, `--shortstat`, `--dirstat`, `--summary`,
+-	`--name-only`, `--name-status`, `--check`) are not currently implemented.
++	Patch output can be suppressed using `--no-patch`.
++	Non-patch diff formats `--raw`, `--name-only`, `--name-status`,
++	and `--summary` are supported.  Diff stat formats
++	(`--stat`, `--numstat`, `--shortstat`, `--dirstat`) are not
++	currently implemented.
+ +
+ Patch formatting options such as `--word-diff`, `--color-moved`,
+ `--no-prefix`, and whitespace options (`-w`, `-b`) are supported,
+-as are pickaxe options (`-S`, `-G`).
++as are pickaxe options (`-S`, `-G`) and `--diff-filter`.
+ +
+ include::line-range-format.adoc[]
+diff --git a/revision.c b/revision.c
+index c903f7a1b..f26fc1f4d 100644
+--- a/revision.c
++++ b/revision.c
+@@ -3181,7 +3181,9 @@ int setup_revisions(int argc, const char **argv, struct rev_info *revs, struct s
+ 	if (revs->line_level_traverse &&
+ 	    (revs->full_diff ||
+ 	     (revs->diffopt.output_format &
+-	      ~(DIFF_FORMAT_PATCH | DIFF_FORMAT_NO_OUTPUT))))
++	      ~(DIFF_FORMAT_PATCH | DIFF_FORMAT_NO_OUTPUT |
++		DIFF_FORMAT_RAW | DIFF_FORMAT_NAME |
++		DIFF_FORMAT_NAME_STATUS | DIFF_FORMAT_SUMMARY))))
+ 		die(_("-L does not yet support the requested diff format"));
+ 
+ 	if (revs->expand_tabs_in_log < 0)
+diff --git a/t/t4211-line-log.sh b/t/t4211-line-log.sh
+index e3937138a..ca4eb7bbc 100755
+--- a/t/t4211-line-log.sh
++++ b/t/t4211-line-log.sh
+@@ -155,8 +155,45 @@ test_expect_success '-p shows the default patch output' '
+ 	test_cmp expect actual
+ '
+ 
+-test_expect_success '--raw is forbidden' '
+-	test_must_fail git log -L1,24:b.c --raw
++test_expect_success '--raw shows mode, oid, status and path' '
++	git log -L1,24:b.c --raw --format= >actual &&
++	test_grep "^:100644 100644 [0-9a-f]\{7\} [0-9a-f]\{7\} M	b.c$" actual &&
++	test_grep ! "^diff --git" actual &&
++	test_grep ! "^@@" actual
++'
++
++test_expect_success '--name-only shows path' '
++	git log -L1,24:b.c --name-only --format= >actual &&
++	test_grep "^b.c$" actual &&
++	test_grep ! "^diff --git" actual &&
++	test_grep ! "^@@" actual
++'
++
++test_expect_success '--name-status shows status and path' '
++	git log -L1,24:b.c --name-status --format= >actual &&
++	test_grep "^M	b.c$" actual &&
++	test_grep ! "^diff --git" actual &&
++	test_grep ! "^@@" actual
++'
++
++test_expect_success '--stat is not yet supported with -L' '
++	test_must_fail git log -L1,24:b.c --stat 2>err &&
++	test_grep "does not yet support" err
++'
++
++test_expect_success '--numstat is not yet supported with -L' '
++	test_must_fail git log -L1,24:b.c --numstat 2>err &&
++	test_grep "does not yet support" err
++'
++
++test_expect_success '--shortstat is not yet supported with -L' '
++	test_must_fail git log -L1,24:b.c --shortstat 2>err &&
++	test_grep "does not yet support" err
++'
++
++test_expect_success '--dirstat is not yet supported with -L' '
++	test_must_fail git log -L1,24:b.c --dirstat 2>err &&
++	test_grep "does not yet support" err
+ '
+ 
+ test_expect_success 'setup for checking fancy rename following' '
+@@ -738,4 +775,10 @@ test_expect_success '-L --oneline has no extra blank line before diff' '
+ 	test_grep "^diff --git" line2
+ '
+ 
++test_expect_success '--summary shows new file on root commit' '
++	git checkout parent-oids &&
++	git log -L:func2:file.c --summary --format= >actual &&
++	test_grep "create mode 100644 file.c" actual
++'
++
+ test_done
+-- 
+2.43.0
+

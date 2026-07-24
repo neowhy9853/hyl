@@ -1,0 +1,110 @@
+From 56ccc5ed569869fd735074ccebeaa7aab058342d Mon Sep 17 00:00:00 2001
+From: Pascal Hambourg <pascal@plouf.fr.eu.org>
+Date: Fri, 21 Feb 2025 12:20:28 +0100
+Subject: [PATCH] util/grub.d/30_os-prober.in: Fix GRUB_OS_PROBER_SKIP_LIST for
+ non-EFI
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+GRUB documentation states:
+
+  GRUB_OS_PROBER_SKIP_LIST
+    List of space-separated FS UUIDs of filesystems to be ignored from
+    os-prober output. For efi chainloaders it’s <UUID>@<EFI FILE>
+
+But the actual behaviour does not match this description.
+
+  GRUB_OS_PROBER_SKIP_LIST="<UUID>"
+
+does nothing. In order to skip non-EFI bootloaders, you must set
+
+  GRUB_OS_PROBER_SKIP_LIST="<UUID>@<DEVICE>"
+
+which is both absurd, <UUID> and <DEVICE> are redundant, and wrong,
+<DEVICE> such as /dev/sd* may not be persistent across boots.
+
+Also, any non-word character is accepted as a separator, including "-"
+and "@" which may be present in UUIDs. This can cause false positives
+because of partial UUID match.
+
+This patch fixes these flaws while retaining some backward compatibility
+with previous behaviour which may be expected by existing setups:
+  - also accept <UUID>@/dev/* (with warning) for non-EFI bootloaders,
+  - also accept comma and semicolon as separator.
+
+Fixes: 55e706c9 (Add GRUB_OS_PROBER_SKIP_LIST to selectively skipping systems)
+
+Signed-off-by: Pascal Hambourg <pascal@plouf.fr.eu.org>
+Reviewed-by: Daniel Kiper <daniel.kiper@oracle.com>
+---
+ docs/grub.texi              |  7 +++++--
+ util/grub.d/30_os-prober.in | 19 +++++++++++++------
+ 2 files changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/docs/grub.texi b/docs/grub.texi
+index dcc563dbc..e96f1579a 100644
+--- a/docs/grub.texi
++++ b/docs/grub.texi
+@@ -1562,8 +1562,11 @@ this option to @samp{false} to enable this feature in the
+ @command{grub-mkconfig} command.
+ 
+ @item GRUB_OS_PROBER_SKIP_LIST
+-List of space-separated FS UUIDs of filesystems to be ignored from os-prober
+-output. For efi chainloaders it's <UUID>@@<EFI FILE>
++List of space-separated case insensitive UUIDs of filesystems to be ignored
++from os-prober output. For EFI chainloaders it's <UUID>@@<EFI FILE>. For
++backward compatibility with previous behaviour, <UUID>@@/dev/* is also accepted
++for non-EFI chainloaders even if the device does not match, and comma and
++semicolon are also accepted as separator.
+ 
+ @item GRUB_DISABLE_SUBMENU
+ Normally, @command{grub-mkconfig} will generate top level menu entry for
+diff --git a/util/grub.d/30_os-prober.in b/util/grub.d/30_os-prober.in
+index 656301eaf..394747759 100644
+--- a/util/grub.d/30_os-prober.in
++++ b/util/grub.d/30_os-prober.in
+@@ -117,19 +117,26 @@ if [ "x$GRUB_TOP_LEVEL_OS_PROBER" != x ]; then
+   OSPROBED=$(grub_move_to_front "$GRUB_TOP_LEVEL_OS_PROBER" ${OSPROBED})
+ fi
+ 
++case "$GRUB_OS_PROBER_SKIP_LIST" in *@/[dD][eE][vV]/*)
++	grub_warn "$(gettext_printf "GRUB_OS_PROBER_SKIP_LIST contains deprecated <UUID>@/dev/* notation. The @/dev/* suffix is ignored.")"
++esac
++
+ for OS in ${OSPROBED} ; do
+   DEVICE="`echo ${OS} | cut -d ':' -f 1`"
+   LONGNAME="`echo ${OS} | cut -d ':' -f 2 | tr '^' ' '`"
+   LABEL="`echo ${OS} | cut -d ':' -f 3 | tr '^' ' '`"
+   BOOT="`echo ${OS} | cut -d ':' -f 4`"
+-  if UUID="`${grub_probe} --target=fs_uuid --device ${DEVICE%@*}`"; then
+-    EXPUUID="$UUID"
++  unset UUID
++  if [ -n "${GRUB_OS_PROBER_SKIP_LIST}" ] && UUID="`${grub_probe} --target=fs_uuid --device ${DEVICE%@*}`"; then
++    SPACE='[[:space:],;]' # regex matching spaces and common separators
+ 
+-    if [ x"${DEVICE#*@}" != x ] ; then
+-      EXPUUID="${EXPUUID}@${DEVICE#*@}"
++    if [ x"${DEVICE##*@*}" = x ] ; then
++      EXPUUID="$UUID@${DEVICE#*@}"
++    else
++      EXPUUID="$UUID(@/dev/.*)?"
+     fi
+ 
+-    if [ "x${GRUB_OS_PROBER_SKIP_LIST}" != "x" ] && [ "x`echo ${GRUB_OS_PROBER_SKIP_LIST} | grep -i -e '\b'${EXPUUID}'\b'`" != "x" ] ; then
++    if printf %s " ${GRUB_OS_PROBER_SKIP_LIST} " | grep -Eqie "${SPACE}${EXPUUID}${SPACE}" ; then
+       echo "Skipped ${LONGNAME} on ${DEVICE} by user request." >&2
+       continue
+     fi
+@@ -299,7 +306,7 @@ EOF
+       echo "$title_correction_code"
+     ;;
+     macosx)
+-      if [ "${UUID}" ]; then
++      if [ "${UUID=`${grub_probe} --target=fs_uuid --device ${DEVICE}`}" ]; then
+ 	OSXUUID="${UUID}"
+ 	osx_entry xnu_kernel 32
+ 	osx_entry xnu_kernel64 64
+-- 
+2.34.1
+

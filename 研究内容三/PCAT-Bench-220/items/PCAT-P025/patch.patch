@@ -1,0 +1,110 @@
+diff --git a/runtime/doc/tags b/runtime/doc/tags
+index 3abd3e035e885efcd4a4eb5f1b94c23aad229e05..1e06d460b4b2032164932e9721f96ebf144ce39f 100644
+--- a/runtime/doc/tags
++++ b/runtime/doc/tags
+@@ -11012,6 +11012,7 @@ tempfile	change.txt	/*tempfile*
+ template	autocmd.txt	/*template*
+ tempname()	builtin.txt	/*tempname()*
+ term++close	terminal.txt	/*term++close*
++term++noclose	terminal.txt	/*term++noclose*
+ term++open	terminal.txt	/*term++open*
+ term++shell	terminal.txt	/*term++shell*
+ term-dependent-settings	term.txt	/*term-dependent-settings*
+diff --git a/runtime/doc/terminal.txt b/runtime/doc/terminal.txt
+index 01fd88ca660e300929ee2a84498cb8de23b4b705..99d9f3a4af0429e4145d18611d90380a44412018 100644
+--- a/runtime/doc/terminal.txt
++++ b/runtime/doc/terminal.txt
+@@ -1,4 +1,4 @@
+-*terminal.txt*	For Vim version 9.2.  Last change: 2026 Apr 06
++*terminal.txt*	For Vim version 9.2.  Last change: 2026 Jun 24
+ 
+ 
+ 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
+@@ -232,7 +232,7 @@ Command syntax ~
+ 			keys in the terminal window.  For MS-Windows see the
+ 			++eof argument below.
+ 
+-						*term++close* *term++open*
++					    *term++close* *term++noclose* *term++open*
+ 			Supported [options] are:
+ 			++close		The terminal window will close
+ 					automatically when the job terminates.
+@@ -1001,9 +1001,11 @@ term_start({cmd} [, {options}])			*term_start()*
+ 				     terminal window, see |term_setkill()|
+ 		   "term_finish"     What to do when the job is finished:
+ 					"close": close any windows
++					"noclose": window will not be opened
+ 					"open": open window if needed
+ 				     Note that "open" can be interruptive.
+-				     See |term++close| and |term++open|.
++				     See |term++close|, |term++noclose| and
++				     |term++open|.
+ 		   "term_opencmd"    command to use for opening the window
+ 				     when "open" is used for "term_finish";
+ 				     must have "%d" where the buffer number
+diff --git a/runtime/doc/version9.txt b/runtime/doc/version9.txt
+index ecde25876464186d3014db9b81316314d1cd2eb4..310e9e695c9b7b472673961767fc45742856bacd 100644
+--- a/runtime/doc/version9.txt
++++ b/runtime/doc/version9.txt
+@@ -52657,6 +52657,7 @@ Other ~
+   not drop leading spaces |stl-%0{|.
+ - Generated Session and View files are written in Vim9 script, see |:mksession|,
+   |:mkview| and |:mkvimrc|
++- The "term_finish" option of term_start() supports a "noclose" value.
+ 
+ Platform specific ~
+ -----------------
+diff --git a/src/job.c b/src/job.c
+index 937d55f6be532caa7475838ba61d6461c1c006cf..c7c546aa3879b96abaac03bf8853268c91a39861 100644
+--- a/src/job.c
++++ b/src/job.c
+@@ -386,7 +386,8 @@ get_job_options(typval_T *tv, jobopt_T *opt, int supported, int supported2)
+ 		if (!(supported2 & JO2_TERM_FINISH))
+ 		    break;
+ 		val = tv_get_string(item);
+-		if (STRCMP(val, "open") != 0 && STRCMP(val, "close") != 0)
++		if (STRCMP(val, "open") != 0 && STRCMP(val, "close") != 0
++			&& STRCMP(val, "noclose") != 0)
+ 		{
+ 		    semsg(_(e_invalid_value_for_argument_str_str),
+ 							   "term_finish", val);
+diff --git a/src/testdir/test_terminal.vim b/src/testdir/test_terminal.vim
+index 98e82fcb4ccda10c4b7b69a0680c964d7b3e1c05..096904e111e4f1d78eb1dfc9fb662789a0d98eaf 100644
+--- a/src/testdir/test_terminal.vim
++++ b/src/testdir/test_terminal.vim
+@@ -774,6 +774,22 @@ func Test_terminal_finish_open_close()
+   call assert_equal('opened the buffer in a window', g:result)
+   unlet g:result
+   bwipe
++
++  " Test "noclose" for term_start()
++  let cmd = Get_cat_123_cmd()
++
++  let buf = term_start(cmd, {
++        \ 'term_finish': 'noclose',
++        \ 'hidden': v:true
++        \ })
++
++  call WaitForAssert({-> assert_equal('finished', term_getstatus(buf))})
++
++  let info = getbufinfo(buf)[0]
++  call assert_equal(1, info.hidden)
++  call assert_equal(1, info.listed)
++  call assert_equal(1, info.loaded)
++  call WaitForAssert({-> assert_equal(['123'], getbufline(buf, 1, 1))})
+ endfunc
+ 
+ func Test_terminal_cwd()
+diff --git a/src/version.c b/src/version.c
+index d9613a8fb93ca304e41a151123834375c60aec5c..43deacfd7a53d2c2a545e013589f3678e8e21fdd 100644
+--- a/src/version.c
++++ b/src/version.c
+@@ -759,6 +759,8 @@ static char *(features[]) =
+ 
+ static int included_patches[] =
+ {   /* Add new patch number below this line */
++/**/
++    723,
+ /**/
+     722,
+ /**/

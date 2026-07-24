@@ -1,0 +1,93 @@
+From 8c84e6802c0e23503bfe655dadcdc4a15de7373a Mon Sep 17 00:00:00 2001
+From: Kristofer Karlsson <krka@spotify.com>
+Date: Thu, 28 May 2026 09:00:48 +0000
+Subject: [PATCH 04/50] t3070: skip ls-files tests with backslash patterns on
+ Windows
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+On Windows (MINGW), backslashes in pathspecs are silently converted to
+forward slashes (directory separators), which changes the glob semantics.
+This causes 36 test failures in t3070-wildmatch when the "via ls-files"
+variants test patterns containing backslash escapes (e.g. '\[ab]',
+'[\-_]', '[A-\\]').
+
+The wildmatch function itself handles these patterns correctly — only the
+ls-files code path fails because pathspec parsing converts the
+backslashes before they reach the glob matcher.
+
+Skip these ls-files tests on platforms where BSLASHPSPEC is not set,
+which is the existing prereq that captures exactly this semantic:
+"backslashes in pathspec are not directory separators."
+
+Signed-off-by: Kristofer Karlsson <krka@spotify.com>
+Signed-off-by: Junio C Hamano <gitster@pobox.com>
+---
+ t/t3070-wildmatch.sh | 19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/t/t3070-wildmatch.sh b/t/t3070-wildmatch.sh
+index 655bb1a0f..339412221 100755
+--- a/t/t3070-wildmatch.sh
++++ b/t/t3070-wildmatch.sh
+@@ -99,6 +99,13 @@ match_with_ls_files() {
+ 	match_function=$4
+ 	ls_files_args=$5
+ 
++	prereqs=EXPENSIVE_ON_WINDOWS
++	case "$pattern" in
++	*\\*)
++		prereqs="$prereqs,BSLASHPSPEC"
++		;;
++	esac
++
+ 	match_stdout_stderr_cmp="
+ 		tr -d '\0' <actual.raw >actual &&
+ 		test_must_be_empty actual.err &&
+@@ -108,36 +115,36 @@ match_with_ls_files() {
+ 	then
+ 		if test -e .git/created_test_file
+ 		then
+-			test_expect_success EXPENSIVE_ON_WINDOWS "$match_function (via ls-files): match dies on '$pattern' '$text'" "
++			test_expect_success $prereqs "$match_function (via ls-files): match dies on '$pattern' '$text'" "
+ 				printf '%s' '$text' >expect &&
+ 				test_must_fail git$ls_files_args ls-files -z -- '$pattern'
+ 			"
+ 		else
+-			test_expect_failure EXPENSIVE_ON_WINDOWS "$match_function (via ls-files): match skip '$pattern' '$text'" 'false'
++			test_expect_failure $prereqs "$match_function (via ls-files): match skip '$pattern' '$text'" 'false'
+ 		fi
+ 	elif test "$match_expect" = 1
+ 	then
+ 		if test -e .git/created_test_file
+ 		then
+-			test_expect_success EXPENSIVE_ON_WINDOWS "$match_function (via ls-files): match '$pattern' '$text'" "
++			test_expect_success $prereqs "$match_function (via ls-files): match '$pattern' '$text'" "
+ 				printf '%s' '$text' >expect &&
+ 				git$ls_files_args ls-files -z -- '$pattern' >actual.raw 2>actual.err &&
+ 				$match_stdout_stderr_cmp
+ 			"
+ 		else
+-			test_expect_failure EXPENSIVE_ON_WINDOWS "$match_function (via ls-files): match skip '$pattern' '$text'" 'false'
++			test_expect_failure $prereqs "$match_function (via ls-files): match skip '$pattern' '$text'" 'false'
+ 		fi
+ 	elif test "$match_expect" = 0
+ 	then
+ 		if test -e .git/created_test_file
+ 		then
+-			test_expect_success EXPENSIVE_ON_WINDOWS "$match_function (via ls-files): no match '$pattern' '$text'" "
++			test_expect_success $prereqs "$match_function (via ls-files): no match '$pattern' '$text'" "
+ 				>expect &&
+ 				git$ls_files_args ls-files -z -- '$pattern' >actual.raw 2>actual.err &&
+ 				$match_stdout_stderr_cmp
+ 			"
+ 		else
+-			test_expect_failure EXPENSIVE_ON_WINDOWS "$match_function (via ls-files): no match skip '$pattern' '$text'" 'false'
++			test_expect_failure $prereqs "$match_function (via ls-files): no match skip '$pattern' '$text'" 'false'
+ 		fi
+ 	else
+ 		test_expect_success "PANIC: Test framework error. Unknown matches value $match_expect" 'false'
+-- 
+2.43.0
+

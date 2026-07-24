@@ -1,0 +1,181 @@
+From 5bbd22ff78daf010c5bd19c466a0c45ac78503d4 Mon Sep 17 00:00:00 2001
+From: Damien Neil <dneil@google.com>
+Date: Wed, 24 Jun 2026 15:24:36 -0700
+Subject: [PATCH] [release-branch.go1.26] net/http: apply header timeout to
+ server's unencrypted HTTP/2 check
+
+When a server is configured to support unencrypted HTTP/2,
+it reads a few bytes from each new connection to see if they
+contain the HTTP/2 client preface. This read was being done
+with no timeout applied. Apply the header timeout (since this
+is essentially reading the first headers from the connection).
+
+Hoist the header timeout into the server serve loop so we can
+use a single timeout to cover both the HTTP/2 preface and
+the first HTTP/1 headers.
+
+Thanks to Vsevolod Naumov and Ainar Garipov from AdGuard for reporting this issue.
+
+For #80205
+Fixes #80224
+For CVE-2026-56853
+
+Change-Id: I4bbb917e11ccb9616594379ef556cee66a6a6964
+Reviewed-on: https://go-review.googlesource.com/c/go/+/797520
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+Reviewed-by: Nicholas Husin <husin@google.com>
+Reviewed-by: Nicholas Husin <nsh@golang.org>
+Reviewed-on: https://go-review.googlesource.com/c/go/+/797940
+Reviewed-by: David Chase <drchase@google.com>
+---
+ src/net/http/serve_test.go | 59 +++++++++++++++++++++++++++++++++++++-
+ src/net/http/server.go     | 24 +++++++---------
+ 2 files changed, 69 insertions(+), 14 deletions(-)
+
+diff --git a/src/net/http/serve_test.go b/src/net/http/serve_test.go
+index 6ade598834..d26d7c60ee 100644
+--- a/src/net/http/serve_test.go
++++ b/src/net/http/serve_test.go
+@@ -18,7 +18,6 @@ import (
+ 	"encoding/json"
+ 	"errors"
+ 	"fmt"
+-	"internal/synctest"
+ 	"internal/testenv"
+ 	"io"
+ 	"log"
+@@ -44,6 +43,7 @@ import (
+ 	"sync/atomic"
+ 	"syscall"
+ 	"testing"
++	"testing/synctest"
+ 	"time"
+ )
+ 
+@@ -815,6 +815,63 @@ func testServerTimeoutsWithTimeout(t *testing.T, timeout time.Duration, mode tes
+ 	return nil
+ }
+ 
++func TestServerUnencryptedHTTP2HeaderTimeout(t *testing.T) {
++	for _, test := range []struct {
++		name string
++		f    func(*fakeNetConn)
++	}{{
++		name: "client sends nothing",
++		f: func(conn *fakeNetConn) {
++		},
++	}, {
++		name: "client sends slowly",
++		f: func(conn *fakeNetConn) {
++			// Trickling out writes should not extend the deadline.
++			conn.Write([]byte("PRI"))
++			time.Sleep(100 * time.Millisecond)
++			conn.Write([]byte(" * "))
++			time.Sleep(100 * time.Millisecond)
++			conn.Write([]byte("HTT"))
++			time.Sleep(100 * time.Millisecond)
++		},
++	}, {
++		name: "header read expires",
++		f: func(conn *fakeNetConn) {
++			// Time spent waiting for the HTTP/2 preface should count against
++			// time spent waiting for HTTP/1 headers.
++			time.Sleep(100 * time.Millisecond)
++			conn.Write([]byte("GET / HTTP/1.1\r\nHost: example.tld\r\n"))
++		},
++	}} {
++		t.Run(test.name, func(t *testing.T) {
++			synctest.Test(t, func(t *testing.T) {
++				listener := fakeNetListen()
++				defer listener.Close()
++
++				srv := &Server{
++					Protocols:         new(Protocols),
++					ReadHeaderTimeout: 1 * time.Second,
++				}
++				srv.Protocols.SetHTTP1(true)
++				srv.Protocols.SetUnencryptedHTTP2(true)
++				go srv.Serve(listener)
++
++				conn := listener.connect()
++				go test.f(conn)
++
++				start := time.Now()
++				_, err := io.ReadAll(conn)
++				if err != nil {
++					t.Errorf("ReadAll from server: %v, want EOF", err)
++				}
++				if got, want := time.Since(start), srv.ReadHeaderTimeout; got != want {
++					t.Errorf("connection closed after %v, want %v", got, want)
++				}
++			})
++		})
++	}
++}
++
+ func TestServerReadTimeout(t *testing.T) { run(t, testServerReadTimeout) }
+ func testServerReadTimeout(t *testing.T, mode testMode) {
+ 	respBody := "response body"
+diff --git a/src/net/http/server.go b/src/net/http/server.go
+index d63d5bf734..6a60d94122 100644
+--- a/src/net/http/server.go
++++ b/src/net/http/server.go
+@@ -978,18 +978,11 @@ func (c *conn) readRequest(ctx context.Context) (w *response, err error) {
+ 		return nil, ErrHijacked
+ 	}
+ 
+-	var (
+-		wholeReqDeadline time.Time // or zero if none
+-		hdrDeadline      time.Time // or zero if none
+-	)
+ 	t0 := time.Now()
+-	if d := c.server.readHeaderTimeout(); d > 0 {
+-		hdrDeadline = t0.Add(d)
+-	}
++	var wholeReqDeadline time.Time // or zero if none
+ 	if d := c.server.ReadTimeout; d > 0 {
+ 		wholeReqDeadline = t0.Add(d)
+ 	}
+-	c.rwc.SetReadDeadline(hdrDeadline)
+ 	if d := c.server.WriteTimeout; d > 0 {
+ 		defer func() {
+ 			c.rwc.SetWriteDeadline(time.Now().Add(d))
+@@ -1045,10 +1038,7 @@ func (c *conn) readRequest(ctx context.Context) (w *response, err error) {
+ 		body.doEarlyClose = true
+ 	}
+ 
+-	// Adjust the read deadline if necessary.
+-	if !hdrDeadline.Equal(wholeReqDeadline) {
+-		c.rwc.SetReadDeadline(wholeReqDeadline)
+-	}
++	c.rwc.SetReadDeadline(wholeReqDeadline)
+ 
+ 	w = &response{
+ 		conn:          c,
+@@ -1981,6 +1971,10 @@ func (c *conn) serve(ctx context.Context) {
+ 	c.bufr = newBufioReader(c.r)
+ 	c.bufw = newBufioWriterSize(checkConnErrorWriter{c}, 4<<10)
+ 
++	if d := c.server.readHeaderTimeout(); d > 0 {
++		c.rwc.SetReadDeadline(time.Now().Add(d))
++	}
++
+ 	protos := c.server.protocols()
+ 	if c.tlsState == nil && protos.UnencryptedHTTP2() {
+ 		if c.maybeServeUnencryptedHTTP2(ctx) {
+@@ -2110,7 +2104,11 @@ func (c *conn) serve(ctx context.Context) {
+ 			return
+ 		}
+ 
+-		c.rwc.SetReadDeadline(time.Time{})
++		if d := c.server.readHeaderTimeout(); d > 0 {
++			c.rwc.SetReadDeadline(time.Now().Add(d))
++		} else {
++			c.rwc.SetReadDeadline(time.Time{})
++		}
+ 	}
+ }
+ 
+-- 
+2.34.1
+

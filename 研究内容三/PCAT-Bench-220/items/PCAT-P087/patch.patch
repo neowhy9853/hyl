@@ -1,0 +1,473 @@
+From 5235467b9183a8be8675aed17bd5b5a993975da7 Mon Sep 17 00:00:00 2001
+From: Alyssa Coghlan <ncoghlan@gmail.com>
+Date: Mon, 4 May 2026 20:42:20 +0700
+Subject: [PATCH] gh-149010: Improve reliability of inspect CLI (#149357)
+
+* Handle non-source modules more gracefully (and consistently)
+* Improve handling of frozen modules (which may or may not have source)
+* Avoid reporting misleading info when looking up objects via aliases
+* Refactor CLI implementation to improve testability
+* Add several more test cases
+
+Closes #149010
+---
+ Doc/library/inspect.rst                       |   9 +-
+ Lib/inspect.py                                | 120 +++++++--
+ Lib/test/test_inspect/test_inspect.py         | 237 ++++++++++++++++--
+ ...-05-04-00-51-32.gh-issue-149010.BCp_8k.rst |   6 +
+ 4 files changed, 334 insertions(+), 38 deletions(-)
+ create mode 100644 Misc/NEWS.d/next/Library/2026-05-04-00-51-32.gh-issue-149010.BCp_8k.rst
+
+diff --git a/Doc/library/inspect.rst b/Doc/library/inspect.rst
+index e23449886a..4825ac11ae 100644
+--- a/Doc/library/inspect.rst
++++ b/Doc/library/inspect.rst
+@@ -1833,8 +1833,15 @@ from the command line.
+ 
+ By default, accepts the name of a module and prints the source of that
+ module. A class or function within the module can be printed instead by
+-appended a colon and the qualified name of the target object.
++appending a colon and the qualified name of the target object.
+ 
+ .. option:: --details
+ 
+    Print information about the specified object rather than the source code
++
++.. versionchanged:: next
++
++   The ``--details`` option now supports basic introspection for modules
++   without available source code and indicates when modules are frozen.
++   It also indicates when the given target reference is not the canonical
++   name of the referenced object.
+diff --git a/Lib/inspect.py b/Lib/inspect.py
+index d3af61b26e..af304f186a 100644
+--- a/Lib/inspect.py
++++ b/Lib/inspect.py
+@@ -3351,6 +3351,95 @@ class BufferFlags(enum.IntFlag):
+     WRITE = 0x200
+ 
+ 
++def _get_details_for_cli(module, nominal_target, resolved_target):
++    # Determine if the given module name is an alias for another module,
++    # or if it is reexporting a name that is actually defined elsewhere
++    resolved_module = getmodule(resolved_target)
++    if resolved_module is not None and resolved_module is not module:
++        # Referenced target indicates it was defined somewhere else,
++        # so report the details of that module rather than the lookup module
++        module = resolved_module
++    reported_module_name = module.__name__
++    # Ensure the reported source file reflects the actual defining location
++    try:
++        source_file = getsourcefile(resolved_target)
++    except Exception:
++        try:
++            source_file = getsourcefile(module)
++        except Exception:
++            source_file = None
++    # Determine if the nominal target location is its defining location
++    if resolved_target is module:
++        reported_target = reported_module_name
++    else:
++        reported_qualname = getattr(resolved_target, "__qualname__", None)
++        if not reported_qualname:
++            reported_qualname = nominal_target.partition(":")[2]
++        reported_target = f"{reported_module_name}:{reported_qualname}"
++        # Special case for looking up functions in frozen modules
++        if source_file == f"<frozen {reported_module_name}>":
++            source_file = module.__file__
++    # Populate the actual details to be reported
++    details = {
++        "target": reported_target,
++        "origin": module.__spec__.origin,
++        "cached": module.__spec__.cached,
++        "source": source_file,
++    }
++    if reported_target != nominal_target:
++        details["alias"] = nominal_target
++    error = None
++    if not source_file:
++        if module.__name__ in sys.builtin_module_names:
++            error = "No source code available for builtin module"
++        else:
++            error = "No source code available for defining module"
++    if resolved_target is module:
++        details["loader"] = repr(module.__spec__.loader)
++        if hasattr(module, '__path__'):
++            details["submodule_paths"] = str(module.__path__)
++    elif source_file:
++            try:
++                __, lineno = findsource(resolved_target)
++            except Exception:
++                error = "Failed to retrieve source code for given target"
++            else:
++                details["lineno"] = lineno
++    if error:
++        details["error"] = error
++    return details
++
++def _render_details_for_cli(details):
++    resolved_target = details["target"]
++    alias = details.get("alias")
++    if alias:
++        rendered_target = f'{resolved_target} (looked up as "{alias}")'
++    else:
++        rendered_target = resolved_target
++    lines = [
++        f'Target: {rendered_target}',
++        f'Origin: {details["origin"]}',
++        f'Source: {details["source"]}',
++        f'Cached: {details["cached"]}',
++    ]
++    loader = details.get("loader")
++    if loader:
++        lines.append(f'Loader: {loader}')
++        submodule_paths = details.get("submodule_paths")
++        if submodule_paths:
++            lines.append(f'Submodule search paths: {submodule_paths}')
++    else:
++        error = details.get("error")
++        if error:
++            # The error is only informational when retrieving object details
++            lines.append(error)
++        else:
++            lines.append(f'Line: {details["lineno"]}')
++
++    lines.append("")
++    return "\n".join(lines)
++
++
+ def _main():
+     """ Logic for inspecting an object given at command line """
+     import argparse
+@@ -3367,6 +3456,8 @@ def _main():
+ 
+     args = parser.parse_args()
+ 
++    # We don't use `pkgutil.resolve_name` here because we want to obtain
++    # references to both the module *and* the fully resolved target object
+     target = args.object
+     mod_name, has_attrs, attrs = target.partition(":")
+     try:
+@@ -3384,29 +3475,16 @@ def _main():
+         for part in parts:
+             obj = getattr(obj, part)
+ 
+-    if module.__name__ in sys.builtin_module_names:
+-        print("Can't get info for builtin modules.", file=sys.stderr)
+-        sys.exit(1)
+-
++    details = _get_details_for_cli(module, target, obj)
+     if args.details:
+-        print(f'Target: {target}')
+-        print(f'Origin: {getsourcefile(module)}')
+-        print(f'Cached: {module.__spec__.cached}')
+-        if obj is module:
+-            print(f'Loader: {module.__loader__!r}')
+-            if hasattr(module, '__path__'):
+-                print(f'Submodule search path: {module.__path__}')
+-        else:
+-            try:
+-                __, lineno = findsource(obj)
+-            except Exception:
+-                pass
+-            else:
+-                print(f'Line: {lineno}')
+-
+-        print()
++        print(_render_details_for_cli(details))
+     else:
+-        print(getsource(obj))
++        # Attempt to render target source details
++        error = details.get("error")
++        if error:
++            sys.exit(error)
++        else:
++            print(getsource(obj))
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/Lib/test/test_inspect/test_inspect.py b/Lib/test/test_inspect/test_inspect.py
+index 68ea62f565..efe9d27e34 100644
+--- a/Lib/test/test_inspect/test_inspect.py
++++ b/Lib/test/test_inspect/test_inspect.py
+@@ -6493,8 +6493,19 @@ def test_wrapped_descriptor(self):
+         self.assertIs(inspect.unwrap(staticmethod(classmethod)), classmethod)
+         self.assertIs(inspect.unwrap(classmethod(staticmethod)), staticmethod)
+ 
++def _clean_object_ids(text):
++    # Helper to handle "<obj at 0x...>" details in CLI output checks
++    import re
++    detect = r"object at 0x([0-9A-Fa-f]+)>"
++    replace = "object at 0x...>"
++    return re.sub(detect, replace, text)
++
++class TestModuleCLI(unittest.TestCase):
++
++    BUILTIN_ERROR = "No source code available for builtin module"
++    NO_SOURCE_ERROR = "No source code available for defining module"
++    NO_SOURCE_TARGET_ERROR = "Failed to retrieve source code for given target"
+ 
+-class TestMain(unittest.TestCase):
+     def test_only_source(self):
+         module = importlib.import_module('unittest')
+         rc, out, err = assert_python_ok('-m', 'inspect',
+@@ -6522,27 +6533,223 @@ def test_qualname_source(self):
+                          inspect.getsource(ThreadPoolExecutor).splitlines())
+         self.assertEqual(err, b'')
+ 
+-    def test_builtins(self):
++    def test_error_builtins(self):
+         _, out, err = assert_python_failure('-m', 'inspect',
+                                             'sys')
+         lines = err.decode().splitlines()
+-        self.assertEqual(lines, ["Can't get info for builtin modules."])
++        self.assertEqual(lines, [self.BUILTIN_ERROR])
++
++    def test_error_extension(self):
++        module_name = "_testcapi"
++        if module_name in sys.builtin_module_names:
++            # WASI test environment has even _testcapi as a builtin module
++            expected_error = self.BUILTIN_ERROR
++        else:
++            expected_error = self.NO_SOURCE_ERROR
++        _, out, err = assert_python_failure('-m', 'inspect',
++                                            module_name)
++        lines = err.decode().splitlines()
++        self.assertEqual(lines, [expected_error])
++
++    def test_error_data(self):
++        _, out, err = assert_python_failure('-m', 'inspect',
++                                            'importlib.machinery:SOURCE_SUFFIXES')
++        lines = err.decode().splitlines()
++        self.assertEqual(lines, [self.NO_SOURCE_TARGET_ERROR])
++
++    def test_details_option_with_package(self):
++        module_name = 'unittest'
++        module = importlib.import_module(module_name)
++        args = support.optim_args_from_interpreter_flags()
++        rc, out, err = assert_python_ok(*args, '-m', 'inspect',
++                                        module_name, '--details')
++        # Full rendering check on the expected output
++        expected_lines = [
++            f"Target: {module.__name__}",  # No aliasing
++            f"Origin: {module.__spec__.origin}",
++            f"Source: {module.__file__}",
++            f"Cached: {module.__spec__.cached}",  # None is still displayed
++            f"Loader: {_clean_object_ids(repr(module.__spec__.loader))}",
++            f"Submodule search paths: {module.__path__}",
++            "",
++        ]
++        output_lines = _clean_object_ids(out.decode()).splitlines()
++        self.assertEqual(output_lines, expected_lines)
++        self.assertEqual(err, b'')
++
++    def test_details_option_with_builtin_module(self):
++        # Also an end-to-end test of non-package lookups
++        module_name = 'sys'
++        module = importlib.import_module(module_name)
++        args = support.optim_args_from_interpreter_flags()
++        rc, out, err = assert_python_ok(*args, '-m', 'inspect',
++                                        module_name, '--details')
++        # Full rendering check on the expected output
++        # No error is reported when just fetching the module details
++        expected_lines = [
++            f"Target: {module.__name__}",  # No aliasing
++            f"Origin: {module.__spec__.origin}",
++            "Source: None",
++            "Cached: None",
++            f"Loader: {_clean_object_ids(repr(module.__spec__.loader))}",
++            "",
++        ]
++        output_lines = _clean_object_ids(out.decode()).splitlines()
++        self.assertEqual(output_lines, expected_lines)
++        self.assertEqual(err, b'')
++
++    def test_details_option_with_data_target(self):
++        # Also an end-to-end test of non-module lookups without aliasing
++        module_name = 'importlib.machinery'
++        cli_target = f"{module_name}:SOURCE_SUFFIXES"
++        module = importlib.import_module(module_name)
++        args = support.optim_args_from_interpreter_flags()
++        rc, out, err = assert_python_ok(*args, '-m', 'inspect',
++                                        cli_target, '--details')
++        # Full rendering check on the expected output
++        # The error is only informational when reading source details
++        expected_lines = [
++            f"Target: {cli_target}",  # No aliasing
++            f"Origin: {module.__spec__.origin}",
++            f"Source: {module.__file__}",
++            f"Cached: {module.__spec__.cached}",  # None is still displayed
++            self.NO_SOURCE_TARGET_ERROR,
++            "",
++        ]
++        output_lines = out.decode().splitlines()
++        self.assertEqual(output_lines, expected_lines)
++        self.assertEqual(err, b'')
++
++    @unittest.skipIf(not os.path.exists(os.path.__file__), "Needs frozen source file")
++    def test_details_option_with_aliased_target(self):
++        # Also an end-to-end test of successful non-module lookups
++        module = importlib.import_module("os.path")
++        target = module.join
++        cli_target = "os:path.join"  # Defining module is os.path, not os
++        defining_target = f"{target.__module__}:{target.__qualname__}"
+ 
+-    def test_details(self):
+-        module = importlib.import_module('unittest')
+         args = support.optim_args_from_interpreter_flags()
+         rc, out, err = assert_python_ok(*args, '-m', 'inspect',
+-                                        'unittest', '--details')
+-        output = out.decode()
+-        # Just a quick safety check on the output
+-        self.assertIn(module.__spec__.name, output)
+-        self.assertIn(module.__name__, output)
+-        self.assertIn(module.__spec__.origin, output)
+-        self.assertIn(module.__file__, output)
+-        if module.__spec__.cached:
+-            self.assertIn(module.__spec__.cached, output)
++                                        cli_target, '--details')
++        # Full rendering check on the expected output
++        expected_lines = [
++            f'Target: {defining_target} (looked up as "{cli_target}")',
++            f"Origin: {module.__spec__.origin}",
++            f"Source: {module.__file__}",
++            f"Cached: {module.__spec__.cached}",  # None is still displayed
++            f"Line: {inspect.findsource(target)[1]}",
++            "",
++        ]
++        output_lines = out.decode().splitlines()
++        self.assertEqual(output_lines, expected_lines)
+         self.assertEqual(err, b'')
+ 
++    def _check_details(self, module, details, other_expected_keys=(), *, alias=None, error=None):
++        expected_keys = {"target", "origin", "source", "cached"}
++        if other_expected_keys:
++            expected_keys |= other_expected_keys
++        if alias is not None:
++            expected_keys.add("alias")
++        if error is not None:
++            expected_keys.add("error")
++        self.assertEqual(set(details.keys()), expected_keys)
++        self.assertEqual(module.__spec__.origin, details["origin"])
++        try:
++            expected_source = inspect.getsourcefile(module)
++        except Exception:
++            expected_source = None
++        if expected_source and expected_source.startswith("<frozen"):
++            # Check special case for frozen modules
++            expected_source = module.__file__
++        self.assertEqual(expected_source, details["source"])
++        self.assertEqual(module.__spec__.cached, details["cached"])
++        if "loader" in other_expected_keys:
++            self.assertEqual(repr(module.__spec__.loader), details["loader"])
++        if "submodule_paths" in other_expected_keys:
++            self.assertEqual(repr(module.__path__), details["submodule_paths"])
++        if alias is not None:
++            self.assertEqual(details["alias"], alias)
++            self.assertNotEqual(details["target"], alias)
++        if error is not None:
++            self.assertEqual(details["error"], error)
++
++    def test_get_cli_details_for_source_module(self):
++        module_name = "inspect"
++        module = importlib.import_module(module_name)
++        details = inspect._get_details_for_cli(module, module_name, module)
++        self._check_details(module, details, {"loader"})
++        target = module.signature
++        nominal_target = f"{module_name}:{target.__qualname__}"
++        details = inspect._get_details_for_cli(module, nominal_target, target)
++        self._check_details(module, details, {"lineno"})
++        self.assertEqual(inspect.findsource(target)[1], details["lineno"])
++
++    def test_get_cli_details_for_source_package(self):
++        module_name = "importlib"
++        module = importlib.import_module(module_name)
++        details = inspect._get_details_for_cli(module, module_name, module)
++        self._check_details(module, details, {"loader", "submodule_paths"})
++        target = module.import_module  # Assumes this is not re-exported
++        nominal_target = f"{module_name}:{target.__qualname__}"
++        details = inspect._get_details_for_cli(module, nominal_target, target)
++        self._check_details(module, details, {"lineno"})
++        self.assertEqual(inspect.findsource(target)[1], details["lineno"])
++
++    def test_get_cli_details_for_builtin_module(self):
++        expected_error = self.BUILTIN_ERROR
++        module_name = "sys"
++        module = importlib.import_module(module_name)
++        details = inspect._get_details_for_cli(module, module_name, module)
++        self._check_details(module, details, {"loader"}, error=expected_error)
++        target = module.exit
++        nominal_target = f"{module_name}:{target.__qualname__}"
++        details = inspect._get_details_for_cli(module, nominal_target, target)
++        self._check_details(module, details, error=expected_error)
++
++    def test_get_cli_details_for_frozen_module(self):
++        # Source is actually available for this frozen module, as
++        # __file__ refers to the location of importlib._bootstrap
++        module_name = "_frozen_importlib"
++        module = importlib.import_module(module_name)
++        details = inspect._get_details_for_cli(module, module_name, module)
++        self._check_details(module, details, {"loader"}, alias=module_name)
++        target = module.__import__
++        nominal_target = f"{module_name}:{target.__qualname__}"
++        details = inspect._get_details_for_cli(module, nominal_target, target)
++        self._check_details(module, details, {"lineno"}, alias=nominal_target)
++        self.assertEqual(inspect.findsource(target)[1], details["lineno"])
++
++    def test_get_cli_details_for_extension_module(self):
++        module_name = "_testcapi"
++        if module_name in sys.builtin_module_names:
++            # WASI test environment has even _testcapi as a builtin module
++            expected_error = self.BUILTIN_ERROR
++        else:
++            expected_error = self.NO_SOURCE_ERROR
++        module = importlib.import_module(module_name)
++        details = inspect._get_details_for_cli(module, module_name, module)
++        self._check_details(module, details, {"loader"}, error=expected_error)
++        target = module.fatal_error
++        nominal_target = f"{module_name}:{target.__qualname__}"
++        details = inspect._get_details_for_cli(module, nominal_target, target)
++        self._check_details(module, details, error=expected_error)
++
++    @unittest.skipIf(not os.path.exists(os.path.__file__), "Needs frozen source file")
++    def test_get_cli_details_for_aliased_module(self):
++        # os.path is an alias for a platform dependent implementation module
++        # Test is skipped if the source file is missing (as the output changes),
++        # which may happen if running the test suite after deployment.
++        module_name = "os.path"
++        module = importlib.import_module(module_name)
++        details = inspect._get_details_for_cli(module, module_name, module)
++        self._check_details(module, details, {"loader"}, alias=module_name)
++        nominal_module = importlib.import_module("os")
++        nominal_target = "os:path.join"
++        target = module.join
++        details = inspect._get_details_for_cli(nominal_module, nominal_target, target)
++        self._check_details(module, details, {"lineno"}, alias=nominal_target)
++        self.assertEqual(inspect.findsource(target)[1], details["lineno"])
++
+ 
+ class TestReload(unittest.TestCase):
+ 
+@@ -6635,7 +6842,5 @@ def f():
+         self.assertIn(expected, output)
+ 
+ 
+-
+-
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/Misc/NEWS.d/next/Library/2026-05-04-00-51-32.gh-issue-149010.BCp_8k.rst b/Misc/NEWS.d/next/Library/2026-05-04-00-51-32.gh-issue-149010.BCp_8k.rst
+new file mode 100644
+index 0000000000..31bf235566
+--- /dev/null
++++ b/Misc/NEWS.d/next/Library/2026-05-04-00-51-32.gh-issue-149010.BCp_8k.rst
+@@ -0,0 +1,6 @@
++The ``inspect`` module CLI now reports as much information as it has
++available for non-source modules when ``--details`` is specified, and
++provides an error message rather than a traceback when ``--details`` is
++omitted. It also reports improved information when the given target location
++is not the target's defining location and when the given target is a data
++value rather than a class or function definition.
+-- 
+2.34.1
+

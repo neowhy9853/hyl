@@ -1,0 +1,71 @@
+From fbfcf87f8b113db93bb4db3ccafd12e77310d276 Mon Sep 17 00:00:00 2001
+From: Simon Kelley <simon@thekelleys.org.uk>
+Date: Sun, 1 Feb 2026 21:46:19 +0000
+Subject: [PATCH 33/50] Rewrite blockdata_retrieve() and expand_buf() to use
+ realloc().
+
+---
+ src/blockdata.c | 14 ++++++--------
+ src/util.c      |  8 +-------
+ 2 files changed, 7 insertions(+), 15 deletions(-)
+
+diff --git a/src/blockdata.c b/src/blockdata.c
+index dc02d46..00b86d5 100644
+--- a/src/blockdata.c
++++ b/src/blockdata.c
+@@ -193,22 +193,20 @@ void *blockdata_retrieve(struct blockdata *block, size_t len, void *data)
+ {
+   size_t blen;
+   struct  blockdata *b;
+-  uint8_t *new, *d;
++  uint8_t *d;
+   
+-  static unsigned int buff_len = 0;
+-  static unsigned char *buff = NULL;
+-   
+   if (!data)
+     {
++      static unsigned int buff_len = 0;
++      static unsigned char *buff = NULL;
++      uint8_t *new;
++      
+       if (len > buff_len)
+ 	{
+ 	  blen = len + 1024;
+-	  if (!(new = whine_malloc(blen)))
++	  if (!(new = whine_realloc(buff, blen)))
+ 	    return NULL;
+ 
+-	  if (buff)
+-	    free(buff);
+-
+ 	  buff = new;
+ 	  buff_len = blen;
+ 	}
+diff --git a/src/util.c b/src/util.c
+index 59be5d7..aed2567 100644
+--- a/src/util.c
++++ b/src/util.c
+@@ -680,18 +680,12 @@ int expand_buf(struct iovec *iov, size_t size)
+   if (size <= (size_t)iov->iov_len)
+     return 1;
+ 
+-  if (!(new = whine_malloc(size)))
++  if (!(new = whine_realloc(iov->iov_base, size)))
+     {
+       errno = ENOMEM;
+       return 0;
+     }
+ 
+-  if (iov->iov_base)
+-    {
+-      memcpy(new, iov->iov_base, iov->iov_len);
+-      free(iov->iov_base);
+-    }
+-
+   iov->iov_base = new;
+   iov->iov_len = size;
+ 
+-- 
+2.43.0
+

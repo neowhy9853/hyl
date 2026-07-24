@@ -1,0 +1,57 @@
+From f2c2c1f2e1e1f016f219f8a0b3fe84265f27b055 Mon Sep 17 00:00:00 2001
+From: Michael Matloob <matloob@golang.org>
+Date: Wed, 15 Jul 2026 13:29:45 -0400
+Subject: [PATCH] cmd/compile/internal/ssa: in generate_test look in
+ subdirectories
+
+We're going to be adding subpackages to ssa so look in subdirectories (other
+than _gen and testata) for generated files.
+
+For #80409
+
+Change-Id: Id921dd8c7065418f087ae600b7ab82e16a6a6964
+Reviewed-on: https://go-review.googlesource.com/c/go/+/801040
+Reviewed-by: Michael Matloob <matloob@google.com>
+Reviewed-by: Keith Randall <khr@golang.org>
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+Reviewed-by: Keith Randall <khr@google.com>
+---
+ src/cmd/compile/internal/ssa/generate_test.go | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/src/cmd/compile/internal/ssa/generate_test.go b/src/cmd/compile/internal/ssa/generate_test.go
+index d65288c399996fc702ece9c97789fec04a700ecf..1450992ec0806ab5fb89aaf9b9766eea5069954f 100644
+--- a/src/cmd/compile/internal/ssa/generate_test.go
++++ b/src/cmd/compile/internal/ssa/generate_test.go
+@@ -8,8 +8,10 @@ import (
+ 	"bytes"
+ 	"fmt"
+ 	"internal/testenv"
++	"io/fs"
+ 	"os"
+ 	"path/filepath"
++	"strings"
+ 	"testing"
+ )
+ 
+@@ -38,7 +40,16 @@ func TestGeneratedFilesUpToDate(t *testing.T) {
+ 	// generated into tmpdir.
+ 	genFiles := make(map[string]bool)
+ 	genPrefix := []byte(expectedHeader)
+-	ssaFiles, err := filepath.Glob(filepath.Join(wd, "*.go"))
++	var ssaFiles []string
++	err = filepath.WalkDir(wd, func(path string, d fs.DirEntry, err error) error {
++		if base := filepath.Base(path); base == "_gen" || base == "testdata" {
++			return filepath.SkipDir
++		}
++		if !d.IsDir() && strings.HasSuffix(path, ".go") {
++			ssaFiles = append(ssaFiles, path)
++		}
++		return nil
++	})
+ 	if err != nil {
+ 		t.Fatalf("could not glob for .go files in ssa directory: %v", err)
+ 	}
+-- 
+2.34.1
+

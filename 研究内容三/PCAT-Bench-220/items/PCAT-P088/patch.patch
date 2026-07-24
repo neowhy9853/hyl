@@ -1,0 +1,82 @@
+From 681477de459bd12ab2429669aa6d52cbed83c018 Mon Sep 17 00:00:00 2001
+From: stevens <lipengyu@kylinos.cn>
+Date: Thu, 16 Jul 2026 01:53:23 +0800
+Subject: [PATCH] gh-150077: Fix fileobj leak in `tarfile.TarFile.zstopen` on
+ `BaseException` (GH-150080)
+
+This is one of those times when a bare `except` is appropriate.
+---
+ Lib/tarfile.py                                |  2 +-
+ Lib/test/test_tarfile.py                      | 32 +++++++++++++++++++
+ ...18-25-00.gh-issue-150077.zstopen-close.rst |  3 ++
+ 3 files changed, 36 insertions(+), 1 deletion(-)
+ create mode 100644 Misc/NEWS.d/next/Library/2026-05-19-18-25-00.gh-issue-150077.zstopen-close.rst
+
+diff --git a/Lib/tarfile.py b/Lib/tarfile.py
+index 5d5cef2f13..d12bd15aa2 100644
+--- a/Lib/tarfile.py
++++ b/Lib/tarfile.py
+@@ -2129,7 +2129,7 @@ def zstopen(cls, name, mode="r", fileobj=None, level=None, options=None,
+             if mode == 'r':
+                 raise ReadError("not a zstd file") from e
+             raise
+-        except Exception:
++        except:
+             fileobj.close()
+             raise
+         t._extfileobj = False
+diff --git a/Lib/test/test_tarfile.py b/Lib/test/test_tarfile.py
+index 514cfbb07c..c86bcb79eb 100644
+--- a/Lib/test/test_tarfile.py
++++ b/Lib/test/test_tarfile.py
+@@ -1141,6 +1141,38 @@ class LzmaDetectReadTest(LzmaTest, DetectReadTest):
+ class ZstdDetectReadTest(ZstdTest, DetectReadTest):
+     pass
+ 
++
++@support.requires_zstd()
++class ZstdOpenTest(unittest.TestCase):
++    """
++    See: https://github.com/python/cpython/issues/150077
++    """
++    def test_zstopen_closes_fileobj_on_base_exception(self):
++        path = os_helper.TESTFN + ".tar.zst"
++        self.addCleanup(os_helper.unlink, path)
++        with tarfile.open(path, "w:zst"):
++            pass
++
++        opened = []
++        real_ZstdFile = zstd.ZstdFile
++
++        def tracking_ZstdFile(*args, **kwargs):
++            fileobj = real_ZstdFile(*args, **kwargs)
++            opened.append(fileobj)
++            return fileobj
++
++        with (
++            unittest.mock.patch("compression.zstd.ZstdFile", tracking_ZstdFile),
++            unittest.mock.patch.object(
++                tarfile.TarFile, "taropen", side_effect=KeyboardInterrupt),
++            self.assertRaises(KeyboardInterrupt),
++        ):
++            tarfile.TarFile.zstopen(path)
++
++        self.assertEqual(len(opened), 1)
++        self.assertTrue(opened[0].closed)
++
++
+ class GzipBrokenHeaderCorrectException(GzipTest, unittest.TestCase):
+     """
+     See: https://github.com/python/cpython/issues/107396
+diff --git a/Misc/NEWS.d/next/Library/2026-05-19-18-25-00.gh-issue-150077.zstopen-close.rst b/Misc/NEWS.d/next/Library/2026-05-19-18-25-00.gh-issue-150077.zstopen-close.rst
+new file mode 100644
+index 0000000000..06d20e41e2
+--- /dev/null
++++ b/Misc/NEWS.d/next/Library/2026-05-19-18-25-00.gh-issue-150077.zstopen-close.rst
+@@ -0,0 +1,3 @@
++Fix ``tarfile.TarFile.zstopen`` to close the underlying zstd file object
++when opening the tar archive is interrupted by a :exc:`BaseException`
++subclass such as :exc:`KeyboardInterrupt`.
+-- 
+2.34.1
+

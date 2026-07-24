@@ -1,0 +1,263 @@
+From efbecbbb465c99ed608b06d72fa1982122382d00 Mon Sep 17 00:00:00 2001
+From: Roland Shoemaker <roland@golang.org>
+Date: Tue, 9 Jun 2026 11:55:17 -0700
+Subject: [PATCH] crypto/tls: add LocalCertificate to ConnectionState
+
+Adds a new field to ConnectionState, LocalCertificate, which contains
+the certificate chain which was presented to the connection peer, if one
+was.
+
+Fixes #24673
+
+Change-Id: Iae758fef4a2808e3295324890f4b2f55c71fcc4c
+Reviewed-on: https://go-review.googlesource.com/c/go/+/788866
+Auto-Submit: Roland Shoemaker <roland@golang.org>
+Reviewed-by: Cherry Mui <cherryyz@google.com>
+TryBot-Bypass: Roland Shoemaker <roland@golang.org>
+Reviewed-by: Daniel McCarney <daniel@binaryparadox.net>
+---
+ api/go1.27.txt                           |   1 +
+ src/crypto/tls/common.go                 |   5 +
+ src/crypto/tls/conn.go                   |   2 +
+ src/crypto/tls/handshake_client.go       |   4 +
+ src/crypto/tls/handshake_client_tls13.go |   4 +
+ src/crypto/tls/handshake_server.go       |   5 +
+ src/crypto/tls/handshake_server_tls13.go |   3 +
+ src/crypto/tls/tls_test.go               | 116 +++++++++++++++++++++++
+ 8 files changed, 140 insertions(+)
+
+diff --git a/api/go1.27.txt b/api/go1.27.txt
+index 93a08c2ba5..2520fba32f 100644
+--- a/api/go1.27.txt
++++ b/api/go1.27.txt
+@@ -49,6 +49,7 @@ pkg crypto/tls, const MLDSA87 SignatureScheme #78888
+ pkg crypto/tls, const MLKEM1024 = 514 #78543
+ pkg crypto/tls, const MLKEM1024 CurveID #78543
+ pkg crypto/tls, type Config struct, Rand //deprecated #79367
++pkg crypto/tls, type ConnectionState struct, LocalCertificate [][]uint8 #24673
+ pkg crypto/tls, type QUICConfig struct, ClientHelloInfoConn net.Conn #77363
+ pkg crypto/x509, const MLDSA = 5 #78888
+ pkg crypto/x509, const MLDSA PublicKeyAlgorithm #78888
+diff --git a/src/crypto/tls/common.go b/src/crypto/tls/common.go
+index 067b45f133..dd4aaf546c 100644
+--- a/src/crypto/tls/common.go
++++ b/src/crypto/tls/common.go
+@@ -325,6 +325,11 @@ type ConnectionState struct {
+ 	// are a server, or if we received a HelloRetryRequest if we are a client.
+ 	HelloRetryRequest bool
+ 
++	// LocalCertificate is the certificate chain presented to the peer, if any,
++	// during the handshake. This field is only populated for connections which
++	// are not resumed (DidResume is false).
++	LocalCertificate [][]byte
++
+ 	// ekm is a closure exposed via ExportKeyingMaterial.
+ 	ekm func(label string, context []byte, length int) ([]byte, error)
+ 
+diff --git a/src/crypto/tls/conn.go b/src/crypto/tls/conn.go
+index b4508d6a81..fb1e9f00e2 100644
+--- a/src/crypto/tls/conn.go
++++ b/src/crypto/tls/conn.go
+@@ -54,6 +54,7 @@ type Conn struct {
+ 	ocspResponse     []byte   // stapled OCSP response
+ 	scts             [][]byte // signed certificate timestamps from server
+ 	peerCertificates []*x509.Certificate
++	localCertificate [][]byte
+ 	// verifiedChains contains the certificate chains that we built, as
+ 	// opposed to the ones presented by the server.
+ 	verifiedChains [][]*x509.Certificate
+@@ -1622,6 +1623,7 @@ func (c *Conn) connectionStateLocked() ConnectionState {
+ 	state.ServerName = c.serverName
+ 	state.CipherSuite = c.cipherSuite
+ 	state.PeerCertificates = c.peerCertificates
++	state.LocalCertificate = c.localCertificate
+ 	state.VerifiedChains = c.verifiedChains
+ 	state.SignedCertificateTimestamps = c.scts
+ 	state.OCSPResponse = c.ocspResponse
+diff --git a/src/crypto/tls/handshake_client.go b/src/crypto/tls/handshake_client.go
+index 52bf6087b6..54227aabfb 100644
+--- a/src/crypto/tls/handshake_client.go
++++ b/src/crypto/tls/handshake_client.go
+@@ -728,6 +728,10 @@ func (hs *clientHandshakeState) doFullHandshake() error {
+ 		}
+ 	}
+ 
++	if chainToSend != nil {
++		hs.c.localCertificate = chainToSend.Certificate
++	}
++
+ 	shd, ok := msg.(*serverHelloDoneMsg)
+ 	if !ok {
+ 		c.sendAlert(alertUnexpectedMessage)
+diff --git a/src/crypto/tls/handshake_client_tls13.go b/src/crypto/tls/handshake_client_tls13.go
+index d367020c20..f55150697d 100644
+--- a/src/crypto/tls/handshake_client_tls13.go
++++ b/src/crypto/tls/handshake_client_tls13.go
+@@ -756,6 +756,10 @@ func (hs *clientHandshakeStateTLS13) sendClientCertificate() error {
+ 		return err
+ 	}
+ 
++	if cert != nil {
++		hs.c.localCertificate = cert.Certificate
++	}
++
+ 	certMsg := new(certificateMsgTLS13)
+ 
+ 	certMsg.certificate = *cert
+diff --git a/src/crypto/tls/handshake_server.go b/src/crypto/tls/handshake_server.go
+index cde70463ef..a4544a1305 100644
+--- a/src/crypto/tls/handshake_server.go
++++ b/src/crypto/tls/handshake_server.go
+@@ -279,6 +279,11 @@ func (hs *serverHandshakeState) processClientHello() error {
+ 		}
+ 		return err
+ 	}
++
++	if hs.cert != nil {
++		hs.c.localCertificate = hs.cert.Certificate
++	}
++
+ 	if hs.clientHello.scts {
+ 		hs.hello.scts = hs.cert.SignedCertificateTimestamps
+ 	}
+diff --git a/src/crypto/tls/handshake_server_tls13.go b/src/crypto/tls/handshake_server_tls13.go
+index 3175d74587..2c96e2435a 100644
+--- a/src/crypto/tls/handshake_server_tls13.go
++++ b/src/crypto/tls/handshake_server_tls13.go
+@@ -493,6 +493,9 @@ func (hs *serverHandshakeStateTLS13) pickCertificate() error {
+ 		}
+ 		return err
+ 	}
++	if certificate != nil {
++		hs.c.localCertificate = certificate.Certificate
++	}
+ 	hs.sigAlg, err = selectSignatureScheme(c.vers, certificate, hs.clientHello.supportedSignatureAlgorithms)
+ 	if err != nil {
+ 		// getCertificate returned a certificate that is unsupported or
+diff --git a/src/crypto/tls/tls_test.go b/src/crypto/tls/tls_test.go
+index c17d4a8383..2bfb645e2c 100644
+--- a/src/crypto/tls/tls_test.go
++++ b/src/crypto/tls/tls_test.go
+@@ -2947,3 +2947,119 @@ func TestKeyLogWriterErr(t *testing.T) {
+ 		t.Errorf("got %q, want %q", got, want)
+ 	}
+ }
++
++func testLocalCertificate(t *testing.T, version uint16, callback bool) {
++	clientConfig, serverConfig := testConfigClient.Clone(), testConfigServer.Clone()
++
++	clientConfig.MinVersion, serverConfig.MinVersion = version, version
++	serverConfig.ClientAuth = RequestClientCert
++
++	serverCert, clientCert := testConfigServer.Certificates[0], testConfigClient.Certificates[0]
++
++	if callback {
++		clientConfig.GetClientCertificate = func(_ *CertificateRequestInfo) (*Certificate, error) {
++			return &Certificate{
++				Certificate: clientCert.Certificate,
++				PrivateKey:  clientCert.PrivateKey,
++			}, nil
++		}
++		clientConfig.Certificates = nil
++		serverConfig.GetCertificate = func(_ *ClientHelloInfo) (*Certificate, error) {
++			return &Certificate{
++				Certificate: serverCert.Certificate,
++				PrivateKey:  serverCert.PrivateKey,
++			}, nil
++		}
++		serverConfig.Certificates = nil
++	}
++
++	ss, cs, err := testHandshake(t, clientConfig, serverConfig)
++	if err != nil {
++		t.Fatalf("unexpected failure: %s", err)
++	}
++
++	if !slices.EqualFunc(ss.LocalCertificate, serverCert.Certificate, bytes.Equal) {
++		t.Errorf("unexpected server local certificate: %x, want %x", ss.LocalCertificate, serverCert.Certificate)
++	}
++
++	if !slices.EqualFunc(cs.LocalCertificate, clientCert.Certificate, bytes.Equal) {
++		t.Errorf("unexpected client local certificate: %x, want %x", cs.LocalCertificate, clientCert.Certificate)
++	}
++}
++
++func TestLocalCertificate(t *testing.T) {
++	for _, useCallback := range []bool{true, false} {
++		name := "UseCertificates"
++		if useCallback {
++			name = "UseCallbacks"
++		}
++		t.Run(name, func(t *testing.T) {
++			for _, v := range []uint16{VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13} {
++				t.Run(VersionName(v), func(t *testing.T) {
++					testLocalCertificate(t, v, useCallback)
++				})
++			}
++		})
++	}
++}
++
++func testLocalCertificateResumption(t *testing.T, version uint16, callback bool) {
++	clientConfig, serverConfig := testConfigClient.Clone(), testConfigServer.Clone()
++
++	clientConfig.MinVersion, serverConfig.MinVersion = version, version
++	clientConfig.ClientSessionCache = NewLRUClientSessionCache(1)
++	serverConfig.ClientAuth = RequestClientCert
++
++	serverCert, clientCert := testConfigServer.Certificates[0], testConfigClient.Certificates[0]
++
++	if callback {
++		clientConfig.GetClientCertificate = func(_ *CertificateRequestInfo) (*Certificate, error) {
++			return &Certificate{
++				Certificate: clientCert.Certificate,
++				PrivateKey:  clientCert.PrivateKey,
++			}, nil
++		}
++		clientConfig.Certificates = nil
++		serverConfig.GetCertificate = func(_ *ClientHelloInfo) (*Certificate, error) {
++			return &Certificate{
++				Certificate: serverCert.Certificate,
++				PrivateKey:  serverCert.PrivateKey,
++			}, nil
++		}
++		serverConfig.Certificates = nil
++	}
++
++	if _, _, err := testHandshake(t, clientConfig, serverConfig); err != nil {
++		t.Fatalf("first handshake failed: %s", err)
++	}
++
++	ss, cs, err := testHandshake(t, clientConfig, serverConfig)
++	if err != nil {
++		t.Fatalf("second handshake failed: %s", err)
++	}
++	if !ss.DidResume || !cs.DidResume {
++		t.Fatalf("second handshake did not resume (server=%v client=%v)", ss.DidResume, cs.DidResume)
++	}
++	if ss.LocalCertificate != nil {
++		t.Errorf("server LocalCertificate on resumed connection: got %x, want nil", ss.LocalCertificate)
++	}
++	if cs.LocalCertificate != nil {
++		t.Errorf("client LocalCertificate on resumed connection: got %x, want nil", cs.LocalCertificate)
++	}
++}
++
++func TestLocalCertificateResumption(t *testing.T) {
++	for _, useCallback := range []bool{true, false} {
++		name := "UseCertificates"
++		if useCallback {
++			name = "UseCallbacks"
++		}
++		t.Run(name, func(t *testing.T) {
++			for _, v := range []uint16{VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13} {
++				t.Run(VersionName(v), func(t *testing.T) {
++					testLocalCertificateResumption(t, v, useCallback)
++				})
++			}
++		})
++	}
++}
+-- 
+2.34.1
+

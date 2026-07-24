@@ -1,0 +1,197 @@
+diff --git a/bignum.c b/bignum.c
+index 088e8c49b55024a6844d2fc961a11e5e35228901..89b35dd1e1275c57eb229d17489e7e575462a5d9 100644
+--- a/bignum.c
++++ b/bignum.c
+@@ -7029,6 +7029,23 @@ rb_big_bit_length(VALUE big)
+             INTEGER_PACK_LSWORD_FIRST|INTEGER_PACK_NATIVE_BYTE_ORDER);
+ }
+ 
++VALUE
++rb_big_bit_count(VALUE big)
++{
++    if (BIGNUM_NEGATIVE_P(big))
++        rb_raise(rb_eArgError, "bit_count is undefined for negative integers");
++
++    BDIGIT *ds = BDIGITS(big);
++    size_t n = BIGNUM_LEN(big);
++    size_t count = 0;
++
++    while (n--) {
++        count += rb_popcount64((uint64_t)ds[n]);
++    }
++
++    return SIZET2NUM(count);
++}
++
+ VALUE
+ rb_big_odd_p(VALUE num)
+ {
+diff --git a/internal/bignum.h b/internal/bignum.h
+index 7389a17c747e15abc19cc70689b5fba1fcbada01..08f7c85b57877565516de52bbf02e046b1996fa4 100644
+--- a/internal/bignum.h
++++ b/internal/bignum.h
+@@ -123,6 +123,7 @@ VALUE rb_big_aref2(VALUE num, VALUE beg, VALUE len);
+ VALUE rb_big_abs(VALUE x);
+ VALUE rb_big_size_m(VALUE big);
+ VALUE rb_big_bit_length(VALUE big);
++VALUE rb_big_bit_count(VALUE big);
+ VALUE rb_big_remainder(VALUE x, VALUE y);
+ VALUE rb_big_gt(VALUE x, VALUE y);
+ VALUE rb_big_ge(VALUE x, VALUE y);
+diff --git a/internal/numeric.h b/internal/numeric.h
+index a24432df1e6450ad9b5e43a6bbb5fc83e94037ea..ed1f6035239d94302dc397164112def5a3ffb288 100644
+--- a/internal/numeric.h
++++ b/internal/numeric.h
+@@ -126,6 +126,7 @@ VALUE rb_int_even_p(VALUE num);
+ VALUE rb_int_odd_p(VALUE num);
+ VALUE rb_int_abs(VALUE num);
+ VALUE rb_int_bit_length(VALUE num);
++VALUE rb_int_bit_count(VALUE num);
+ VALUE rb_int_uminus(VALUE num);
+ VALUE rb_int_comp(VALUE num);
+ 
+diff --git a/numeric.c b/numeric.c
+index 90270617c188437d2b500c39c7f36cb00e28a417..f80a419bafb9740f30aaf9b6b1184ae88b355a02 100644
+--- a/numeric.c
++++ b/numeric.c
+@@ -5732,6 +5732,49 @@ rb_int_bit_length(VALUE num)
+     return Qnil;
+ }
+ 
++static VALUE
++rb_fix_bit_count(VALUE fix)
++{
++    long v = FIX2LONG(fix);
++    if (v < 0)
++        rb_raise(rb_eArgError, "bit_count is undefined for negative integers");
++    return LONG2FIX(rb_popcount_intptr((uintptr_t)v));
++}
++
++/*
++ *  call-seq:
++ *    bit_count -> integer
++ *
++ *  Returns the number of set bits (bits equal to 1) in the binary
++ *  representation of +self+, also known as the population count or
++ *  Hamming weight.
++ *
++ *    0.bit_count            # => 0
++ *    1.bit_count            # => 1
++ *    7.bit_count            # => 3
++ *    0b10101.bit_count      # => 3
++ *    255.bit_count          # => 8
++ *    (2**1000).bit_count    # => 1
++ *    (2**1000-1).bit_count  # => 1000
++ *
++ *  Raises an exception if +self+ is negative.
++ *
++ *    (-1).bit_count # Raises ArgumentError
++ *
++ */
++
++VALUE
++rb_int_bit_count(VALUE num)
++{
++    if (FIXNUM_P(num)) {
++        return rb_fix_bit_count(num);
++    }
++    else if (RB_BIGNUM_TYPE_P(num)) {
++        return rb_big_bit_count(num);
++    }
++    UNREACHABLE_RETURN(Qnil);
++}
++
+ static VALUE
+ rb_fix_digits(VALUE fix, long base)
+ {
+@@ -6610,6 +6653,7 @@ Init_Numeric(void)
+     rb_define_method(rb_cInteger, ">>", rb_int_rshift, 1);
+ 
+     rb_define_method(rb_cInteger, "digits", rb_int_digits, -1);
++    rb_define_method(rb_cInteger, "bit_count", rb_int_bit_count, 0);
+ 
+ #define fix_to_s_static(n) do { \
+         VALUE lit = rb_fstring_literal(#n); \
+diff --git a/spec/ruby/core/integer/bit_count_spec.rb b/spec/ruby/core/integer/bit_count_spec.rb
+new file mode 100644
+index 0000000000000000000000000000000000000000..6fa06154aae5884794e2c75d7a659121dc67a4d4
+--- /dev/null
++++ b/spec/ruby/core/integer/bit_count_spec.rb
+@@ -0,0 +1,31 @@
++require_relative '../../spec_helper'
++
++ruby_version_is "4.1" do
++  describe "Integer#bit_count" do
++    it "returns the number of set bits in the binary representation" do
++      0.bit_count.should == 0
++      1.bit_count.should == 1
++      2.bit_count.should == 1
++      3.bit_count.should == 2
++      7.bit_count.should == 3
++      0b10101.bit_count.should == 3
++      0xff.bit_count.should == 8
++      0x100.bit_count.should == 1
++      fixnum_max.bit_count.should == fixnum_max.to_s(2).count("1")
++
++      (2**1000).bit_count.should == 1
++      (2**1000 - 1).bit_count.should == 1000
++      (2**1000 + 2**500).bit_count.should == 2
++      (2**64 - 1).bit_count.should == 64
++      (2**10000 - 1).bit_count.should == 10000
++    end
++
++    it "raises an ArgumentError for a negative number" do
++      -> { -1.bit_count }.should raise_error(ArgumentError)
++      -> { -19.bit_count }.should raise_error(ArgumentError)
++      -> { fixnum_min.bit_count }.should raise_error(ArgumentError)
++      -> { (-2**1000).bit_count }.should raise_error(ArgumentError)
++      -> { (-2**1000 - 1).bit_count }.should raise_error(ArgumentError)
++    end
++  end
++end
+diff --git a/test/ruby/test_integer.rb b/test/ruby/test_integer.rb
+index c3d9d311c84049bca2e5412011d108d3ad5d6bfc..7753bce20c559d2b8099f6681f5bdddd8d03ac2e 100644
+--- a/test/ruby/test_integer.rb
++++ b/test/ruby/test_integer.rb
+@@ -632,6 +632,41 @@ def test_bit_length
+     }
+   end
+ 
++  def test_bit_count
++    assert_equal(0, 0.bit_count)
++    assert_equal(1, 1.bit_count)
++    assert_equal(1, 2.bit_count)
++    assert_equal(2, 3.bit_count)
++    assert_equal(3, 7.bit_count)
++    assert_equal(3, 0b10101.bit_count)
++    assert_equal(8, 0xff.bit_count)
++    assert_equal(1, 0x100.bit_count)
++
++    # Fixnum boundaries
++    assert_equal(1, (2**30).bit_count)
++    assert_equal(1, (2**62).bit_count)
++
++    # Bignum
++    assert_equal(1, (2**64).bit_count)
++    assert_equal(64, (2**64-1).bit_count)
++    assert_equal(1, (2**1000).bit_count)
++    assert_equal(1000, (2**1000-1).bit_count)
++    assert_equal(2, (2**1000 + 2**500).bit_count)
++
++    0.upto(1000) {|i|
++      n = 2**i
++      assert_equal(1, n.bit_count, "(#{n}).bit_count")
++      assert_equal(i, (n-1).bit_count, "(#{n-1}).bit_count")
++      assert_equal(2, (n+1).bit_count, "(#{n+1}).bit_count") if i >= 1
++    }
++  end
++
++  def test_bit_count_for_negative_numbers
++    assert_raise(ArgumentError) { -1.bit_count }
++    assert_raise(ArgumentError) { -19.bit_count }
++    assert_raise(ArgumentError) { (-2**1000).bit_count }
++  end
++
+   def test_digits
+     assert_equal([0], 0.digits)
+     assert_equal([1], 1.digits)

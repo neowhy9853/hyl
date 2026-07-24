@@ -1,0 +1,61 @@
+From 2a95a616e9da16f49dfc55b11d7ca9f079bbb430 Mon Sep 17 00:00:00 2001
+From: Julien Cretel <jub0bsinthecloud@gmail.com>
+Date: Sun, 31 May 2026 12:53:07 +0000
+Subject: [PATCH] net/http: reject userinfo in CrossOriginProtection
+
+(*CrossOriginProtection).AddTrustedOrigin fails if its argument contains
+a path, a query, and/or a fragment, but it doesn't check for the
+presence of a userinfo part. Such an omission doesn't affect security
+(because serialized origins don't contain any userinfo part), but it
+causes invalid origins to be silently accepted, which could create some
+confusion.
+
+With this CL, the method now also fails if its argument contains a
+userinfo part (even if it's empty).
+
+Change-Id: Ic570997dfe062284c51498272f61f7c743c8eb16
+GitHub-Last-Rev: 232ab09df3a4d577b85f79694958ff0e9e13ed7b
+GitHub-Pull-Request: golang/go#79766
+Reviewed-on: https://go-review.googlesource.com/c/go/+/785520
+Reviewed-by: Russ Cox <rsc@golang.org>
+Reviewed-by: Viacheslav Danilin <viacheslavdanilin@gmail.com>
+Auto-Submit: Filippo Valsorda <filippo@golang.org>
+Reviewed-by: Filippo Valsorda <filippo@golang.org>
+Reviewed-by: Michael Pratt <mpratt@google.com>
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+---
+ src/net/http/csrf.go      | 4 ++--
+ src/net/http/csrf_test.go | 2 ++
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/net/http/csrf.go b/src/net/http/csrf.go
+index 0b71b40389..448052bdf5 100644
+--- a/src/net/http/csrf.go
++++ b/src/net/http/csrf.go
+@@ -65,8 +65,8 @@ func (c *CrossOriginProtection) AddTrustedOrigin(origin string) error {
+ 	if u.Host == "" {
+ 		return fmt.Errorf("invalid origin %q: host is required", origin)
+ 	}
+-	if u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+-		return fmt.Errorf("invalid origin %q: path, query, and fragment are not allowed", origin)
++	if u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
++		return fmt.Errorf("invalid origin %q: userinfo, path, query, and fragment are not allowed", origin)
+ 	}
+ 	c.trustedMu.Lock()
+ 	defer c.trustedMu.Unlock()
+diff --git a/src/net/http/csrf_test.go b/src/net/http/csrf_test.go
+index a29e3ae16d..0d1f620152 100644
+--- a/src/net/http/csrf_test.go
++++ b/src/net/http/csrf_test.go
+@@ -235,6 +235,8 @@ func TestCrossOriginProtectionAddTrustedOriginErrors(t *testing.T) {
+ 		{"http origin", "http://example.com", false},
+ 		{"missing scheme", "example.com", true},
+ 		{"missing host", "https://", true},
++		{"with empty userinfo", "https://@example.com", true},
++		{"with nonempty userinfo", "https://foo:bar@example.com", true},
+ 		{"trailing slash", "https://example.com/", true},
+ 		{"with path", "https://example.com/path", true},
+ 		{"with query", "https://example.com?query=value", true},
+-- 
+2.34.1
+

@@ -1,0 +1,104 @@
+diff --git a/runtime/doc/builtin.txt b/runtime/doc/builtin.txt
+index 47d320a73d1910979e68f0640c016425c2d7d99f..43b19c488a2f2bf2432890a9b5cd0dd9a8cc51d1 100644
+--- a/runtime/doc/builtin.txt
++++ b/runtime/doc/builtin.txt
+@@ -1,4 +1,4 @@
+-*builtin.txt*	For Vim version 9.2.  Last change: 2026 Jun 24
++*builtin.txt*	For Vim version 9.2.  Last change: 2026 Jul 19
+ 
+ 
+ 		  VIM REFERENCE MANUAL	  by Bram Moolenaar
+@@ -9416,6 +9416,10 @@ screenpos({winid}, {lnum}, {col})			*screenpos()*
+ 		The "curscol" value is where the cursor would be placed.  For
+ 		a Tab it would be the same as "endcol", while for a double
+ 		width character it would be the same as "col".
++		With 'rightleft' set, "col" and "endcol" are still counted
++		from the start of the line, while "curscol" is the actual
++		screen column, thus counted from the left side of the
++		window.
+ 		The |conceal| feature is ignored here, the column numbers are
+ 		as if 'conceallevel' is zero.  You can set the cursor to the
+ 		right position and use |screencol()| to get the value with
+diff --git a/src/move.c b/src/move.c
+index ec5936b48990734412b65ca253042a98d2e2f299..49bcfb7cc5b5e90080bc524e3c1ea9aa316a3edc 100644
+--- a/src/move.c
++++ b/src/move.c
+@@ -1560,6 +1560,16 @@ textpos2screenpos(
+     *scolp = scol + coloff;
+     *ccolp = ccol + coloff;
+     *ecolp = ecol + coloff;
++# ifdef FEAT_RIGHTLEFT
++    if (wp->w_p_rl && row > 0)
++    {
++	// With 'rightleft' the cursor is on the leftmost cell of the
++	// character, which comes last in reading order.
++	int endoff = *ecolp - wp->w_wincol - 1;
++
++	*ccolp = wp->w_wincol + wp->w_width - endoff;
++    }
++# endif
+ }
+ #endif
+ 
+diff --git a/src/testdir/test_cursor_func.vim b/src/testdir/test_cursor_func.vim
+index 9aaeb5d47dd743abc75d89e2fc5a0e7dda8834b4..0557009652c5c3eaa2ecde4333ca29564ed4d901 100644
+--- a/src/testdir/test_cursor_func.vim
++++ b/src/testdir/test_cursor_func.vim
+@@ -216,6 +216,44 @@ func Test_screenpos()
+   call assert_equal(#{col: 1, row: 1, endcol: 1, curscol: 1}, screenpos(0, 1, -v:maxcol))
+ endfunc
+ 
++func Test_screenpos_rightleft()
++  CheckFeature rightleft
++
++  rightbelow new
++  call setline(1, ["aあb", "\tx"])
++  setlocal rightleft
++  redraw
++  let winid = win_getid()
++  let [winrow, wincol] = win_screenpos(winid)
++  let width = winwidth(winid)
++
++  " "col" and "endcol" stay reading-order columns, while "curscol" is the
++  " screen column where the cursor lands, counted from the left.
++  call assert_equal({'row': winrow,
++	\ 'col': wincol + 0,
++	\ 'curscol': wincol + width - 1,
++	\ 'endcol': wincol + 0}, screenpos(winid, 1, 1))
++
++  " A double-wide character: the cursor is on its leftmost cell.
++  call assert_equal({'row': winrow,
++	\ 'col': wincol + 1,
++	\ 'curscol': wincol + width - 3,
++	\ 'endcol': wincol + 2}, screenpos(winid, 1, 2))
++
++  call assert_equal({'row': winrow,
++	\ 'col': wincol + 3,
++	\ 'curscol': wincol + width - 4,
++	\ 'endcol': wincol + 3}, screenpos(winid, 1, 5))
++
++  " A Tab: the cursor is on its last cell in reading order.
++  call assert_equal({'row': winrow + 1,
++	\ 'col': wincol + 0,
++	\ 'curscol': wincol + width - 8,
++	\ 'endcol': wincol + 7}, screenpos(winid, 2, 1))
++
++  bwipe!
++endfunc
++
+ func Test_screenpos_fold()
+   CheckFeature folding
+ 
+diff --git a/src/version.c b/src/version.c
+index 349057f2891e827dfc4e2ddf05bef0fd15730e3e..4b9c6318d699af4ee79b329219506b4556da96a7 100644
+--- a/src/version.c
++++ b/src/version.c
+@@ -759,6 +759,8 @@ static char *(features[]) =
+ 
+ static int included_patches[] =
+ {   /* Add new patch number below this line */
++/**/
++    805,
+ /**/
+     804,
+ /**/

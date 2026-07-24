@@ -1,0 +1,127 @@
+From 531750f7bfc475332b2046dd516bab582ba7decf Mon Sep 17 00:00:00 2001
+From: Duan Yayong <duanyayong@bytedance.com>
+Date: Mon, 9 Dec 2024 14:48:32 +0800
+Subject: [PATCH] i386/tsc: The GRUB menu gets stuck due to unserialized rdtsc
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This patch is used to fix GRUB menu gets stuck in server AC
+poweron/poweroff stress test of x86_64, which is reproduced with
+1/200 ratio. The root cause analysis as below:
+
+Q: What's the code logic?
+
+A: The grub_tsc_init() function will init tsc by setting grub_tsc_rate,
+   which call stack is:
+
+     grub_tsc_init() -> grub_tsc_calibrate_from_pmtimer() -> grub_divmod64()
+
+   Among, grub_divmod64() function needs tsc_diff as the second parameter.
+   In grub_pmtimer_wait_count_tsc(), we will call grub_get_tsc() function
+   to get time stamp counter value to assign to start_tsc variable, and
+   get into while (1) loop space to get end_tsc variable value with same
+   function, after 3580 ticks, return "end_tsc - start_tsc". Actually,
+   rdtsc instruction will be called in grub_get_tsc, but rdtsc instruction
+   is not reliable (for the reason see the next question), which will cause
+   tsc_diff to be a very big number larger than (1UL << 32) or a negative
+   number, so that grub_tsc_rate will be zero. When run_menu() function is
+   startup, and calls grub_tsc_get_time_ms() function to get current time
+   to check if timeout time reach, at this time, grub_tsc_get_time_ms()
+   function will return zero due to zero grub_tsc_rate variable, then GRUB
+   menu gets stuck...
+
+Q: What's the difference between rdtsc and rdtscp instructions in x86_64
+   architecture? Here is more explanations from Intel® 64 and IA-32
+   Architectures Software Developer’s Manual Volume 2B (December 2024):
+   https://cdrdv2.intel.com/v1/dl/getContent/671241
+
+A: In page 4-558 -> RDTSC—Read Time-Stamp Counter:
+   The RDTSC instruction is not a serializing instruction. It does not
+   necessarily wait until all previous instructions have been executed
+   before reading the counter. Similarly, subsequent instructions may
+   begin execution before the read operation is performed. The following
+   items may guide software seeking to order executions of RDTSC:
+     - If software requires RDTSC to be executed only after all previous
+       instructions have executed and all previous loads are globally
+       visible, it can execute LFENCE immediately before RDTSC.
+     - If software requires RDTSC to be executed only after all previous
+       instructions have executed and all previous loads and stores are
+       globally visible, it can execute the sequence MFENCE;LFENCE
+       immediately before RDTSC.
+     - If software requires RDTSC to be executed prior to execution of any
+       subsequent instruction (including any memory accesses), it can execute
+       the sequence LFENCE immediately after RDTSC.
+
+A: In page 4-560 -> RDTSCP—Read Time-Stamp Counter and Processor ID:
+   The RDTSCP instruction is not a serializing instruction, but it does wait
+   until all previous instructions have executed and all previous loads are
+   globally visible. But it does not wait for previous stores to be globally
+   visible, and subsequent instructions may begin execution before the read
+   operation is performed. The following items may guide software seeking to
+   order executions of RDTSCP:
+     - If software requires RDTSCP to be executed only after all previous
+       stores are globally visible, it can execute MFENCE immediately before
+       RDTSCP.
+     - If software requires RDTSCP to be executed prior to execution of any
+       subsequent instruction (including any memory accesses), it can execute
+       LFENCE immediately after RDTSCP.
+
+Q: Why there is a cpuid serializing instruction before rdtsc instruction,
+   but "grub_get_tsc" still cannot work as expect?
+
+A: From Intel® 64 and IA-32 Architectures Software Developer's Manual
+   Volume 2A: Instruction Set Reference, A-L (December 2024):
+   https://cdrdv2.intel.com/v1/dl/getContent/671199
+
+   In page 3-222 -> CPUID—CPU Identification:
+   CPUID can be executed at any privilege level to serialize instruction execution.
+   Serializing instruction execution guarantees that any modifications to flags,
+   registers, and memory for previous instructions are completed before
+   the next instruction is fetched and executed.
+
+   So we only kept the instruction rdtsc and its previous instruction in order
+   currently. But it is still out-of-order possibility between rdtsc instruction
+   and its subsequent instruction.
+
+Q: Why do we do this fix?
+
+A: In the one hand, add cpuid instruction after rdtsc instruction to make sure
+   rdtsc instruction to be executed prior to execution of any subsequent instruction,
+   about serializing execution that all previous instructions have been executed
+   before rdtsc, there is a cpuid usage in original code. In the other hand, using
+   cpuid instruction rather than lfence can make sure a forward compatibility for
+   previous HW.
+
+   Base this fix, we did 1500 cycles power on/off stress test, and did not reproduce
+   this issue again.
+
+Fixes: https://savannah.gnu.org/bugs/?66257
+
+Signed-off-by: Duan Yayong <duanyayong@bytedance.com>
+Signed-off-by: Li Yongqiang <liyongqiang@huaqin.com>
+Signed-off-by: Sun Ming <simon.sun@huaqin.com>
+Reviewed-by: Daniel Kiper <daniel.kiper@oracle.com>
+---
+ include/grub/i386/tsc.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/include/grub/i386/tsc.h b/include/grub/i386/tsc.h
+index 947e62fa1..3c96d3e0b 100644
+--- a/include/grub/i386/tsc.h
++++ b/include/grub/i386/tsc.h
+@@ -47,6 +47,11 @@ grub_get_tsc (void)
+   /* Read TSC value.  We cannot use "=A", since this would use
+      %rax on x86_64. */
+   asm volatile ("rdtsc":"=a" (lo), "=d" (hi));
++  /*
++   * Run cpuid after rdtsc instruction to ensure rdtsc is executed before
++   * subsequent instruction.
++   */
++  grub_cpuid (0, a, b, c, d);
+ 
+   return (((grub_uint64_t) hi) << 32) | lo;
+ }
+-- 
+2.34.1
+

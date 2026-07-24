@@ -1,0 +1,1687 @@
+diff --git a/Makefile.am b/Makefile.am
+index 130311c36516509920e9229e03f3a7ce988eeffc..86ff23ae761b0fe7fc24abd1c2dac950dac40793 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -239,6 +239,10 @@ if ENABLE_OMAZUREDCE
+ SUBDIRS += plugins/omazuredce
+ endif
+ 
++if ENABLE_OMAWSLOGSHLC
++SUBDIRS += plugins/omawslogshlc
++endif
++
+ if ENABLE_IMDTLS
+ SUBDIRS += plugins/imdtls
+ endif
+@@ -598,6 +602,10 @@ if ENABLE_OMAZUREDCE
+ DISTCHECK_CONFIGURE_FLAGS+= --enable-omazuredce
+ endif
+ 
++if ENABLE_OMAWSLOGSHLC
++DISTCHECK_CONFIGURE_FLAGS+= --enable-omawslogshlc
++endif
++
+ if ENABLE_IMDTLS
+ DISTCHECK_CONFIGURE_FLAGS+= --enable-imdtls
+ endif
+diff --git a/configure.ac b/configure.ac
+index 8c6620318c304bac363e6119e79dc98cff05f989..edf3e264e0d8aa9d4d35f350d6fa8680cd949780 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -2867,6 +2867,17 @@ AC_ARG_ENABLE(omazuredce_tests,
+ )
+ AM_CONDITIONAL(ENABLE_OMAZUREDCE_TESTS, test x$enable_omazuredce_tests = xyes)
+ 
++AC_ARG_ENABLE(omawslogshlc_tests,
++        [AS_HELP_STRING([--enable-omawslogshlc-tests],[Enable omawslogshlc tests @<:@default=no@:>@])],
++        [case "${enableval}" in
++         yes) enable_omawslogshlc_tests="yes" ;;
++          no) enable_omawslogshlc_tests="no" ;;
++           *) AC_MSG_ERROR(bad value ${enableval} for --enable-omawslogshlc-tests) ;;
++         esac],
++        [enable_omawslogshlc_tests=no]
++)
++AM_CONDITIONAL(ENABLE_OMAWSLOGSHLC_TESTS, test x$enable_omawslogshlc_tests = xyes)
++
+ AC_ARG_ENABLE(kafka_tests,
+         [AS_HELP_STRING([--enable-kafka-tests],[Enable Kafka tests, needs Java @<:@default=no@:>@])],
+         [case "${enableval}" in
+@@ -3002,6 +3013,27 @@ if test "x$enable_omazuredce" = "xyes" -o "x$enable_omazuredce" = "xoptional"; t
+ fi
+ AM_CONDITIONAL(ENABLE_OMAZUREDCE, test x$enable_omazuredce = xyes -o x$enable_omazuredce = xoptional)
+ 
++# omawslogshlc support for output module (CloudWatch Logs via HLC endpoint)
++AC_ARG_ENABLE(omawslogshlc,
++        [AS_HELP_STRING([--enable-omawslogshlc],[Compiles omawslogshlc output module @<:@default=no@:>@])],
++        [case "${enableval}" in
++         yes) enable_omawslogshlc="yes" ;;
++          no) enable_omawslogshlc="no" ;;
++         optional) enable_omawslogshlc="optional" ;;
++           *) AC_MSG_ERROR(bad value ${enableval} for --enable-omawslogshlc) ;;
++         esac],
++        [enable_omawslogshlc=no]
++)
++if test "x$enable_omawslogshlc" = "xyes" -o "x$enable_omawslogshlc" = "xoptional"; then
++	PKG_CHECK_MODULES([CURL], [libcurl], , [
++		AS_IF([test x$enable_omawslogshlc = xyes],
++			AC_MSG_FAILURE([omawslogshlc requires libcurl])
++		)
++		enable_omawslogshlc="no"
++	])
++fi
++AM_CONDITIONAL(ENABLE_OMAWSLOGSHLC, test x$enable_omawslogshlc = xyes -o x$enable_omawslogshlc = xoptional)
++
+ # omazureeventhubs support for output module
+ AC_ARG_ENABLE(omazureeventhubs,
+         [AS_HELP_STRING([--enable-omazureeventhubs],[Compiles AzureEventHubs output module @<:@default=no@:>@])],
+@@ -3589,6 +3621,7 @@ AC_CONFIG_FILES([Makefile \
+ 		plugins/mmdblookup/Makefile \
+ 		plugins/omazureeventhubs/Makefile \
+ 		plugins/omazuredce/Makefile \
++		plugins/omawslogshlc/Makefile \
+ 		plugins/imdtls/Makefile \
+ 		plugins/omdtls/Makefile \
+ 		contrib/mmdarwin/Makefile \
+@@ -3707,6 +3740,7 @@ echo "    omkafka module will be compiled:          $enable_omkafka"
+ echo "    omhiredis module will be compiled:        $enable_omhiredis"
+ echo "    omazureeventhubs module will be compiled: $enable_omazureeventhubs"
+ echo "    omazuredce module will be compiled:       $enable_omazuredce"
++echo "    omawslogshlc module will be compiled:     $enable_omawslogshlc"
+ echo "    omdtls module will be compiled:           $enable_omdtls"
+ echo
+ echo "---{ parser modules }---"
+@@ -3787,6 +3821,7 @@ echo "    Kafka Tests enabled:                      $enable_kafka_tests"
+ echo "    Redis Tests enabled:                      $enable_redis_tests"
+ echo "    Omazureeventhubs Tests enabled:           $enable_omazureeventhubs_tests"
+ echo "    Omazuredce Tests enabled:                 $enable_omazuredce_tests"
++echo "    Omawslogshlc Tests enabled:               $enable_omawslogshlc_tests"
+ echo "    Imdocker Tests enabled:                   $enable_imdocker_tests"
+ echo "    imtcp tests enabled:                      $enable_imtcp_tests"
+ echo "    gnutls tests enabled:                     $enable_gnutls_tests"
+diff --git a/doc/Makefile.am b/doc/Makefile.am
+index a7d0830d4980c10e44674275df63463e95915db9..dac53ee8a3b9d5e6f3461c09dd1f439984e4e0a9 100644
+--- a/doc/Makefile.am
++++ b/doc/Makefile.am
+@@ -265,6 +265,7 @@ EXTRA_DIST = \
+     source/reference/parameters/imbeats-workerthreads.rst \
+     source/configuration/modules/omamqp1.rst \
+     source/configuration/modules/omazuredce.rst \
++    source/configuration/modules/omawslogshlc.rst \
+     source/configuration/modules/omazureeventhubs.rst \
+     source/configuration/modules/omclickhouse.rst \
+     source/configuration/modules/omczmq.rst \
+@@ -922,6 +923,12 @@ EXTRA_DIST = \
+     source/reference/parameters/omazuredce-table_name.rst \
+     source/reference/parameters/omazuredce-template.rst \
+     source/reference/parameters/omazuredce-tenant_id.rst \
++    source/reference/parameters/omawslogshlc-bearer_token.rst \
++    source/reference/parameters/omawslogshlc-log_group.rst \
++    source/reference/parameters/omawslogshlc-log_stream.rst \
++    source/reference/parameters/omawslogshlc-max_batch_size.rst \
++    source/reference/parameters/omawslogshlc-region.rst \
++    source/reference/parameters/omawslogshlc-template.rst \
+     source/reference/parameters/omclickhouse-allowunsignedcerts.rst \
+     source/reference/parameters/omclickhouse-bulkmode.rst \
+     source/reference/parameters/omclickhouse-errorfile.rst \
+diff --git a/doc/ai/module_map.yaml b/doc/ai/module_map.yaml
+index 7358cba18cf0739dcf6e12ca303c836a2de1de97..398572d62d6b2e52002e9f48ac76eccb13ad2f1a 100644
+--- a/doc/ai/module_map.yaml
++++ b/doc/ai/module_map.yaml
+@@ -41,6 +41,12 @@ omazuredce:
+   notes:
+     - Each worker owns its batch buffer and timer thread; access is serialized by batchLock.
+ 
++omawslogshlc:
++  paths: ["plugins/omawslogshlc/"]
++  requires_serialization: false
++  notes:
++    - Each worker owns its CURL handle and HLC batch buffer; action configuration is immutable after startup.
++
+ contrib_omhttp:
+   paths: ["contrib/omhttp/"]
+   requires_serialization: false
+diff --git a/doc/source/configuration/modules/omawslogshlc.rst b/doc/source/configuration/modules/omawslogshlc.rst
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a0b837bc0cd52217b1bef5beb9f4a70e19c1a4e
+--- /dev/null
++++ b/doc/source/configuration/modules/omawslogshlc.rst
+@@ -0,0 +1,273 @@
++.. _module-omawslogshlc:
++
++.. meta::
++   :description: Configuration reference for the omawslogshlc Amazon CloudWatch Logs output module.
++   :keywords: rsyslog, omawslogshlc, aws, cloudwatch, logs, hlc
++
++.. summary-start
++
++``omawslogshlc`` sends log messages to Amazon CloudWatch Logs using the
++HTTP Log Collector (HLC) endpoint with bearer token authentication. It is a
++user-contributed, experimental module with higher operational risk than
++core-supported mature modules.
++
++.. summary-end
++
++********************************************************
++omawslogshlc: Amazon CloudWatch Logs HLC Output Module
++********************************************************
++
++===========================  ===========================================================================
++**Module Name:**             **omawslogshlc**
++**Author:**                  Amazon CloudWatch Logs team
++**Status:**                  user-contributed, experimental
++**Available since:**         v8.2604
++===========================  ===========================================================================
++
++.. warning::
++
++   ``omawslogshlc`` is user-contributed and experimental. It has had less
++   production exposure and core-maintainer ownership than mature rsyslog
++   modules, so deployments should treat it as higher risk, test it carefully,
++   and expect possible feedback-driven behavior or configuration changes.
++
++
++Purpose
++-------
++
++This module provides native support for forwarding syslog messages to Amazon
++CloudWatch Logs. It uses the publicly available HLC (HTTP Log Collector)
++endpoint and bearer token authentication, eliminating the need for the AWS SDK
++or a separate log collection agent.
++
++Each syslog message is wrapped in the HLC JSON event format and posted to the
++configured CloudWatch Logs log group and log stream.
++
++
++Notable Features
++----------------
++
++- Bearer token authentication (no AWS SDK dependency)
++- Automatic event batching with configurable batch size
++- JSON escaping of message content
++- Automatic inclusion of timestamp, hostname, and source metadata
++- User-Agent header identifying rsyslog version
++- Retry-friendly error handling for transient failures (429, 5xx)
++
++
++Requirements
++------------
++
++To use ``omawslogshlc``, you need the following:
++
++- ``libcurl`` support at build time
++- An AWS region where CloudWatch Logs is available
++- A CloudWatch Logs log group with bearer token authentication enabled
++- A bearer token generated for that log group (starts with ``ACWL``)
++- A log stream within the log group
++
++The module is built only when ``./configure`` is invoked with
++``--enable-omawslogshlc``.
++
++For information on setting up bearer token authentication, see the
++`AWS documentation <https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_HLC_Endpoint.html>`_.
++
++
++Configuration Parameters
++------------------------
++
++.. note::
++
++   Parameter names are case-insensitive.
++
++.. note::
++
++   This module supports action parameters only.
++
++Action Parameters
++~~~~~~~~~~~~~~~~~
++
++region
++^^^^^^
++
++.. list-table::
++   :widths: 20 80
++
++   * - **Type:**
++     - string
++   * - **Required:**
++     - yes
++
++The AWS region for the CloudWatch Logs endpoint (e.g., ``us-west-2``,
++``eu-west-1``). This is used to construct the HLC endpoint URL:
++``https://logs.<region>.amazonaws.com/services/collector/event``
++
++bearer_token
++^^^^^^^^^^^^
++
++.. list-table::
++   :widths: 20 80
++
++   * - **Type:**
++     - string
++   * - **Required:**
++     - yes
++
++The bearer token for HLC endpoint authentication. Tokens start with ``ACWL``.
++This value is sent in the ``Authorization: Bearer <token>`` header.
++
++log_group
++^^^^^^^^^
++
++.. list-table::
++   :widths: 20 80
++
++   * - **Type:**
++     - string
++   * - **Required:**
++     - yes
++
++The name of the CloudWatch Logs log group to send events to. The value is
++URL-encoded automatically.
++
++log_stream
++^^^^^^^^^^
++
++.. list-table::
++   :widths: 20 80
++
++   * - **Type:**
++     - string
++   * - **Required:**
++     - yes
++
++The name of the CloudWatch Logs log stream within the log group. The value is
++URL-encoded automatically.
++
++max_batch_size
++^^^^^^^^^^^^^^
++
++.. list-table::
++   :widths: 20 80
++
++   * - **Type:**
++     - integer
++   * - **Default:**
++     - 100
++   * - **Required:**
++     - no
++
++Maximum number of events per HTTP request. When the batch reaches this count,
++it is flushed immediately. Valid range is 1 to 10000. AWS recommends 10–100
++events per request for optimal performance.
++
++template
++^^^^^^^^
++
++.. list-table::
++   :widths: 20 80
++
++   * - **Type:**
++     - word
++   * - **Default:**
++     - RSYSLOG_TraditionalFileFormat
++   * - **Required:**
++     - no
++
++The rsyslog template used to render the message content. The rendered output
++becomes the ``event`` field in the HLC JSON payload.
++
++.. toctree::
++   :hidden:
++
++   ../../reference/parameters/omawslogshlc-region
++   ../../reference/parameters/omawslogshlc-bearer_token
++   ../../reference/parameters/omawslogshlc-log_group
++   ../../reference/parameters/omawslogshlc-log_stream
++   ../../reference/parameters/omawslogshlc-max_batch_size
++   ../../reference/parameters/omawslogshlc-template
++
++
++Batching Behavior
++-----------------
++
++``omawslogshlc`` accumulates events within a transaction and flushes them
++when one of the following happens:
++
++- The event count reaches ``max_batch_size``
++- The rsyslog transaction ends (``endTransaction``)
++- The total batch size approaches the 1 MiB HLC request limit
++
++Events are sent as concatenated JSON objects (no array wrapper), which is one
++of the accepted formats for the HLC endpoint.
++
++
++Error Handling
++--------------
++
++The module handles HTTP errors as follows:
++
++- **200–299**: Success. Batch is cleared.
++- **401/403**: Authentication failure. The action is suspended for retry.
++  Check that the bearer token is valid and not expired.
++- **429**: Rate limited. The action is suspended and retried according to
++  rsyslog's action retry settings.
++- **5xx**: Server error. The action is suspended for retry.
++- **Other 4xx**: Non-retryable. The batch is dropped and an error is logged.
++
++Use rsyslog's ``action.resumeInterval`` and ``action.resumeRetryCount`` to
++control retry behavior.
++
++
++Example
++-------
++
++Forward all syslog messages to CloudWatch Logs:
++
++.. code-block:: none
++
++   module(load="omawslogshlc")
++
++   *.* action(
++      type="omawslogshlc"
++      region="us-west-2"
++      bearer_token="ACWL..."
++      log_group="my-application-logs"
++      log_stream="server-01"
++   )
++
++Forward only auth logs with a larger batch size:
++
++.. code-block:: none
++
++   module(load="omawslogshlc")
++
++   auth,authpriv.* action(
++      type="omawslogshlc"
++      region="eu-west-1"
++      bearer_token="ACWL..."
++      log_group="security-logs"
++      log_stream="auth"
++      max_batch_size="50"
++      action.resumeInterval="5"
++      action.resumeRetryCount="10"
++   )
++
++YAML configuration for the same target:
++
++.. code-block:: yaml
++
++   version: 2
++   modules:
++     - load: omawslogshlc
++
++   rulesets:
++     - name: main
++       filter: "*.*"
++       actions:
++         - type: omawslogshlc
++           region: us-west-2
++           bearer_token: ACWL...
++           log_group: my-application-logs
++           log_stream: server-01
++           max_batch_size: 50
+diff --git a/doc/source/reference/parameters/omawslogshlc-bearer_token.rst b/doc/source/reference/parameters/omawslogshlc-bearer_token.rst
+new file mode 100644
+index 0000000000000000000000000000000000000000..740460cfaff72754f620950994f595b825094cc7
+--- /dev/null
++++ b/doc/source/reference/parameters/omawslogshlc-bearer_token.rst
+@@ -0,0 +1,46 @@
++.. _param-omawslogshlc-bearer_token:
++.. _omawslogshlc.parameter.action.bearer_token:
++
++.. meta::
++   :description: Reference for the omawslogshlc bearer_token parameter.
++   :keywords: rsyslog, omawslogshlc, bearer_token, aws, cloudwatch, hlc
++
++bearer_token
++============
++
++.. index::
++   single: omawslogshlc; bearer_token
++   single: bearer_token
++
++.. summary-start
++
++Specifies the bearer token for HLC endpoint authentication.
++
++.. summary-end
++
++This parameter applies to :doc:`../../configuration/modules/omawslogshlc`.
++
++:Name: bearer_token
++:Scope: action
++:Type: string
++:Default: none
++:Required?: yes
++:Introduced: Not specified
++
++Description
++-----------
++``bearer_token`` is sent in the ``Authorization: Bearer <token>`` header
++with each request. Tokens start with ``ACWL`` and are generated via the
++CloudWatch Logs bearer token authentication setup.
++
++Action usage
++------------
++.. _omawslogshlc.parameter.action.bearer_token-usage:
++
++.. code-block:: rsyslog
++
++   action(type="omawslogshlc" bearer_token="ACWL..." ...)
++
++See also
++--------
++See also :doc:`../../configuration/modules/omawslogshlc`.
+diff --git a/doc/source/reference/parameters/omawslogshlc-log_group.rst b/doc/source/reference/parameters/omawslogshlc-log_group.rst
+new file mode 100644
+index 0000000000000000000000000000000000000000..9ba040383da7bff01fbc791998d24439f11873b0
+--- /dev/null
++++ b/doc/source/reference/parameters/omawslogshlc-log_group.rst
+@@ -0,0 +1,45 @@
++.. _param-omawslogshlc-log_group:
++.. _omawslogshlc.parameter.action.log_group:
++
++.. meta::
++   :description: Reference for the omawslogshlc log_group parameter.
++   :keywords: rsyslog, omawslogshlc, log_group, aws, cloudwatch
++
++log_group
++=========
++
++.. index::
++   single: omawslogshlc; log_group
++   single: log_group
++
++.. summary-start
++
++Specifies the CloudWatch Logs log group name to send events to.
++
++.. summary-end
++
++This parameter applies to :doc:`../../configuration/modules/omawslogshlc`.
++
++:Name: log_group
++:Scope: action
++:Type: string
++:Default: none
++:Required?: yes
++:Introduced: Not specified
++
++Description
++-----------
++``log_group`` identifies the target CloudWatch Logs log group. The value
++is URL-encoded automatically when constructing the HLC endpoint URL.
++
++Action usage
++------------
++.. _omawslogshlc.parameter.action.log_group-usage:
++
++.. code-block:: rsyslog
++
++   action(type="omawslogshlc" log_group="my-application-logs" ...)
++
++See also
++--------
++See also :doc:`../../configuration/modules/omawslogshlc`.
+diff --git a/doc/source/reference/parameters/omawslogshlc-log_stream.rst b/doc/source/reference/parameters/omawslogshlc-log_stream.rst
+new file mode 100644
+index 0000000000000000000000000000000000000000..b979d98e8364de1747f9f95d06a43b4f0631ab51
+--- /dev/null
++++ b/doc/source/reference/parameters/omawslogshlc-log_stream.rst
+@@ -0,0 +1,46 @@
++.. _param-omawslogshlc-log_stream:
++.. _omawslogshlc.parameter.action.log_stream:
++
++.. meta::
++   :description: Reference for the omawslogshlc log_stream parameter.
++   :keywords: rsyslog, omawslogshlc, log_stream, aws, cloudwatch
++
++log_stream
++==========
++
++.. index::
++   single: omawslogshlc; log_stream
++   single: log_stream
++
++.. summary-start
++
++Specifies the CloudWatch Logs log stream name within the log group.
++
++.. summary-end
++
++This parameter applies to :doc:`../../configuration/modules/omawslogshlc`.
++
++:Name: log_stream
++:Scope: action
++:Type: string
++:Default: none
++:Required?: yes
++:Introduced: Not specified
++
++Description
++-----------
++``log_stream`` identifies the target log stream within the configured log
++group. The value is URL-encoded automatically when constructing the HLC
++endpoint URL.
++
++Action usage
++------------
++.. _omawslogshlc.parameter.action.log_stream-usage:
++
++.. code-block:: rsyslog
++
++   action(type="omawslogshlc" log_stream="server-01" ...)
++
++See also
++--------
++See also :doc:`../../configuration/modules/omawslogshlc`.
+diff --git a/doc/source/reference/parameters/omawslogshlc-max_batch_size.rst b/doc/source/reference/parameters/omawslogshlc-max_batch_size.rst
+new file mode 100644
+index 0000000000000000000000000000000000000000..f83294669ce31834945d8b24984876f4c2109813
+--- /dev/null
++++ b/doc/source/reference/parameters/omawslogshlc-max_batch_size.rst
+@@ -0,0 +1,46 @@
++.. _param-omawslogshlc-max_batch_size:
++.. _omawslogshlc.parameter.action.max_batch_size:
++
++.. meta::
++   :description: Reference for the omawslogshlc max_batch_size parameter.
++   :keywords: rsyslog, omawslogshlc, max_batch_size, aws, cloudwatch, batching
++
++max_batch_size
++==============
++
++.. index::
++   single: omawslogshlc; max_batch_size
++   single: max_batch_size
++
++.. summary-start
++
++Specifies the maximum number of events per HTTP request.
++
++.. summary-end
++
++This parameter applies to :doc:`../../configuration/modules/omawslogshlc`.
++
++:Name: max_batch_size
++:Scope: action
++:Type: integer
++:Default: 100
++:Required?: no
++:Introduced: Not specified
++
++Description
++-----------
++``max_batch_size`` controls how many events are accumulated before the
++batch is flushed to CloudWatch Logs. Valid range is 1 to 10000. AWS
++recommends 10 to 100 events per request for optimal performance.
++
++Action usage
++------------
++.. _omawslogshlc.parameter.action.max_batch_size-usage:
++
++.. code-block:: rsyslog
++
++   action(type="omawslogshlc" max_batch_size="50" ...)
++
++See also
++--------
++See also :doc:`../../configuration/modules/omawslogshlc`.
+diff --git a/doc/source/reference/parameters/omawslogshlc-region.rst b/doc/source/reference/parameters/omawslogshlc-region.rst
+new file mode 100644
+index 0000000000000000000000000000000000000000..7bc6879655f74d048d68dcf483a8c390bb374a3b
+--- /dev/null
++++ b/doc/source/reference/parameters/omawslogshlc-region.rst
+@@ -0,0 +1,46 @@
++.. _param-omawslogshlc-region:
++.. _omawslogshlc.parameter.action.region:
++
++.. meta::
++   :description: Reference for the omawslogshlc region parameter.
++   :keywords: rsyslog, omawslogshlc, region, aws, cloudwatch
++
++region
++======
++
++.. index::
++   single: omawslogshlc; region
++   single: region
++
++.. summary-start
++
++Specifies the AWS region for the CloudWatch Logs HLC endpoint.
++
++.. summary-end
++
++This parameter applies to :doc:`../../configuration/modules/omawslogshlc`.
++
++:Name: region
++:Scope: action
++:Type: string
++:Default: none
++:Required?: yes
++:Introduced: Not specified
++
++Description
++-----------
++``region`` is used to construct the HLC endpoint URL:
++``https://logs.<region>.amazonaws.com/services/collector/event``.
++For example, ``us-west-2`` or ``eu-west-1``.
++
++Action usage
++------------
++.. _omawslogshlc.parameter.action.region-usage:
++
++.. code-block:: rsyslog
++
++   action(type="omawslogshlc" region="us-west-2" ...)
++
++See also
++--------
++See also :doc:`../../configuration/modules/omawslogshlc`.
+diff --git a/doc/source/reference/parameters/omawslogshlc-template.rst b/doc/source/reference/parameters/omawslogshlc-template.rst
+new file mode 100644
+index 0000000000000000000000000000000000000000..9173e91cfe9e4bdaa02b71df016c4c3f63493e4c
+--- /dev/null
++++ b/doc/source/reference/parameters/omawslogshlc-template.rst
+@@ -0,0 +1,47 @@
++.. _param-omawslogshlc-template:
++.. _omawslogshlc.parameter.action.template:
++
++.. meta::
++   :description: Reference for the omawslogshlc template parameter.
++   :keywords: rsyslog, omawslogshlc, template, aws, cloudwatch
++
++template
++========
++
++.. index::
++   single: omawslogshlc; template
++   single: template
++
++.. summary-start
++
++Specifies the rsyslog template used to render the message content.
++
++.. summary-end
++
++This parameter applies to :doc:`../../configuration/modules/omawslogshlc`.
++
++:Name: template
++:Scope: action
++:Type: word
++:Default: RSYSLOG_TraditionalFileFormat
++:Required?: no
++:Introduced: Not specified
++
++Description
++-----------
++``template`` controls how each syslog message is rendered before being
++placed into the HLC JSON event's ``event`` field. The default
++``RSYSLOG_TraditionalFileFormat`` produces the traditional syslog one-line
++format.
++
++Action usage
++------------
++.. _omawslogshlc.parameter.action.template-usage:
++
++.. code-block:: rsyslog
++
++   action(type="omawslogshlc" template="MyCustomTemplate" ...)
++
++See also
++--------
++See also :doc:`../../configuration/modules/omawslogshlc`.
+diff --git a/plugins/omawslogshlc/MODULE_METADATA.yaml b/plugins/omawslogshlc/MODULE_METADATA.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..056c8fbd0ad7a071dc5c4188ddc16d58f86fd4a3
+--- /dev/null
++++ b/plugins/omawslogshlc/MODULE_METADATA.yaml
+@@ -0,0 +1,21 @@
++support_status: contributor-supported
++maturity_level: experimental
++primary_contact: "GitHub Discussions & Issues <https://github.com/rsyslog/rsyslog/discussions>"
++last_reviewed: 2026-06-30
++build_dependencies:
++  - libcurl development headers
++runtime_dependencies:
++  - Amazon CloudWatch Logs HLC endpoint reachable over HTTPS
++  - A bearer token with access to the configured log group
++ci_targets:
++  - omawslogshlc-missing-region.sh
++  - omawslogshlc-basic.sh
++  - omawslogshlc-batch.sh
++documentation:
++  - doc/source/configuration/modules/omawslogshlc.rst
++notes:
++  - User-contributed module; the rsyslog core team reviews changes but does not lead maintenance.
++  - Experimental maturity; use extra caution in production and expect feedback-driven changes.
++  - The module posts to the CloudWatch Logs HLC endpoint using bearer token authentication.
++  - Integration tests require AWS credentials supplied through `tests/omawslogshlc-env.sh`.
++  - Events are batched per transaction and flushed at max_batch_size or endTransaction.
+diff --git a/plugins/omawslogshlc/Makefile.am b/plugins/omawslogshlc/Makefile.am
+new file mode 100644
+index 0000000000000000000000000000000000000000..163a15c7723921316810cbfe721bf541ba8545a5
+--- /dev/null
++++ b/plugins/omawslogshlc/Makefile.am
+@@ -0,0 +1,8 @@
++pkglib_LTLIBRARIES = omawslogshlc.la
++
++omawslogshlc_la_SOURCES = omawslogshlc.c
++omawslogshlc_la_CPPFLAGS = $(RSRT_CFLAGS) $(PTHREADS_CFLAGS) $(CURL_CFLAGS)
++omawslogshlc_la_LDFLAGS = -module -avoid-version
++omawslogshlc_la_LIBADD = $(CURL_LIBS) $(PTHREADS_LIBS)
++
++EXTRA_DIST =
+diff --git a/plugins/omawslogshlc/omawslogshlc.c b/plugins/omawslogshlc/omawslogshlc.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..090165c5e76bea559210c8fa83d7fbcdb7e7fc54
+--- /dev/null
++++ b/plugins/omawslogshlc/omawslogshlc.c
+@@ -0,0 +1,649 @@
++/* omawslogshlc.c
++ * Output module for Amazon CloudWatch Logs via the HTTP Log Collector (HLC)
++ * endpoint. Uses bearer-token authentication — no AWS SDK required.
++ *
++ * Concurrency & Locking:
++ * - Action configuration in instanceData is immutable after newActInst().
++ * - Each worker owns its CURL handle and batch buffer in wrkrInstanceData_t.
++ * - No mutable state is shared between workers, so no module-level lock is
++ *   required for batching or posting.
++ *
++ * HLC endpoint reference:
++ *   https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_HLC_Endpoint.html
++ *
++ * Copyright 2026 Adiscon GmbH.
++ *
++ * This file is part of rsyslog.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *       http://www.apache.org/licenses/LICENSE-2.0
++ *       -or-
++ *       see COPYING.ASL20 in the source distribution
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#include "config.h"
++#include "rsyslog.h"
++#include <errno.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/time.h>
++#include <curl/curl.h>
++#include "conf.h"
++#include "syslogd-types.h"
++#include "srUtils.h"
++#include "template.h"
++#include "module-template.h"
++#include "errmsg.h"
++
++MODULE_TYPE_OUTPUT;
++MODULE_TYPE_NOKEEP;
++MODULE_CNFNAME("omawslogshlc")
++
++/* HLC limits */
++#define CWL_MAX_REQUEST_BYTES (1024 * 1024) /* 1 MiB max request size */
++#define CWL_MAX_EVENT_BYTES (256 * 1024) /* 256 KiB max event size */
++#define CWL_MAX_EVENTS_PER_REQUEST 10000
++
++DEF_OMOD_STATIC_DATA;
++
++typedef struct _instanceData {
++    uchar *tplName;
++    uchar *region;
++    uchar *bearerToken;
++    uchar *logGroup;
++    uchar *logStream;
++    int maxBatchSize; /* max events per HTTP request */
++} instanceData;
++
++typedef struct wrkrInstanceData {
++    instanceData *pData;
++    CURL *curl;
++    /* batch buffer: concatenated JSON events */
++    char *batchBuf;
++    size_t batchLen;
++    size_t batchCap;
++    size_t eventCount;
++} wrkrInstanceData_t;
++
++static struct cnfparamdescr actpdescr[] = {
++    {"template", eCmdHdlrGetWord, 0}, {"region", eCmdHdlrString, 0},     {"bearer_token", eCmdHdlrString, 0},
++    {"log_group", eCmdHdlrString, 0}, {"log_stream", eCmdHdlrString, 0}, {"max_batch_size", eCmdHdlrInt, 0},
++};
++static struct cnfparamblk actpblk = {CNFPARAMBLK_VERSION, sizeof(actpdescr) / sizeof(struct cnfparamdescr), actpdescr};
++
++struct modConfData_s {
++    rsconf_t *pConf;
++};
++static modConfData_t *runModConf = NULL;
++
++/* ---- helpers ----------------------------------------------------------- */
++
++static inline const char *safeStr(const uchar *s) {
++    return (s == NULL) ? "<unset>" : (const char *)s;
++}
++
++/* curl write callback — discard response body (we only check HTTP status) */
++static size_t discardWriteCb(void *contents, size_t size, size_t nmemb, void *userp) {
++    (void)contents;
++    (void)userp;
++    return size * nmemb;
++}
++
++/* Return current epoch time as a double with sub-second precision. */
++static double nowEpoch(void) {
++    struct timeval tv;
++    gettimeofday(&tv, NULL);
++    return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
++}
++
++/* URL-encode a string using the provided curl handle. Caller must curl_free(). */
++static char *urlEncode(CURL *curl, const char *s) {
++    if (s == NULL) return NULL;
++    return curl_easy_escape(curl, s, 0);
++}
++
++/* Forward declaration for use in appendEvent */
++static rsRetVal postBatch(wrkrInstanceData_t *pWrkrData);
++
++/* ---- batch management -------------------------------------------------- */
++
++static void resetBatch(wrkrInstanceData_t *pWrkrData) {
++    pWrkrData->batchLen = 0;
++    pWrkrData->eventCount = 0;
++}
++
++/* Append a single HLC event JSON object to the batch buffer.
++ * Format: {"event":"<msg>","time":<epoch>,"host":"<hostname>","source":"rsyslog"}
++ * The HLC endpoint accepts concatenated JSON objects (no array wrapper needed).
++ */
++static rsRetVal appendEvent(wrkrInstanceData_t *pWrkrData, const char *msg) {
++    char hostname[256];
++    const double ts = nowEpoch();
++    size_t eventLen;
++    size_t needed;
++    DEFiRet;
++
++    if (msg == NULL || msg[0] == '\0') {
++        msg = "(empty)";
++    }
++
++    if (gethostname(hostname, sizeof(hostname)) != 0) {
++        strncpy(hostname, "unknown", sizeof(hostname));
++    }
++    hostname[sizeof(hostname) - 1] = '\0';
++
++    /* Build the JSON event.  We need to JSON-escape the message.
++     * For simplicity we use a dynamically-sized buffer via snprintf + malloc. */
++    /* First, compute the escaped message length */
++    size_t msgLen = strlen(msg);
++    /* Worst case: every char becomes \uXXXX (6 chars) */
++    size_t escapedMaxLen = msgLen * 6 + 1;
++    char *escapedMsg = malloc(escapedMaxLen);
++    CHKmalloc(escapedMsg);
++
++    {
++        size_t j = 0;
++        for (size_t i = 0; i < msgLen && j < escapedMaxLen - 1; i++) {
++            unsigned char c = (unsigned char)msg[i];
++            switch (c) {
++                case '"':
++                    escapedMsg[j++] = '\\';
++                    escapedMsg[j++] = '"';
++                    break;
++                case '\\':
++                    escapedMsg[j++] = '\\';
++                    escapedMsg[j++] = '\\';
++                    break;
++                case '\b':
++                    escapedMsg[j++] = '\\';
++                    escapedMsg[j++] = 'b';
++                    break;
++                case '\f':
++                    escapedMsg[j++] = '\\';
++                    escapedMsg[j++] = 'f';
++                    break;
++                case '\n':
++                    escapedMsg[j++] = '\\';
++                    escapedMsg[j++] = 'n';
++                    break;
++                case '\r':
++                    escapedMsg[j++] = '\\';
++                    escapedMsg[j++] = 'r';
++                    break;
++                case '\t':
++                    escapedMsg[j++] = '\\';
++                    escapedMsg[j++] = 't';
++                    break;
++                default:
++                    if (c < 0x20) {
++                        j += snprintf(escapedMsg + j, escapedMaxLen - j, "\\u%04x", c);
++                    } else {
++                        escapedMsg[j++] = (char)c;
++                    }
++                    break;
++            }
++        }
++        escapedMsg[j] = '\0';
++    }
++
++    /* Now build the full event JSON */
++    /* {"event":"...","time":1234567890.123456,"host":"...","source":"rsyslog"} */
++    size_t fullLen = strlen("{\"event\":\"\",\"time\":,\"host\":\"\",\"source\":\"rsyslog\"}") + strlen(escapedMsg) +
++                     32 /* timestamp */ + strlen(hostname) + 1;
++    char *fullEvent = malloc(fullLen);
++    if (fullEvent == NULL) {
++        free(escapedMsg);
++        ABORT_FINALIZE(RS_RET_OUT_OF_MEMORY);
++    }
++
++    int n = snprintf(fullEvent, fullLen, "{\"event\":\"%s\",\"time\":%.6f,\"host\":\"%s\",\"source\":\"rsyslog\"}",
++                     escapedMsg, ts, hostname);
++    free(escapedMsg);
++
++    if (n < 0 || (size_t)n >= fullLen) {
++        free(fullEvent);
++        LogError(0, RS_RET_ERR, "omawslogshlc: event JSON formatting failed");
++        ABORT_FINALIZE(RS_RET_ERR);
++    }
++    eventLen = (size_t)n;
++
++    if (eventLen > CWL_MAX_EVENT_BYTES) {
++        if (pWrkrData->eventCount > 0) {
++            rsRetVal localRet = postBatch(pWrkrData);
++            if (localRet != RS_RET_OK) {
++                free(fullEvent);
++                ABORT_FINALIZE(localRet);
++            }
++        }
++        free(fullEvent);
++        LogError(0, RS_RET_ERR, "omawslogshlc: single event size %zu exceeds 256 KiB limit", eventLen);
++        ABORT_FINALIZE(RS_RET_ERR);
++    }
++
++    /* Check size limits — flush current batch if adding this event would exceed 1 MiB */
++    needed = pWrkrData->batchLen + eventLen;
++    if (needed > CWL_MAX_REQUEST_BYTES) {
++        if (pWrkrData->eventCount > 0) {
++            rsRetVal localRet = postBatch(pWrkrData);
++            if (localRet != RS_RET_OK) {
++                free(fullEvent);
++                ABORT_FINALIZE(localRet);
++            }
++            needed = eventLen;
++        }
++        if (needed > CWL_MAX_REQUEST_BYTES) {
++            free(fullEvent);
++            LogError(0, RS_RET_ERR, "omawslogshlc: single event size %zu exceeds 1 MiB limit", eventLen);
++            ABORT_FINALIZE(RS_RET_ERR);
++        }
++    }
++
++    /* Grow buffer if needed (+1 for null terminator) */
++    {
++        size_t neededCap = pWrkrData->batchLen + eventLen + 1;
++        if (neededCap > pWrkrData->batchCap) {
++            size_t newCap = pWrkrData->batchCap * 2;
++            if (newCap < neededCap) newCap = neededCap + 4096;
++            char *newBuf = realloc(pWrkrData->batchBuf, newCap);
++            if (newBuf == NULL) {
++                free(fullEvent);
++                ABORT_FINALIZE(RS_RET_OUT_OF_MEMORY);
++            }
++            pWrkrData->batchBuf = newBuf;
++            pWrkrData->batchCap = newCap;
++        }
++    }
++
++    memcpy(pWrkrData->batchBuf + pWrkrData->batchLen, fullEvent, eventLen);
++    pWrkrData->batchLen += eventLen;
++    pWrkrData->eventCount++;
++    free(fullEvent);
++
++finalize_it:
++    RETiRet;
++}
++
++/* ---- HTTP posting ------------------------------------------------------ */
++
++static rsRetVal postBatch(wrkrInstanceData_t *pWrkrData) {
++    instanceData *const pData = pWrkrData->pData;
++    char *url = NULL;
++    char *authHeader = NULL;
++    char *encLogGroup = NULL;
++    char *encLogStream = NULL;
++    struct curl_slist *headers = NULL;
++    long httpCode = 0;
++    CURLcode curlRes;
++    int n;
++    DEFiRet;
++
++    if (pWrkrData->eventCount == 0) {
++        FINALIZE;
++    }
++
++    /* Null-terminate the batch buffer (capacity guaranteed by appendEvent) */
++    pWrkrData->batchBuf[pWrkrData->batchLen] = '\0';
++
++    /* Build URL: https://logs.<region>.amazonaws.com/services/collector/event?logGroup=<>&logStream=<> */
++    encLogGroup = urlEncode(pWrkrData->curl, (const char *)pData->logGroup);
++    encLogStream = urlEncode(pWrkrData->curl, (const char *)pData->logStream);
++    if (encLogGroup == NULL || encLogStream == NULL) {
++        LogError(0, RS_RET_ERR, "omawslogshlc: failed to URL-encode log group/stream names");
++        ABORT_FINALIZE(RS_RET_ERR);
++    }
++
++    {
++        size_t urlLen = strlen("https://logs..amazonaws.com/services/collector/event?logGroup=&logStream=") +
++                        strlen((const char *)pData->region) + strlen(encLogGroup) + strlen(encLogStream) + 1;
++        CHKmalloc(url = malloc(urlLen));
++        n = snprintf(url, urlLen, "https://logs.%s.amazonaws.com/services/collector/event?logGroup=%s&logStream=%s",
++                     (const char *)pData->region, encLogGroup, encLogStream);
++        if (n < 0 || (size_t)n >= urlLen) {
++            LogError(0, RS_RET_ERR, "omawslogshlc: failed building HLC endpoint URL");
++            ABORT_FINALIZE(RS_RET_ERR);
++        }
++    }
++
++    /* Build Authorization header */
++    {
++        size_t authLen = strlen("Authorization: Bearer ") + strlen((const char *)pData->bearerToken) + 1;
++        CHKmalloc(authHeader = malloc(authLen));
++        n = snprintf(authHeader, authLen, "Authorization: Bearer %s", (const char *)pData->bearerToken);
++        if (n < 0 || (size_t)n >= authLen) {
++            LogError(0, RS_RET_ERR, "omawslogshlc: failed building Authorization header");
++            ABORT_FINALIZE(RS_RET_ERR);
++        }
++    }
++
++    headers = curl_slist_append(headers, "Content-Type: application/json");
++    if (headers == NULL) {
++        LogError(0, RS_RET_OUT_OF_MEMORY, "omawslogshlc: curl_slist_append failed");
++        ABORT_FINALIZE(RS_RET_OUT_OF_MEMORY);
++    }
++    headers = curl_slist_append(headers, authHeader);
++    if (headers == NULL) {
++        LogError(0, RS_RET_OUT_OF_MEMORY, "omawslogshlc: curl_slist_append failed");
++        ABORT_FINALIZE(RS_RET_OUT_OF_MEMORY);
++    }
++
++    /* User-Agent: rsyslog/<version> */
++    {
++        char uaHeader[128];
++        snprintf(uaHeader, sizeof(uaHeader), "User-Agent: rsyslog/%s", VERSION);
++        headers = curl_slist_append(headers, uaHeader);
++        if (headers == NULL) {
++            LogError(0, RS_RET_OUT_OF_MEMORY, "omawslogshlc: curl_slist_append failed");
++            ABORT_FINALIZE(RS_RET_OUT_OF_MEMORY);
++        }
++    }
++
++    curl_easy_setopt(pWrkrData->curl, CURLOPT_URL, url);
++    curl_easy_setopt(pWrkrData->curl, CURLOPT_POST, 1L);
++    curl_easy_setopt(pWrkrData->curl, CURLOPT_HTTPHEADER, headers);
++    curl_easy_setopt(pWrkrData->curl, CURLOPT_POSTFIELDS, pWrkrData->batchBuf);
++    curl_easy_setopt(pWrkrData->curl, CURLOPT_POSTFIELDSIZE, (long)pWrkrData->batchLen);
++    curl_easy_setopt(pWrkrData->curl, CURLOPT_WRITEFUNCTION, discardWriteCb);
++    curl_easy_setopt(pWrkrData->curl, CURLOPT_NOSIGNAL, 1L);
++    curl_easy_setopt(pWrkrData->curl, CURLOPT_TIMEOUT, 30L);
++
++    DBGPRINTF("omawslogshlc: posting %zu events (%zu bytes) to %s\n", pWrkrData->eventCount, pWrkrData->batchLen, url);
++
++    curlRes = curl_easy_perform(pWrkrData->curl);
++    if (curlRes != CURLE_OK) {
++        LogError(0, RS_RET_SUSPENDED, "omawslogshlc: HTTP POST failed: %s", curl_easy_strerror(curlRes));
++        ABORT_FINALIZE(RS_RET_SUSPENDED);
++    }
++
++    curl_easy_getinfo(pWrkrData->curl, CURLINFO_RESPONSE_CODE, &httpCode);
++    if (httpCode >= 200 && httpCode < 300) {
++        DBGPRINTF("omawslogshlc: batch posted successfully, status=%ld events=%zu\n", httpCode, pWrkrData->eventCount);
++        resetBatch(pWrkrData);
++        FINALIZE;
++    }
++
++    /* Retryable errors */
++    if (httpCode == 429 || httpCode >= 500) {
++        LogError(0, RS_RET_SUSPENDED, "omawslogshlc: HTTP status=%ld (will retry)", httpCode);
++        ABORT_FINALIZE(RS_RET_SUSPENDED);
++    }
++
++    /* Auth error */
++    if (httpCode == 401 || httpCode == 403) {
++        LogError(0, RS_RET_SUSPENDED, "omawslogshlc: HTTP status=%ld — check bearer_token configuration", httpCode);
++        ABORT_FINALIZE(RS_RET_SUSPENDED);
++    }
++
++    /* Non-retryable client errors */
++    LogError(0, RS_RET_ERR, "omawslogshlc: HTTP status=%ld (non-retryable)", httpCode);
++    resetBatch(pWrkrData);
++    ABORT_FINALIZE(RS_RET_ERR);
++
++finalize_it:
++    free(url);
++    free(authHeader);
++    if (encLogGroup) curl_free(encLogGroup);
++    if (encLogStream) curl_free(encLogStream);
++    if (headers) curl_slist_free_all(headers);
++    RETiRet;
++}
++
++/* ---- rsyslog module lifecycle ------------------------------------------ */
++
++static inline void setInstParamDefaults(instanceData *pData) {
++    pData->tplName = NULL;
++    pData->region = NULL;
++    pData->bearerToken = NULL;
++    pData->logGroup = NULL;
++    pData->logStream = NULL;
++    pData->maxBatchSize = 100; /* recommended by AWS docs */
++}
++
++BEGINbeginCnfLoad
++    CODESTARTbeginCnfLoad;
++    DBGPRINTF("omawslogshlc: beginCnfLoad\n");
++ENDbeginCnfLoad
++
++BEGINendCnfLoad
++    CODESTARTendCnfLoad;
++    DBGPRINTF("omawslogshlc: endCnfLoad\n");
++ENDendCnfLoad
++
++BEGINcheckCnf
++    CODESTARTcheckCnf;
++    DBGPRINTF("omawslogshlc: checkCnf\n");
++ENDcheckCnf
++
++BEGINactivateCnf
++    CODESTARTactivateCnf;
++    runModConf = pModConf;
++    DBGPRINTF("omawslogshlc: activateCnf\n");
++ENDactivateCnf
++
++BEGINfreeCnf
++    CODESTARTfreeCnf;
++    DBGPRINTF("omawslogshlc: freeCnf\n");
++ENDfreeCnf
++
++BEGINcreateInstance
++    CODESTARTcreateInstance;
++    DBGPRINTF("omawslogshlc: createInstance[%p]\n", pData);
++ENDcreateInstance
++
++BEGINcreateWrkrInstance
++    CODESTARTcreateWrkrInstance;
++    DBGPRINTF("omawslogshlc: createWrkrInstance[%p]\n", pWrkrData);
++    pWrkrData->curl = curl_easy_init();
++    if (pWrkrData->curl == NULL) {
++        LogError(0, RS_RET_ERR, "omawslogshlc: curl_easy_init failed");
++        ABORT_FINALIZE(RS_RET_ERR);
++    }
++    pWrkrData->batchCap = 8192;
++    CHKmalloc(pWrkrData->batchBuf = malloc(pWrkrData->batchCap));
++    resetBatch(pWrkrData);
++finalize_it:
++    if (iRet != RS_RET_OK) {
++        if (pWrkrData != NULL) {
++            if (pWrkrData->curl) {
++                curl_easy_cleanup(pWrkrData->curl);
++                pWrkrData->curl = NULL;
++            }
++            free(pWrkrData->batchBuf);
++            pWrkrData->batchBuf = NULL;
++        }
++    }
++ENDcreateWrkrInstance
++
++BEGINisCompatibleWithFeature
++    CODESTARTisCompatibleWithFeature;
++    if (eFeat == sFEATURERepeatedMsgReduction) iRet = RS_RET_OK;
++ENDisCompatibleWithFeature
++
++BEGINfreeInstance
++    CODESTARTfreeInstance;
++    DBGPRINTF("omawslogshlc: freeInstance[%p]\n", pData);
++    free(pData->tplName);
++    free(pData->region);
++    free(pData->bearerToken);
++    free(pData->logGroup);
++    free(pData->logStream);
++ENDfreeInstance
++
++BEGINfreeWrkrInstance
++    CODESTARTfreeWrkrInstance;
++    DBGPRINTF("omawslogshlc: freeWrkrInstance[%p]\n", pWrkrData);
++    /* Flush remaining events before shutdown */
++    if (pWrkrData->eventCount > 0) {
++        postBatch(pWrkrData);
++    }
++    if (pWrkrData->curl) curl_easy_cleanup(pWrkrData->curl);
++    free(pWrkrData->batchBuf);
++ENDfreeWrkrInstance
++
++BEGINdbgPrintInstInfo
++    CODESTARTdbgPrintInstInfo;
++    dbgprintf("omawslogshlc\n");
++    dbgprintf("\ttemplate='%s'\n", safeStr(pData->tplName));
++    dbgprintf("\tregion='%s'\n", safeStr(pData->region));
++    dbgprintf("\tlog_group='%s'\n", safeStr(pData->logGroup));
++    dbgprintf("\tlog_stream='%s'\n", safeStr(pData->logStream));
++    dbgprintf("\tmax_batch_size=%d\n", pData->maxBatchSize);
++    dbgprintf("\tbearer_token=%s\n", pData->bearerToken == NULL ? "<unset>" : "<set>");
++ENDdbgPrintInstInfo
++
++BEGINtryResume
++    CODESTARTtryResume;
++    DBGPRINTF("omawslogshlc[%p]: tryResume\n", pWrkrData);
++ENDtryResume
++
++BEGINbeginTransaction
++    CODESTARTbeginTransaction;
++    DBGPRINTF("omawslogshlc[%p]: beginTransaction\n", pWrkrData);
++    resetBatch(pWrkrData);
++ENDbeginTransaction
++
++BEGINdoAction
++    const char *msg;
++    CODESTARTdoAction;
++    msg = (ppString != NULL) ? (const char *)ppString[0] : "";
++    if (msg == NULL) msg = "";
++    DBGPRINTF("omawslogshlc[%p]: doAction msg='%.80s%s'\n", pWrkrData, msg, strlen(msg) > 80 ? "..." : "");
++
++    CHKiRet(appendEvent(pWrkrData, msg));
++
++    /* Flush when batch is full */
++    if ((int)pWrkrData->eventCount >= pWrkrData->pData->maxBatchSize) {
++        CHKiRet(postBatch(pWrkrData));
++    }
++
++    iRet = RS_RET_DEFER_COMMIT;
++finalize_it:
++ENDdoAction
++
++BEGINendTransaction
++    CODESTARTendTransaction;
++    DBGPRINTF("omawslogshlc[%p]: endTransaction events=%zu\n", pWrkrData, pWrkrData->eventCount);
++    if (pWrkrData->eventCount > 0) {
++        CHKiRet(postBatch(pWrkrData));
++    }
++finalize_it:
++ENDendTransaction
++
++BEGINnewActInst
++    struct cnfparamvals *pvals;
++    int i;
++    int nTpls;
++    uchar *tplToUse;
++    CODESTARTnewActInst;
++    DBGPRINTF("omawslogshlc: newActInst\n");
++
++    pvals = nvlstGetParams(lst, &actpblk, NULL);
++    if (pvals == NULL) {
++        LogError(0, RS_RET_MISSING_CNFPARAMS, "omawslogshlc: error reading config parameters");
++        ABORT_FINALIZE(RS_RET_MISSING_CNFPARAMS);
++    }
++
++    CHKiRet(createInstance(&pData));
++    setInstParamDefaults(pData);
++
++    for (i = 0; i < actpblk.nParams; ++i) {
++        if (!pvals[i].bUsed) continue;
++
++        if (!strcmp(actpblk.descr[i].name, "template")) {
++            free(pData->tplName);
++            pData->tplName = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL);
++            CHKmalloc(pData->tplName);
++        } else if (!strcmp(actpblk.descr[i].name, "region")) {
++            pData->region = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL);
++            CHKmalloc(pData->region);
++        } else if (!strcmp(actpblk.descr[i].name, "bearer_token")) {
++            pData->bearerToken = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL);
++            CHKmalloc(pData->bearerToken);
++        } else if (!strcmp(actpblk.descr[i].name, "log_group")) {
++            pData->logGroup = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL);
++            CHKmalloc(pData->logGroup);
++        } else if (!strcmp(actpblk.descr[i].name, "log_stream")) {
++            pData->logStream = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL);
++            CHKmalloc(pData->logStream);
++        } else if (!strcmp(actpblk.descr[i].name, "max_batch_size")) {
++            pData->maxBatchSize = (int)pvals[i].val.d.n;
++        }
++    }
++
++    DBGPRINTF(
++        "omawslogshlc: config region='%s' log_group='%s' log_stream='%s' "
++        "max_batch_size=%d bearer_token=%s\n",
++        safeStr(pData->region), safeStr(pData->logGroup), safeStr(pData->logStream), pData->maxBatchSize,
++        pData->bearerToken == NULL ? "<unset>" : "<set>");
++
++    /* Validate required parameters */
++    if (pData->region == NULL || pData->region[0] == '\0') {
++        LogError(0, RS_RET_PARAM_ERROR, "omawslogshlc: parameter 'region' is required");
++        ABORT_FINALIZE(RS_RET_PARAM_ERROR);
++    }
++    if (pData->bearerToken == NULL || pData->bearerToken[0] == '\0') {
++        LogError(0, RS_RET_PARAM_ERROR, "omawslogshlc: parameter 'bearer_token' is required");
++        ABORT_FINALIZE(RS_RET_PARAM_ERROR);
++    }
++    if (pData->logGroup == NULL || pData->logGroup[0] == '\0') {
++        LogError(0, RS_RET_PARAM_ERROR, "omawslogshlc: parameter 'log_group' is required");
++        ABORT_FINALIZE(RS_RET_PARAM_ERROR);
++    }
++    if (pData->logStream == NULL || pData->logStream[0] == '\0') {
++        LogError(0, RS_RET_PARAM_ERROR, "omawslogshlc: parameter 'log_stream' is required");
++        ABORT_FINALIZE(RS_RET_PARAM_ERROR);
++    }
++    if (pData->maxBatchSize <= 0 || pData->maxBatchSize > CWL_MAX_EVENTS_PER_REQUEST) {
++        LogError(0, RS_RET_PARAM_ERROR, "omawslogshlc: max_batch_size must be 1..%d, got %d",
++                 CWL_MAX_EVENTS_PER_REQUEST, pData->maxBatchSize);
++        ABORT_FINALIZE(RS_RET_PARAM_ERROR);
++    }
++
++    nTpls = 1;
++    CODE_STD_STRING_REQUESTnewActInst(nTpls);
++    CHKmalloc(tplToUse =
++                  (uchar *)strdup((pData->tplName == NULL) ? "RSYSLOG_TraditionalFileFormat" : (char *)pData->tplName));
++    CHKiRet(OMSRsetEntry(*ppOMSR, 0, tplToUse, OMSR_NO_RQD_TPL_OPTS));
++
++    CODE_STD_FINALIZERnewActInst;
++    cnfparamvalsDestruct(pvals, &actpblk);
++ENDnewActInst
++
++BEGINmodExit
++    CODESTARTmodExit;
++    DBGPRINTF("omawslogshlc: modExit\n");
++    curl_global_cleanup();
++ENDmodExit
++
++NO_LEGACY_CONF_parseSelectorAct;
++
++BEGINqueryEtryPt
++    CODESTARTqueryEtryPt;
++    CODEqueryEtryPt_STD_OMOD_QUERIES;
++    CODEqueryEtryPt_TXIF_OMOD_QUERIES;
++    CODEqueryEtryPt_STD_OMOD8_QUERIES;
++    CODEqueryEtryPt_STD_CONF2_OMOD_QUERIES;
++    CODEqueryEtryPt_STD_CONF2_QUERIES;
++ENDqueryEtryPt
++
++BEGINmodInit()
++    CODESTARTmodInit;
++    *ipIFVersProvided = CURR_MOD_IF_VERSION;
++    CODEmodInit_QueryRegCFSLineHdlr;
++    if (curl_global_init(CURL_GLOBAL_ALL) != 0) {
++        LogError(0, RS_RET_OBJ_CREATION_FAILED, "omawslogshlc: curl_global_init failed");
++        ABORT_FINALIZE(RS_RET_OBJ_CREATION_FAILED);
++    }
++    DBGPRINTF("omawslogshlc: modInit complete\n");
++ENDmodInit
++
++/* vi:set ai:
++ */
+diff --git a/tests/Makefile.am b/tests/Makefile.am
+index 68db50414d0aca6cbb17bf80ac6e9aa7a5279a53..696c59b7169608a876fbb76e01e4ae2ef05336ee 100644
+--- a/tests/Makefile.am
++++ b/tests/Makefile.am
+@@ -1064,6 +1064,14 @@ TESTS_OMAZUREDCE_VALGRIND = \
+ TESTS_OMAZUREDCE_YAML = \
+ 	yaml-omazuredce-compression.sh
+ 
++TESTS_OMAWSLOGSHLC = \
++	omawslogshlc-missing-region.sh \
++	omawslogshlc-basic.sh \
++	omawslogshlc-batch.sh
++
++TESTS_OMAWSLOGSHLC_IMTCP = \
++	omawslogshlc-event-too-large.sh
++
+ TESTS_IMDOCKER = \
+ 	imdocker-basic.sh \
+ 	imdocker-image-name.sh \
+@@ -2040,6 +2048,9 @@ EXTRA_DIST += $(TESTS_OMAZUREDCE_VALGRIND)
+ EXTRA_DIST += $(TESTS_OMAZUREDCE_YAML)
+ EXTRA_DIST += omazuredce-env.sh
+ EXTRA_DIST += testsuites/yaml-omazuredce-compression.yaml
++EXTRA_DIST += $(TESTS_OMAWSLOGSHLC)
++EXTRA_DIST += $(TESTS_OMAWSLOGSHLC_IMTCP)
++EXTRA_DIST += omawslogshlc-env.sh
+ EXTRA_DIST += $(TESTS_IMDOCKER)
+ EXTRA_DIST += $(TESTS_IMDOCKER_VALGRIND)
+ EXTRA_DIST += $(TESTS_IMCZMQ)
+@@ -2810,6 +2821,15 @@ endif
+ endif
+ endif
+ 
++if ENABLE_OMAWSLOGSHLC
++if ENABLE_OMAWSLOGSHLC_TESTS
++TESTS += $(TESTS_OMAWSLOGSHLC)
++if ENABLE_IMTCP_TESTS
++TESTS += $(TESTS_OMAWSLOGSHLC_IMTCP)
++endif
++endif
++endif
++
+ 
+ 
+ if ENABLE_IMDOCKER
+diff --git a/tests/omawslogshlc-basic.sh b/tests/omawslogshlc-basic.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..bfdec65efe7cb72a3f4debdde894e94e3129d42a
+--- /dev/null
++++ b/tests/omawslogshlc-basic.sh
+@@ -0,0 +1,43 @@
++#!/bin/bash
++# This file is part of the rsyslog project, released under ASL 2.0
++# Test basic functionality of omawslogshlc: send a small number of messages
++# to CloudWatch Logs via the HLC endpoint. The oracle is that rsyslog
++# processes all injected messages through the local omfile action and emits no
++# CloudWatch HTTP/authentication diagnostics while the HLC action runs.
++. ${srcdir:=.}/diag.sh init
++. ${srcdir:=.}/omawslogshlc-env.sh
++
++require_plugin "omawslogshlc"
++
++export NUMMESSAGES=5
++
++omawslogshlc_require_env
++
++generate_conf
++add_conf '
++global(processInternalMessages="on" internalmsg.severity="info")
++
++module(load="../plugins/omawslogshlc/.libs/omawslogshlc")
++
++local4.* action(
++	type="omawslogshlc"
++	region="'$AWS_CWL_REGION'"
++	bearer_token="'$AWS_CWL_BEARER_TOKEN'"
++	log_group="'$AWS_CWL_LOG_GROUP'"
++	log_stream="'$AWS_CWL_LOG_STREAM'"
++	action.resumeInterval="1"
++	action.resumeRetryCount="2"
++)
++
++*.* action(type="omfile" file="'$RSYSLOG_OUT_LOG'")
++'
++
++startup
++injectmsg 0 $NUMMESSAGES
++shutdown_when_empty
++wait_shutdown
++
++seq_check 0 $((NUMMESSAGES - 1))
++check_not_present "omawslogshlc: HTTP"
++
++exit_test
+diff --git a/tests/omawslogshlc-batch.sh b/tests/omawslogshlc-batch.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..569abf1e025c1a4380c0e16cb5a1f121d40fde73
+--- /dev/null
++++ b/tests/omawslogshlc-batch.sh
+@@ -0,0 +1,44 @@
++#!/bin/bash
++# This file is part of the rsyslog project, released under ASL 2.0
++# Test batch functionality of omawslogshlc: send enough messages to trigger
++# multiple batches. The oracle is that rsyslog processes all injected messages
++# through the local omfile action and emits no CloudWatch HTTP/authentication
++# diagnostics while the HLC action runs.
++. ${srcdir:=.}/diag.sh init
++. ${srcdir:=.}/omawslogshlc-env.sh
++
++require_plugin "omawslogshlc"
++
++export NUMMESSAGES=50
++
++omawslogshlc_require_env
++
++generate_conf
++add_conf '
++global(processInternalMessages="on" internalmsg.severity="info")
++
++module(load="../plugins/omawslogshlc/.libs/omawslogshlc")
++
++local4.* action(
++	type="omawslogshlc"
++	region="'$AWS_CWL_REGION'"
++	bearer_token="'$AWS_CWL_BEARER_TOKEN'"
++	log_group="'$AWS_CWL_LOG_GROUP'"
++	log_stream="'$AWS_CWL_LOG_STREAM'"
++	max_batch_size="10"
++	action.resumeInterval="1"
++	action.resumeRetryCount="2"
++)
++
++*.* action(type="omfile" file="'$RSYSLOG_OUT_LOG'")
++'
++
++startup
++injectmsg 0 $NUMMESSAGES
++shutdown_when_empty
++wait_shutdown
++
++seq_check 0 $((NUMMESSAGES - 1))
++check_not_present "omawslogshlc: HTTP"
++
++exit_test
+diff --git a/tests/omawslogshlc-env.sh b/tests/omawslogshlc-env.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..f1a563008c1073479feea69564a49b3882d818a9
+--- /dev/null
++++ b/tests/omawslogshlc-env.sh
+@@ -0,0 +1,20 @@
++#!/bin/bash
++
++omawslogshlc_require_env() {
++	if [[ -z "${AWS_CWL_BEARER_TOKEN}" ]]; then
++		echo "SKIP: AWS_CWL_BEARER_TOKEN environment variable not set - SKIPPING"
++		exit 77
++	fi
++	if [[ -z "${AWS_CWL_REGION}" ]]; then
++		echo "SKIP: AWS_CWL_REGION environment variable not set - SKIPPING"
++		exit 77
++	fi
++	if [[ -z "${AWS_CWL_LOG_GROUP}" ]]; then
++		echo "SKIP: AWS_CWL_LOG_GROUP environment variable not set - SKIPPING"
++		exit 77
++	fi
++	if [[ -z "${AWS_CWL_LOG_STREAM}" ]]; then
++		echo "SKIP: AWS_CWL_LOG_STREAM environment variable not set - SKIPPING"
++		exit 77
++	fi
++}
+diff --git a/tests/omawslogshlc-event-too-large.sh b/tests/omawslogshlc-event-too-large.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..0a18f695312e5898085619e9fa3c68a6977cac66
+--- /dev/null
++++ b/tests/omawslogshlc-event-too-large.sh
+@@ -0,0 +1,48 @@
++#!/bin/bash
++# This file is part of the rsyslog project, released under ASL 2.0
++# Test that omawslogshlc rejects a rendered event over the CloudWatch HLC
++# 256 KiB per-event limit locally, before attempting HTTP delivery. The oracle
++# is the internal rsyslog diagnostic emitted after tcpflood sends one
++# deliberately oversized message through a larger global(maxMessageSize)
++# setting and a dynamically allocated imtcp listener.
++. ${srcdir:=.}/diag.sh init
++
++require_plugin "omawslogshlc"
++require_plugin "imtcp"
++
++generate_conf
++add_conf '
++global(processInternalMessages="on" internalmsg.severity="info" maxMessageSize="300k")
++
++module(load="../plugins/imtcp/.libs/imtcp")
++module(load="../plugins/omawslogshlc/.libs/omawslogshlc")
++template(name="omawslogshlc-plain" type="string" string="%msg%\n")
++
++input(type="imtcp" port="0" listenPortFileName="'$RSYSLOG_DYNNAME'.tcpflood_port" ruleset="send")
++
++ruleset(name="send") {
++	action(
++		type="omawslogshlc"
++		region="us-west-2"
++		bearer_token="fake-token"
++		log_group="test-group"
++		log_stream="test-stream"
++		template="omawslogshlc-plain"
++		action.resumeRetryCount="0"
++	)
++}
++
++*.* action(type="omfile" file="'$RSYSLOG_OUT_LOG'")
++'
++
++startup
++assign_tcpflood_port "$RSYSLOG_DYNNAME.tcpflood_port"
++tcpflood -p"$TCPFLOOD_PORT" -m1 -d 270000 -P129
++shutdown_when_empty
++wait_shutdown
++
++content_check "omawslogshlc: single event size"
++content_check "exceeds 256 KiB limit"
++check_not_present "omawslogshlc: HTTP"
++
++exit_test
+diff --git a/tests/omawslogshlc-missing-region.sh b/tests/omawslogshlc-missing-region.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..a591e033dc464f200c5efa59f3f3e7f303374a43
+--- /dev/null
++++ b/tests/omawslogshlc-missing-region.sh
+@@ -0,0 +1,28 @@
++#!/bin/bash
++# This file is part of the rsyslog project, released under ASL 2.0
++# Test that omawslogshlc rejects config when required parameter 'region' is missing.
++. ${srcdir:=.}/diag.sh init
++
++require_plugin "omawslogshlc"
++
++generate_conf
++add_conf '
++module(load="../plugins/omawslogshlc/.libs/omawslogshlc")
++
++local4.* action(
++	type="omawslogshlc"
++	bearer_token="fake-token"
++	log_group="test-group"
++	log_stream="test-stream"
++)
++
++*.* action(type="omfile" file="'$RSYSLOG_OUT_LOG'")
++'
++
++startup
++shutdown_when_empty
++wait_shutdown
++
++content_check "parameter 'region' is required"
++
++exit_test

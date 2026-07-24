@@ -1,0 +1,99 @@
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+index 2051b715da83994333ec336b5567a77c3620315c..96bc53ffdf661836ccef8b0176bf13fb17d3b252 100644
+--- a/.gitlab-ci.yml
++++ b/.gitlab-ci.yml
+@@ -618,7 +618,7 @@ cross-mingw64:
+ # This policy doesn’t apply to intermittent flaky test failures, only to
+ # consistent build failures caused by changed dependencies or build environment.
+ msys2-mingw32:
+-  extends: .only-default-and-merges
++  extends: .only-schedules-or-manual
+   stage: build
+   tags:
+     - win32-ps
+@@ -628,7 +628,6 @@ msys2-mingw32:
+     GIT_SUBMODULE_DEPTH: 1
+     MSYSTEM: "MINGW32"
+     CHERE_INVOKING: "yes"
+-    COVERAGE: "1"
+     PYTHONUTF8: "1"
+     G_DEBUGGER: 'gdb.exe -batch -ex "set logging enabled on" -ex "attach %p" -ex "signal-event %e" -ex "c" -ex "thread apply all bt full" -ex "k"'
+   script:
+@@ -646,13 +645,10 @@ msys2-mingw32:
+     paths:
+       - _build/meson-logs
+       - _build/gdb.txt
+-      - _coverage/
+-      - _reference/
+-      - "${GIR_ARTIFACTS_PATH}/*.gir"
+ 
+ # See the note about msys2 CI job failure policy above.
+ msys2-clang64:
+-  extends: .only-schedules-or-manual
++  extends: .only-default-and-merges
+   stage: build
+   tags:
+     - win32-ps
+@@ -662,19 +658,27 @@ msys2-clang64:
+     GIT_SUBMODULE_DEPTH: 1
+     MSYSTEM: "CLANG64"
+     CHERE_INVOKING: "yes"
++    COVERAGE: "1"
+     PYTHONUTF8: "1"
++    G_DEBUGGER: 'gdb.exe -batch -ex "set logging enabled on" -ex "attach %p" -ex "signal-event %e" -ex "c" -ex "thread apply all bt full" -ex "k"'
+   script:
+     - C:\msys64\usr\bin\pacman --noconfirm -Syyuu
+     - C:\msys64\usr\bin\bash .gitlab-ci/show-execution-environment.sh
+     - C:\msys64\usr\bin\bash -lc "bash -x ./.gitlab-ci/test-msys2.sh"
+   artifacts:
+     reports:
+-      junit: "_build/meson-logs/testlog.junit.xml"
++      junit:
++        - _build/meson-logs/testlog.junit.xml
++        - _build/meson-logs/testlog-*.junit.xml
+     name: "glib-${env:CI_JOB_NAME}-${env:CI_COMMIT_REF_NAME}"
+     when: always
+     expire_in: 1 week
+     paths:
+       - _build/meson-logs
++      - _build/gdb.txt
++      - _coverage/
++      - _reference/
++      - "${GIR_ARTIFACTS_PATH}/*.gir"
+ 
+ vs2019-x64:
+   extends: .only-default
+@@ -915,7 +919,7 @@ coverage:
+   extends: .only-default
+   image: "${FEDORA_IMAGE}"
+   stage: coverage
+-  needs: ['fedora-x86_64', 'msys2-mingw32']
++  needs: ['fedora-x86_64', 'msys2-clang64']
+   artifacts:
+     name: "glib-${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}"
+     expire_in: 1 week
+@@ -1000,9 +1004,9 @@ check-introspection-fedora-x86_64:
+     JOB_NAME: fedora-x86_64
+   extends: .check-introspection
+ 
+-check-introspection-msys2-mingw32:
++check-introspection-msys2-clang64:
+   variables:
+-    JOB_NAME: msys2-mingw32
++    JOB_NAME: msys2-clang64
+   extends: .check-introspection
+ 
+ scan-build:
+diff --git a/docs/supported-platforms.md b/docs/supported-platforms.md
+index 8fa7766073e6b15ad33145268aedc758f921884e..9714eca458636da1cbc1fb533cc1ded5643c6fa1 100644
+--- a/docs/supported-platforms.md
++++ b/docs/supported-platforms.md
+@@ -39,7 +39,7 @@ GLib is regularly built on at least the following systems:
+    - Debian (Bookworm, https://gitlab.gnome.org/GNOME/glib/-/blob/main/.gitlab-ci/debian-stable.Dockerfile)
+    - Alpine Linux (3.19 using muslc, https://gitlab.gnome.org/GNOME/glib/-/blob/main/.gitlab-ci/alpine.Dockerfile)
+    - Windows (MinGW64)
+-   - Windows (msys2-mingw32 and msys2-clang64; msys2 is a rolling release distribution)
++   - Windows (msys2-clang64 and msys2-mingw32; msys2 is a rolling release distribution)
+    - Windows (Visual Studio 2019 x64, a static linking version on x64, and an x86 and an ARM64 version)
+    - Android (NDK r23b, API 31, arm64, https://gitlab.gnome.org/GNOME/glib/-/blob/main/.gitlab-ci/android-ndk.sh)
+    - FreeBSD (13)

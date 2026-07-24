@@ -1,0 +1,63 @@
+From 824a60e614bb7ea57f59c09b819a8f1dcb2f5b11 Mon Sep 17 00:00:00 2001
+From: Carlos Garcia Campos <cgarcia@igalia.com>
+Date: Thu, 4 Dec 2014 12:38:49 +0100
+Subject: [PATCH] cache: Do not add Age header to all responses
+
+I think we were doing this because RFC 2616 says:
+
+"When a response is generated from a cache entry, the cache MUST include a single Age
+header field in the response with a value equal to the cache entry's current_age."
+
+But it also says:
+
+"The presence of an Age header field in a response implies that a
+response is not first-hand. However, the converse is not true, since
+the lack of an Age header field in a response does not imply that the
+response is first-hand unless all caches along the request path are
+compliant with HTTP/1.1"
+
+We are always adding the Age header, even for responses sent after a
+revalidation, in which case the response is first-hand. So at least
+after a revalidation we should not include the Age header. However,
+other browsers don't seem to include the Age header in any case, and the
+first quote from RFC 2616 is not present in RFC 7234. So, the safest
+approach that is compatible with other browsers and RFC compliant is to
+never include the Age header manually in cache responses.
+
+This avoids unnecessary conditional requests made when a resource is
+considered expired because of the Age header added after a revalidation.
+
+https://bugzilla.gnome.org/show_bug.cgi?id=741108
+---
+ libsoup/soup-cache.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/libsoup/soup-cache.c b/libsoup/soup-cache.c
+index 533a1758..6272dcbe 100644
+--- a/libsoup/soup-cache.c
++++ b/libsoup/soup-cache.c
+@@ -670,7 +670,6 @@ GInputStream *
+ soup_cache_send_response (SoupCache *cache, SoupMessage *msg)
+ {
+ 	SoupCacheEntry *entry;
+-	char *current_age;
+ 	GInputStream *file_stream, *body_stream, *cache_stream;
+ 	GFile *file;
+ 
+@@ -704,13 +703,6 @@ soup_cache_send_response (SoupCache *cache, SoupMessage *msg)
+ 	/* Headers */
+ 	copy_end_to_end_headers (entry->headers, msg->response_headers);
+ 
+-	/* Add 'Age' header with the current age */
+-	current_age = g_strdup_printf ("%d", soup_cache_entry_get_current_age (entry));
+-	soup_message_headers_replace (msg->response_headers,
+-				      "Age",
+-				      current_age);
+-	g_free (current_age);
+-
+ 	/* Create the cache stream. */
+ 	soup_message_disable_feature (msg, SOUP_TYPE_CACHE);
+ 	cache_stream = soup_message_setup_body_istream (body_stream, msg,
+-- 
+2.34.1
+

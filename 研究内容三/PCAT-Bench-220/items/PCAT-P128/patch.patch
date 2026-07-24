@@ -1,0 +1,50 @@
+From 2d8a447551125cb0f1efb4781a58afa9ab77c392 Mon Sep 17 00:00:00 2001
+From: Eric Covener <covener@apache.org>
+Date: Tue, 27 Jun 2023 14:33:50 +0000
+Subject: [PATCH] PR66672: rewrite QSA+trailing ? regression
+
+mod_rewrite: Fix a recent regression where a rule with both a trailing
+'?' and the [QSA] flag did not have the query appended.  PR66672
+
+Submitted By: Frank Meier <frank.meier ergon.ch>
+
+
+
+git-svn-id: https://svn.apache.org/repos/asf/httpd/httpd/trunk@1910633 13f79535-47bb-0310-9956-ffa450edef68
+---
+ changes-entries/pr66672.txt   | 3 +++
+ modules/mappers/mod_rewrite.c | 7 +++++--
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+ create mode 100644 changes-entries/pr66672.txt
+
+diff --git a/changes-entries/pr66672.txt b/changes-entries/pr66672.txt
+new file mode 100644
+index 0000000000..f36897bb0d
+--- /dev/null
++++ b/changes-entries/pr66672.txt
+@@ -0,0 +1,3 @@
++  *) mod_rewrite: Fix a recent regression where a rule with both a trailing
++     '?' and the [QSA] flag did not have the query appended.  PR66672
++     Frank Meier <frank.meier ergon.ch>
+diff --git a/modules/mappers/mod_rewrite.c b/modules/mappers/mod_rewrite.c
+index 827239d9db..7fb4e92c0d 100644
+--- a/modules/mappers/mod_rewrite.c
++++ b/modules/mappers/mod_rewrite.c
+@@ -3909,9 +3909,12 @@ static const char *cmd_rewriterule(cmd_parms *cmd, void *in_dconf,
+     }
+ 
+     if (*(a2_end-1) == '?') {
+-        /* a literal ? at the end of the unsubstituted rewrite rule */
+-        newrule->flags |= RULEFLAG_QSNONE;
+         *(a2_end-1) = '\0'; /* trailing ? has done its job */
++        /* a literal ? at the end of the unsubstituted rewrite rule */
++        if (!(newrule->flags & RULEFLAG_QSAPPEND))
++        {
++            newrule->flags |= RULEFLAG_QSNONE;
++        }
+     }
+     else if (newrule->flags & RULEFLAG_QSDISCARD) {
+         if (NULL == ap_strchr(newrule->output, '?')) {
+-- 
+2.34.1
+

@@ -1,0 +1,73 @@
+From 10981ef1378830f88ff1efba68a98c56a1a33d6f Mon Sep 17 00:00:00 2001
+From: Julian Soreavis <julian.soreavis@gmail.com>
+Date: Sat, 11 Jul 2026 10:18:56 +0000
+Subject: [PATCH] cmd/go: avoid a blank line before ok when discarded output
+ lacks a newline
+
+When a passing test in package list mode writes output that does not end
+in a newline, and that output is discarded (the default non-verbose,
+non-JSON case), cmd/go printed a spurious blank line before the "ok"
+summary line.
+
+The newline-before-"ok" guard tested out, a snapshot of the captured
+output taken before buf.Reset() discards it, but wrote the newline into
+buf, which Reset had already emptied. Test buf itself, so no newline is
+added when the captured output was discarded.
+
+Fixes #79786
+
+Change-Id: Iab32de2d8fa9db85681e2e4f01d7af3f08a0f626
+GitHub-Last-Rev: 86aaa23984a33a4057e755467156234d35fb24cd
+GitHub-Pull-Request: golang/go#80352
+Reviewed-on: https://go-review.googlesource.com/c/go/+/799182
+Reviewed-by: Russ Cox <rsc@golang.org>
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+Reviewed-by: Sean Liao <sean@liao.dev>
+Reviewed-by: Michael Pratt <mpratt@google.com>
+Auto-Submit: Sean Liao <sean@liao.dev>
+---
+ src/cmd/go/internal/test/test.go                 | 8 +++++---
+ src/cmd/go/testdata/script/test_fail_newline.txt | 8 ++++++++
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/src/cmd/go/internal/test/test.go b/src/cmd/go/internal/test/test.go
+index 2473c243e3..2084bc68a9 100644
+--- a/src/cmd/go/internal/test/test.go
++++ b/src/cmd/go/internal/test/test.go
+@@ -1733,9 +1733,11 @@ func (r *runTestActor) Act(b *work.Builder, ctx context.Context, a *work.Action)
+ 		if bytes.HasPrefix(out, tooManyFuzzTestsToFuzz[1:]) || bytes.Contains(out, tooManyFuzzTestsToFuzz) {
+ 			norun = "[-fuzz matches more than one fuzz test, won't fuzz]"
+ 		}
+-		if len(out) > 0 && !bytes.HasSuffix(out, []byte("\n")) {
+-			// Ensure that the output ends with a newline before the "ok"
+-			// line we're about to print (https://golang.org/issue/49317).
++		// Ensure the output ends with a newline before the "ok" line
++		// (https://golang.org/issue/49317). Check buf, which holds the
++		// output still to be printed; out may include output that was
++		// discarded above (https://go.dev/issue/79786).
++		if buf.Len() > 0 && !bytes.HasSuffix(buf.Bytes(), []byte("\n")) {
+ 			cmd.Stdout.Write([]byte("\n"))
+ 		}
+ 		fmt.Fprintf(cmd.Stdout, "ok  \t%s\t%s%s%s\n", a.Package.ImportPath, t, coveragePercentage(out), norun)
+diff --git a/src/cmd/go/testdata/script/test_fail_newline.txt b/src/cmd/go/testdata/script/test_fail_newline.txt
+index 43cee565a1..8de503b5d6 100644
+--- a/src/cmd/go/testdata/script/test_fail_newline.txt
++++ b/src/cmd/go/testdata/script/test_fail_newline.txt
+@@ -25,6 +25,14 @@ go test -v .
+ stdout '^skipping\n'
+ stdout '^ok\s+example/skip'
+ 
++# In package list mode without -v, a passing test's output is discarded, so the
++# 'ok' line must not be preceded by a spurious blank line, even when the
++# discarded output ended without a newline (https://go.dev/issue/79786).
++go test -count=1 .
++! stderr .
++! stdout '^\n'
++stdout '^ok\s+example/skip'
++
+ # If the output is streamed and the test passes, we can't tell whether it ended
+ # in a partial line, and don't want to emit any extra output in the
+ # overwhelmingly common case that it did not.
+-- 
+2.34.1
+

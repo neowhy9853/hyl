@@ -1,0 +1,581 @@
+From 8b68438b2e0b38909b5b2f76e22ceccd2fa48278 Mon Sep 17 00:00:00 2001
+From: Stefan Eissing <icing@apache.org>
+Date: Sat, 22 Oct 2022 11:41:55 +0000
+Subject: [PATCH]   *) mod_http2: field values (headers and trailers) are
+ stripped of      leading/trailing whitespace (space +htab) before being
+ processed      or send in a response. This is compatible behaviour to
+ HTTP/1.1      parsers that strip incoming headers of such characters.     
+ [Stefan Eissing]
+
+  - removed intermittent "H2HeaderStrictness" directive again.
+
+
+
+git-svn-id: https://svn.apache.org/repos/asf/httpd/httpd/trunk@1904777 13f79535-47bb-0310-9956-ffa450edef68
+---
+ changes-entries/h2_header_strictness.txt |   9 +-
+ docs/manual/mod/mod_http2.xml            |  26 -----
+ modules/http2/h2_c2_filter.c             |   2 +-
+ modules/http2/h2_config.c                |  29 ------
+ modules/http2/h2_config.h                |   1 -
+ modules/http2/h2_session.c               |  10 +-
+ modules/http2/h2_stream.c                |   2 +-
+ modules/http2/h2_util.c                  | 123 ++++++++++++++++-------
+ modules/http2/h2_util.h                  |  25 +----
+ modules/http2/h2_version.h               |   4 +-
+ test/modules/http2/test_203_rfc9113.py   |  44 ++++----
+ 11 files changed, 127 insertions(+), 148 deletions(-)
+
+diff --git a/changes-entries/h2_header_strictness.txt b/changes-entries/h2_header_strictness.txt
+index ab39479351..7cac6147e0 100644
+--- a/changes-entries/h2_header_strictness.txt
++++ b/changes-entries/h2_header_strictness.txt
+@@ -1,4 +1,5 @@
+-  *) mod_http2: new directive "H2HeaderStrictness" to control the compliance
+-     level of header checks as defined in the HTTP/2 RFCs. Default is 7540.
+-     9113 activates the checks for forbidden leading/trailing whitespace in
+-     field values (available from nghttp2 v1.50.0 on).
++  *) mod_http2: field values (headers and trailers) are stripped of
++     leading/trailing whitespace (space +htab) before being processed
++     or send in a response. This is compatible behaviour to HTTP/1.1
++     parsers that strip incoming headers of such characters.
++     [Stefan Eissing]
+diff --git a/docs/manual/mod/mod_http2.xml b/docs/manual/mod/mod_http2.xml
+index 93a8cdfd0e..876d6fe7c4 100644
+--- a/docs/manual/mod/mod_http2.xml
++++ b/docs/manual/mod/mod_http2.xml
+@@ -1024,30 +1024,4 @@ H2TLSCoolDownSecs 0
+         </usage>
+     </directivesynopsis>
+ 
+-    <directivesynopsis>
+-        <name>H2HeaderStrictness</name>
+-        <description>Strictness applied to head checks, via RFC number.</description>
+-        <syntax>H2HeaderStrictness <var>rfc</var></syntax>
+-        <default>rfc7540</default>
+-        <contextlist>
+-            <context>server config</context>
+-            <context>virtual host</context>
+-        </contextlist>
+-        <compatibility>Available in version 2.5.1 and later.</compatibility>
+-
+-        <usage>
+-            <p>
+-                <directive>H2HeaderStrictness</directive> specifies the compliance
+-                checks for header values, as specified in the IETF RFC number.
+-                'rfc7540' is the original HTTP/2 RFC, 'rfc9113' is the updated version that
+-                disallows leading and trialing spaces in fields.
+-            </p><p>
+-                Use 'highest' to apply the highest strictness checks available. This
+-                depends on the nghttp2 library version used. 'rfc9113' is available
+-                from nghttp2 v1.50.0 and onward only. When building with previous
+-                versions, this setting has no effect.
+-        </p>
+-        </usage>
+-    </directivesynopsis>
+-
+ </modulesynopsis>
+diff --git a/modules/http2/h2_c2_filter.c b/modules/http2/h2_c2_filter.c
+index e1d7cb72bf..f537a19f07 100644
+--- a/modules/http2/h2_c2_filter.c
++++ b/modules/http2/h2_c2_filter.c
+@@ -495,7 +495,7 @@ static apr_table_t *make_table(h2_response_parser *parser)
+                 ++sep;
+             }
+ 
+-            if (!h2_util_ignore_header(hline)) {
++            if (!h2_util_ignore_resp_header(hline)) {
+                 apr_table_merge(headers, hline, sep);
+             }
+         }
+diff --git a/modules/http2/h2_config.c b/modules/http2/h2_config.c
+index 40ef8b4ceb..eea4be2c59 100644
+--- a/modules/http2/h2_config.c
++++ b/modules/http2/h2_config.c
+@@ -75,7 +75,6 @@ typedef struct h2_config {
+     int padding_always;
+     int output_buffered;
+     apr_interval_time_t stream_timeout;/* beam timeout */
+-    int header_strictness;           /* which rfc to follow when verifying header */
+ } h2_config;
+ 
+ typedef struct h2_dir_config {
+@@ -111,7 +110,6 @@ static h2_config defconf = {
+     1,                      /* padding always */
+     1,                      /* stream output buffered */
+     -1,                     /* beam timeout */
+-    7540,                   /* header strictness */
+ };
+ 
+ static h2_dir_config defdconf = {
+@@ -155,7 +153,6 @@ void *h2_config_create_svr(apr_pool_t *pool, server_rec *s)
+     conf->padding_always       = DEF_VAL;
+     conf->output_buffered      = DEF_VAL;
+     conf->stream_timeout       = DEF_VAL;
+-    conf->header_strictness    = DEF_VAL;
+     return conf;
+ }
+ 
+@@ -198,7 +195,6 @@ static void *h2_config_merge(apr_pool_t *pool, void *basev, void *addv)
+     n->padding_bits         = H2_CONFIG_GET(add, base, padding_bits);
+     n->padding_always       = H2_CONFIG_GET(add, base, padding_always);
+     n->stream_timeout       = H2_CONFIG_GET(add, base, stream_timeout);
+-    n->header_strictness    = H2_CONFIG_GET(add, base, header_strictness);
+     return n;
+ }
+ 
+@@ -282,8 +278,6 @@ static apr_int64_t h2_srv_config_geti64(const h2_config *conf, h2_config_var_t v
+             return H2_CONFIG_GET(conf, &defconf, output_buffered);
+         case H2_CONF_STREAM_TIMEOUT:
+             return H2_CONFIG_GET(conf, &defconf, stream_timeout);
+-        case H2_CONF_HEADER_STRICTNESS:
+-            return H2_CONFIG_GET(conf, &defconf, header_strictness);
+         default:
+             return DEF_VAL;
+     }
+@@ -343,9 +337,6 @@ static void h2_srv_config_seti(h2_config *conf, h2_config_var_t var, int val)
+         case H2_CONF_OUTPUT_BUFFER:
+             H2_CONFIG_SET(conf, output_buffered, val);
+             break;
+-        case H2_CONF_HEADER_STRICTNESS:
+-            H2_CONFIG_SET(conf, header_strictness, val);
+-            break;
+         default:
+             break;
+     }
+@@ -712,24 +703,6 @@ static const char *h2_conf_set_modern_tls_only(cmd_parms *cmd,
+     return "value must be On or Off";
+ }
+ 
+-static const char *h2_conf_set_header_strictness(
+-    cmd_parms *cmd, void *dirconf, const char *value)
+-{
+-    if (!strcasecmp(value, "highest")) {
+-        CONFIG_CMD_SET(cmd, dirconf, H2_CONF_HEADER_STRICTNESS, 1000000);
+-        return NULL;
+-    }
+-    else if (!strcasecmp(value, "rfc7540")) {
+-        CONFIG_CMD_SET(cmd, dirconf, H2_CONF_HEADER_STRICTNESS, 7540);
+-        return NULL;
+-    }
+-    else if (!strcasecmp(value, "rfc9113")) {
+-        CONFIG_CMD_SET(cmd, dirconf, H2_CONF_HEADER_STRICTNESS, 9113);
+-        return NULL;
+-    }
+-    return "value must be one of highest|rfc7540|rfc9113";
+-}
+-
+ static const char *h2_conf_set_upgrade(cmd_parms *cmd,
+                                        void *dirconf, const char *value)
+ {
+@@ -964,8 +937,6 @@ const command_rec h2_cmds[] = {
+                   RSRC_CONF, "set stream output buffer on/off"),
+     AP_INIT_TAKE1("H2StreamTimeout", h2_conf_set_stream_timeout, NULL,
+                   RSRC_CONF, "set stream timeout"),
+-    AP_INIT_TAKE1("H2HeaderStrictness", h2_conf_set_header_strictness, NULL,
+-                  RSRC_CONF, "set strictness of header value checks"),
+     AP_END_CMD
+ };
+ 
+diff --git a/modules/http2/h2_config.h b/modules/http2/h2_config.h
+index d3d47386a8..6d2e65f926 100644
+--- a/modules/http2/h2_config.h
++++ b/modules/http2/h2_config.h
+@@ -43,7 +43,6 @@ typedef enum {
+     H2_CONF_PADDING_ALWAYS,
+     H2_CONF_OUTPUT_BUFFER,
+     H2_CONF_STREAM_TIMEOUT,
+-    H2_CONF_HEADER_STRICTNESS
+ } h2_config_var_t;
+ 
+ struct apr_hash_t;
+diff --git a/modules/http2/h2_session.c b/modules/http2/h2_session.c
+index d0b3a47598..7ba49cf8d5 100644
+--- a/modules/http2/h2_session.c
++++ b/modules/http2/h2_session.c
+@@ -957,12 +957,10 @@ apr_status_t h2_session_create(h2_session **psession, conn_rec *c, request_rec *
+ #endif
+ #ifdef H2_NG2_RFC9113_STRICTNESS
+     /* nghttp2 v1.50.0 introduces the strictness checks on leading/trailing
+-     * whitespace of RFC 9113. */
+-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+-                  "nghttp2_session_server_new: header strictness is %d",
+-                  h2_config_sgeti(s, H2_CONF_HEADER_STRICTNESS));
+-    nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation(options,
+-        h2_config_sgeti(s, H2_CONF_HEADER_STRICTNESS) < 9113);
++     * whitespace of RFC 9113 for fields. But, by default, it RST streams
++     * carrying such. We do not want that. We want to strip the ws and
++     * handle them, just like the HTTP/1.1 parser does. */
++    nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation(options, 1);
+ #endif
+     rv = nghttp2_session_server_new2(&session->ngh2, callbacks,
+                                      session, options);
+diff --git a/modules/http2/h2_stream.c b/modules/http2/h2_stream.c
+index 606e2762d0..cf6f79897d 100644
+--- a/modules/http2/h2_stream.c
++++ b/modules/http2/h2_stream.c
+@@ -654,7 +654,7 @@ static apr_status_t add_trailer(h2_stream *stream,
+                       "pseudo header in trailer"));
+         return APR_EINVAL;
+     }
+-    if (h2_req_ignore_trailer(name, nlen)) {
++    if (h2_ignore_req_trailer(name, nlen)) {
+         return APR_SUCCESS;
+     }
+     if (!stream->trailers_in) {
+diff --git a/modules/http2/h2_util.c b/modules/http2/h2_util.c
+index f40bce1b87..728cee95aa 100644
+--- a/modules/http2/h2_util.c
++++ b/modules/http2/h2_util.c
+@@ -1390,19 +1390,9 @@ apr_off_t h2_brigade_mem_size(apr_bucket_brigade *bb)
+  * h2_ngheader
+  ******************************************************************************/
+ 
+-int h2_util_ignore_header(const char *name)
+-{
+-    /* never forward, ch. 8.1.2.2 */
+-    return (H2_HD_MATCH_LIT_CS("connection", name)
+-            || H2_HD_MATCH_LIT_CS("proxy-connection", name)
+-            || H2_HD_MATCH_LIT_CS("upgrade", name)
+-            || H2_HD_MATCH_LIT_CS("keep-alive", name)
+-            || H2_HD_MATCH_LIT_CS("transfer-encoding", name));
+-}
+-
+ static int count_header(void *ctx, const char *key, const char *value)
+ {
+-    if (!h2_util_ignore_header(key)) {
++    if (!h2_util_ignore_resp_header(key)) {
+         (*((size_t*)ctx))++;
+     }
+     return 1;
+@@ -1423,6 +1413,17 @@ static const char *inv_field_value_chr(const char *token)
+     return (p && *p)? p : NULL;
+ }
+ 
++static void strip_field_value_ws(nghttp2_nv *nv)
++{
++    while(nv->valuelen && (nv->value[0] == ' ' || nv->value[0] == '\t')) {
++        nv->value++; nv->valuelen--;
++    }
++    while(nv->valuelen && (nv->value[nv->valuelen-1] == ' '
++                           || nv->value[nv->valuelen-1] == '\t')) {
++        nv->valuelen--;
++    }
++}
++
+ typedef struct ngh_ctx {
+     apr_pool_t *p;
+     int unsafe;
+@@ -1455,13 +1456,14 @@ static int add_header(ngh_ctx *ctx, const char *key, const char *value)
+     nv->namelen = strlen(key);
+     nv->value = (uint8_t*)value;
+     nv->valuelen = strlen(value);
++    strip_field_value_ws(nv);
+ 
+     return 1;
+ }
+ 
+ static int add_table_header(void *ctx, const char *key, const char *value)
+ {
+-    if (!h2_util_ignore_header(key)) {
++    if (!h2_util_ignore_resp_header(key)) {
+         add_header(ctx, key, value);
+     }
+     return 1;
+@@ -1620,6 +1622,12 @@ static literal IgnoredRequestTrailers[] = { /* Ignore, see rfc7230, ch. 4.1.2 */
+     H2_DEF_LITERAL("content-length"),
+     H2_DEF_LITERAL("proxy-authorization"),
+ };
++static literal IgnoredResponseHeaders[] = {
++    H2_DEF_LITERAL("upgrade"),
++    H2_DEF_LITERAL("connection"),
++    H2_DEF_LITERAL("keep-alive"),
++    H2_DEF_LITERAL("transfer-encoding"),
++};
+ static literal IgnoredResponseTrailers[] = {
+     H2_DEF_LITERAL("age"),
+     H2_DEF_LITERAL("date"),
+@@ -1634,89 +1642,126 @@ static literal IgnoredResponseTrailers[] = {
+     H2_DEF_LITERAL("proxy-authenticate"),
+ };
+ 
+-static int ignore_header(const literal *lits, size_t llen,
+-                         const char *name, size_t nlen)
++static int contains_name(const literal *lits, size_t llen, nghttp2_nv *nv)
+ {
+     const literal *lit;
+     size_t i;
+ 
+     for (i = 0; i < llen; ++i) {
+         lit = &lits[i];
+-        if (lit->len == nlen && !apr_strnatcasecmp(lit->name, name)) {
++        if (lit->len == nv->namelen
++            && !apr_strnatcasecmp(lit->name, (const char *)nv->name)) {
+             return 1;
+         }
+     }
+     return 0;
+ }
+ 
+-int h2_req_ignore_header(const char *name, size_t len)
++int h2_util_ignore_resp_header(const char *name)
+ {
+-    return ignore_header(H2_LIT_ARGS(IgnoredRequestHeaders), name, len);
++    nghttp2_nv nv;
++
++    nv.name = (uint8_t*)name;
++    nv.namelen = strlen(name);
++    return contains_name(H2_LIT_ARGS(IgnoredResponseHeaders), &nv);
+ }
+ 
+-int h2_req_ignore_trailer(const char *name, size_t len)
++
++static int h2_req_ignore_header(nghttp2_nv *nv)
+ {
+-    return (h2_req_ignore_header(name, len)
+-            || ignore_header(H2_LIT_ARGS(IgnoredRequestTrailers), name, len));
++    return contains_name(H2_LIT_ARGS(IgnoredRequestHeaders), nv);
+ }
+ 
+-int h2_res_ignore_trailer(const char *name, size_t len)
++int h2_ignore_req_trailer(const char *name, size_t len)
+ {
+-    return ignore_header(H2_LIT_ARGS(IgnoredResponseTrailers), name, len);
++    nghttp2_nv nv;
++
++    nv.name = (uint8_t*)name;
++    nv.namelen = strlen(name);
++    return (h2_req_ignore_header(&nv)
++            || contains_name(H2_LIT_ARGS(IgnoredRequestTrailers), &nv));
+ }
+ 
+-apr_status_t h2_req_add_header(apr_table_t *headers, apr_pool_t *pool,
+-                              const char *name, size_t nlen,
+-                              const char *value, size_t vlen,
+-                              size_t max_field_len, int *pwas_added)
++int h2_ignore_resp_trailer(const char *name, size_t len)
++{
++    nghttp2_nv nv;
++
++    nv.name = (uint8_t*)name;
++    nv.namelen = strlen(name);
++    return (contains_name(H2_LIT_ARGS(IgnoredResponseHeaders), &nv)
++            || contains_name(H2_LIT_ARGS(IgnoredResponseTrailers), &nv));
++}
++
++static apr_status_t req_add_header(apr_table_t *headers, apr_pool_t *pool,
++                                   nghttp2_nv *nv, size_t max_field_len,
++                                   int *pwas_added)
+ {
+     char *hname, *hvalue;
+     const char *existing;
+ 
+     *pwas_added = 0;
+-    if (h2_req_ignore_header(name, nlen)) {
++    strip_field_value_ws(nv);
++
++    if (h2_req_ignore_header(nv)) {
+         return APR_SUCCESS;
+     }
+-    else if (H2_HD_MATCH_LIT("cookie", name, nlen)) {
++    else if (nv->namelen == sizeof("cookie")-1
++             && !apr_strnatcasecmp("cookie", (const char *)nv->name)) {
+         existing = apr_table_get(headers, "cookie");
+         if (existing) {
+-            char *nval;
+-
+             /* Cookie header come separately in HTTP/2, but need
+              * to be merged by "; " (instead of default ", ")
+              */
+-            if (max_field_len && strlen(existing) + vlen + nlen + 4 > max_field_len) {
++            if (max_field_len
++                && strlen(existing) + nv->valuelen + nv->namelen + 4
++                   > max_field_len) {
+                 /* "key: oldval, nval" is too long */
+                 return APR_EINVAL;
+             }
+-            hvalue = apr_pstrndup(pool, value, vlen);
+-            nval = apr_psprintf(pool, "%s; %s", existing, hvalue);
+-            apr_table_setn(headers, "Cookie", nval);
++            hvalue = apr_pstrndup(pool, (const char*)nv->value, nv->valuelen);
++            apr_table_setn(headers, "Cookie",
++                           apr_psprintf(pool, "%s; %s", existing, hvalue));
+             return APR_SUCCESS;
+         }
+     }
+-    else if (H2_HD_MATCH_LIT("host", name, nlen)) {
++    else if (nv->namelen == sizeof("host")-1
++             && !apr_strnatcasecmp("host", (const char *)nv->name)) {
+         if (apr_table_get(headers, "Host")) {
+             return APR_SUCCESS; /* ignore duplicate */
+         }
+     }
+ 
+-    hname = apr_pstrndup(pool, name, nlen);
+-    h2_util_camel_case_header(hname, nlen);
++    hname = apr_pstrndup(pool, (const char*)nv->name, nv->namelen);
++    h2_util_camel_case_header(hname, nv->namelen);
+     existing = apr_table_get(headers, hname);
+     if (max_field_len) {
+-        if ((existing? strlen(existing)+2 : 0) + vlen + nlen + 2 > max_field_len) {
++        if ((existing? strlen(existing)+2 : 0) + nv->valuelen + nv->namelen + 2
++            > max_field_len) {
+             /* "key: (oldval, )?nval" is too long */
+             return APR_EINVAL;
+         }
+     }
+     if (!existing) *pwas_added = 1;
+-    hvalue = apr_pstrndup(pool, value, vlen);
++    hvalue = apr_pstrndup(pool, (const char*)nv->value, nv->valuelen);
+     apr_table_mergen(headers, hname, hvalue);
+ 
+     return APR_SUCCESS;
+ }
+ 
++apr_status_t h2_req_add_header(apr_table_t *headers, apr_pool_t *pool,
++                              const char *name, size_t nlen,
++                              const char *value, size_t vlen,
++                              size_t max_field_len, int *pwas_added)
++{
++    nghttp2_nv nv;
++
++    nv.name = (uint8_t*)name;
++    nv.namelen = nlen;
++    nv.value = (uint8_t*)value;
++    nv.valuelen = vlen;
++    return req_add_header(headers, pool, &nv, max_field_len, pwas_added);
++}
++
+ /*******************************************************************************
+  * frame logging
+  ******************************************************************************/
+diff --git a/modules/http2/h2_util.h b/modules/http2/h2_util.h
+index f6bd44bba6..d2e6548ba8 100644
+--- a/modules/http2/h2_util.h
++++ b/modules/http2/h2_util.h
+@@ -342,9 +342,8 @@ apr_size_t h2_util_table_bytes(apr_table_t *t, apr_size_t pair_extra);
+ /*******************************************************************************
+  * HTTP/2 header helpers
+  ******************************************************************************/
+-int h2_req_ignore_header(const char *name, size_t len);
+-int h2_req_ignore_trailer(const char *name, size_t len);
+-int h2_res_ignore_trailer(const char *name, size_t len);
++int h2_ignore_req_trailer(const char *name, size_t len);
++int h2_ignore_resp_trailer(const char *name, size_t len);
+ 
+ /**
+  * Set the push policy for the given request. Takes request headers into 
+@@ -375,25 +374,7 @@ const char *h2_util_base64url_encode(const char *data,
+  * nghttp2 helpers
+  ******************************************************************************/
+ 
+-#define H2_HD_MATCH_LIT_CS(l, name)  \
+-    ((strlen(name) == sizeof(l) - 1) && !apr_strnatcasecmp(l, name))
+-
+-#define H2_CREATE_NV_LIT_CS(nv, NAME, VALUE) nv->name = (uint8_t *)NAME;      \
+-                                             nv->namelen = sizeof(NAME) - 1;  \
+-                                             nv->value = (uint8_t *)VALUE;    \
+-                                             nv->valuelen = strlen(VALUE)
+-
+-#define H2_CREATE_NV_CS_LIT(nv, NAME, VALUE) nv->name = (uint8_t *)NAME;      \
+-                                             nv->namelen = strlen(NAME);      \
+-                                             nv->value = (uint8_t *)VALUE;    \
+-                                             nv->valuelen = sizeof(VALUE) - 1
+-
+-#define H2_CREATE_NV_CS_CS(nv, NAME, VALUE) nv->name = (uint8_t *)NAME;       \
+-                                            nv->namelen = strlen(NAME);       \
+-                                            nv->value = (uint8_t *)VALUE;     \
+-                                            nv->valuelen = strlen(VALUE)
+-
+-int h2_util_ignore_header(const char *name);
++int h2_util_ignore_resp_header(const char *name);
+ 
+ typedef struct h2_ngheader {
+     nghttp2_nv *nv;
+diff --git a/modules/http2/h2_version.h b/modules/http2/h2_version.h
+index c939b8c8af..c961089901 100644
+--- a/modules/http2/h2_version.h
++++ b/modules/http2/h2_version.h
+@@ -27,7 +27,7 @@
+  * @macro
+  * Version number of the http2 module as c string
+  */
+-#define MOD_HTTP2_VERSION "2.0.10"
++#define MOD_HTTP2_VERSION "2.0.11"
+ 
+ /**
+  * @macro
+@@ -35,7 +35,7 @@
+  * release. This is a 24 bit number with 8 bits for major number, 8 bits
+  * for minor and 8 bits for patch. Version 1.2.3 becomes 0x010203.
+  */
+-#define MOD_HTTP2_VERSION_NUM 0x02000a
++#define MOD_HTTP2_VERSION_NUM 0x02000b
+ 
+ 
+ #endif /* mod_h2_h2_version_h */
+diff --git a/test/modules/http2/test_203_rfc9113.py b/test/modules/http2/test_203_rfc9113.py
+index 326462f739..1fdb2ed4fd 100644
+--- a/test/modules/http2/test_203_rfc9113.py
++++ b/test/modules/http2/test_203_rfc9113.py
+@@ -11,8 +11,7 @@ class TestRfc9113:
+         H2Conf(env).add_vhost_test1().install()
+         assert env.apache_restart() == 0
+ 
+-    # by default, we ignore leading/trailing ws
+-    # tests with leading ws are not present as curl seems to silently eat those
++    # by default, we accept leading/trailing ws in request fields
+     def test_h2_203_01_ws_ignore(self, env):
+         url = env.mkurl("https", "test1", "/")
+         r = env.curl_get(url, options=['-H', 'trailing-space: must not  '])
+@@ -22,21 +21,32 @@ class TestRfc9113:
+         assert r.exit_code == 0, f'curl output: {r.stderr}'
+         assert r.response["status"] == 200, f'curl output: {r.stdout}'
+ 
+-    # When enabled, leading/trailing make the stream RST
+-    # tests with leading ws are not present as curl seems to silently eat those
+-    def test_h2_203_02_ws_reject(self, env):
+-        if not env.h2load_is_at_least('1.50.0'):
+-            pytest.skip(f'need nghttp2 >= 1.50.0')
+-        conf = H2Conf(env)
+-        conf.add([
+-            "H2HeaderStrictness rfc9113"
+-        ])
+-        conf.add_vhost_test1()
++    # response header are also handled, but we strip ws before sending
++    @pytest.mark.parametrize(["hvalue", "expvalue", "status"], [
++        ['"123"', '123', 200],
++        ['"123 "', '123', 200],       # trailing space stripped
++        ['"123\t"', '123', 200],     # trailing tab stripped
++        ['" 123"', '123', 200],        # leading space is stripped
++        ['"          123"', '123', 200],  # leading spaces are stripped
++        ['"\t123"', '123', 200],       # leading tab is stripped
++        ['"expr=%{unescape:123%0A 123}"', '', 500],  # illegal char
++        ['" \t "', '', 200],          # just ws
++    ])
++    def test_h2_203_02(self, env, hvalue, expvalue, status):
++        hname = 'ap-test-007'
++        conf = H2Conf(env, extras={
++            f'test1.{env.http_tld}': [
++                '<Location /index.html>',
++                f'Header add {hname} {hvalue}',
++                '</Location>',
++            ]
++        })
++        conf.add_vhost_test1(proxy_self=True)
+         conf.install()
+         assert env.apache_restart() == 0
+-        url = env.mkurl("https", "test1", "/")
+-        r = env.curl_get(url, options=['-H', 'trailing-space: must not  '])
+-        assert r.exit_code != 0, f'curl output: {r.stderr}'
+-        r = env.curl_get(url, options=['-H', 'trailing-space: must not\t'])
+-        assert r.exit_code != 0, f'curl output: {r.stderr}'
++        url = env.mkurl("https", "test1", "/index.html")
++        r = env.curl_get(url, options=['--http2'])
++        assert r.response["status"] == status
++        if int(status) < 400:
++            assert r.response["header"][hname] == expvalue
+ 
+-- 
+2.34.1
+

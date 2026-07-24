@@ -1,0 +1,187 @@
+From f2521324e6bdf331460abec7c2a88e2d3736b91c Mon Sep 17 00:00:00 2001
+From: Tobias Alex-Petersen <tobias.alex.petersen@gmail.com>
+Date: Sun, 19 Jul 2026 15:58:58 +0000
+Subject: [PATCH] gh-119710: fix asyncio Process.wait() to finish on process
+ exit and not wait for closing of pipes (#151983)
+
+Co-authored-by: Kumar Aditya <kumaraditya@python.org>
+---
+ Lib/asyncio/base_subprocess.py                | 25 +++----
+ Lib/test/test_asyncio/test_subprocess.py      | 71 +++++++++++--------
+ ...-06-11-10-00-00.gh-issue-119710.Qz7Kp2.rst |  4 ++
+ 3 files changed, 53 insertions(+), 47 deletions(-)
+ create mode 100644 Misc/NEWS.d/next/Library/2026-06-11-10-00-00.gh-issue-119710.Qz7Kp2.rst
+
+diff --git a/Lib/asyncio/base_subprocess.py b/Lib/asyncio/base_subprocess.py
+index 224b188380..3fa1ed1afd 100644
+--- a/Lib/asyncio/base_subprocess.py
++++ b/Lib/asyncio/base_subprocess.py
+@@ -26,7 +26,6 @@ def __init__(self, loop, protocol, args, shell,
+         self._pending_calls = collections.deque()
+         self._pipes = {}
+         self._finished = False
+-        self._pipes_connected = False
+ 
+         if stdin == subprocess.PIPE:
+             self._pipes[0] = None
+@@ -214,7 +213,6 @@ async def _connect_pipes(self, waiter):
+         else:
+             if waiter is not None and not waiter.cancelled():
+                 waiter.set_result(None)
+-            self._pipes_connected = True
+ 
+     def _call(self, cb, *data):
+         if self._pending_calls is not None:
+@@ -235,6 +233,7 @@ def _process_exited(self, returncode):
+         if self._loop.get_debug():
+             logger.info('%r exited with return code %r', self, returncode)
+         self._returncode = returncode
++
+         if self._proc.returncode is None:
+             # asyncio uses a child watcher: copy the status into the Popen
+             # object. On Python 3.6, it is required to avoid a ResourceWarning.
+@@ -243,6 +242,13 @@ def _process_exited(self, returncode):
+ 
+         self._try_finish()
+ 
++        # gh-119710: Wake up futures waiting for wait() as soon as the process
++        # exits.
++        for waiter in self._exit_waiters:
++            if not waiter.done():
++                waiter.set_result(returncode)
++        self._exit_waiters = None
++
+     async def _wait(self):
+         """Wait until the process exit and return the process return code.
+ 
+@@ -258,15 +264,7 @@ def _try_finish(self):
+         assert not self._finished
+         if self._returncode is None:
+             return
+-        if not self._pipes_connected:
+-            # self._pipes_connected can be False if not all pipes were connected
+-            # because either the process failed to start or the self._connect_pipes task
+-            # got cancelled. In this broken state we consider all pipes disconnected and
+-            # to avoid hanging forever in self._wait as otherwise _exit_waiters
+-            # would never be woken up, we wake them up here.
+-            for waiter in self._exit_waiters:
+-                if not waiter.done():
+-                    waiter.set_result(self._returncode)
++
+         if all(p is not None and p.disconnected
+                for p in self._pipes.values()):
+             self._finished = True
+@@ -276,11 +274,6 @@ def _call_connection_lost(self, exc):
+         try:
+             self._protocol.connection_lost(exc)
+         finally:
+-            # wake up futures waiting for wait()
+-            for waiter in self._exit_waiters:
+-                if not waiter.done():
+-                    waiter.set_result(self._returncode)
+-            self._exit_waiters = None
+             self._loop = None
+             self._proc = None
+             self._protocol = None
+diff --git a/Lib/test/test_asyncio/test_subprocess.py b/Lib/test/test_asyncio/test_subprocess.py
+index bb1a7d6ff2..2e97fa5820 100644
+--- a/Lib/test/test_asyncio/test_subprocess.py
++++ b/Lib/test/test_asyncio/test_subprocess.py
+@@ -112,37 +112,6 @@ def test_subprocess_repr(self):
+         )
+         transport.close()
+ 
+-    def test_proc_exited_no_invalid_state_error_on_exit_waiters(self):
+-        # gh-145541: when _connect_pipes hasn't completed (so
+-        # _pipes_connected is False) and the process exits, _try_finish()
+-        # sets the result on exit waiters. Then _call_connection_lost() must
+-        # not call set_result() again on the same waiters.
+-        self.loop.set_exception_handler(
+-            lambda loop, context: self.fail(
+-                f"unexpected exception: {context}")
+-        )
+-        waiter = self.loop.create_future()
+-        transport, protocol = self.create_transport(waiter)
+-
+-        # Simulate a waiter registered via _wait() before the process exits.
+-        exit_waiter = self.loop.create_future()
+-        transport._exit_waiters.append(exit_waiter)
+-
+-        # _connect_pipes hasn't completed, so _pipes_connected is False.
+-        self.assertFalse(transport._pipes_connected)
+-
+-        # Simulate process exit. _try_finish() will set the result on
+-        # exit_waiter because _pipes_connected is False, and then schedule
+-        # _call_connection_lost() because _pipes is empty (vacuously all
+-        # disconnected). _call_connection_lost() must skip exit_waiter
+-        # because it's already done.
+-        transport._process_exited(6)
+-        self.loop.run_until_complete(waiter)
+-
+-        self.assertEqual(exit_waiter.result(), 6)
+-
+-        transport.close()
+-
+ 
+ class SubprocessMixin:
+ 
+@@ -436,6 +405,46 @@ async def len_message(message):
+         self.assertEqual(output.rstrip(), b'3')
+         self.assertEqual(exitcode, 0)
+ 
++    def test_wait_even_if_pipe_is_open(self):
++        # gh-119710: Process.wait() must return once the process exits even
++        # if its stdout pipe is inherited by a grandchild that keeps it open,
++        # so the pipe never reaches EOF. Otherwise wait() hangs forever
++        # despite the returncode being known.
++
++        async def run():
++            # The grandchild inherits the child's stdin and stdout pipes and
++            # keeps both open after the child is killed.  It writes "ready"
++            # so we know it has started, and exits once its stdin hits EOF.
++            code = textwrap.dedent("""\
++                import subprocess, sys
++                subprocess.run([sys.executable, "-c",
++                    "import sys; sys.stdout.write('ready');"
++                    " sys.stdout.flush(); sys.stdin.read()"])
++                """)
++
++            proc = await asyncio.create_subprocess_exec(
++                sys.executable, "-c", code,
++                stdin=subprocess.PIPE,
++                stdout=subprocess.PIPE,
++            )
++            try:
++                wait_proc = asyncio.create_task(proc.wait())
++                # Wait until the grandchild holds the inherited pipes; this
++                # also lets the wait() task register its waiter.
++                await proc.stdout.readexactly(5)
++                proc.kill()
++                returncode = await asyncio.wait_for(
++                    wait_proc, timeout=support.SHORT_TIMEOUT)
++                if sys.platform == 'win32':
++                    self.assertIsInstance(returncode, int)
++                else:
++                    self.assertEqual(-signal.SIGKILL, returncode)
++            finally:
++                proc.stdin.close()  # let the grandchild exit
++                await proc.stdout.read()
++
++        self.loop.run_until_complete(run())
++
+     def test_empty_input(self):
+ 
+         async def empty_input():
+diff --git a/Misc/NEWS.d/next/Library/2026-06-11-10-00-00.gh-issue-119710.Qz7Kp2.rst b/Misc/NEWS.d/next/Library/2026-06-11-10-00-00.gh-issue-119710.Qz7Kp2.rst
+new file mode 100644
+index 0000000000..45f99d72ea
+--- /dev/null
++++ b/Misc/NEWS.d/next/Library/2026-06-11-10-00-00.gh-issue-119710.Qz7Kp2.rst
+@@ -0,0 +1,4 @@
++Fix :mod:`asyncio` subprocess :meth:`~asyncio.subprocess.Process.wait`
++hanging when the process has exited but one of its pipes is kept open by an
++inherited child process (so the pipe never reaches EOF). ``wait()`` now
++returns as soon as the process exits, regardless of the pipes' state.
+-- 
+2.34.1
+

@@ -1,0 +1,579 @@
+From 8e14f88e25192080ac237cb64be452c592c1e4fe Mon Sep 17 00:00:00 2001
+From: Dan Winship <danw@src.gnome.org>
+Date: Sun, 16 Mar 2008 02:28:36 +0000
+Subject: [PATCH] Define two new signals, request_queued and request_unqueued,
+ to provided a
+
+        * libsoup/soup-session.c: Define two new signals, request_queued
+        and request_unqueued, to provided a clearer (and
+        clearly-documented) lifecycle for messages, helping us (and other
+        people) avoid bugs like #522601, SoupSession::authenticate signal
+        emitted multiple times per message (reported and analyzed by Tommi
+        Komulainen).
+
+        * libsoup/soup-logger.c:
+        * libsoup/soup-auth-manager.c:
+        * libsoup/soup-auth-manager-ntlm.c: Use request_queued/unqueued
+
+        * tests/auth-test.c (do_async_auth_test): add a regression test
+
+svn path=/trunk/; revision=1110
+---
+ ChangeLog                        | 15 ++++++
+ libsoup/soup-auth-manager-ntlm.c | 47 ++++++++++-------
+ libsoup/soup-auth-manager.c      | 55 ++++++++++++++++----
+ libsoup/soup-logger.c            | 46 ++++++++++-------
+ libsoup/soup-session.c           | 87 +++++++++++++++++++++++++++++++-
+ tests/auth-test.c                | 51 +++++++++++++++++++
+ 6 files changed, 253 insertions(+), 48 deletions(-)
+
+diff --git a/ChangeLog b/ChangeLog
+index 4eef5e9b..34aeaa6f 100644
+--- a/ChangeLog
++++ b/ChangeLog
+@@ -1,3 +1,18 @@
++2008-03-15  Dan Winship  <danw@gnome.org>
++
++	* libsoup/soup-session.c: Define two new signals, request_queued
++	and request_unqueued, to provided a clearer (and
++	clearly-documented) lifecycle for messages, helping us (and other
++	people) avoid bugs like #522601, SoupSession::authenticate signal
++	emitted multiple times per message (reported and analyzed by Tommi
++	Komulainen).
++
++	* libsoup/soup-logger.c:
++	* libsoup/soup-auth-manager.c:
++	* libsoup/soup-auth-manager-ntlm.c: Use request_queued/unqueued
++
++	* tests/auth-test.c (do_async_auth_test): add a regression test
++
+ 2008-03-14  Dan Winship  <danw@gnome.org>
+ 
+ 	* libsoup/soup-message-client-io.c (get_request_headers): Fix Host
+diff --git a/libsoup/soup-auth-manager-ntlm.c b/libsoup/soup-auth-manager-ntlm.c
+index 5f8f88bd..6e4d3dc6 100644
+--- a/libsoup/soup-auth-manager-ntlm.c
++++ b/libsoup/soup-auth-manager-ntlm.c
+@@ -45,8 +45,12 @@ struct SoupAuthManagerNTLM {
+ 	GHashTable *connections_by_id;
+ };
+ 
++static void ntlm_request_queued (SoupSession *session, SoupMessage *msg,
++				 gpointer ntlm);
+ static void ntlm_request_started (SoupSession *session, SoupMessage *msg,
+ 				  SoupSocket *socket, gpointer ntlm);
++static void ntlm_request_unqueued (SoupSession *session, SoupMessage *msg,
++				   gpointer ntlm);
+ 
+ static char     *soup_ntlm_request         (void);
+ static gboolean  soup_ntlm_parse_challenge (const char  *challenge,
+@@ -67,8 +71,12 @@ soup_auth_manager_ntlm_new (SoupSession *session)
+ 	ntlm->session = session;
+ 	ntlm->connections_by_id = g_hash_table_new (NULL, NULL);
+ 	ntlm->connections_by_msg = g_hash_table_new (NULL, NULL);
++	g_signal_connect (session, "request_queued",
++			  G_CALLBACK (ntlm_request_queued), ntlm);
+ 	g_signal_connect (session, "request_started",
+ 			  G_CALLBACK (ntlm_request_started), ntlm);
++	g_signal_connect (session, "request_unqueued",
++			  G_CALLBACK (ntlm_request_unqueued), ntlm);
+ 	return ntlm;
+ }
+ 
+@@ -96,8 +104,12 @@ soup_auth_manager_ntlm_free (SoupAuthManagerNTLM *ntlm)
+ 			      free_ntlm_connection_foreach, NULL);
+ 	g_hash_table_destroy (ntlm->connections_by_id);
+ 	g_hash_table_destroy (ntlm->connections_by_msg);
++	g_signal_handlers_disconnect_by_func (ntlm->session,
++					      ntlm_request_queued, ntlm);
+ 	g_signal_handlers_disconnect_by_func (ntlm->session,
+ 					      ntlm_request_started, ntlm);
++	g_signal_handlers_disconnect_by_func (ntlm->session,
++					      ntlm_request_unqueued, ntlm);
+ 
+ 	g_slice_free (SoupAuthManagerNTLM, ntlm);
+ }
+@@ -253,13 +265,16 @@ done:
+ }
+ 
+ static void
+-ntlm_cleanup_msg (SoupMessage *msg, gpointer ntlm)
++ntlm_request_queued (SoupSession *session, SoupMessage *msg, gpointer ntlm)
+ {
+-	/* Do this when the message is restarted, in case it's
+-	 * restarted on a different connection.
+-	 */
+-	g_signal_handlers_disconnect_by_func (msg, ntlm_authorize_pre, ntlm);
+-	g_signal_handlers_disconnect_by_func (msg, ntlm_authorize_post, ntlm);
++	soup_message_add_status_code_handler (msg, "got_headers",
++					      SOUP_STATUS_UNAUTHORIZED,
++					      G_CALLBACK (ntlm_authorize_pre),
++					      ntlm);
++	soup_message_add_status_code_handler (msg, "got_body",
++					      SOUP_STATUS_UNAUTHORIZED,
++					      G_CALLBACK (ntlm_authorize_post),
++					      ntlm);
+ }
+ 
+ static void
+@@ -292,20 +307,14 @@ ntlm_request_started (SoupSession *session, SoupMessage *msg,
+ 					      "Authorization", header);
+ 		g_free (header);
+ 	}
++}
+ 
+-	soup_message_add_status_code_handler (msg, "got_headers",
+-					      SOUP_STATUS_UNAUTHORIZED,
+-					      G_CALLBACK (ntlm_authorize_pre),
+-					      ntlm);
+-	soup_message_add_status_code_handler (msg, "got_body",
+-					      SOUP_STATUS_UNAUTHORIZED,
+-					      G_CALLBACK (ntlm_authorize_post),
+-					      ntlm);
+-	g_signal_connect (msg, "restarted",
+-			  G_CALLBACK (ntlm_cleanup_msg), ntlm);
+-	g_signal_connect (msg, "finished",
+-			  G_CALLBACK (ntlm_cleanup_msg), ntlm);
+-
++static void
++ntlm_request_unqueued (SoupSession *session, SoupMessage *msg,
++		       gpointer ntlm)
++{
++	g_signal_handlers_disconnect_by_func (msg, ntlm_authorize_pre, ntlm);
++	g_signal_handlers_disconnect_by_func (msg, ntlm_authorize_post, ntlm);
+ }
+ 
+ 
+diff --git a/libsoup/soup-auth-manager.c b/libsoup/soup-auth-manager.c
+index 524cd9a6..55402b41 100644
+--- a/libsoup/soup-auth-manager.c
++++ b/libsoup/soup-auth-manager.c
+@@ -19,8 +19,12 @@
+ #include "soup-session-private.h"
+ #include "soup-uri.h"
+ 
++static void session_request_queued (SoupSession *session, SoupMessage *msg,
++				    gpointer data);
+ static void session_request_started (SoupSession *session, SoupMessage *msg,
+ 				     SoupSocket *socket, gpointer data);
++static void session_request_unqueued (SoupSession *session, SoupMessage *msg,
++				      gpointer data);
+ 
+ struct SoupAuthManager {
+ 	SoupSession *session;
+@@ -53,8 +57,12 @@ soup_auth_manager_new (SoupSession *session)
+ 	manager->auth_hosts = g_hash_table_new (soup_uri_host_hash,
+ 						soup_uri_host_equal);
+ 
++	g_signal_connect (session, "request_queued",
++			  G_CALLBACK (session_request_queued), manager);
+ 	g_signal_connect (session, "request_started",
+ 			  G_CALLBACK (session_request_started), manager);
++	g_signal_connect (session, "request_unqueued",
++			  G_CALLBACK (session_request_unqueued), manager);
+ 	return manager;
+ }
+ 
+@@ -79,9 +87,15 @@ soup_auth_manager_free (SoupAuthManager *manager)
+ {
+ 	int i;
+ 
++	g_signal_handlers_disconnect_by_func (
++		manager->session,
++		G_CALLBACK (session_request_queued), manager);
+ 	g_signal_handlers_disconnect_by_func (
+ 		manager->session,
+ 		G_CALLBACK (session_request_started), manager);
++	g_signal_handlers_disconnect_by_func (
++		manager->session,
++		G_CALLBACK (session_request_unqueued), manager);
+ 
+ 	for (i = 0; i < manager->auth_types->len; i++)
+ 		g_type_class_unref (manager->auth_types->pdata[i]);
+@@ -431,16 +445,11 @@ requeue_if_proxy_authenticated (SoupMessage *msg, gpointer user_data)
+ }
+ 
+ static void
+-session_request_started (SoupSession *session, SoupMessage *msg,
+-			 SoupSocket *socket, gpointer data)
++session_request_queued (SoupSession *session, SoupMessage *msg,
++			gpointer data)
+ {
+ 	SoupAuthManager *manager = data;
+-	SoupAuth *auth;
+ 
+-	auth = lookup_auth (manager, msg);
+-	if (!auth || !authenticate_auth (manager, auth, msg, FALSE, FALSE))
+-		auth = NULL;
+-	soup_message_set_auth (msg, auth);
+ 	soup_message_add_status_code_handler (
+ 		msg, "got_headers", SOUP_STATUS_UNAUTHORIZED,
+ 		G_CALLBACK (update_auth), manager);
+@@ -448,10 +457,6 @@ session_request_started (SoupSession *session, SoupMessage *msg,
+ 		msg, "got_body", SOUP_STATUS_UNAUTHORIZED,
+ 		G_CALLBACK (requeue_if_authenticated), manager);
+ 
+-	auth = manager->proxy_auth;
+-	if (!auth || !authenticate_auth (manager, auth, msg, FALSE, TRUE))
+-		auth = NULL;
+-	soup_message_set_proxy_auth (msg, auth);
+ 	soup_message_add_status_code_handler (
+ 		msg, "got_headers", SOUP_STATUS_PROXY_UNAUTHORIZED,
+ 		G_CALLBACK (update_proxy_auth), manager);
+@@ -459,3 +464,31 @@ session_request_started (SoupSession *session, SoupMessage *msg,
+ 		msg, "got_body", SOUP_STATUS_PROXY_UNAUTHORIZED,
+ 		G_CALLBACK (requeue_if_proxy_authenticated), manager);
+ }
++
++static void
++session_request_started (SoupSession *session, SoupMessage *msg,
++			 SoupSocket *socket, gpointer data)
++{
++	SoupAuthManager *manager = data;
++	SoupAuth *auth;
++
++	auth = lookup_auth (manager, msg);
++	if (!auth || !authenticate_auth (manager, auth, msg, FALSE, FALSE))
++		auth = NULL;
++	soup_message_set_auth (msg, auth);
++
++	auth = manager->proxy_auth;
++	if (!auth || !authenticate_auth (manager, auth, msg, FALSE, TRUE))
++		auth = NULL;
++	soup_message_set_proxy_auth (msg, auth);
++}
++
++static void
++session_request_unqueued (SoupSession *session, SoupMessage *msg,
++			  gpointer data)
++{
++	SoupAuthManager *manager = data;
++
++	g_signal_handlers_disconnect_matched (msg, G_SIGNAL_MATCH_DATA,
++					      0, 0, NULL, NULL, manager);
++}
+diff --git a/libsoup/soup-logger.c b/libsoup/soup-logger.c
+index 42fc2e63..21e01bb8 100644
+--- a/libsoup/soup-logger.c
++++ b/libsoup/soup-logger.c
+@@ -321,8 +321,12 @@ soup_logger_clear_id (SoupLogger *logger, gpointer object)
+ 	g_object_set_qdata (object, priv->tag, NULL);
+ }
+ 
++static void request_queued (SoupSession *session, SoupMessage *msg,
++			    gpointer user_data);
+ static void request_started (SoupSession *session, SoupMessage *msg,
+ 			     SoupSocket *socket, gpointer user_data);
++static void request_unqueued (SoupSession *session, SoupMessage *msg,
++			      gpointer user_data);
+ 
+ static void
+ weak_notify_unref (gpointer logger, GObject *ex_session)
+@@ -348,8 +352,12 @@ soup_logger_attach (SoupLogger  *logger,
+ {
+ 	if (!soup_logger_get_id (logger, session))
+ 		soup_logger_set_id (logger, session);
++	g_signal_connect (session, "request_queued",
++			  G_CALLBACK (request_queued), logger);
+ 	g_signal_connect (session, "request_started",
+ 			  G_CALLBACK (request_started), logger);
++	g_signal_connect (session, "request_unqueued",
++			  G_CALLBACK (request_unqueued), logger);
+ 
+ 	g_object_weak_ref (G_OBJECT (session),
+ 			   weak_notify_unref, g_object_ref (logger));
+@@ -366,7 +374,9 @@ void
+ soup_logger_detach (SoupLogger  *logger,
+ 		    SoupSession *session)
+ {
++	g_signal_handlers_disconnect_by_func (session, request_queued, logger);
+ 	g_signal_handlers_disconnect_by_func (session, request_started, logger);
++	g_signal_handlers_disconnect_by_func (session, request_unqueued, logger);
+ 
+ 	g_object_weak_unref (G_OBJECT (session),
+ 			     weak_notify_unref, logger);
+@@ -600,15 +610,16 @@ got_body (SoupMessage *msg, gpointer user_data)
+ }
+ 
+ static void
+-finished_handler (SoupMessage *msg, gpointer user_data)
++request_queued (SoupSession *session, SoupMessage *msg, gpointer user_data)
+ {
+ 	SoupLogger *logger = user_data;
+ 
+-	g_signal_handlers_disconnect_by_func (msg, got_informational, logger);
+-	g_signal_handlers_disconnect_by_func (msg, got_body, logger);
+-	g_signal_handlers_disconnect_by_func (msg, finished_handler, logger);
+-
+-	soup_logger_clear_id (logger, msg);
++	g_signal_connect (msg, "got-informational",
++			  G_CALLBACK (got_informational),
++			  logger);
++	g_signal_connect (msg, "got-body",
++			  G_CALLBACK (got_body),
++			  logger);
+ }
+ 
+ static void
+@@ -623,18 +634,8 @@ request_started (SoupSession *session, SoupMessage *msg,
+ 	if (msg_id)
+ 		restarted = TRUE;
+ 	else {
+-		msg_id = soup_logger_set_id (logger, msg);
++		soup_logger_set_id (logger, msg);
+ 		restarted = FALSE;
+-
+-		g_signal_connect (msg, "got-informational",
+-				  G_CALLBACK (got_informational),
+-				  logger);
+-		g_signal_connect (msg, "got-body",
+-				  G_CALLBACK (got_body),
+-				  logger);
+-		g_signal_connect (msg, "finished",
+-				  G_CALLBACK (finished_handler),
+-				  logger);
+ 	}
+ 
+ 	if (!soup_logger_get_id (logger, socket))
+@@ -643,3 +644,14 @@ request_started (SoupSession *session, SoupMessage *msg,
+ 	print_request (logger, msg, session, socket, restarted);
+ 	soup_logger_print (logger, SOUP_LOGGER_LOG_MINIMAL, ' ', "");
+ }
++
++static void
++request_unqueued (SoupSession *session, SoupMessage *msg, gpointer user_data)
++{
++	SoupLogger *logger = user_data;
++
++	g_signal_handlers_disconnect_by_func (msg, got_informational, logger);
++	g_signal_handlers_disconnect_by_func (msg, got_body, logger);
++
++	soup_logger_clear_id (logger, msg);
++}
+diff --git a/libsoup/soup-session.c b/libsoup/soup-session.c
+index 01d240e9..b32ff13f 100644
+--- a/libsoup/soup-session.c
++++ b/libsoup/soup-session.c
+@@ -121,7 +121,9 @@ extern SoupURI  *soup_uri_copy_root  (SoupURI *uri);
+ G_DEFINE_TYPE (SoupSession, soup_session, G_TYPE_OBJECT)
+ 
+ enum {
++	REQUEST_QUEUED,
+ 	REQUEST_STARTED,
++	REQUEST_UNQUEUED,
+ 	AUTHENTICATE,
+ 	LAST_SIGNAL
+ };
+@@ -254,13 +256,66 @@ soup_session_class_init (SoupSessionClass *session_class)
+ 
+ 	/* signals */
+ 
++	/**
++	 * SoupSession::request-queued:
++	 * @session: the session
++	 * @msg: the request that was queued
++	 *
++	 * Emitted when a request is queued on @session. (Note that
++	 * "queued" doesn't just mean soup_session_queue_message();
++	 * soup_session_send_message() implicitly queues the message
++	 * as well.)
++	 *
++	 * When sending a request, first #SoupSession::request_queued
++	 * is emitted, indicating that the session has become aware of
++	 * the request.
++	 *
++	 * Once a connection is available to send the request on, the
++	 * session emits #SoupSession::request_started. Then, various
++	 * #SoupMessage signals are emitted as the message is
++	 * processed. If the message is requeued, it will emit
++	 * #SoupMessage::restarted, which will then be followed by
++	 * another #SoupSession::request_started and another set of
++	 * #SoupMessage signals when the message is re-sent.
++	 *
++	 * Eventually, the message will emit #SoupMessage::finished.
++	 * Normally, this signals the completion of message
++	 * processing. However, it is possible that the application
++	 * will requeue the message from the "finished" handler (or
++	 * equivalently, from the soup_session_queue_message()
++	 * callback). In that case, the process will loop back to
++	 * #SoupSession::request_started.
++	 *
++	 * Eventually, a message will reach "finished" and not be
++	 * requeued. At that point, the session will emit
++	 * #SoupSession::request_unqueued to indicate that it is done
++	 * with the message.
++	 *
++	 * To sum up: #SoupSession::request_queued and
++	 * #SoupSession::request_unqueued are guaranteed to be emitted
++	 * exactly once, but #SoupSession::request_started and
++	 * #SoupMessage::finished (and all of the other #SoupMessage
++	 * signals) may be invoked multiple times for a given message.
++	 **/
++	signals[REQUEST_QUEUED] =
++		g_signal_new ("request-queued",
++			      G_OBJECT_CLASS_TYPE (object_class),
++			      G_SIGNAL_RUN_FIRST,
++			      0, /* FIXME? */
++			      NULL, NULL,
++			      soup_marshal_NONE__OBJECT,
++			      G_TYPE_NONE, 1,
++			      SOUP_TYPE_MESSAGE);
++
+ 	/**
+ 	 * SoupSession::request-started:
+ 	 * @session: the session
+ 	 * @msg: the request being sent
+ 	 * @socket: the socket the request is being sent on
+ 	 *
+-	 * Emitted just before a request is sent.
++	 * Emitted just before a request is sent. See
++	 * #SoupSession::request_queued for a detailed description of
++	 * the message lifecycle within a session.
+ 	 **/
+ 	signals[REQUEST_STARTED] =
+ 		g_signal_new ("request-started",
+@@ -273,6 +328,26 @@ soup_session_class_init (SoupSessionClass *session_class)
+ 			      SOUP_TYPE_MESSAGE,
+ 			      SOUP_TYPE_SOCKET);
+ 
++	/**
++	 * SoupSession::request-unqueued:
++	 * @session: the session
++	 * @msg: the request that was unqueued
++	 *
++	 * Emitted when a request is removed from @session's queue,
++	 * indicating that @session is done with it. See
++	 * #SoupSession::request_queued for a detailed description of the
++	 * message lifecycle within a session.
++	 **/
++	signals[REQUEST_UNQUEUED] =
++		g_signal_new ("request-unqueued",
++			      G_OBJECT_CLASS_TYPE (object_class),
++			      G_SIGNAL_RUN_FIRST,
++			      0, /* FIXME? */
++			      NULL, NULL,
++			      soup_marshal_NONE__OBJECT,
++			      G_TYPE_NONE, 1,
++			      SOUP_TYPE_MESSAGE);
++
+ 	/**
+ 	 * SoupSession::authenticate:
+ 	 * @session: the session
+@@ -716,6 +791,12 @@ connection_started_request (SoupConnection *conn, SoupMessage *msg,
+ 					      "User-Agent", priv->user_agent);
+ 	}
+ 
++	/* Kludge to deal with the fact that CONNECT msgs come from the
++	 * SoupConnection rather than being queued normally.
++	 */
++	if (msg->method == SOUP_METHOD_CONNECT)
++		g_signal_emit (session, signals[REQUEST_QUEUED], 0, msg);
++
+ 	g_signal_emit (session, signals[REQUEST_STARTED], 0,
+ 		       msg, soup_connection_get_socket (conn));
+ }
+@@ -984,6 +1065,8 @@ message_finished (SoupMessage *msg, gpointer user_data)
+ 	if (!SOUP_MESSAGE_IS_STARTING (msg)) {
+ 		soup_message_queue_remove_message (priv->queue, msg);
+ 		g_signal_handlers_disconnect_by_func (msg, message_finished, session);
++		g_signal_handlers_disconnect_by_func (msg, redirect_handler, session);
++		g_signal_emit (session, signals[REQUEST_UNQUEUED], 0, msg);
+ 	}
+ }
+ 
+@@ -1004,6 +1087,8 @@ queue_message (SoupSession *session, SoupMessage *msg,
+ 
+ 	soup_message_set_io_status (msg, SOUP_MESSAGE_IO_STATUS_QUEUED);
+ 	soup_message_queue_append (priv->queue, msg);
++
++	g_signal_emit (session, signals[REQUEST_QUEUED], 0, msg);
+ }
+ 
+ /**
+diff --git a/tests/auth-test.c b/tests/auth-test.c
+index 6b5d6a2f..523cdef8 100644
+--- a/tests/auth-test.c
++++ b/tests/auth-test.c
+@@ -397,6 +397,24 @@ async_finished (SoupSession *session, SoupMessage *msg, gpointer user_data)
+ 		g_main_loop_quit (loop);
+ }
+ 
++static void
++async_authenticate_522601 (SoupSession *session, SoupMessage *msg,
++			   SoupAuth *auth, gboolean retrying, gpointer data)
++{
++	gboolean *been_here = data;
++
++	debug_printf (2, "  async_authenticate_522601\n");
++
++	if (*been_here) {
++		debug_printf (1, "  ERROR: async_authenticate_522601 called twice\n");
++		errors++;
++	}
++	*been_here = TRUE;
++
++	soup_session_pause_message (session, msg);
++	g_main_loop_quit (loop);
++}
++
+ static void
+ do_async_auth_test (const char *base_uri)
+ {
+@@ -406,6 +424,7 @@ do_async_auth_test (const char *base_uri)
+ 	char *uri;
+ 	SoupAuth *auth = NULL;
+ 	int finished = 0;
++	gboolean been_there = FALSE;
+ 
+ 	debug_printf (1, "\nTesting async auth:\n");
+ 
+@@ -457,6 +476,7 @@ do_async_auth_test (const char *base_uri)
+ 	/* Now do the auth, and restart */
+ 	if (auth) {
+ 		soup_auth_authenticate (auth, "user1", "realm1");
++		g_object_unref (auth);
+ 		soup_session_unpause_message (session, msg1);
+ 		soup_session_unpause_message (session, msg3);
+ 
+@@ -490,7 +510,38 @@ do_async_auth_test (const char *base_uri)
+ 	g_object_unref (msg3);
+ 	memcpy (msg2, &msg2_bak, sizeof (SoupMessage));
+ 	g_object_unref (msg2);
++
++	/* Test that giving the wrong password doesn't cause multiple
++	 * authenticate signals the second time.
++	 */
++	debug_printf (1, "\nTesting async auth with wrong password (#522601):\n");
++
++	session = soup_test_session_new (SOUP_TYPE_SESSION_ASYNC, NULL);
++	auth = NULL;
++
++	msg1 = soup_message_new ("GET", uri);
++	g_object_set_data (G_OBJECT (msg1), "id", GINT_TO_POINTER (1));
++	auth_id = g_signal_connect (session, "authenticate",
++				    G_CALLBACK (async_authenticate), &auth);
++	g_object_ref (msg1);
++	soup_session_queue_message (session, msg1, async_finished, &finished);
++	g_main_loop_run (loop);
++	g_signal_handler_disconnect (session, auth_id);
++	soup_auth_authenticate (auth, "user1", "wrong");
+ 	g_object_unref (auth);
++	soup_session_unpause_message (session, msg1);
++
++	auth_id = g_signal_connect (session, "authenticate",
++				    G_CALLBACK (async_authenticate_522601),
++				    &been_there);
++	g_main_loop_run (loop);
++	g_signal_handler_disconnect (session, auth_id);
++
++	soup_session_abort (session);
++	g_object_unref (session);
++
++	g_object_unref (msg1);
++
+ 	g_free (uri);
+ }
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,193 @@
+From 7db85e388c5e36db3c03c4146e6674cc98bd714d Mon Sep 17 00:00:00 2001
+From: Alan Donovan <adonovan@google.com>
+Date: Thu, 25 Jun 2026 12:58:09 -0400
+Subject: [PATCH] go/parser: add func ResolveFile
+
+This CL adds ResolveFile, which performs deprecated ast.Ident
+resolution on a File syntax tree produced by the parser
+in SkipObjectResolution mode.
+
+As with all ast.Object-related declarations, it is deprecated;
+it is provided to ease migration away from ast.Object.
+
+Fixes #79802
+
++ test, api, relnote
+
+Change-Id: Ia9ba7baf0e546fc8abb7410eb18027777f1c85ea
+Reviewed-on: https://go-review.googlesource.com/c/go/+/794420
+Reviewed-by: Damien Neil <dneil@google.com>
+Auto-Submit: Alan Donovan <adonovan@google.com>
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+---
+ api/next/79802.txt                            |  2 +
+ doc/next/6-stdlib/99-minor/go/parser/79802.md |  7 ++
+ src/go/parser/resolver.go                     | 43 +++++++++++
+ src/go/parser/resolver_test.go                | 73 +++++++++++++++++++
+ 4 files changed, 125 insertions(+)
+ create mode 100644 api/next/79802.txt
+ create mode 100644 doc/next/6-stdlib/99-minor/go/parser/79802.md
+
+diff --git a/api/next/79802.txt b/api/next/79802.txt
+new file mode 100644
+index 0000000000..82418bd7e8
+--- /dev/null
++++ b/api/next/79802.txt
+@@ -0,0 +1,2 @@
++pkg go/parser, func ResolveFile //deprecated #79802
++pkg go/parser, func ResolveFile(*ast.File) #79802
+diff --git a/doc/next/6-stdlib/99-minor/go/parser/79802.md b/doc/next/6-stdlib/99-minor/go/parser/79802.md
+new file mode 100644
+index 0000000000..2ce8fa7584
+--- /dev/null
++++ b/doc/next/6-stdlib/99-minor/go/parser/79802.md
+@@ -0,0 +1,7 @@
++The [ResolveFile] function performs legacy syntactic identifier
++resolution on an [ast.File] syntax tree. This resolution is
++deprecated; new applications should instead use [go/types].
++This function is provided to ease the transition away from the old
++resolution in applications that mostly parse files in
++[SkipObjectResolution] mode but later encounter some cases where the
++old resolution is needed.
+diff --git a/src/go/parser/resolver.go b/src/go/parser/resolver.go
+index d1e1834e53..b601d32df0 100644
+--- a/src/go/parser/resolver.go
++++ b/src/go/parser/resolver.go
+@@ -9,10 +9,53 @@ import (
+ 	"go/ast"
+ 	"go/token"
+ 	"strings"
++	"sync"
+ )
+ 
+ const debugResolve = false
+ 
++// ResolveFile applies the parser's deprecated
++// [ast.Ident]-to-[ast.Object] resolution to the specified file's
++// syntax tree. This is the same operation that is skipped on files
++// parsed with the [SkipObjectResolution] mode flag.
++//
++// ResolveFile is idempotent and concurrency safe.
++// Once ResolveFile returns, the file is resolved.
++//
++// Resolution error messages are discarded.
++//
++// Deprecated: [ast.Object] should not be used in new designs; use the
++// [go/types] package instead. This function is provided to ease
++// migration in applications that have disabled legacy object
++// resolution by default but still need it in some circumstances.
++func ResolveFile(file *ast.File) {
++	doIt := func() {
++		if file.Scope == nil {
++			// Inv: File.Scope is set by the parser or by
++			// the first doIt call for a file, and never
++			// cleared, so nil implies that the file was
++			// parsed without resolution and that only
++			// ResolveFile will set it.
++
++			var dummy token.File // only for declErr messages (discarded) and panics
++			resolveFile(file, &dummy, func(token.Pos, string) {})
++
++			if file.Scope == nil {
++				panic("nil File.Scope")
++			}
++		}
++	}
++
++	// Rather than add a sync.Once field to ast.File itself,
++	// we use a "singleflight"-like pattern to ensure that all
++	// doIt operations on a given file are mutually exclusive.
++	v, _ := resolveOnces.LoadOrStore(file, new(sync.Once))
++	v.(*sync.Once).Do(doIt)
++	resolveOnces.Delete(file)
++}
++
++var resolveOnces sync.Map // *ast.File -> *sync.Once
++
+ // resolveFile walks the given file to resolve identifiers within the file
+ // scope, updating ast.Ident.Obj fields with declaration information.
+ //
+diff --git a/src/go/parser/resolver_test.go b/src/go/parser/resolver_test.go
+index 38739a33fe..9834452f72 100644
+--- a/src/go/parser/resolver_test.go
++++ b/src/go/parser/resolver_test.go
+@@ -170,3 +170,76 @@ scanLit:
+ 	}
+ 	return
+ }
++
++func TestResolveFile(t *testing.T) {
++	const src = `package p; var x = 1; var y = x`
++	fset := token.NewFileSet()
++	f, err := ParseFile(fset, "example.com/p", src, SkipObjectResolution)
++	if err != nil {
++		t.Fatal(err)
++	}
++	xspec := f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec)
++	yspec := f.Decls[1].(*ast.GenDecl).Specs[0].(*ast.ValueSpec)
++	x := xspec.Names[0]
++	y := yspec.Names[0]
++	xref := yspec.Values[0].(*ast.Ident)
++
++	// before
++	if x.Name != "x" {
++		t.Fatalf("x: wrong Ident")
++	}
++	if y.Name != "y" {
++		t.Fatalf("y: wrong Ident")
++	}
++	if xref.Name != "x" {
++		t.Fatalf("xref: wrong Ident")
++	}
++	if x.Obj != nil {
++		t.Fatalf("ParseFile(SkipObjectResolution) unexpectedly set x.Obj")
++	}
++	if y.Obj != nil {
++		t.Fatalf("ParseFile(SkipObjectResolution) unexpectedly set y.Obj")
++	}
++	if xref.Obj != nil {
++		t.Fatalf("ParseFile(SkipObjectResolution) unexpectedly set xref.Obj")
++	}
++
++	ResolveFile(f)
++
++	// after
++	if x.Obj == nil {
++		t.Fatalf("after ResolveFile, x.Obj is nil")
++	}
++	if y.Obj == nil {
++		t.Fatalf("after ResolveFile, y.Obj is nil")
++	}
++	if xref.Obj == nil {
++		t.Fatalf("after ResolveFile, xref.Obj is nil")
++	}
++	if x.Obj.Kind != ast.Var {
++		t.Errorf("after ResolveFile, x.Obj.Kind = %d, want Var", x.Obj.Kind)
++	}
++	if y.Obj.Kind != ast.Var {
++		t.Errorf("after ResolveFile, y.Obj.Kind = %d, want Var", y.Obj.Kind)
++	}
++	if xref.Obj.Kind != ast.Var {
++		t.Errorf("after ResolveFile, xref.Obj.Kind = %d, want Var", x.Obj.Kind)
++	}
++	if x.Obj.Name != "x" {
++		t.Errorf("after ResolveFile, x.Obj.Name = %q, want \"x\"", x.Obj.Name)
++	}
++	if y.Obj.Name != "y" {
++		t.Errorf("after ResolveFile, y.Obj.Name = %q, want \"y\"", y.Obj.Name)
++	}
++	if xref.Obj != x.Obj {
++		t.Errorf("after ResolveFile, x.Obj != xref.Obj")
++	}
++	if x.Obj.Decl != xspec {
++		t.Errorf("after ResolveFile, x.Obj.Decl = %+[1]v (%[1]T), want xspec", x.Obj.Decl)
++	}
++	if y.Obj.Decl != yspec {
++		t.Errorf("after ResolveFile, y.Obj.Decl = %+[1]v (%[1]T), want yspec", y.Obj.Decl)
++	}
++
++	ResolveFile(f) // idempotent; no ill effects
++}
+-- 
+2.34.1
+

@@ -1,0 +1,134 @@
+diff --git a/src/dict.c b/src/dict.c
+index 11063950859baa2e63f94f608150721f1aa149a0..ac1fb3841b48b5a080ee9a07b5633b89c705ae94 100644
+--- a/src/dict.c
++++ b/src/dict.c
+@@ -1335,9 +1335,6 @@ dict_extend_func(
+ 	emsg(_(e_cannot_extend_null_dict));
+ 	return;
+     }
+-    d2 = argvars[1].vval.v_dict;
+-    if (d2 == NULL)
+-	return;
+ 
+     if (!is_new && value_check_lock(d1->dv_lock, arg_errmsg, TRUE))
+ 	return;
+@@ -1349,6 +1346,10 @@ dict_extend_func(
+ 	    return;
+     }
+ 
++    d2 = argvars[1].vval.v_dict;
++    if (d2 == NULL)
++	goto theend;
++
+     // Check the third argument.
+     if (argvars[2].v_type != VAR_UNKNOWN)
+     {
+@@ -1384,6 +1385,7 @@ dict_extend_func(
+     }
+     dict_extend(d1, d2, action, func_name);
+ 
++theend:
+     if (is_new)
+     {
+ 	rettv->v_type = VAR_DICT;
+diff --git a/src/list.c b/src/list.c
+index 3074bb93f2ed5992a1593aba96a04999dd00c5c1..e400cb096fd55de71f1104f36c41259a59180044 100644
+--- a/src/list.c
++++ b/src/list.c
+@@ -3014,9 +3014,7 @@ list_extend_func(
+ 	emsg(_(e_cannot_extend_null_list));
+ 	return;
+     }
+-    l2 = argvars[1].vval.v_list;
+-    if ((is_new || !value_check_lock(l1->lv_lock, arg_errmsg, TRUE))
+-								 && l2 != NULL)
++    if (is_new || !value_check_lock(l1->lv_lock, arg_errmsg, TRUE))
+     {
+ 	if (is_new)
+ 	{
+@@ -3025,6 +3023,10 @@ list_extend_func(
+ 		return;
+ 	}
+ 
++	l2 = argvars[1].vval.v_list;
++	if (l2 == NULL)
++	    goto theend;
++
+ 	if (argvars[2].v_type != VAR_UNKNOWN)
+ 	{
+ 	    before = (long)tv_get_number_chk(&argvars[2], &error);
+@@ -3049,6 +3051,7 @@ list_extend_func(
+ 	    goto cleanup;
+ 	list_extend(l1, l2, item);
+ 
++theend:
+ 	if (is_new)
+ 	{
+ 	    rettv->v_type = VAR_LIST;
+diff --git a/src/testdir/test_listdict.vim b/src/testdir/test_listdict.vim
+index 316e3614fc8295152774c8613177aa11bf177ca5..31b5f268d7dc9b890d21f00817401bd489d116e8 100644
+--- a/src/testdir/test_listdict.vim
++++ b/src/testdir/test_listdict.vim
+@@ -1217,7 +1217,12 @@ func Test_listdict_extend()
+ 
+       LET l = [1, 2, 3]
+       call extend(l, [4, 5, 6], -3)
+-      call assert_equal([4, 5, 6, 1, 2,  3], l)
++      call assert_equal([4, 5, 6, 1, 2, 3], l)
++
++      LET l = [1, 2, 3]
++      call assert_equal([1, 2, 3], l->extend([]))
++      call assert_equal([1, 2, 3], l->extend(test_null_list()))
++      call assert_equal([1, 2, 3], l)
+   END
+   call v9.CheckLegacyAndVim9Success(lines)
+ 
+@@ -1245,6 +1250,11 @@ func Test_listdict_extend()
+       LET d = {'a': 'A', 'b': 9}
+       call extend(d, {'b': 0, 'c': 'C'}, "keep")
+       call assert_equal({'a': 'A', 'b': 9, 'c': 'C'}, d)
++
++      LET d = {'a': 'A', 'b': 9}
++      call assert_equal({'a': 'A', 'b': 9}, d->extend({}))
++      call assert_equal({'a': 'A', 'b': 9}, d->extend(test_null_dict()))
++      call assert_equal({'a': 'A', 'b': 9}, d)
+   END
+   call v9.CheckLegacyAndVim9Success(lines)
+ 
+@@ -1286,6 +1296,11 @@ func Test_listdict_extendnew()
+   call assert_equal([1, 2, 3], l)
+   lockvar l
+   call assert_equal([1, 2, 3, 4, 5], extendnew(l, [4, 5]))
++  let l2 = extendnew(l, test_null_list())
++  call assert_equal([1, 2, 3], l2)
++  let l2 += [4]
++  call assert_equal([1, 2, 3, 4], l2)
++  call assert_equal([1, 2, 3], l)
+ 
+   " Test extendnew() with dictionaries.
+   let d = {'a': {'b': 'B'}}
+@@ -1293,6 +1308,11 @@ func Test_listdict_extendnew()
+   call assert_equal({'a': {'b': 'B'}}, d)
+   lockvar d
+   call assert_equal({'a': {'b': 'B'}, 'c': 'cc'}, extendnew(d, {'c': 'cc'}))
++  let d2 = extendnew(d, test_null_dict())
++  call assert_equal({'a': {'b': 'B'}}, d2)
++  let d2['c'] = 'C'
++  call assert_equal({'a': {'b': 'B'}, 'c': 'C'}, d2)
++  call assert_equal({'a': {'b': 'B'}}, d)
+ endfunc
+ 
+ func s:check_scope_dict(x, fixed)
+diff --git a/src/version.c b/src/version.c
+index 4e3ca0b5e791370c053ebf3e51ccedf892af2161..d2d3c45dcca2f35203a66d2bcd68808dc7abea1e 100644
+--- a/src/version.c
++++ b/src/version.c
+@@ -759,6 +759,8 @@ static char *(features[]) =
+ 
+ static int included_patches[] =
+ {   /* Add new patch number below this line */
++/**/
++    794,
+ /**/
+     793,
+ /**/

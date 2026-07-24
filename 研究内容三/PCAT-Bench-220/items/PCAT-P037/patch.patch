@@ -1,0 +1,228 @@
+diff --git a/eval.c b/eval.c
+index 0f56d8eaec0c3980409169db791562034bd61436..0d2d2c4089ec09004846ddc4c6eb51bdfb6a4980 100644
+--- a/eval.c
++++ b/eval.c
+@@ -147,15 +147,26 @@ rb_ec_fiber_scheduler_finalize(rb_execution_context_t *ec)
+ static void
+ rb_ec_teardown(rb_execution_context_t *ec)
+ {
++    enum ruby_tag_type state = TAG_NONE;
++    volatile VALUE trap_errinfo = Qnil;
++
+     // If the user code defined a scheduler for the top level thread, run it:
+     rb_ec_fiber_scheduler_finalize(ec);
+ 
+     EC_PUSH_TAG(ec);
+-    if (EC_EXEC_TAG() == TAG_NONE) {
++    if ((state = EC_EXEC_TAG()) == TAG_NONE) {
+         rb_vm_trap_exit(rb_ec_vm_ptr(ec));
+     }
++    else {
++        trap_errinfo = ec->errinfo;
++        ec->errinfo = Qnil;
++    }
+     EC_POP_TAG();
+     rb_ec_exec_end_proc(ec);
++    if (!NIL_P(trap_errinfo)) {
++        error_handle(ec, trap_errinfo, state);
++        ec->errinfo = trap_errinfo;
++    }
+     rb_ec_clear_all_trace_func(ec);
+ }
+ 
+diff --git a/eval_error.c b/eval_error.c
+index f3d05a1043fea74e89bf8702cbd248b220273ada..f1cf887b1ddef9f303ad1e4c96b634dbfa05435a 100644
+--- a/eval_error.c
++++ b/eval_error.c
+@@ -276,6 +276,16 @@ shown_cause_p(VALUE cause, VALUE *shown_causes)
+     return FALSE;
+ }
+ 
++static void
++add_shown_cause(VALUE cause, VALUE *shown_causes)
++{
++    if (!NIL_OR_UNDEF_P(cause) &&
++        !THROW_DATA_P(cause) &&
++        rb_obj_is_kind_of(cause, rb_eException)) {
++        shown_cause_p(cause, shown_causes);
++    }
++}
++
+ static void
+ show_cause(VALUE errinfo, VALUE str, VALUE opt, VALUE highlight, VALUE reverse, long backtrace_limit, VALUE *shown_causes)
+ {
+@@ -309,15 +319,18 @@ rb_exc_check_circular_cause(VALUE exc)
+     } while (!NIL_P(cause = rb_attr_get(cause, id_cause)));
+ }
+ 
+-void
+-rb_error_write(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse)
++static void
++rb_error_write0(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse, VALUE *shown_causes)
+ {
+     volatile VALUE eclass;
+-    VALUE shown_causes = 0;
++    VALUE local_shown_causes = 0;
+     long backtrace_limit = rb_backtrace_length_limit;
+ 
+     if (NIL_P(errinfo))
+         return;
++    if (!shown_causes) {
++        shown_causes = &local_shown_causes;
++    }
+ 
+     if (UNDEF_P(errat)) {
+         errat = Qnil;
+@@ -340,19 +353,25 @@ rb_error_write(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VA
+             len = p - (msg = buff);
+         }
+         write_warn2(str, msg, len);
+-        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, &shown_causes);
++        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);
+         print_backtrace(eclass, errat, str, TRUE, backtrace_limit);
+         print_errinfo(eclass, errat, emesg, str, RTEST(highlight));
+     }
+     else {
+         print_errinfo(eclass, errat, emesg, str, RTEST(highlight));
+         print_backtrace(eclass, errat, str, FALSE, backtrace_limit);
+-        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, &shown_causes);
++        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);
+     }
+ }
+ 
++void
++rb_error_write(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse)
++{
++    rb_error_write0(errinfo, emesg, errat, str, opt, highlight, reverse, NULL);
++}
++
+ static void
+-rb_ec_error_print_detailed(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0)
++rb_ec_error_print_detailed0(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0, VALUE *shown_causes)
+ {
+     volatile uint8_t raised_flag = ec->raised_flag;
+     volatile VALUE errat = Qundef;
+@@ -378,7 +397,7 @@ rb_ec_error_print_detailed(rb_execution_context_t *const ec, const VALUE errinfo
+ 
+     if (!written) {
+         written = true;
+-        rb_error_write(errinfo, emesg, errat, str, opt, highlight, Qfalse);
++        rb_error_write0(errinfo, emesg, errat, str, opt, highlight, Qfalse, shown_causes);
+     }
+ 
+     EC_POP_TAG();
+@@ -386,6 +405,12 @@ rb_ec_error_print_detailed(rb_execution_context_t *const ec, const VALUE errinfo
+     rb_ec_raised_set(ec, raised_flag);
+ }
+ 
++static void
++rb_ec_error_print_detailed(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0)
++{
++    rb_ec_error_print_detailed0(ec, errinfo, str, emesg0, NULL);
++}
++
+ void
+ rb_ec_error_print(rb_execution_context_t *volatile ec, volatile VALUE errinfo)
+ {
+@@ -504,7 +529,7 @@ exiting_split(VALUE errinfo, volatile int *exitcode, volatile int *sigstatus)
+     rb_bug("Unknown longjmp status %d", status)
+ 
+ static int
+-error_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)
++error_handle_with_shown_causes(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex, VALUE *shown_causes)
+ {
+     int status = EXIT_FAILURE;
+ 
+@@ -546,7 +571,7 @@ error_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)
+         }
+         /* fallthrough */
+       case TAG_FATAL:
+-        rb_ec_error_print(ec, errinfo);
++        rb_ec_error_print_detailed0(ec, errinfo, Qnil, Qundef, shown_causes);
+         break;
+       default:
+         unknown_longjmp_status(ex);
+@@ -555,3 +580,9 @@ error_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)
+     rb_ec_reset_raised(ec);
+     return status;
+ }
++
++static int
++error_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)
++{
++    return error_handle_with_shown_causes(ec, errinfo, ex, NULL);
++}
+diff --git a/eval_jump.c b/eval_jump.c
+index 7737148644ce370cb0fc2313df06bba41928e7cf..296ca8208c5d1e3b91e6d99254edc080dbe37ca2 100644
+--- a/eval_jump.c
++++ b/eval_jump.c
+@@ -114,6 +114,8 @@ rb_ec_exec_end_proc(rb_execution_context_t * ec)
+ {
+     enum ruby_tag_type state;
+     volatile VALUE errinfo = ec->errinfo;
++    /* Share only among END/at_exit handlers to avoid repeated causes. */
++    VALUE shown_causes = 0;
+     volatile bool finished = false;
+ 
+     while (!finished) {
+@@ -125,8 +127,10 @@ rb_ec_exec_end_proc(rb_execution_context_t * ec)
+         }
+         EC_POP_TAG();
+         if (state != TAG_NONE) {
+-            error_handle(ec, ec->errinfo, state);
+-            if (!NIL_P(ec->errinfo)) errinfo = ec->errinfo;
++            VALUE err = ec->errinfo;
++            add_shown_cause(errinfo, &shown_causes);
++            error_handle_with_shown_causes(ec, err, state, &shown_causes);
++            if (!NIL_P(err)) errinfo = err;
+         }
+     }
+ 
+diff --git a/test/ruby/test_exception.rb b/test/ruby/test_exception.rb
+index 4365150a13fba3a511fd5263926c480c243a5d94..0dc91f9abc4f43d2d10c84c0c4d996db96e7e935 100644
+--- a/test/ruby/test_exception.rb
++++ b/test/ruby/test_exception.rb
+@@ -826,6 +826,43 @@ def test_cause_at_end
+     end;
+   end
+ 
++  def test_multiple_error_handle
++    errs = [
++      /.*END3 \(RuntimeError\).*\n/,
++      /.*END2 \(RuntimeError\).*\n/,
++      /.*END1 \(RuntimeError\).*\n/,
++      /.*EXIT \(RuntimeError\).*\n/,
++    ]
++    assert_in_out_err([], <<-'end;', [], errs, success: false)
++      Signal.trap(:EXIT) {raise "EXIT"}
++      END{raise "END1"};
++      END{raise "END2"};
++      END{raise "END3"};
++    end;
++  end
++
++  def test_cause_in_exit_handler
++    errs = [
++      /.*outer \(RuntimeError\).*\n/,
++      /.*inner \(RuntimeError\).*\n/,
++    ]
++    assert_in_out_err([], <<-'end;', [], errs, success: false)
++      END{begin; raise "inner"; rescue; raise "outer"; end}
++    end;
++    assert_in_out_err([], <<-'end;', [], errs, success: false)
++      Signal.trap(:EXIT) {begin; raise "inner"; rescue; raise "outer"; end}
++    end;
++    errs = [
++      /.*previous \(RuntimeError\).*\n/,
++      /.*outer \(RuntimeError\).*\n/,
++      /.*middle \(RuntimeError\).*\n/,
++    ]
++    assert_in_out_err([], <<-'end;', [], errs, success: false)
++      END{begin; raise "middle"; rescue => e; raise "outer", cause: e; end}
++      END{raise "previous"}
++    end;
++  end
++
+   def test_raise_with_cause
+     msg = "[Feature #8257]"
+     cause = ArgumentError.new("foobar")

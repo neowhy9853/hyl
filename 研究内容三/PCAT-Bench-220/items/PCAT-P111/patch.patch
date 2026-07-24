@@ -1,0 +1,48 @@
+From 324f7af5655a48841a079ac761fedef2ab3d1180 Mon Sep 17 00:00:00 2001
+From: Dan Winship <danw@gnome.org>
+Date: Mon, 22 Jun 2009 17:52:39 -0400
+Subject: [PATCH] Fix POST 301 redirect behavior
+
+We were doing POST->GET translation on 302 and 303, but we need to do
+it on 301 as well to be compatible.
+
+http://bugzilla.gnome.org/show_bug.cgi?id=586692
+---
+ libsoup/soup-session.c | 4 +++-
+ tests/redirect-test.c  | 3 ++-
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/libsoup/soup-session.c b/libsoup/soup-session.c
+index b9b74f75..3c824d58 100644
+--- a/libsoup/soup-session.c
++++ b/libsoup/soup-session.c
+@@ -845,7 +845,9 @@ redirect_handler (SoupMessage *msg, gpointer user_data)
+ 
+ 	if (msg->status_code == SOUP_STATUS_SEE_OTHER ||
+ 	    (msg->status_code == SOUP_STATUS_FOUND &&
+-	     !SOUP_METHOD_IS_SAFE (msg->method))) {
++	     !SOUP_METHOD_IS_SAFE (msg->method)) ||
++	    (msg->status_code == SOUP_STATUS_MOVED_PERMANENTLY &&
++	     msg->method == SOUP_METHOD_POST)) {
+ 		/* Redirect using a GET */
+ 		g_object_set (msg,
+ 			      SOUP_MESSAGE_METHOD, SOUP_METHOD_GET,
+diff --git a/tests/redirect-test.c b/tests/redirect-test.c
+index 9d5d9b86..9e21bd1d 100644
+--- a/tests/redirect-test.c
++++ b/tests/redirect-test.c
+@@ -82,9 +82,10 @@ static struct {
+ 	    { "HEAD", "/302", 302 },
+ 	    { "HEAD", "/", 200 } } },
+ 
+-	/* POST should only automatically redirect on 302 and 303 */
++	/* POST should only automatically redirect on 301, 302 and 303 */
+ 
+ 	{ { { "POST", "/301", 301 },
++	    { "GET", "/", 200 },
+ 	    { NULL } } },
+ 	{ { { "POST", "/302", 302 },
+ 	    { "GET", "/", 200 },
+-- 
+2.34.1
+

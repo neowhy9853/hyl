@@ -1,0 +1,191 @@
+diff --git a/doc/lua-api/index.rst b/doc/lua-api/index.rst
+index e850cedb3421d3ae733504aa22d63650021344d5..67a7a1470ad990cfb0ac021e083f556a241820f1 100644
+--- a/doc/lua-api/index.rst
++++ b/doc/lua-api/index.rst
+@@ -893,9 +893,7 @@ Core class
+ 
+   **context**: init, task, action
+ 
+-  This function returns a new object of a *httpclient* class. An *httpclient*
+-  object must be used to process one and only one request. It must never be
+-  reused to process several requests.
++  This function returns a new object of a *httpclient* class.
+ 
+   :returns: A :ref:`httpclient_class` object.
+ 
+@@ -2587,10 +2585,7 @@ HTTPClient class
+ .. js:class:: HTTPClient
+ 
+    The httpclient class allows issue of outbound HTTP requests through a simple
+-   API without the knowledge of HAProxy internals. Any instance must be used to
+-   process one and only one request. It must never be reused to process several
+-   requests.
+-
++   API without the knowledge of HAProxy internals.
+ .. js:function:: HTTPClient.get(httpclient, request)
+ .. js:function:: HTTPClient.head(httpclient, request)
+ .. js:function:: HTTPClient.put(httpclient, request)
+diff --git a/include/haproxy/hlua-t.h b/include/haproxy/hlua-t.h
+index fd7b1708133d3a3b18d50b1c2388b06862ff00e3..7b513114054ff044f869dc0ab5b72c1549d11f81 100644
+--- a/include/haproxy/hlua-t.h
++++ b/include/haproxy/hlua-t.h
+@@ -47,6 +47,7 @@
+ #define CLASS_HTTP         "HTTP"
+ #define CLASS_HTTP_MSG     "HTTPMessage"
+ #define CLASS_HTTPCLIENT   "HTTPClient"
++#define CLASS_HTTPCLIENT_REQ "HTTPClientRequest"
+ #define CLASS_MAP          "Map"
+ #define CLASS_APPLET_TCP   "AppletTCP"
+ #define CLASS_APPLET_HTTP  "AppletHTTP"
+diff --git a/reg-tests/lua/lua_httpclient.lua b/reg-tests/lua/lua_httpclient.lua
+index b5a5180c12a9544e66d969b120cfc45024edbc20..0b644779f7b5bd5ab0a37bd088f2324f4da59449 100644
+--- a/reg-tests/lua/lua_httpclient.lua
++++ b/reg-tests/lua/lua_httpclient.lua
+@@ -18,6 +18,8 @@ core.register_service("fakeserv", "http", function(applet)
+ end)
+ 
+ local function cron()
++	local httpclient = core.httpclient()
++
+ 	-- wait for until the correct port is set through the c0 request..
+ 	while vtc_port == 0 do
+ 		core.msleep(1)
+@@ -30,19 +32,16 @@ local function cron()
+ 	   body = body .. i .. ' ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'
+         end
+ 	core.Info("First httpclient request")
+-	local httpclient = core.httpclient()
+ 	local response = httpclient:post{url="http://127.0.0.1:" .. vtc_port, body=body}
+ 	core.Info("Received: " .. response.body)
+ 
+ 	body = response.body
+ 
+ 	core.Info("Second httpclient request")
+-	local httpclient2 = core.httpclient()
+-	local response2 = httpclient2:post{url="http://127.0.0.1:" .. vtc_port2, body=body}
++	local response2 = httpclient:post{url="http://127.0.0.1:" .. vtc_port2, body=body}
+ 
+ 	core.Info("Third httpclient request")
+-	local httpclient3 = core.httpclient()
+-	local response3 = httpclient3:get{url="http://127.0.0.1", dst = vtc_port3, headers={ [ "Host" ] = { "foobar.haproxy.local" } }}
++	local response3 = httpclient:get{url="http://127.0.0.1", dst = vtc_port3, headers={ [ "Host" ] = { "foobar.haproxy.local" } }}
+ 
+ end
+ 
+diff --git a/src/http_client.c b/src/http_client.c
+index a2e05b043f006f8283ced5ca9d73b71ab3842018..c1937c4711cfb1ef7f81819fad7d084b4315783c 100644
+--- a/src/http_client.c
++++ b/src/http_client.c
+@@ -47,6 +47,7 @@
+ 
+ #ifdef USE_LUA
+ static int class_httpclient_ref; /* httpclient LUA class */
++static int class_httpclient_request_ref; /* httpclient request LUA class */
+ #endif
+ 
+ static struct proxy *httpclient_proxy;
+@@ -1536,7 +1537,7 @@ void hlua_httpclient_destroy_all(struct hlua *hlua)
+ 
+ __LJMP static struct hlua_httpclient *hlua_checkhttpclient(lua_State *L, int ud)
+ {
+-	return MAY_LJMP(hlua_checkudata(L, ud, class_httpclient_ref));
++	return MAY_LJMP(hlua_checkudata(L, ud, class_httpclient_request_ref));
+ }
+ 
+ 
+@@ -1554,11 +1555,20 @@ __LJMP static int hlua_httpclient_gc(lua_State *L)
+ 		httpclient_stop_and_destroy(hlua_hc->hc);
+ 		hlua_hc->hc = NULL;
+ 	}
+-
+ 	return 0;
+ }
+ 
+ 
++__LJMP static int hlua_httpclient_factory_new(lua_State *L)
++{
++
++	lua_newtable(L);
++	lua_rawgeti(L, LUA_REGISTRYINDEX, class_httpclient_ref);
++	lua_setmetatable(L, -2);
++
++	return 1;
++}
++
+ __LJMP static int hlua_httpclient_new(lua_State *L)
+ {
+ 	struct hlua_httpclient *hlua_hc;
+@@ -1580,14 +1590,11 @@ __LJMP static int hlua_httpclient_new(lua_State *L)
+ 	lua_rawseti(L, -2, 0);
+ 	memset(hlua_hc, 0, sizeof(*hlua_hc));
+ 
+-	hlua_hc->hc = httpclient_new(hlua, 0, IST_NULL);
+-	if (!hlua_hc->hc)
+-		goto err;
+ 
+ 	MT_LIST_APPEND(&hlua->hc_list, &hlua_hc->by_hlua);
+ 
+ 	/* Pop a class stream metatable and affect it to the userdata. */
+-	lua_rawgeti(L, LUA_REGISTRYINDEX, class_httpclient_ref);
++	lua_rawgeti(L, LUA_REGISTRYINDEX, class_httpclient_request_ref);
+ 	lua_setmetatable(L, -2);
+ 
+ 	return 1;
+@@ -1869,13 +1876,15 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
+ 	if (lua_gettop(L) != 2 || lua_type(L, -1) != LUA_TTABLE)
+ 		WILL_LJMP(luaL_error(L, "'get' needs a table as argument"));
+ 
++	/* Create the internal httpclient request object and replace the factory at index 1 */
++	hlua_httpclient_new(L);
++	lua_replace(L, 1);
++
+ 	hlua_hc = hlua_checkhttpclient(L, 1);
+ 
+-	/* An HTTPclient instance must never process more that one request. So
+-	 * at this stage, it must never have been started.
+-	 */
+-	if (httpclient_started(hlua_hc->hc))
+-		WILL_LJMP(luaL_error(L, "httpclient instance cannot be reused. It must process at most one request"));
++	hlua_hc->hc = httpclient_new(hlua, 0, IST_NULL);
++	if (!hlua_hc->hc)
++		WILL_LJMP(luaL_error(L, "out of memory"));
+ 
+ 	lua_pushnil(L);  /* first key */
+ 	while (lua_next(L, 2)) {
+@@ -2013,7 +2022,16 @@ __LJMP static int hlua_httpclient_delete(lua_State *L)
+  */
+ static int hlua_http_client_init_state(lua_State *L, char **errmsg)
+ {
+-	/* Create and fill the metatable. */
++	/* Register HTTPClientRequest */
++	lua_newtable(L);
++	/* Register the garbage collector entry. */
++	lua_pushstring(L, "__gc");
++	lua_pushcclosure(L, hlua_httpclient_gc, 0);
++	lua_settable(L, -3);
++
++	class_httpclient_request_ref = hlua_register_metatable(L, CLASS_HTTPCLIENT_REQ);
++
++	/* Register HTTPClient */
+ 	lua_newtable(L);
+ 	lua_pushstring(L, "__index");
+ 	lua_newtable(L);
+@@ -2023,17 +2041,11 @@ static int hlua_http_client_init_state(lua_State *L, char **errmsg)
+ 	hlua_class_function(L, "post",        hlua_httpclient_post);
+ 	hlua_class_function(L, "delete",      hlua_httpclient_delete);
+ 	lua_settable(L, -3); /* Sets the __index entry. */
+-	/* Register the garbage collector entry. */
+-	lua_pushstring(L, "__gc");
+-	lua_pushcclosure(L, hlua_httpclient_gc, 0);
+-	lua_settable(L, -3); /* Push the last 2 entries in the table at index -3 */
+-
+-
+ 
+ 	class_httpclient_ref = hlua_register_metatable(L, CLASS_HTTPCLIENT);
+ 
+ 	lua_getglobal(L, "core");
+-	hlua_class_function(L, "httpclient", hlua_httpclient_new);
++	hlua_class_function(L, "httpclient", hlua_httpclient_factory_new);
+ 	lua_pop(L, 1);
+ 
+ 	return ERR_NONE;

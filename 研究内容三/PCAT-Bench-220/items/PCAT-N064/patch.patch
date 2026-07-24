@@ -1,0 +1,63 @@
+From e81f19052ae1dad6bfaa240f3e56c2b34129a8fd Mon Sep 17 00:00:00 2001
+From: Serhiy Storchaka <storchaka@gmail.com>
+Date: Mon, 20 Jul 2026 21:32:24 +0300
+Subject: [PATCH] gh-154279: Skip readline completion tests that fail on
+ DragonFly and illumos (GH-154280)
+
+They are already skipped on FreeBSD, where a backspace does not remove
+the auto-indentation.  The same happens on DragonFly and illumos.
+
+Co-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ Lib/test/test_pdb.py              | 10 ++++++----
+ Lib/test/test_sqlite3/test_cli.py |  4 ++--
+ 2 files changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/Lib/test/test_pdb.py b/Lib/test/test_pdb.py
+index 0cf5dd2e4c1004231c90eda997f62e1b5fdf8aec..e7b66031a86a6ca425ab5032c97e56e64858f204 100644
+--- a/Lib/test/test_pdb.py
++++ b/Lib/test/test_pdb.py
+@@ -5167,8 +5167,9 @@ def f():
+ 
+         self.assertIn('I love Python', output)
+ 
+-    @unittest.skipIf(sys.platform.startswith('freebsd'),
+-                     '\\x08 is not interpreted as backspace on FreeBSD')
++    @unittest.skipIf(sys.platform.startswith(('freebsd', 'dragonfly', 'sunos')),
++                     '\\x08 does not remove the auto-indentation with '
++                     'GNU readline on this platform')
+     def test_multiline_auto_indent(self):
+         script = textwrap.dedent("""
+             import pdb; pdb.Pdb().set_trace()
+@@ -5207,8 +5208,9 @@ def test_multiline_completion(self):
+ 
+         self.assertIn('42', output)
+ 
+-    @unittest.skipIf(sys.platform.startswith('freebsd'),
+-                     '\\x08 is not interpreted as backspace on FreeBSD')
++    @unittest.skipIf(sys.platform.startswith(('freebsd', 'dragonfly', 'sunos')),
++                     '\\x08 does not remove the auto-indentation with '
++                     'GNU readline on this platform')
+     def test_multiline_indent_completion(self):
+         script = textwrap.dedent("""
+             import pdb; pdb.Pdb().set_trace()
+diff --git a/Lib/test/test_sqlite3/test_cli.py b/Lib/test/test_sqlite3/test_cli.py
+index 1fc0236780fa8ba31c55f08cbde416d8c3f9e69e..29819cc19d343bc33174b6245b680a2fb3b04e9f 100644
+--- a/Lib/test/test_sqlite3/test_cli.py
++++ b/Lib/test/test_sqlite3/test_cli.py
+@@ -378,10 +378,10 @@ def test_complete_schemata(self):
+         self.assertIn("main", candidates)
+         self.assertIn("temp", candidates)
+ 
+-    @unittest.skipIf(sys.platform.startswith("freebsd"),
++    @unittest.skipIf(sys.platform.startswith(("freebsd", "dragonfly", "sunos")),
+                     "Two actual tabs are inserted when there are no matching"
+                     " completions in the pseudo-terminal opened by run_pty()"
+-                    " on FreeBSD")
++                    " on this platform")
+     def test_complete_no_match(self):
+         input_ = b"xyzzy\t\t\b\b\b\b\b\b\b.quit\n"
+         # Set NO_COLOR to disable coloring for self.PS1.
+-- 
+2.34.1
+

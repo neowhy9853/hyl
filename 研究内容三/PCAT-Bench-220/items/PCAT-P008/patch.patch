@@ -1,0 +1,134 @@
+From e61190e2faf7ee677424c622881899a10e41612c Mon Sep 17 00:00:00 2001
+From: Mark Levedahl <mlevedahl@gmail.com>
+Date: Sun, 31 May 2026 19:02:25 -0400
+Subject: [PATCH 46/50] git-gui: add gui and pick as explicit subcommands
+
+git-gui accepts subcommands blame | browser | citool, and assumes the
+subcommand is 'gui' if none is actually given, But, git-gui also has a
+repository picker (choose_repository::pick) that can create a new
+repository + worktree, or choose an existing one, switch to that, and
+the run the gui. The user has no direct control over invoking the
+picker, instead the picker is triggered by failure in the repository /
+worktree discovery process: this includes being started in a directory
+not controlled by git, which is probably the intended use case.
+
+The picker can appear when the user has no intention of creating a new
+worktree, and the user cannot use the picker to create a new worktree
+inside another.
+
+So, add two explicit subcommands:
+    gui  - Run the gui if repository/worktree discovery succeeds, or die
+           with an error message, but never run the picker.
+    pick - First run the picker, regardless, then start the gui in
+           the chosen worktree.
+
+Nothing in this changes the prior behavior, the alternates above must be
+explicitly selected to see any change.
+
+Signed-off-by: Mark Levedahl <mlevedahl@gmail.com>
+Signed-off-by: Johannes Sixt <j6t@kdbg.org>
+---
+ git-gui.sh | 25 +++++++++++++++++++++----
+ 1 file changed, 21 insertions(+), 4 deletions(-)
+
+diff --git a/git-gui.sh b/git-gui.sh
+index c72d45358..15dd2b3a8 100755
+--- a/git-gui.sh
++++ b/git-gui.sh
+@@ -1024,6 +1024,8 @@ proc load_config {include_global} {
+ ##
+ ## feature option selection
+ 
++enable_option picker
++enable_option gitdir_discovery
+ if {[regexp {^git-(.+)$} [file tail $argv0] _junk subcommand]} {
+ 	unset _junk
+ } else {
+@@ -1035,6 +1037,9 @@ if {$subcommand eq {gui.sh}} {
+ if {$subcommand eq {gui} && [llength $argv] > 0} {
+ 	set subcommand [lindex $argv 0]
+ 	set argv [lrange $argv 1 end]
++	if {$subcommand eq {gui}} {
++		disable_option picker
++	}
+ }
+ 
+ enable_option multicommit
+@@ -1050,6 +1055,7 @@ blame {
+ 	disable_option multicommit
+ 	disable_option branch
+ 	disable_option transport
++	disable_option picker
+ }
+ citool {
+ 	enable_option singlecommit
+@@ -1058,6 +1064,7 @@ citool {
+ 	disable_option multicommit
+ 	disable_option branch
+ 	disable_option transport
++	disable_option picker
+ 
+ 	while {[llength $argv] > 0} {
+ 		set a [lindex $argv 0]
+@@ -1080,6 +1087,9 @@ citool {
+ 		set argv [lrange $argv 1 end]
+ 	}
+ }
++pick {
++	disable_option gitdir_discovery
++}
+ }
+ 
+ ######################################################################
+@@ -1168,7 +1178,7 @@ proc unset_gitdir_vars {} {
+ 
+ # find repository
+ set _gitdir {}
+-if {$_gitdir eq {}} {
++if {[is_enabled gitdir_discovery]} {
+ 	if {[catch {
+ 			set _gitdir [git rev-parse --absolute-git-dir]
+ 		} err]} {
+@@ -1180,7 +1190,7 @@ if {$_gitdir eq {}} {
+ }
+ 
+ set picked 0
+-if {$_gitdir eq {}} {
++if {$_gitdir eq {} && [is_enabled picker]} {
+ 	unset_gitdir_vars
+ 	load_config 1
+ 	apply_config
+@@ -1195,6 +1205,12 @@ if {$_gitdir eq {}} {
+ 	set picked 1
+ }
+ 
++if {$_gitdir eq {}} {
++	catch {wm withdraw .}
++	error_popup [strcat [mc "Git directory not found:"] "\n\n$err"]
++	exit 1
++}
++
+ # find worktree, continue without if not required
+ if {[catch {
+ 		set _gitworktree [git rev-parse --show-toplevel]
+@@ -3103,14 +3119,15 @@ blame {
+ 	return
+ }
+ citool -
+-gui {
++gui -
++pick {
+ 	if {[llength $argv] != 0} {
+ 		usage
+ 	}
+ 	# fall through to setup UI for commits
+ }
+ default {
+-	set err "[mc usage:] $argv0 \[{blame|browser|citool}\]"
++	set err "[mc usage:] $argv0 \[{blame|browser|citool|gui|pick}\]"
+ 	if {[tk windowingsystem] eq "win32"} {
+ 		wm withdraw .
+ 		tk_messageBox -icon error -message $err \
+-- 
+2.43.0
+

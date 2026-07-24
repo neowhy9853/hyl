@@ -10,6 +10,8 @@
 
 **Skill 设计：**基于上述方案，本项目将能力封装为可在 OpenCode 等 Harness 中使用的工作流 Skill，即 PCAT Agent\(patch\-compatibility\-utils\)。该 Skill 由 patch\-compatibility\-analysis、patch\-compatibility\-testing、package\-profile\-generator 和 test\-entry\-generator 等子 Skill 组成：分析子 Skill 负责补丁解析、候选提取、语义判定和优先级校准；测试子 Skill 负责测试入口生成、环境搭建、输入扩展、覆盖率执行和行为对比；Profile 生成与测试入口生成子 Skill 则提升不同仓库、语言、领域和 openEuler 变体上的可复用性。对于大型补丁，Skill 进一步支持按 API surface、文件和符号进行分片分析，并通过子 Agent 并发执行和聚合去重，降低长上下文导致的误报、漏报风险。
 
+PCAT Agent 在 220 个兼容性补丁用例上实现了 **90.45% 的兼容性变更分析准确率**和 **80.88% 的定向测试覆盖率**，详见[测试报告](测试报告.md)。
+
 
 
 # 交付内容使用说明
@@ -61,8 +63,47 @@ patch-compatibility-testing
 ```Plain Text
 unzip patch-compatibility-utils.zip -d patch-compatibility-utils
 #* OpenCode*
-**cp** -r patch-compatibility-utils ~/.opencode/skills/
+cp -r patch-compatibility-utils ~/.opencode/skills/
 ```
+
+**方式三：使用 Docker**
+
+本目录（`hyl/研究内容三`）提供 `Dockerfile`，用于构建已安装 OpenCode、PCAT Agent 及其常用分析/测试依赖的隔离环境。镜像包含 Python、Git、GCC/gcov、lcov、Clang/llvm-cov、常用构建工具和 tree-sitter，Skill 安装路径为 `/home/node/.opencode/skills/patch-compatibility-utils`。
+
+在本目录执行构建：
+
+```Bash
+docker build -t pcat-opencode:1.0 .
+```
+
+镜像默认安装 OpenCode 1.18.4；如需指定其他版本，可使用构建参数：
+
+```Bash
+docker build \
+  --build-arg OPENCODE_VERSION=<版本号> \
+  -t pcat-opencode:1.0 .
+```
+
+构建完成后，可执行以下命令检查 OpenCode、Skill 和分析依赖：
+
+```Bash
+docker run --rm pcat-opencode:1.0 sh -lc '
+  opencode --version
+  test -f ~/.opencode/skills/patch-compatibility-utils/SKILL.md
+  python3 ~/.opencode/skills/patch-compatibility-utils/patch-compatibility-analysis/scripts/check_dependencies.py \
+    --include-callgraph --languages c,go,ruby,python --json
+'
+```
+
+启动 OpenCode 时，将待分析仓库挂载到 `/workspace`：
+
+```Bash
+docker run --rm -it \
+  -v /待分析目录:/workspace \
+  pcat-opencode:1.0
+```
+
+容器以非 root 用户运行，分析和测试产物会写入挂载的 `/workspace`。
 
 #### 运行环境
 
@@ -147,8 +188,6 @@ Agent 会执行以下步骤：
 如果用户没有预先要求测试，分析完成后 Agent 会询问：
 
 > 补丁兼容性分析已完成，是否继续基于该分析结果进行定向测试？
-> 
-> 
 
 #### 对补丁进行定向测试
 
@@ -514,8 +553,6 @@ make CFLAGS="-fprofile-instr-generate -fcoverage-mapping -O0 -g"
 ```
 
 > 内核部分子系统可能无法在 `-O0` 下构建，回退顺序：`-O0` → `-Og` → 默认 `-O2`（需在报告中标注）。子系统级 `KCFLAGS`（如 `make M=fs/f2fs KCFLAGS="-O0"`）可能在全内核 `-O0` 失败时仍能工作。
-> 
-> 
 
 测试前清除残留覆盖率数据：
 
@@ -651,6 +688,3 @@ gcov 行标记含义：
 ![image\.png](图片和附件/image%201.png)
 
 ![image\.png](图片和附件/image%206.png)
-
-
-

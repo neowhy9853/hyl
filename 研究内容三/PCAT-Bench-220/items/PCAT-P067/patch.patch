@@ -1,0 +1,1303 @@
+diff --git a/doc/Makefile.am b/doc/Makefile.am
+index f09e7613f9db86731729c7203fbaeb86864d8410..7bfd063f5f2ca90ec9b59f3ec0e1b045b5c74632 100644
+--- a/doc/Makefile.am
++++ b/doc/Makefile.am
+@@ -725,6 +725,7 @@ EXTRA_DIST = \
+     source/reference/parameters/imsolaris-imsolarislogsocketname.rst \
+     source/reference/parameters/imtcp-address.rst \
+     source/reference/parameters/imtcp-addtlframedelimiter.rst \
++    source/reference/parameters/imtcp-allowedsender.rst \
+     source/reference/parameters/imtcp-compression-driver.rst \
+     source/reference/parameters/imtcp-compression-maxdecompressedbytesperreceive.rst \
+     source/reference/parameters/imtcp-compression-maxexpansionratio.rst \
+@@ -768,6 +769,7 @@ EXTRA_DIST = \
+     source/reference/parameters/imtcp-streamdriver-tlsrevocationcheck.rst \
+     source/reference/parameters/imtcp-supportoctetcountedframing.rst \
+     source/reference/parameters/imtcp-workerthreads.rst \
++    source/reference/parameters/imudp-allowedsender.rst \
+     source/reference/parameters/imudp-address.rst \
+     source/reference/parameters/imudp-batchsize.rst \
+     source/reference/parameters/imudp-defaulttz.rst \
+diff --git a/doc/source/configuration/input_directives/rsconf1_allowedsender.rst b/doc/source/configuration/input_directives/rsconf1_allowedsender.rst
+index 9261385b6cd2cac14430438c021bea94e97d2e57..00dc6ea7c7a2c6ce064de7fc1638c30106acb175 100644
+--- a/doc/source/configuration/input_directives/rsconf1_allowedsender.rst
++++ b/doc/source/configuration/input_directives/rsconf1_allowedsender.rst
+@@ -1,15 +1,18 @@
+ $AllowedSender
+ --------------
+ 
+-**Type:** input configuration parameter
++**Type:** legacy global input configuration directive
+ 
+ **Default:** all allowed
+ 
+ **Description:**
+ 
+-*Note:* this feature is supported for backward-compatibility, only.
+-The rsyslog team recommends to use proper firewalling instead of
+-this feature.
++*Note:* this legacy directive is supported for backward compatibility.
++New configurations should use the modern
++:ref:`imtcp AllowedSender <param-imtcp-allowedsender>` and
++:ref:`imudp AllowedSender <param-imudp-allowedsender>` module or input
++parameters. The rsyslog team recommends proper firewalling as the first
++line of defense.
+ 
+ Allowed sender lists can be used to specify which remote systems are
+ allowed to send syslog messages to rsyslogd. With them, further hurdles
+@@ -46,6 +49,11 @@ it is good to specify those allowed senders with high traffic volume
+ before those with lower volume. As soon as a match is found, no further
+ evaluation is necessary and so you can save CPU cycles.
+ 
++Modern ``AllowedSender`` parameters support the same address syntax as this
++legacy directive. A module-level list is used as the default for inputs of the
++same module, and an input-level list overrides that module default. Do not mix
++legacy ``$AllowedSender`` and modern ``AllowedSender`` in new configurations.
++
+ Rsyslogd handles allowed sender detection very early in the code, nearly
+ as the first action after receiving a message. This keeps the access to
+ potential vulnerable code in rsyslog at a minimum. However, it is still
+@@ -69,4 +77,3 @@ names. We recommend to stick with hard-coded IP addresses wherever possible.
+ ::
+ 
+   $AllowedSender UDP, 127.0.0.1, 192.0.2.0/24, [::1]/128, *.example.net, somehost.example.com
+-
+diff --git a/doc/source/configuration/modules/imtcp.rst b/doc/source/configuration/modules/imtcp.rst
+index c2e07d4ca668f15166999003039775adb33d3d19..507a958b78c81a85e1a92ff0ddbf09b185b35342 100644
+--- a/doc/source/configuration/modules/imtcp.rst
++++ b/doc/source/configuration/modules/imtcp.rst
+@@ -278,6 +278,10 @@ Module Parameters
+      - .. include:: ../../reference/parameters/imtcp-permittedpeer.rst
+         :start-after: .. summary-start
+         :end-before: .. summary-end
++   * - :ref:`param-imtcp-allowedsender`
++     - .. include:: ../../reference/parameters/imtcp-allowedsender.rst
++        :start-after: .. summary-start
++        :end-before: .. summary-end
+    * - :ref:`param-imtcp-discardtruncatedmsg`
+      - .. include:: ../../reference/parameters/imtcp-discardtruncatedmsg.rst
+         :start-after: .. summary-start
+@@ -321,6 +325,7 @@ Module Parameters
+    ../../reference/parameters/imtcp-streamdriver-tlsverifydepth
+    ../../reference/parameters/imtcp-streamdriver-tlsrevocationcheck
+    ../../reference/parameters/imtcp-permittedpeer
++   ../../reference/parameters/imtcp-allowedsender
+    ../../reference/parameters/imtcp-discardtruncatedmsg
+    ../../reference/parameters/imtcp-gnutlsprioritystring
+    ../../reference/parameters/imtcp-preservecase
+@@ -461,6 +466,10 @@ Input Parameters
+      - .. include:: ../../reference/parameters/imtcp-permittedpeer.rst
+         :start-after: .. summary-start
+         :end-before: .. summary-end
++   * - :ref:`param-imtcp-allowedsender`
++     - .. include:: ../../reference/parameters/imtcp-allowedsender.rst
++        :start-after: .. summary-start
++        :end-before: .. summary-end
+    * - :ref:`param-imtcp-gnutlsprioritystring`
+      - .. include:: ../../reference/parameters/imtcp-gnutlsprioritystring.rst
+         :start-after: .. summary-start
+diff --git a/doc/source/configuration/modules/imudp.rst b/doc/source/configuration/modules/imudp.rst
+index a07711b81ed67e35a60e6b880ba0e11731560cc7..46d14f8e9f13a4ab10577785a8f4c555c44a3e25 100644
+--- a/doc/source/configuration/modules/imudp.rst
++++ b/doc/source/configuration/modules/imudp.rst
+@@ -76,6 +76,10 @@ Module Parameters
+      - .. include:: ../../reference/parameters/imudp-preservecase.rst
+         :start-after: .. summary-start
+         :end-before: .. summary-end
++   * - :ref:`param-imudp-allowedsender`
++     - .. include:: ../../reference/parameters/imudp-allowedsender.rst
++        :start-after: .. summary-start
++        :end-before: .. summary-end
+ .. index:: imudp; input parameters
+ 
+ Input Parameters
+@@ -139,6 +143,10 @@ Input Parameters
+      - .. include:: ../../reference/parameters/imudp-rcvbufsize.rst
+         :start-after: .. summary-start
+         :end-before: .. summary-end
++   * - :ref:`param-imudp-allowedsender`
++     - .. include:: ../../reference/parameters/imudp-allowedsender.rst
++        :start-after: .. summary-start
++        :end-before: .. summary-end
+ .. _imudp-statistic-counter:
+ 
+ Statistic Counter
+@@ -356,6 +364,7 @@ Additional Resources
+    ../../reference/parameters/imudp-batchsize
+    ../../reference/parameters/imudp-threads
+    ../../reference/parameters/imudp-preservecase
++   ../../reference/parameters/imudp-allowedsender
+    ../../reference/parameters/imudp-address
+    ../../reference/parameters/imudp-port
+    ../../reference/parameters/imudp-listenportfilename
+diff --git a/doc/source/reference/parameters/imtcp-allowedsender.rst b/doc/source/reference/parameters/imtcp-allowedsender.rst
+new file mode 100644
+index 0000000000000000000000000000000000000000..b87b953abfd7a4eef2c5be16792022a567aee6db
+--- /dev/null
++++ b/doc/source/reference/parameters/imtcp-allowedsender.rst
+@@ -0,0 +1,83 @@
++.. _param-imtcp-allowedsender:
++.. _imtcp.parameter.module.allowedsender:
++.. _imtcp.parameter.input.allowedsender:
++
++AllowedSender
++=============
++
++.. index::
++   single: imtcp; AllowedSender
++   single: AllowedSender
++
++.. summary-start
++
++Restricts TCP syslog senders by source address or hostname.
++
++.. summary-end
++
++This parameter applies to :doc:`../../configuration/modules/imtcp`.
++
++:Name: AllowedSender
++:Scope: module, input
++:Type: array
++:Default: module=none, input=module parameter
++:Required?: no
++:Introduced: 8.2608.0
++
++Description
++-----------
++Sets source-address ACL entries for TCP syslog inputs. Entries use the same
++address syntax as the legacy :doc:`../../configuration/input_directives/rsconf1_allowedsender`
++directive, for example ``127.0.0.1/16``, ``192.0.2.0/24``, ``[::1]/128``,
++``*.example.net``, or ``somehost.example.com``.
++
++A module-level ``AllowedSender`` list is used as the default for imtcp inputs.
++An input-level ``AllowedSender`` list replaces the module-level list for that
++input. If neither the module nor the input configures this parameter, all
++senders are accepted unless legacy ``$AllowedSender`` directives are present.
++If ``AllowedSender`` is configured, the array must contain at least one entry.
++An empty input array cannot be used to clear a module-level default. Configure
++explicit per-input sender lists, or omit the module-level default if some inputs
++must remain unrestricted.
++Do not mix legacy ``$AllowedSender`` and modern ``AllowedSender`` in new
++configurations.
++
++``AllowedSender`` checks the remote socket address or reverse-DNS hostname.
++It is separate from :ref:`param-imtcp-permittedpeer`, which checks TLS peer
++identity and only applies to authenticated TLS modes. Firewall rules remain the
++preferred first line of defense.
++
++Module usage
++------------
++.. _param-imtcp-module-allowedsender:
++.. _imtcp.parameter.module.allowedsender-usage:
++
++.. code-block:: rsyslog
++
++   module(load="imtcp" allowedSender=["192.0.2.0/24"])
++
++Input usage
++-----------
++.. _param-imtcp-input-allowedsender:
++.. _imtcp.parameter.input.allowedsender-usage:
++
++.. code-block:: rsyslog
++
++   input(type="imtcp" port="514" allowedSender=["127.0.0.1/16", "[::1]/128"])
++
++YAML usage
++----------
++.. code-block:: yaml
++
++   modules:
++     - load: imtcp
++       allowedSender: ["192.0.2.0/24"]
++   inputs:
++     - type: imtcp
++       port: "514"
++       allowedSender: ["127.0.0.1/16"]
++
++See also
++--------
++See also :doc:`../../configuration/modules/imtcp` and
++:doc:`../../configuration/input_directives/rsconf1_allowedsender`.
+diff --git a/doc/source/reference/parameters/imudp-allowedsender.rst b/doc/source/reference/parameters/imudp-allowedsender.rst
+new file mode 100644
+index 0000000000000000000000000000000000000000..f957fcfe732525f4c7acbc0dedd9b68ae2750f19
+--- /dev/null
++++ b/doc/source/reference/parameters/imudp-allowedsender.rst
+@@ -0,0 +1,82 @@
++.. _param-imudp-allowedsender:
++.. _imudp.parameter.module.allowedsender:
++.. _imudp.parameter.input.allowedsender:
++
++AllowedSender
++=============
++
++.. index::
++   single: imudp; AllowedSender
++   single: AllowedSender
++
++.. summary-start
++
++Restricts UDP syslog senders by source address or hostname.
++
++.. summary-end
++
++This parameter applies to :doc:`../../configuration/modules/imudp`.
++
++:Name: AllowedSender
++:Scope: module, input
++:Type: array
++:Default: module=none, input=module parameter
++:Required?: no
++:Introduced: 8.2608.0
++
++Description
++-----------
++Sets source-address ACL entries for UDP syslog inputs. Entries use the same
++address syntax as the legacy :doc:`../../configuration/input_directives/rsconf1_allowedsender`
++directive, for example ``127.0.0.1/16``, ``192.0.2.0/24``, ``[::1]/128``,
++``*.example.net``, or ``somehost.example.com``.
++
++A module-level ``AllowedSender`` list is used as the default for imudp inputs.
++An input-level ``AllowedSender`` list replaces the module-level list for that
++input. If neither the module nor the input configures this parameter, all
++senders are accepted unless legacy ``$AllowedSender`` directives are present.
++If ``AllowedSender`` is configured, the array must contain at least one entry.
++An empty input array cannot be used to clear a module-level default. Configure
++explicit per-input sender lists, or omit the module-level default if some inputs
++must remain unrestricted.
++Do not mix legacy ``$AllowedSender`` and modern ``AllowedSender`` in new
++configurations.
++
++``AllowedSender`` checks the remote socket address or reverse-DNS hostname.
++By UDP design, source addresses can be spoofed. Use firewall ingress and egress
++filtering, and prefer TCP or TLS transports when sender authenticity matters.
++
++Module usage
++------------
++.. _param-imudp-module-allowedsender:
++.. _imudp.parameter.module.allowedsender-usage:
++
++.. code-block:: rsyslog
++
++   module(load="imudp" allowedSender=["192.0.2.0/24"])
++
++Input usage
++-----------
++.. _param-imudp-input-allowedsender:
++.. _imudp.parameter.input.allowedsender-usage:
++
++.. code-block:: rsyslog
++
++   input(type="imudp" port="514" allowedSender=["127.0.0.1/16"])
++
++YAML usage
++----------
++.. code-block:: yaml
++
++   modules:
++     - load: imudp
++       allowedSender: ["192.0.2.0/24"]
++   inputs:
++     - type: imudp
++       port: "514"
++       allowedSender: ["127.0.0.1/16"]
++
++See also
++--------
++See also :doc:`../../configuration/modules/imudp` and
++:doc:`../../configuration/input_directives/rsconf1_allowedsender`.
+diff --git a/doc/source/tutorials/tls_cert_udp_relay.rst b/doc/source/tutorials/tls_cert_udp_relay.rst
+index f0377a8f79b215fd6637fd378a7c6d432da9724b..ef243688bb0ef9571d3ab0f8883882d156c056be 100644
+--- a/doc/source/tutorials/tls_cert_udp_relay.rst
++++ b/doc/source/tutorials/tls_cert_udp_relay.rst
+@@ -36,9 +36,9 @@ forward the router logs:
+    that port number is permitted).
+ -  you may want to limit who can send syslog messages via UDP. A great
+    place to do this is inside the firewall, but you can also do it in
+-   rsyslog.conf via an $AllowedSender directive. We have used one in the
+-   sample config below. Please be aware that this is a kind of weak
+-   authentication, but definitely better than nothing...
++   rsyslog.conf via the imudp ``allowedSender`` parameter. We have used
++   one in the sample config below. Please be aware that this is weak
++   source-address filtering, not authentication.
+ -  add the UDP input plugin to rsyslog's config and start a UDP listener
+ -  make sure that your forwarding-filter permits to forward messages
+    received from the remote router to the server. In our sample
+@@ -59,8 +59,7 @@ we do not show any rules to write local files. Feel free to add them.
+ ::
+ 
+     # start a UDP listener for the remote router
+-    module(load="imudp")   # load UDP server plugin
+-    $AllowedSender UDP, 192.0.2.1 # permit only the router
++    module(load="imudp" allowedSender=["192.0.2.1"]) # permit only the router
+     input(type="imudp"
+     port="514" # listen on default syslog UDP port 514
+     )
+diff --git a/grammar/rainerscript.c b/grammar/rainerscript.c
+index dae0803532a7c8ea065a066e889fa2518edbd65b..d69487176cfd4cafcda884d8668f09b0a5a89c11 100644
+--- a/grammar/rainerscript.c
++++ b/grammar/rainerscript.c
+@@ -4179,6 +4179,9 @@ void ATTR_NONNULL() cnfexprEval(const struct cnfexpr *__restrict__ const expr,
+ 
+ void cnfarrayContentDestruct(struct cnfarray *ar) {
+     unsigned short i;
++    if (ar == NULL) {
++        return;
++    }
+     for (i = 0; i < ar->nmemb; ++i) {
+         es_deleteStr(ar->arr[i]);
+     }
+@@ -4664,6 +4667,11 @@ static void cnfarrayPrint(struct cnfarray *ar, int indent) {
+     int i;
+     doIndent(indent);
+     dbgprintf("ARRAY:\n");
++    if (ar == NULL) {
++        doIndent(indent + 1);
++        dbgprintf("(empty)\n");
++        return;
++    }
+     for (i = 0; i < ar->nmemb; ++i) {
+         doIndent(indent + 1);
+         cstrPrint("string '", ar->arr[i]);
+@@ -4966,6 +4974,11 @@ struct cnfarray *cnfarrayNew(es_str_t *val) {
+     struct cnfarray *ar;
+     if ((ar = malloc(sizeof(struct cnfarray))) != NULL) {
+         ar->nodetype = 'A';
++        ar->nmemb = 0;
++        ar->arr = NULL;
++        if (val == NULL) {
++            goto done;
++        }
+         ar->nmemb = 1;
+         if ((ar->arr = malloc(sizeof(es_str_t *))) == NULL) {
+             free(ar);
+@@ -4996,6 +5009,9 @@ done:
+ struct cnfarray *cnfarrayDup(struct cnfarray *old) {
+     int i;
+     struct cnfarray *ar;
++    if (old == NULL || old->nmemb == 0) {
++        return cnfarrayNew(NULL);
++    }
+     ar = cnfarrayNew(es_strdup(old->arr[0]));
+     for (i = 1; i < old->nmemb; ++i) {
+         cnfarrayAdd(ar, es_strdup(old->arr[i]));
+diff --git a/plugins/imtcp/imtcp.c b/plugins/imtcp/imtcp.c
+index 804f76dc5d3c98f4716bc0ce2e57a181c776246e..ee50c5e04471244b33d3a89f47904e3f5a9a3065 100644
+--- a/plugins/imtcp/imtcp.c
++++ b/plugins/imtcp/imtcp.c
+@@ -162,6 +162,9 @@ struct instanceConf_s {
+     uchar *pszStrmDrvrKeyFile;
+     uchar *pszStrmDrvrCertFile;
+     permittedPeers_t *pPermPeersRoot;
++    struct AllowedSenders *pAllowedSendersRoot;
++    struct AllowedSenders *pAllowedSendersLast;
++    sbool bAllowedSendersSet;
+     uchar *gnutlsPriorityString;
+     int iStrmDrvrExtendedCertCheck;
+     int iStrmDrvrSANPreference;
+@@ -214,6 +217,9 @@ struct modConfData_s {
+     uchar *pszStrmDrvrKeyFile;
+     uchar *pszStrmDrvrCertFile;
+     permittedPeers_t *pPermPeersRoot;
++    struct AllowedSenders *pAllowedSendersRoot;
++    struct AllowedSenders *pAllowedSendersLast;
++    sbool bAllowedSendersSet;
+     sbool configSetViaV2Method;
+     sbool bPreserveCase; /* preserve case of fromhost; true by default */
+     unsigned starvationMaxReads;
+@@ -252,6 +258,7 @@ static struct cnfparamdescr modpdescr[] = {{"flowcontrol", eCmdHdlrBinary, 0},
+                                            {"streamdriver.crlfile", eCmdHdlrString, 0},
+                                            {"streamdriver.keyfile", eCmdHdlrString, 0},
+                                            {"streamdriver.certfile", eCmdHdlrString, 0},
++                                           {"allowedsender", eCmdHdlrArray, 0},
+                                            {"permittedpeer", eCmdHdlrArray, 0},
+                                            {"keepalive", eCmdHdlrBinary, 0},
+                                            {"keepalive.probes", eCmdHdlrNonNegInt, 0},
+@@ -297,6 +304,7 @@ static struct cnfparamdescr inppdescr[] = {{"port", eCmdHdlrString, CNFPARAM_REQ
+                                            {"streamdriver.crlfile", eCmdHdlrString, 0},
+                                            {"streamdriver.keyfile", eCmdHdlrString, 0},
+                                            {"streamdriver.certfile", eCmdHdlrString, 0},
++                                           {"allowedsender", eCmdHdlrArray, 0},
+                                            {"permittedpeer", eCmdHdlrArray, 0},
+                                            {"gnutlsprioritystring", eCmdHdlrString, 0},
+                                            {"keepalive", eCmdHdlrBinary, 0},
+@@ -507,8 +515,13 @@ static rsRetVal setLegacyStrmDrvrMode(void __attribute__((unused)) * pVal, int m
+ /* this shall go into a specific ACL module! */
+ static int isPermittedHost(struct sockaddr *addr,
+                            char *fromHostFQDN,
+-                           void __attribute__((unused)) * pUsrSrv,
++                           void *pUsrSrv,
+                            void __attribute__((unused)) * pUsrSess) {
++    const tcpLstnParams_t *const cnf_params = pUsrSrv;
++
++    if (cnf_params != NULL && !cnf_params->bUseLegacyAllowedSender) {
++        return net.isAllowedSenderList(cnf_params->pAllowedSenderRoot, addr, fromHostFQDN, 1);
++    }
+     return net.isAllowedSender2(UCHAR_CONSTANT("TCP"), addr, fromHostFQDN, 1);
+ }
+ 
+@@ -619,6 +632,9 @@ static rsRetVal createInstance(instanceConf_t **pinst) {
+     inst->compressionDriver = loadModConf->compressionDriver;
+     inst->compressionMaxExpansionRatio = loadModConf->compressionMaxExpansionRatio;
+     inst->compressionMaxDecompressedBytesPerReceive = loadModConf->compressionMaxDecompressedBytesPerReceive;
++    inst->pAllowedSendersRoot = NULL;
++    inst->pAllowedSendersLast = NULL;
++    inst->bAllowedSendersSet = 0;
+ 
+     inst->cnf_params->pszLstnPortFileName = NULL;
+     inst->cnf_params->bMultiLine = 0;
+@@ -804,8 +820,20 @@ static rsRetVal addListner(modConfData_t *modConf, instanceConf_t *inst) {
+         free((void *)inst->cnf_params->pszPort);
+         inst->cnf_params->pszPort = newPort;
+     }
+-    tcpsrv.configureTCPListen(pOurTcpsrv, inst->cnf_params);
+-    inst->cnf_params = NULL; /* ownership transferred to tcpsrv */
++    if (inst->bAllowedSendersSet) {
++        inst->cnf_params->pAllowedSenderRoot = inst->pAllowedSendersRoot;
++        inst->cnf_params->bUseLegacyAllowedSender = 0;
++    } else if (modConf->bAllowedSendersSet) {
++        inst->cnf_params->pAllowedSenderRoot = modConf->pAllowedSendersRoot;
++        inst->cnf_params->bUseLegacyAllowedSender = 0;
++    } else {
++        inst->cnf_params->pAllowedSenderRoot = NULL;
++        inst->cnf_params->bUseLegacyAllowedSender = 1;
++    }
++    CHKiRet(tcpsrv.SetUsrP(pOurTcpsrv, inst->cnf_params));
++    iRet = tcpsrv.configureTCPListen(pOurTcpsrv, inst->cnf_params);
++    inst->cnf_params = NULL; /* ownership transferred to tcpsrv, including setup failure cleanup */
++    CHKiRet(iRet);
+ 
+     tcpsrv_etry_t *etry;
+     CHKmalloc(etry = (tcpsrv_etry_t *)calloc(1, sizeof(tcpsrv_etry_t)));
+@@ -818,6 +846,7 @@ finalize_it:
+     if (iRet != RS_RET_OK) {
+         LogError(0, NO_ERRCODE, "imtcp: error %d trying to add listener", iRet);
+         if (pOurTcpsrv != NULL) {
++            tcpsrv.SetUsrP(pOurTcpsrv, NULL);
+             tcpsrv.Destruct(&pOurTcpsrv);
+         }
+     }
+@@ -900,6 +929,20 @@ BEGINnewInpInst
+                 CHKiRet(net.AddPermittedPeer(&inst->pPermPeersRoot, peer));
+                 free(peer);
+             }
++        } else if (!strcmp(inppblk.descr[i].name, "allowedsender")) {
++            if (pvals[i].val.d.ar == NULL || pvals[i].val.d.ar->nmemb == 0) {
++                LogError(0, RS_RET_INVALID_PARAMS, "imtcp: allowedSender array must not be empty");
++                ABORT_FINALIZE(RS_RET_INVALID_PARAMS);
++            }
++            inst->bAllowedSendersSet = 1;
++            for (int j = 0; j < pvals[i].val.d.ar->nmemb; ++j) {
++                uchar *sender = (uchar *)es_str2cstr(pvals[i].val.d.ar->arr[j], NULL);
++                CHKmalloc(sender);
++                const rsRetVal entryRet =
++                    net.addAllowedSenderEntry(&inst->pAllowedSendersRoot, &inst->pAllowedSendersLast, sender);
++                free(sender);
++                CHKiRet(entryRet);
++            }
+         } else if (!strcmp(inppblk.descr[i].name, "flowcontrol")) {
+             inst->bUseFlowControl = (int)pvals[i].val.d.n;
+         } else if (!strcmp(inppblk.descr[i].name, "disablelfdelimiter")) {
+@@ -1025,6 +1068,9 @@ BEGINbeginCnfLoad
+     loadModConf->pszStrmDrvrKeyFile = NULL;
+     loadModConf->pszStrmDrvrCertFile = NULL;
+     loadModConf->pPermPeersRoot = NULL;
++    loadModConf->pAllowedSendersRoot = NULL;
++    loadModConf->pAllowedSendersLast = NULL;
++    loadModConf->bAllowedSendersSet = 0;
+     loadModConf->configSetViaV2Method = 0;
+     loadModConf->bPreserveCase = 1; /* default to true */
+     loadModConf->compressionMode = TCPSRV_COMPRESS_NEVER;
+@@ -1130,6 +1176,20 @@ BEGINsetModCnf
+                 CHKiRet(net.AddPermittedPeer(&loadModConf->pPermPeersRoot, peer));
+                 free(peer);
+             }
++        } else if (!strcmp(modpblk.descr[i].name, "allowedsender")) {
++            if (pvals[i].val.d.ar == NULL || pvals[i].val.d.ar->nmemb == 0) {
++                LogError(0, RS_RET_INVALID_PARAMS, "imtcp: allowedSender array must not be empty");
++                ABORT_FINALIZE(RS_RET_INVALID_PARAMS);
++            }
++            loadModConf->bAllowedSendersSet = 1;
++            for (int j = 0; j < pvals[i].val.d.ar->nmemb; ++j) {
++                uchar *sender = (uchar *)es_str2cstr(pvals[i].val.d.ar->arr[j], NULL);
++                CHKmalloc(sender);
++                const rsRetVal entryRet = net.addAllowedSenderEntry(&loadModConf->pAllowedSendersRoot,
++                                                                    &loadModConf->pAllowedSendersLast, sender);
++                free(sender);
++                CHKiRet(entryRet);
++            }
+         } else if (!strcmp(modpblk.descr[i].name, "preservecase")) {
+             loadModConf->bPreserveCase = (int)pvals[i].val.d.n;
+         } else if (!strcmp(modpblk.descr[i].name, "compression.mode")) {
+@@ -1281,6 +1341,9 @@ BEGINfreeCnf
+     if (pModConf->pPermPeersRoot != NULL) {
+         net.DestructPermittedPeers(&pModConf->pPermPeersRoot);
+     }
++    if (pModConf->pAllowedSendersRoot != NULL) {
++        net.DestructAllowedSenders(&pModConf->pAllowedSendersRoot);
++    }
+ 
+     for (inst = pModConf->root; inst != NULL;) {
+         free((void *)inst->pszBindRuleset);
+@@ -1311,6 +1374,9 @@ BEGINfreeCnf
+         if (inst->pPermPeersRoot != NULL) {
+             net.DestructPermittedPeers(&inst->pPermPeersRoot);
+         }
++        if (inst->pAllowedSendersRoot != NULL) {
++            net.DestructAllowedSenders(&inst->pAllowedSendersRoot);
++        }
+         del = inst;
+         inst = inst->next;
+         free(del);
+diff --git a/plugins/imudp/imudp.c b/plugins/imudp/imudp.c
+index 9b0fdbd5c75b94d74f7a2b2beaa541fb68778ad4..87d76712c1f90fefc2a10620d63182ad1d44f884 100644
+--- a/plugins/imudp/imudp.c
++++ b/plugins/imudp/imudp.c
+@@ -83,6 +83,8 @@ DEFobjCurrIf(glbl) DEFobjCurrIf(net) DEFobjCurrIf(datetime) DEFobjCurrIf(prop) D
+     prop_t *pInputName;
+     statsobj_t *stats; /* listener stats */
+     ratelimit_t *ratelimiter;
++    struct AllowedSenders *pAllowedSenderRoot;
++    sbool bUseLegacyAllowedSender;
+     uchar *dfltTZ;
+     STATSCOUNTER_DEF(ctrSubmit, mutCtrSubmit)
+     STATSCOUNTER_DEF(ctrDisallowed, mutCtrDisallowed)
+@@ -125,6 +127,9 @@ struct instanceConf_s {
+     1 means:  IP_FREEBIND enabled + warning disabled
+     1+ means: IP+FREEBIND enabled + warning enabled */
+     int ipfreebind;
++    struct AllowedSenders *pAllowedSendersRoot;
++    struct AllowedSenders *pAllowedSendersLast;
++    sbool bAllowedSendersSet;
+     struct instanceConf_s *next;
+     sbool bAppendPortToInpname;
+ };
+@@ -160,6 +165,9 @@ struct modConfData_s {
+     int8_t wrkrMax; /* max nbr of worker threads */
+     sbool configSetViaV2Method;
+     sbool bPreserveCase; /* preserves the case of fromhost; "off" by default */
++    struct AllowedSenders *pAllowedSendersRoot;
++    struct AllowedSenders *pAllowedSendersLast;
++    sbool bAllowedSendersSet;
+ };
+ static modConfData_t *loadModConf = NULL; /* modConf ptr to use for the current load process */
+ static modConfData_t *runModConf = NULL; /* modConf ptr to use for the current load process */
+@@ -170,7 +178,8 @@ static struct cnfparamdescr modpdescr[] = {{"schedulingpolicy", eCmdHdlrGetWord,
+                                            {"batchsize", eCmdHdlrInt, 0},
+                                            {"threads", eCmdHdlrPositiveInt, 0},
+                                            {"timerequery", eCmdHdlrInt, 0},
+-                                           {"preservecase", eCmdHdlrBinary, 0}};
++                                           {"preservecase", eCmdHdlrBinary, 0},
++                                           {"allowedsender", eCmdHdlrArray, 0}};
+ static struct cnfparamblk modpblk = {CNFPARAMBLK_VERSION, sizeof(modpdescr) / sizeof(struct cnfparamdescr), modpdescr};
+ 
+ /* input instance parameters */
+@@ -188,7 +197,8 @@ static struct cnfparamdescr inppdescr[] = {{"port", eCmdHdlrArray, CNFPARAM_REQU
+                                            {"ratelimit.burst", eCmdHdlrInt, 0},
+                                            {"rcvbufsize", eCmdHdlrSize, 0},
+                                            {"ipfreebind", eCmdHdlrInt, 0},
+-                                           {"ruleset", eCmdHdlrString, 0}};
++                                           {"ruleset", eCmdHdlrString, 0},
++                                           {"allowedsender", eCmdHdlrArray, 0}};
+ static struct cnfparamblk inppblk = {CNFPARAMBLK_VERSION, sizeof(inppdescr) / sizeof(struct cnfparamdescr), inppdescr};
+ 
+ #include "im-helper.h" /* must be included AFTER the type definitions! */
+@@ -217,6 +227,9 @@ static rsRetVal createInstance(instanceConf_t **pinst) {
+     inst->ipfreebind = IPFREEBIND_ENABLED_WITH_LOG;
+     inst->dfltTZ = NULL;
+     inst->pszRatelimitName = NULL;
++    inst->pAllowedSendersRoot = NULL;
++    inst->pAllowedSendersLast = NULL;
++    inst->bAllowedSendersSet = 0;
+ 
+     /* node created, let's add to config */
+     if (loadModConf->tail == NULL) {
+@@ -399,6 +412,16 @@ static rsRetVal addListner(instanceConf_t *inst) {
+             newlcnfinfo->pRuleset = inst->pBindRuleset;
+             newlcnfinfo->dfltTZ = inst->dfltTZ;
+             newlcnfinfo->ratelimiter = NULL;
++            if (inst->bAllowedSendersSet) {
++                newlcnfinfo->pAllowedSenderRoot = inst->pAllowedSendersRoot;
++                newlcnfinfo->bUseLegacyAllowedSender = 0;
++            } else if (runModConf->bAllowedSendersSet) {
++                newlcnfinfo->pAllowedSenderRoot = runModConf->pAllowedSendersRoot;
++                newlcnfinfo->bUseLegacyAllowedSender = 0;
++            } else {
++                newlcnfinfo->pAllowedSenderRoot = NULL;
++                newlcnfinfo->bUseLegacyAllowedSender = 1;
++            }
+             /* query socket IPv4 vs IPv6 */
+             sa.storage.ss_family = 0; /* just to keep CLANG static analyzer happy! */
+             if (getsockname(newlcnfinfo->sock, (struct sockaddr *)&sa.storage, &salen) != 0) {
+@@ -515,6 +538,7 @@ static inline void std_checkRuleset_genErrMsg(__attribute__((unused)) modConfDat
+  */
+ static rsRetVal processPacket(struct lstn_s *lstn,
+                               struct sockaddr_storage *frominetPrev,
++                              struct lstn_s **ppLstnPrev,
+                               int *pbIsPermitted,
+                               uchar *rcvBuf,
+                               ssize_t lenRcvBuf,
+@@ -532,8 +556,9 @@ static rsRetVal processPacket(struct lstn_s *lstn,
+     /* check if we have a different sender than before, if so, we need to query some new values */
+     if (bDoACLCheck) {
+         const socklen_t cmpSocklen = sizeof(struct sockaddr_storage);
+-        if (net.CmpHost(frominet, frominetPrev, cmpSocklen) != 0) {
++        if (*ppLstnPrev != lstn || net.CmpHost(frominet, frominetPrev, cmpSocklen) != 0) {
+             memcpy(frominetPrev, frominet, cmpSocklen); /* update cache indicator */
++            *ppLstnPrev = lstn;
+             /* Here we check if a host is permitted to send us syslog messages. If it isn't,
+              * we do not further process the message but log a warning (if we are
+              * configured to do this). However, if the check would require name resolution,
+@@ -541,7 +566,11 @@ static rsRetVal processPacket(struct lstn_s *lstn,
+              * http://blog.gerhards.net/2009/11/acls-imudp-and-accepting-messages.html
+              * rgerhards, 2009-11-16
+              */
+-            *pbIsPermitted = net.isAllowedSender2((uchar *)"UDP", (struct sockaddr *)frominet, "", 0);
++            if (lstn->bUseLegacyAllowedSender) {
++                *pbIsPermitted = net.isAllowedSender2((uchar *)"UDP", (struct sockaddr *)frominet, "", 0);
++            } else {
++                *pbIsPermitted = net.isAllowedSenderList(lstn->pAllowedSenderRoot, (struct sockaddr *)frominet, "", 0);
++            }
+ 
+             if (*pbIsPermitted == 0) {
+                 DBGPRINTF("msg is not from an allowed sender\n");
+@@ -596,6 +625,7 @@ finalize_it:
+ static rsRetVal processSocket(struct wrkrInfo_s *pWrkr,
+                               struct lstn_s *lstn,
+                               struct sockaddr_storage *frominetPrev,
++                              struct lstn_s **ppLstnPrev,
+                               int *pbIsPermitted) {
+     DEFiRet;
+     int iNbrTimeUsed;
+@@ -655,9 +685,9 @@ static rsRetVal processSocket(struct wrkrInfo_s *pWrkr,
+ 
+         pWrkr->ctrMsgsRcvd += nelem;
+         for (i = 0; i < nelem; ++i) {
+-            processPacket(lstn, frominetPrev, pbIsPermitted, pWrkr->recvmsg_mmh[i].msg_hdr.msg_iov->iov_base,
+-                          pWrkr->recvmsg_mmh[i].msg_len, &stTime, ttGenTime, &(pWrkr->frominet[i]),
+-                          pWrkr->recvmsg_mmh[i].msg_hdr.msg_namelen, &multiSub);
++            processPacket(lstn, frominetPrev, ppLstnPrev, pbIsPermitted,
++                          pWrkr->recvmsg_mmh[i].msg_hdr.msg_iov->iov_base, pWrkr->recvmsg_mmh[i].msg_len, &stTime,
++                          ttGenTime, &(pWrkr->frominet[i]), pWrkr->recvmsg_mmh[i].msg_hdr.msg_namelen, &multiSub);
+         }
+     }
+ 
+@@ -683,6 +713,7 @@ finalize_it:
+ static rsRetVal processSocket(struct wrkrInfo_s *pWrkr,
+                               struct lstn_s *lstn,
+                               struct sockaddr_storage *frominetPrev,
++                              struct lstn_s **ppLstnPrev,
+                               int *pbIsPermitted) {
+     int iNbrTimeUsed;
+     time_t ttGenTime;
+@@ -728,8 +759,8 @@ static rsRetVal processSocket(struct wrkrInfo_s *pWrkr,
+             datetime.getCurrTime(&stTime, &ttGenTime, TIME_IN_LOCALTIME);
+         }
+ 
+-        CHKiRet(processPacket(lstn, frominetPrev, pbIsPermitted, pWrkr->pRcvBuf, lenRcvBuf, &stTime, ttGenTime,
+-                              &frominet, mh.msg_namelen, &multiSub));
++        CHKiRet(processPacket(lstn, frominetPrev, ppLstnPrev, pbIsPermitted, pWrkr->pRcvBuf, lenRcvBuf, &stTime,
++                              ttGenTime, &frominet, mh.msg_namelen, &multiSub));
+     }
+ 
+ 
+@@ -859,6 +890,7 @@ static rsRetVal rcvMainLoop(struct wrkrInfo_s *const __restrict__ pWrkr) {
+     int efd;
+     int i;
+     struct sockaddr_storage frominetPrev;
++    struct lstn_s *lstnPrev;
+     int bIsPermitted;
+     struct epoll_event *udpEPollEvt = NULL;
+     struct epoll_event currEvt[NUM_EPOLL_EVENTS];
+@@ -870,6 +902,7 @@ static rsRetVal rcvMainLoop(struct wrkrInfo_s *const __restrict__ pWrkr) {
+      * is invalidated.
+      */
+     bIsPermitted = 0;
++    lstnPrev = NULL;
+     memset(&frominetPrev, 0, sizeof(frominetPrev));
+ 
+     /* count num listeners -- do it here in order to avoid inconsistency */
+@@ -923,7 +956,7 @@ static rsRetVal rcvMainLoop(struct wrkrInfo_s *const __restrict__ pWrkr) {
+         if (thrdGetShallStop(pWrkr->pThrd) == RSTRUE) break; /* terminate input! */
+ 
+         for (i = 0; i < nfds; ++i) {
+-            processSocket(pWrkr, currEvt[i].data.ptr, &frominetPrev, &bIsPermitted);
++            processSocket(pWrkr, currEvt[i].data.ptr, &frominetPrev, &lstnPrev, &bIsPermitted);
+         }
+         if (thrdGetShallStop(pWrkr->pThrd) == RSTRUE) break; /* terminate input! */
+     }
+@@ -939,6 +972,7 @@ static rsRetVal ATTR_NONNULL() rcvMainLoop(struct wrkrInfo_s *const __restrict__
+     DEFiRet;
+     int nfds;
+     struct sockaddr_storage frominetPrev;
++    struct lstn_s *lstnPrev;
+     int bIsPermitted;
+     int i = 0;
+     struct lstn_s *lstn;
+@@ -947,6 +981,7 @@ static rsRetVal ATTR_NONNULL() rcvMainLoop(struct wrkrInfo_s *const __restrict__
+     /* start "name caching" algo by making sure the previous system indicator
+      * is invalidated. */
+     bIsPermitted = 0;
++    lstnPrev = NULL;
+     memset(&frominetPrev, 0, sizeof(frominetPrev));
+ 
+     /* setup poll() subsystem */
+@@ -993,7 +1028,7 @@ static rsRetVal ATTR_NONNULL() rcvMainLoop(struct wrkrInfo_s *const __restrict__
+             if (lstn->sock != -1) {
+                 if (glbl.GetGlobalInputTermState() == 1) ABORT_FINALIZE(RS_RET_FORCE_TERM); /* terminate input! */
+                 if (pollfds[i].revents & POLLIN) {
+-                    processSocket(pWrkr, lstn, &frominetPrev, &bIsPermitted);
++                    processSocket(pWrkr, lstn, &frominetPrev, &lstnPrev, &bIsPermitted);
+                     --nfds;
+                 }
+                 ++i;
+@@ -1087,6 +1122,20 @@ static rsRetVal createListner(es_str_t *port, struct cnfparamvals *pvals) {
+             }
+         } else if (!strcmp(inppblk.descr[i].name, "ipfreebind")) {
+             inst->ipfreebind = (int)pvals[i].val.d.n;
++        } else if (!strcmp(inppblk.descr[i].name, "allowedsender")) {
++            if (pvals[i].val.d.ar == NULL || pvals[i].val.d.ar->nmemb == 0) {
++                LogError(0, RS_RET_INVALID_PARAMS, "imudp: allowedSender array must not be empty");
++                ABORT_FINALIZE(RS_RET_INVALID_PARAMS);
++            }
++            inst->bAllowedSendersSet = 1;
++            for (int j = 0; j < pvals[i].val.d.ar->nmemb; ++j) {
++                uchar *sender = (uchar *)es_str2cstr(pvals[i].val.d.ar->arr[j], NULL);
++                CHKmalloc(sender);
++                const rsRetVal entryRet =
++                    net.addAllowedSenderEntry(&inst->pAllowedSendersRoot, &inst->pAllowedSendersLast, sender);
++                free(sender);
++                CHKiRet(entryRet);
++            }
+         } else {
+             dbgprintf(
+                 "imudp: program error, non-handled "
+@@ -1163,6 +1212,9 @@ BEGINbeginCnfLoad
+     loadModConf->iSchedPrio = SCHED_PRIO_UNSET;
+     loadModConf->pszSchedPolicy = NULL;
+     loadModConf->bPreserveCase = 0; /* off */
++    loadModConf->pAllowedSendersRoot = NULL;
++    loadModConf->pAllowedSendersLast = NULL;
++    loadModConf->bAllowedSendersSet = 0;
+     bLegacyCnfModGlobalsPermitted = 1;
+     /* init legacy config vars */
+     cs.pszBindRuleset = NULL;
+@@ -1215,6 +1267,20 @@ BEGINsetModCnf
+             }
+         } else if (!strcmp(modpblk.descr[i].name, "preservecase")) {
+             loadModConf->bPreserveCase = (int)pvals[i].val.d.n;
++        } else if (!strcmp(modpblk.descr[i].name, "allowedsender")) {
++            if (pvals[i].val.d.ar == NULL || pvals[i].val.d.ar->nmemb == 0) {
++                LogError(0, RS_RET_INVALID_PARAMS, "imudp: allowedSender array must not be empty");
++                ABORT_FINALIZE(RS_RET_INVALID_PARAMS);
++            }
++            loadModConf->bAllowedSendersSet = 1;
++            for (int j = 0; j < pvals[i].val.d.ar->nmemb; ++j) {
++                uchar *sender = (uchar *)es_str2cstr(pvals[i].val.d.ar->arr[j], NULL);
++                CHKmalloc(sender);
++                const rsRetVal entryRet = net.addAllowedSenderEntry(&loadModConf->pAllowedSendersRoot,
++                                                                    &loadModConf->pAllowedSendersLast, sender);
++                free(sender);
++                CHKiRet(entryRet);
++            }
+         } else {
+             dbgprintf(
+                 "imudp: program error, non-handled "
+@@ -1325,10 +1391,16 @@ BEGINfreeCnf
+         free(inst->inputname);
+         free(inst->dfltTZ);
+         free(inst->pszRatelimitName);
++        if (inst->pAllowedSendersRoot != NULL) {
++            net.DestructAllowedSenders(&inst->pAllowedSendersRoot);
++        }
+         del = inst;
+         inst = inst->next;
+         free(del);
+     }
++    if (pModConf->pAllowedSendersRoot != NULL) {
++        net.DestructAllowedSenders(&pModConf->pAllowedSendersRoot);
++    }
+ ENDfreeCnf
+ 
+ 
+@@ -1420,9 +1492,16 @@ ENDrunInput
+ 
+ /* initialize and return if will run or not */
+ BEGINwillRun
++    instanceConf_t *inst;
+     CODESTARTwillRun;
+     net.PrintAllowedSenders(1); /* UDP */
+     net.HasRestrictions(UCHAR_CONSTANT("UDP"), &bDoACLCheck); /* UDP */
++    if (!bDoACLCheck) {
++        bDoACLCheck = runModConf->bAllowedSendersSet;
++        for (inst = runModConf->root; !bDoACLCheck && inst != NULL; inst = inst->next) {
++            bDoACLCheck = inst->bAllowedSendersSet;
++        }
++    }
+ ENDwillRun
+ 
+ 
+diff --git a/runtime/net.c b/runtime/net.c
+index a7665020c6f8ea3d5424861dbc054c37c9358be5..011152bd68d74206ccc4d475cb555400f46a552e 100644
+--- a/runtime/net.c
++++ b/runtime/net.c
+@@ -570,6 +570,27 @@ static void clearAllowedSenders(uchar *pszType) {
+ }
+ 
+ 
++static void DestructAllowedSenders(struct AllowedSenders **ppRoot) {
++    struct AllowedSenders *pPrev;
++    struct AllowedSenders *pCurr;
++
++    assert(ppRoot != NULL);
++
++    pCurr = *ppRoot;
++    while (pCurr != NULL) {
++        pPrev = pCurr;
++        pCurr = pCurr->pNext;
++        if (F_ISSET(pPrev->allowedSender.flags, ADDR_NAME))
++            free(pPrev->allowedSender.addr.HostWildcard);
++        else
++            free(pPrev->allowedSender.addr.NetAddr);
++        free(pPrev);
++    }
++
++    *ppRoot = NULL;
++}
++
++
+ /* function to add an allowed sender to the allowed sender list. The
+  * root of the list is caller-provided, so it can be used for all
+  * supported lists. The caller must provide a pointer to the root,
+@@ -879,6 +900,37 @@ static rsRetVal addAllowedSenderLine(char *pName, uchar **ppRestOfConfLine) {
+ }
+ 
+ 
++static rsRetVal addAllowedSenderEntry(struct AllowedSenders **ppRoot,
++                                      struct AllowedSenders **ppLast,
++                                      uchar *pszAllowedSender) {
++    rsParsObj *pPars = NULL;
++    struct NetAddr *uIP = NULL;
++    int iBits;
++    DEFiRet;
++
++    assert(ppRoot != NULL);
++    assert(ppLast != NULL);
++    assert(pszAllowedSender != NULL);
++
++    CHKiRet(rsParsConstructFromSz(&pPars, pszAllowedSender));
++    CHKiRet(parsAddrWithBits(pPars, &uIP, &iBits));
++    if (!parsIsAtEndOfParseString(pPars)) {
++        LogError(0, RS_RET_INVALID_PARAMS, "Invalid extra data after allowedSender entry '%s'", pszAllowedSender);
++        ABORT_FINALIZE(RS_RET_INVALID_PARAMS);
++    }
++    CHKiRet(AddAllowedSender(ppRoot, ppLast, uIP, iBits));
++
++finalize_it:
++    if (uIP != NULL) {
++        free(uIP); /* copy stored in AllowedSenders list */
++    }
++    if (pPars != NULL) {
++        rsParsDestruct(pPars);
++    }
++    RETiRet;
++}
++
++
+ /* compares a host to an allowed sender list entry. Handles all subleties
+  * including IPv4/v6 as well as domain name wildcards.
+  * This is a helper to isAllowedSender.
+@@ -962,17 +1014,16 @@ static int MaskCmp(struct NetAddr *pAllow, uint8_t bits, struct sockaddr *pFrom,
+  * (2 was added rgerhards, 2009-11-16).
+  * rgerhards, 2005-09-26
+  */
+-static int isAllowedSender2(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS) {
++static int isAllowedSenderList(struct AllowedSenders *pAllowRoot,
++                               struct sockaddr *pFrom,
++                               const char *pszFromHost,
++                               int bChkDNS) {
+     struct AllowedSenders *pAllow;
+-    struct AllowedSenders *pAllowRoot = NULL;
+     int bNeededDNS = 0; /* partial check because we could not resolve DNS? */
+     int ret;
+ 
+     assert(pFrom != NULL);
+ 
+-    if (setAllowRoot(&pAllowRoot, pszType) != RS_RET_OK)
+-        return 0; /* if something went wrong, we deny access - that's the better choice... */
+-
+     if (pAllowRoot == NULL) return 1; /* checking disabled, everything is valid! */
+ 
+     /* now we loop through the list of allowed senders. As soon as
+@@ -992,6 +1043,18 @@ static int isAllowedSender2(uchar *pszType, struct sockaddr *pFrom, const char *
+ }
+ 
+ 
++static int isAllowedSender2(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS) {
++    struct AllowedSenders *pAllowRoot = NULL;
++
++    assert(pFrom != NULL);
++
++    if (setAllowRoot(&pAllowRoot, pszType) != RS_RET_OK)
++        return 0; /* if something went wrong, we deny access - that's the better choice... */
++
++    return isAllowedSenderList(pAllowRoot, pFrom, pszFromHost, bChkDNS);
++}
++
++
+ /* legacy API, not to be used any longer */
+ static int isAllowedSender(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost) {
+     return isAllowedSender2(pszType, pFrom, pszFromHost, 1);
+@@ -1610,6 +1673,8 @@ BEGINobjQueryInterface(net)
+     pIf->cvthname = cvthname;
+     /* things to go away after proper modularization */
+     pIf->addAllowedSenderLine = addAllowedSenderLine;
++    pIf->addAllowedSenderEntry = addAllowedSenderEntry;
++    pIf->DestructAllowedSenders = DestructAllowedSenders;
+     pIf->PrintAllowedSenders = PrintAllowedSenders;
+     pIf->clearAllowedSenders = clearAllowedSenders;
+     pIf->debugListenInfo = debugListenInfo;
+@@ -1624,6 +1689,7 @@ BEGINobjQueryInterface(net)
+     pIf->PermittedPeerWildcardMatch = PermittedPeerWildcardMatch;
+     pIf->CmpHost = CmpHost;
+     pIf->HasRestrictions = HasRestrictions;
++    pIf->isAllowedSenderList = isAllowedSenderList;
+     pIf->GetIFIPAddr = getIFIPAddr;
+ 
+     pIf->netns_save = netns_save;
+diff --git a/runtime/net.h b/runtime/net.h
+index c60416f432f237e1f8f98d924dd3c8ec4be75346..8b221dbbfb9308e0ffe09f32f1ff86bb4c509098 100644
+--- a/runtime/net.h
++++ b/runtime/net.h
+@@ -148,6 +148,9 @@ BEGINinterface(net) /* name must also be changed in ENDinterface macro! */
+     rsRetVal (*cvthname)(struct sockaddr_storage *f, prop_t **localName, prop_t **fqdn, prop_t **ip);
+     /* things to go away after proper modularization */
+     rsRetVal (*addAllowedSenderLine)(char *pName, uchar **ppRestOfConfLine);
++    rsRetVal (*addAllowedSenderEntry)(struct AllowedSenders **ppRoot, struct AllowedSenders **ppLast,
++                                      uchar *pszAllowedSender);
++    void (*DestructAllowedSenders)(struct AllowedSenders **ppRoot);
+     void (*PrintAllowedSenders)(int iListToPrint);
+     void (*clearAllowedSenders)(uchar *);
+     void (*debugListenInfo)(int fd, char *type);
+@@ -165,6 +168,8 @@ BEGINinterface(net) /* name must also be changed in ENDinterface macro! */
+     int (*CmpHost)(struct sockaddr_storage *, struct sockaddr_storage *, size_t);
+     /* v6 interface additions - 2009-11-16 */
+     rsRetVal (*HasRestrictions)(uchar *, int *bHasRestrictions);
++    int (*isAllowedSenderList)(struct AllowedSenders *pAllowRoot, struct sockaddr *pFrom, const char *pszFromHost,
++                               int bChkDNS);
+     int (*isAllowedSender2)(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS);
+     /* v7 interface additions - 2012-03-06 */
+     rsRetVal (*GetIFIPAddr)(uchar *szif, int family, uchar *pszbuf, int lenBuf);
+@@ -229,7 +234,7 @@ BEGINinterface(net) /* name must also be changed in ENDinterface macro! */
+      */
+     rsRetVal (*netns_restore)(int *fd);
+ ENDinterface(net)
+-#define netCURR_IF_VERSION 11 /* increment whenever you change the interface structure! */
++#define netCURR_IF_VERSION 12 /* increment whenever you change the interface structure! */
+ 
+ /* prototypes */
+ PROTOTYPEObj(net);
+diff --git a/runtime/tcpsrv.h b/runtime/tcpsrv.h
+index 5382621c063119caab36f0d9ebceb96625518972..938345642c843e7eab28b00e623138d9abf432f7 100644
+--- a/runtime/tcpsrv.h
++++ b/runtime/tcpsrv.h
+@@ -64,6 +64,8 @@ struct tcpLstnParams_s {
+     sbool bMultiLine; /**< support multi-line messages */
+     uchar *pszStartRegex; /**< regex that indicates start of frame */
+     uchar *pszRatelimitName; /**< name of rate limit configuration */
++    struct AllowedSenders *pAllowedSenderRoot; /**< source-address ACL list */
++    sbool bUseLegacyAllowedSender; /**< if true, use protocol-global legacy ACLs */
+ };
+ 
+ /* list of tcp listen ports */
+diff --git a/tests/Makefile.am b/tests/Makefile.am
+index 7add575994e1542b57fdf020b3f19a6bc0799258..9b673ede0c2ea5a77575052b082df997a8275a46 100644
+--- a/tests/Makefile.am
++++ b/tests/Makefile.am
+@@ -258,6 +258,8 @@ TESTS_DEFAULT = \
+ 	allowed-sender-tcp-ok.sh \
+ 	allowed-sender-tcp-fail.sh \
+ 	allowed-sender-tcp-zero-mask.sh \
++	allowed-sender-modern.sh \
++	allowed-sender-empty-array.sh \
+ 	allowed-sender-tcp-hostname-ok.sh \
+ 	allowed-sender-tcp-hostname-fail.sh \
+ 	allowed-sender-wildcard-invalid-bits.sh \
+@@ -670,6 +672,7 @@ TESTS_LIBYAML = \
+ 	yaml-template-list.sh \
+ 	$(TESTS_TEMPLATE_REGEX_BOUNDS_LIBYAML) \
+ 	yaml-template-subtree.sh \
++	yaml-allowed-sender-modern.sh \
+ 	yaml-statements-reload-lookup.sh \
+ 	yaml-lookup-table-duplicate.sh \
+ 	yaml-action-duplicate-name.sh
+@@ -692,6 +695,8 @@ TESTS_IMTCP = \
+ 	allowed-sender-tcp-ok.sh \
+ 	allowed-sender-tcp-fail.sh \
+ 	allowed-sender-tcp-zero-mask.sh \
++	allowed-sender-modern.sh \
++	allowed-sender-empty-array.sh \
+ 	allowed-sender-tcp-hostname-ok.sh \
+ 	allowed-sender-tcp-hostname-fail.sh \
+ 	allowed-sender-wildcard-invalid-bits.sh \
+@@ -771,6 +776,7 @@ TESTS_IMTCP_YAML = \
+ 	yaml-imtcp-ruleset-no-queue-warning.sh \
+ 	yaml-imtcp-stream-always-zlib-basic.sh \
+ 	yaml-imtcp-spacelf-escape.sh \
++	yaml-allowed-sender-modern.sh \
+ 	imtcp-persource-ratelimit.sh \
+ 	ratelimit-legacy-persource-discard.sh \
+ 	ratelimit-persource-repeat-summary.sh \
+@@ -1999,7 +2005,9 @@ fromhost-port-async-ruleset.log: fromhost-port-tuple.log
+ allowed-sender-tcp-ok.log: fromhost-port-async-ruleset.log
+ allowed-sender-tcp-fail.log: allowed-sender-tcp-ok.log
+ allowed-sender-tcp-zero-mask.log: allowed-sender-tcp-fail.log
+-allowed-sender-tcp-hostname-ok.log: allowed-sender-tcp-zero-mask.log
++allowed-sender-modern.log: allowed-sender-tcp-zero-mask.log
++allowed-sender-empty-array.log: allowed-sender-modern.log
++allowed-sender-tcp-hostname-ok.log: allowed-sender-empty-array.log
+ allowed-sender-tcp-hostname-fail.log: allowed-sender-tcp-hostname-ok.log
+ imtcp-discard-truncated-msg.log: allowed-sender-tcp-hostname-fail.log
+ imtcp-basic.log: imtcp-discard-truncated-msg.log
+diff --git a/tests/allowed-sender-empty-array.sh b/tests/allowed-sender-empty-array.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..773bd16b89241be9a5f9aa5c2fcc5edd2c779c09
+--- /dev/null
++++ b/tests/allowed-sender-empty-array.sh
+@@ -0,0 +1,58 @@
++#!/bin/bash
++# Verify that modern YAML allowedSender arrays cannot be empty. An empty ACL is
++# a security-sensitive typo: treating it as a configured-but-NULL list would
++# allow every sender. RainerScript rejects literal [] as syntax before module
++# parsing, so this test covers the YAML-visible module/input scopes.
++# This file is part of the rsyslog project, released under ASL 2.0
++. ${srcdir:=.}/diag.sh init
++require_plugin imtcp
++require_plugin imudp
++
++expect_config_reject() {
++	local test_name="$1"
++	local logfile="${RSYSLOG_DYNNAME}.${test_name}.log"
++
++	export RS_REDIR=">\"$logfile\" 2>&1"
++	if rsyslogd_config_check; then
++		unset RS_REDIR
++		echo "FAIL: config check accepted empty allowedSender array for $test_name"
++		error_exit 1
++	fi
++	unset RS_REDIR
++	content_check "allowedSender array must not be empty" "$logfile"
++}
++
++generate_conf --yaml-only
++add_yaml_conf 'modules:'
++add_yaml_conf '  - load: "../plugins/imtcp/.libs/imtcp"'
++add_yaml_conf '    allowedSender: []'
++expect_config_reject "yaml-imtcp-module"
++
++generate_conf --yaml-only
++add_yaml_conf 'modules:'
++add_yaml_conf '  - load: "../plugins/imtcp/.libs/imtcp"'
++add_yaml_conf 'inputs:'
++add_yaml_conf '  - type: imtcp'
++add_yaml_conf '    port: "0"'
++add_yaml_conf "    listenPortFileName: \"${RSYSLOG_DYNNAME}.tcp_port\""
++add_yaml_conf '    allowedSender: []'
++expect_config_reject "yaml-imtcp-input"
++
++generate_conf --yaml-only
++add_yaml_conf 'modules:'
++add_yaml_conf '  - load: "../plugins/imudp/.libs/imudp"'
++add_yaml_conf '    allowedSender: []'
++expect_config_reject "yaml-imudp-module"
++
++generate_conf --yaml-only
++add_yaml_conf 'modules:'
++add_yaml_conf '  - load: "../plugins/imudp/.libs/imudp"'
++add_yaml_conf 'inputs:'
++add_yaml_conf '  - type: imudp'
++add_yaml_conf '    address: "127.0.0.1"'
++add_yaml_conf '    port: "0"'
++add_yaml_conf "    listenPortFileName: \"${RSYSLOG_DYNNAME}.udp_port\""
++add_yaml_conf '    allowedSender: []'
++expect_config_reject "yaml-imudp-input"
++
++exit_test
+diff --git a/tests/allowed-sender-modern.sh b/tests/allowed-sender-modern.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..63c3601730d5a5e7889973a7a096eac45f016e78
+--- /dev/null
++++ b/tests/allowed-sender-modern.sh
+@@ -0,0 +1,78 @@
++#!/bin/bash
++# Verify modern allowedSender ACLs for imtcp and imudp. Module-level
++# allowedSender values act as defaults, input-level values override them, and
++# /0 masks remain non-allow-all. The oracle is deterministic: allowed inputs
++# must produce the expected file lines, blocked inputs must not create their
++# ruleset output files, and rsyslog must emit the disallowed-sender diagnostics.
++# This file is part of the rsyslog project, released under ASL 2.0
++. ${srcdir:=.}/diag.sh init
++require_plugin imtcp
++require_plugin imudp
++
++export NUMMESSAGES=3
++TCP_ALLOW_LOG="${RSYSLOG_DYNNAME}.tcp-allow.log"
++UDP_ALLOW_LOG="${RSYSLOG_DYNNAME}.udp-allow.log"
++TCP_BLOCK_LOG="${RSYSLOG_DYNNAME}.tcp-block.must-not-exist"
++TCP_ZERO_LOG="${RSYSLOG_DYNNAME}.tcp-zero.must-not-exist"
++UDP_BLOCK_LOG="${RSYSLOG_DYNNAME}.udp-block.must-not-exist"
++
++generate_conf
++add_conf '
++module(load="../plugins/imtcp/.libs/imtcp" allowedSender=["128.66.0.0/16"])
++module(load="../plugins/imudp/.libs/imudp" allowedSender=["128.66.0.0/16"])
++
++input(type="imtcp" port="0" listenPortFileName="'$RSYSLOG_DYNNAME'.tcp_block_port" ruleset="tcp_block")
++input(type="imtcp" port="0" listenPortFileName="'$RSYSLOG_DYNNAME'.tcp_allow_port"
++      allowedSender=["127.0.0.1/16","[::1]"] ruleset="tcp_allow")
++input(type="imtcp" port="0" listenPortFileName="'$RSYSLOG_DYNNAME'.tcp_zero_port"
++      allowedSender=["128.66.0.0/0"] ruleset="tcp_zero")
++input(type="imudp" address="127.0.0.1" port="0" listenPortFileName="'$RSYSLOG_DYNNAME'.udp_block_port"
++      ruleset="udp_block")
++input(type="imudp" address="127.0.0.1" port="0" listenPortFileName="'$RSYSLOG_DYNNAME'.udp_allow_port"
++      allowedSender=["127.0.0.1/16"] ruleset="udp_allow")
++
++template(name="outfmt" type="string" string="%msg:F,58:2%\n")
++ruleset(name="tcp_block") {
++	action(type="omfile" template="outfmt" file="'$TCP_BLOCK_LOG'")
++}
++ruleset(name="tcp_allow") {
++	action(type="omfile" template="outfmt" file="'$TCP_ALLOW_LOG'")
++}
++ruleset(name="tcp_zero") {
++	action(type="omfile" template="outfmt" file="'$TCP_ZERO_LOG'")
++}
++ruleset(name="udp_block") {
++	action(type="omfile" template="outfmt" file="'$UDP_BLOCK_LOG'")
++}
++ruleset(name="udp_allow") {
++	action(type="omfile" template="outfmt" file="'$UDP_ALLOW_LOG'")
++}
++
++action(type="omfile" file="'$RSYSLOG_OUT_LOG'")
++'
++startup
++
++assign_file_content TCP_BLOCK_PORT "${RSYSLOG_DYNNAME}.tcp_block_port"
++assign_file_content TCP_ALLOW_PORT "${RSYSLOG_DYNNAME}.tcp_allow_port"
++assign_file_content TCP_ZERO_PORT "${RSYSLOG_DYNNAME}.tcp_zero_port"
++assign_file_content UDP_BLOCK_PORT "${RSYSLOG_DYNNAME}.udp_block_port"
++assign_file_content UDP_ALLOW_PORT "${RSYSLOG_DYNNAME}.udp_allow_port"
++
++tcpflood --check-only -p"$TCP_BLOCK_PORT" -m1 -M "msgnum:tcp-block"
++tcpflood -p"$TCP_ALLOW_PORT" -m"$NUMMESSAGES" -M "msgnum:tcp-allow"
++tcpflood --check-only -p"$TCP_ZERO_PORT" -m1 -M "msgnum:tcp-zero"
++tcpflood -Tudp -p"$UDP_BLOCK_PORT" -m1 -M "msgnum:udp-block"
++tcpflood -Tudp -p"$UDP_ALLOW_PORT" -m"$NUMMESSAGES" -M "msgnum:udp-allow"
++
++wait_file_lines "$TCP_ALLOW_LOG" "$NUMMESSAGES" 100
++wait_file_lines "$UDP_ALLOW_LOG" "$NUMMESSAGES" 100
++shutdown_when_empty
++wait_shutdown
++
++content_check "You can not specify 0 bits of the netmask"
++content_check --regex "connection request from disallowed sender .* discarded"
++content_check "imudp: UDP message from disallowed sender discarded"
++check_file_not_exists "$TCP_BLOCK_LOG"
++check_file_not_exists "$TCP_ZERO_LOG"
++check_file_not_exists "$UDP_BLOCK_LOG"
++exit_test
+diff --git a/tests/yaml-allowed-sender-modern.sh b/tests/yaml-allowed-sender-modern.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..fb1848919460530cc99f916f791cbf0fb32f840b
+--- /dev/null
++++ b/tests/yaml-allowed-sender-modern.sh
+@@ -0,0 +1,87 @@
++#!/bin/bash
++# Verify YAML parsing for modern imtcp/imudp allowedSender parameters. The
++# module default denies localhost while input-level overrides allow it; blocked
++# inputs prove the module default is active. Allowed paths synchronize on exact
++# output line counts, and blocked paths are checked by absent output files.
++# This file is part of the rsyslog project, released under ASL 2.0
++. ${srcdir:=.}/diag.sh init
++require_plugin imtcp
++require_plugin imudp
++
++export NUMMESSAGES=3
++TCP_ALLOW_LOG="${RSYSLOG_DYNNAME}.yaml-tcp-allow.log"
++UDP_ALLOW_LOG="${RSYSLOG_DYNNAME}.yaml-udp-allow.log"
++TCP_BLOCK_LOG="${RSYSLOG_DYNNAME}.yaml-tcp-block.must-not-exist"
++UDP_BLOCK_LOG="${RSYSLOG_DYNNAME}.yaml-udp-block.must-not-exist"
++
++generate_conf --yaml-only
++add_yaml_conf 'modules:'
++add_yaml_conf '  - load: "../plugins/imtcp/.libs/imtcp"'
++add_yaml_conf '    allowedSender: ["128.66.0.0/16"]'
++add_yaml_conf '  - load: "../plugins/imudp/.libs/imudp"'
++add_yaml_conf '    allowedSender: ["128.66.0.0/16"]'
++add_yaml_conf ''
++add_yaml_conf 'inputs:'
++add_yaml_conf '  - type: imtcp'
++add_yaml_conf '    port: "0"'
++add_yaml_conf "    listenPortFileName: \"${RSYSLOG_DYNNAME}.yaml_tcp_block_port\""
++add_yaml_conf '    ruleset: tcp_block'
++add_yaml_conf '  - type: imtcp'
++add_yaml_conf '    port: "0"'
++add_yaml_conf "    listenPortFileName: \"${RSYSLOG_DYNNAME}.yaml_tcp_allow_port\""
++add_yaml_conf '    allowedSender: ["127.0.0.1/16", "[::1]"]'
++add_yaml_conf '    ruleset: tcp_allow'
++add_yaml_conf '  - type: imudp'
++add_yaml_conf '    address: "127.0.0.1"'
++add_yaml_conf '    port: "0"'
++add_yaml_conf "    listenPortFileName: \"${RSYSLOG_DYNNAME}.yaml_udp_block_port\""
++add_yaml_conf '    ruleset: udp_block'
++add_yaml_conf '  - type: imudp'
++add_yaml_conf '    address: "127.0.0.1"'
++add_yaml_conf '    port: "0"'
++add_yaml_conf "    listenPortFileName: \"${RSYSLOG_DYNNAME}.yaml_udp_allow_port\""
++add_yaml_conf '    allowedSender: ["127.0.0.1/16"]'
++add_yaml_conf '    ruleset: udp_allow'
++add_yaml_conf ''
++add_yaml_conf 'templates:'
++add_yaml_conf '  - name: outfmt'
++add_yaml_conf '    type: string'
++add_yaml_conf '    string: "%msg:F,58:2%\n"'
++add_yaml_conf ''
++add_yaml_conf 'rulesets:'
++add_yaml_conf '  - name: tcp_block'
++add_yaml_conf '    script: |'
++add_yaml_conf "      action(type=\"omfile\" template=\"outfmt\" file=\"${TCP_BLOCK_LOG}\")"
++add_yaml_conf '  - name: tcp_allow'
++add_yaml_conf '    script: |'
++add_yaml_conf "      action(type=\"omfile\" template=\"outfmt\" file=\"${TCP_ALLOW_LOG}\")"
++add_yaml_conf '  - name: udp_block'
++add_yaml_conf '    script: |'
++add_yaml_conf "      action(type=\"omfile\" template=\"outfmt\" file=\"${UDP_BLOCK_LOG}\")"
++add_yaml_conf '  - name: udp_allow'
++add_yaml_conf '    script: |'
++add_yaml_conf "      action(type=\"omfile\" template=\"outfmt\" file=\"${UDP_ALLOW_LOG}\")"
++add_yaml_conf '  - name: main'
++add_yaml_conf '    script: |'
++add_yaml_conf "      action(type=\"omfile\" file=\"${RSYSLOG_OUT_LOG}\")"
++
++startup
++
++assign_file_content TCP_BLOCK_PORT "${RSYSLOG_DYNNAME}.yaml_tcp_block_port"
++assign_file_content TCP_ALLOW_PORT "${RSYSLOG_DYNNAME}.yaml_tcp_allow_port"
++assign_file_content UDP_BLOCK_PORT "${RSYSLOG_DYNNAME}.yaml_udp_block_port"
++assign_file_content UDP_ALLOW_PORT "${RSYSLOG_DYNNAME}.yaml_udp_allow_port"
++
++tcpflood --check-only -p"$TCP_BLOCK_PORT" -m1 -M "msgnum:yaml-tcp-block"
++tcpflood -p"$TCP_ALLOW_PORT" -m"$NUMMESSAGES" -M "msgnum:yaml-tcp-allow"
++tcpflood -Tudp -p"$UDP_BLOCK_PORT" -m1 -M "msgnum:yaml-udp-block"
++tcpflood -Tudp -p"$UDP_ALLOW_PORT" -m"$NUMMESSAGES" -M "msgnum:yaml-udp-allow"
++
++wait_file_lines "$TCP_ALLOW_LOG" "$NUMMESSAGES" 100
++wait_file_lines "$UDP_ALLOW_LOG" "$NUMMESSAGES" 100
++shutdown_when_empty
++wait_shutdown
++
++check_file_not_exists "$TCP_BLOCK_LOG"
++check_file_not_exists "$UDP_BLOCK_LOG"
++exit_test

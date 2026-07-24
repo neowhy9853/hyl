@@ -1,0 +1,33 @@
+From 63b564fc8728036f165805407f7d2b4e8bfd3ef0 Mon Sep 17 00:00:00 2001
+From: Serhiy Storchaka <storchaka@gmail.com>
+Date: Tue, 21 Jul 2026 01:10:11 +0300
+Subject: [PATCH] gh-154303: Skip test_sqlite3 CLI completion tests on OpenBSD
+ (GH-154304)
+
+OpenBSD's readline does not honor "completion-query-items 0", so completing
+many candidates blocks on a "Display all N?" prompt that hangs the
+pseudo-terminal opened by run_pty().  Skip the whole Completion class on
+OpenBSD, like the existing libedit skip.
+
+Co-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+---
+ Lib/test/test_sqlite3/test_cli.py | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/Lib/test/test_sqlite3/test_cli.py b/Lib/test/test_sqlite3/test_cli.py
+index 29819cc19d343bc33174b6245b680a2fb3b04e9f..0d235d90f1101b47d3f24da78d9da5e40b6e1d20 100644
+--- a/Lib/test/test_sqlite3/test_cli.py
++++ b/Lib/test/test_sqlite3/test_cli.py
+@@ -223,6 +223,9 @@ def setUpClass(cls):
+         readline = import_module("readline")
+         if readline.backend == "editline":
+             raise unittest.SkipTest("libedit readline is not supported")
++        if sys.platform.startswith("openbsd"):
++            # OpenBSD's readline does not honor "completion-query-items 0".
++            raise unittest.SkipTest("OpenBSD readline hangs on completion")
+ 
+     def write_input(self, input_, env=None):
+         script = textwrap.dedent("""
+-- 
+2.34.1
+

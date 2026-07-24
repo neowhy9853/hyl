@@ -1,0 +1,602 @@
+From 0d71da4bdfff4c18abcea77ffa76227f70be0f73 Mon Sep 17 00:00:00 2001
+From: Yann Ylavic <ylavic@apache.org>
+Date: Tue, 11 Jun 2024 14:46:29 +0000
+Subject: [PATCH] mpm_event,mod_http2: Keep compatibility with
+ CONN_STATE_PROCESSING + OK
+
+Before r1918022, returning OK with CONN_STATE_PROCESSING to mpm_event was
+handled like/by CONN_STATE_LINGER "to not break old or third-party modules
+which might return OK w/o touching the state and expect lingering close,
+like with worker or prefork MPMs".
+
+So we need a new return code to be allowed to apply the new POLLIN/POLLOUT
+behaviour for CONN_STATE_PROCESSING, thus revive AGAIN as introduced by
+Graham some times ago for a nonblocking WIP (moved to a branch/PR since then).
+
+MPM event will advertise its ability to handle CONN_STATE_PROCESSING + AGAIN
+with AP_MPMQ_CAN_AGAIN, and mod_http2 can use that to know how to return to
+the MPM as expected. When !AP_MPMQ_CAN_AGAIN modules/mod_http2 can still use
+CONN_STATE_WRITE_COMPLETION + CONN_SENSE_WANT_READ + c->clogging_input_filters
+which will work in mpm_even-2.4.x still.
+
+* include/ap_mmn.h:
+  Bump MMN minor for AP_MPMQ_CAN_AGAIN and AGAIN.
+
+* include/ap_mpm.h:
+  Define AP_MPMQ_CAN_AGAIN.
+
+* include/httpd.h:
+  Define AGAIN.
+
+* modules/http2/h2.h:
+  No need for H2_USE_STATE_PROCESSING anymore with AP_MPMQ_CAN_AGAIN.
+
+* modules/http2/h2_c1.c:
+  For !keepalive case return to the MPM using CONN_STATE_PROCESSING + AGAIN
+  or CONN_STATE_WRITE_COMPLETION + c->clogging_input_filters depending on
+  AP_MPMQ_CAN_AGAIN only.
+
+* modules/http2/h2_session.c:
+  Can return to the MPM for h2_send_flow_blocked() provided it's async only.
+
+* server/mpm/event/event.c:
+  Rework process_socket()'s CONN_STATE_PROCESSING to handle AGAIN and preserve
+  compatibility. Have a lingering_close label to goto there faster when
+  process_lingering_close() is to be called. Improve relevant comments.
+
+
+
+git-svn-id: https://svn.apache.org/repos/asf/httpd/httpd/trunk@1918257 13f79535-47bb-0310-9956-ffa450edef68
+---
+ include/ap_mmn.h           |   3 +-
+ include/ap_mpm.h           |   2 +
+ include/httpd.h            |  24 +++--
+ modules/http2/h2.h         |   6 --
+ modules/http2/h2_c1.c      |  60 ++++++++-----
+ modules/http2/h2_session.c |  10 +--
+ server/mpm/event/event.c   | 178 +++++++++++++++++++++----------------
+ 7 files changed, 164 insertions(+), 119 deletions(-)
+
+diff --git a/include/ap_mmn.h b/include/ap_mmn.h
+index 34abf61654..fcf98e8908 100644
+--- a/include/ap_mmn.h
++++ b/include/ap_mmn.h
+@@ -725,6 +725,7 @@
+  * 20211221.19 (2.5.1-dev) Add AP_REG_NOTEMPTY_ATSTART
+  * 20211221.20 (2.5.1-dev) Add CONN_STATE_KEEPALIVE and CONN_STATE_PROCESSING
+  * 20211221.21 (2.5.1-dev) Add processing field struct process_score
++ * 20211221.22 (2.5.1-dev) Add AGAIN, AP_MPMQ_CAN_AGAIN.
+  */
+ 
+ #define MODULE_MAGIC_COOKIE 0x41503235UL /* "AP25" */
+@@ -732,7 +733,7 @@
+ #ifndef MODULE_MAGIC_NUMBER_MAJOR
+ #define MODULE_MAGIC_NUMBER_MAJOR 20211221
+ #endif
+-#define MODULE_MAGIC_NUMBER_MINOR 21             /* 0...n */
++#define MODULE_MAGIC_NUMBER_MINOR 22             /* 0...n */
+ 
+ /**
+  * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+diff --git a/include/ap_mpm.h b/include/ap_mpm.h
+index 6698d0e7c6..82075a4488 100644
+--- a/include/ap_mpm.h
++++ b/include/ap_mpm.h
+@@ -182,6 +182,8 @@ AP_DECLARE(apr_status_t) ap_os_create_privileged_process(
+ #define AP_MPMQ_CAN_SUSPEND          17
+ /** MPM supports additional pollfds */
+ #define AP_MPMQ_CAN_POLL             18
++/** MPM reacts to AGAIN response */
++#define AP_MPMQ_CAN_AGAIN            19
+ /** @} */
+ 
+ /**
+diff --git a/include/httpd.h b/include/httpd.h
+index f2e3795f5a..588e092c48 100644
+--- a/include/httpd.h
++++ b/include/httpd.h
+@@ -458,13 +458,16 @@ AP_DECLARE(const char *) ap_get_server_built(void);
+ 
+ /* non-HTTP status codes returned by hooks */
+ 
+-#define OK 0                    /**< Module has handled this stage. */
+-#define DECLINED -1             /**< Module declines to handle */
+-#define DONE -2                 /**< Module has served the response completely
+-                                 *  - it's safe to die() with no more output
+-                                 */
+-#define SUSPENDED -3 /**< Module will handle the remainder of the request.
+-                      * The core will never invoke the request again, */
++#define OK           0  /**< Module has handled this stage. */
++#define DECLINED    -1  /**< Module declines to handle */
++#define DONE        -2  /**< Module has served the response completely
++                         *   - it's safe to die() with no more output
++                         */
++#define SUSPENDED   -3  /**< Module will handle the remainder of the request.
++                         *   The core will never invoke the request again */
++#define AGAIN       -4  /**< Module wants to be called again when more
++                         *   data is available.
++                         */
+ 
+ /** Returned by the bottom-most filter if no data was written.
+  *  @see ap_pass_brigade(). */
+@@ -1319,8 +1322,11 @@ struct conn_slave_rec {
+  */
+ typedef enum  {
+     CONN_STATE_KEEPALIVE,           /* Kept alive in the MPM (using KeepAliveTimeout) */
+-    CONN_STATE_PROCESSING,          /* Handled by process_connection() hooks, may be returned
+-                                       to the MPM for POLLIN/POLLOUT (using Timeout) */
++    CONN_STATE_PROCESSING,          /* Processed by process_connection() hooks, returning
++                                     * AGAIN to the MPM in this state will make it wait for
++                                     * the connection to be readable or writable according to
++                                     * CONN_SENSE_WANT_READ or CONN_SENSE_WANT_WRITE respectively,
++                                     * where Timeout applies */
+     CONN_STATE_HANDLER,             /* Processed by the modules handlers */
+     CONN_STATE_WRITE_COMPLETION,    /* Flushed by the MPM before entering CONN_STATE_KEEPALIVE */
+     CONN_STATE_SUSPENDED,           /* Suspended in the MPM until ap_run_resume_suspended() */
+diff --git a/modules/http2/h2.h b/modules/http2/h2.h
+index 4d4840f4c5..f496a6dcb2 100644
+--- a/modules/http2/h2.h
++++ b/modules/http2/h2.h
+@@ -49,12 +49,6 @@ struct h2_stream;
+ #define H2_USE_WEBSOCKETS       0
+ #endif
+ 
+-#if AP_MODULE_MAGIC_AT_LEAST(20211221, 20)
+-#define H2_USE_STATE_PROCESSING 1
+-#else
+-#define H2_USE_STATE_PROCESSING 0
+-#endif
+-
+ /**
+  * The magic PRIamble of RFC 7540 that is always sent when starting
+  * a h2 communication.
+diff --git a/modules/http2/h2_c1.c b/modules/http2/h2_c1.c
+index 90017c1a52..3f2566d3e0 100644
+--- a/modules/http2/h2_c1.c
++++ b/modules/http2/h2_c1.c
+@@ -47,23 +47,25 @@
+ 
+ static struct h2_workers *workers;
+ 
+-static int async_mpm;
++static int async_mpm, mpm_can_again;
+ 
+ APR_OPTIONAL_FN_TYPE(ap_logio_add_bytes_in) *h2_c_logio_add_bytes_in;
+ APR_OPTIONAL_FN_TYPE(ap_logio_add_bytes_out) *h2_c_logio_add_bytes_out;
+ 
+ apr_status_t h2_c1_child_init(apr_pool_t *pool, server_rec *s)
+ {
+-    apr_status_t status = APR_SUCCESS;
+     int minw, maxw;
+     apr_time_t idle_limit;
+ 
+-    status = ap_mpm_query(AP_MPMQ_IS_ASYNC, &async_mpm);
+-    if (status != APR_SUCCESS) {
++    if (ap_mpm_query(AP_MPMQ_IS_ASYNC, &async_mpm)) {
+         /* some MPMs do not implemnent this */
+         async_mpm = 0;
+-        status = APR_SUCCESS;
+     }
++#ifdef AP_MPMQ_CAN_AGAIN
++    if (!async_mpm || ap_mpm_query(AP_MPMQ_CAN_AGAIN, &mpm_can_again)) {
++        mpm_can_again = 0;
++    }
++#endif
+ 
+     h2_config_init(pool);
+ 
+@@ -113,23 +115,23 @@ cleanup:
+     return rv;
+ }
+ 
+-apr_status_t h2_c1_run(conn_rec *c)
++int h2_c1_run(conn_rec *c)
+ {
++    int rc = OK;
+     apr_status_t status;
+     int mpm_state = 0, keepalive = 0;
+     h2_conn_ctx_t *conn_ctx = h2_conn_ctx_get(c);
+     
+     ap_assert(conn_ctx);
+     ap_assert(conn_ctx->session);
++    c->clogging_input_filters = 0;
+     do {
+         if (c->cs) {
+-            c->cs->sense = CONN_SENSE_DEFAULT;
+             c->cs->state = CONN_STATE_HANDLER;
+         }
+     
+         status = h2_session_process(conn_ctx->session, async_mpm, &keepalive);
+-        
+-        if (APR_STATUS_IS_EOF(status)) {
++        if (status != APR_SUCCESS) {
+             ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, 
+                           H2_SSSN_LOG(APLOGNO(03045), conn_ctx->session,
+                           "process, closing conn"));
+@@ -153,20 +155,39 @@ apr_status_t h2_c1_run(conn_rec *c)
+             case H2_SESSION_ST_BUSY:
+             case H2_SESSION_ST_WAIT:
+                 if (keepalive) {
+-                    /* flush then keep-alive */
++                    /* Flush then keep-alive */
++                    c->cs->sense = CONN_SENSE_DEFAULT;
+                     c->cs->state = CONN_STATE_WRITE_COMPLETION;
+                 }
+                 else {
+-                    /* let the MPM know that we are not done and want
+-                     * the Timeout behaviour instead of a KeepAliveTimeout
++                    /* Let the MPM know that we are not done and want to wait
++                     * for read using Timeout instead of KeepAliveTimeout.
+                      * See PR 63534. 
+                      */
+-#if H2_USE_STATE_PROCESSING
+-                    c->cs->state = CONN_STATE_PROCESSING;
+-#else
+-                    c->cs->state = CONN_STATE_WRITE_COMPLETION;
+-#endif
+                     c->cs->sense = CONN_SENSE_WANT_READ;
++#ifdef AP_MPMQ_CAN_AGAIN
++                    if (mpm_can_again) {
++                        /* This tells the MPM to wait for the connection to be
++                         * readable (CONN_SENSE_WANT_READ) within the configured
++                         * Timeout and then come back to the process_connection()
++                         * hooks again when ready.
++                         */
++                        c->cs->state = CONN_STATE_PROCESSING;
++                        rc = AGAIN;
++                    }
++                    else
++#endif
++                    {
++                        /* This is a compat workaround to do the same using the
++                         * CONN_STATE_WRITE_COMPLETION state but with both
++                         * CONN_SENSE_WANT_READ to wait for readability rather
++                         * than writing and c->clogging_input_filters to force
++                         * reentering the process_connection() hooks from any
++                         * state when ready. This somehow will use Timeout too.
++                         */
++                        c->cs->state = CONN_STATE_WRITE_COMPLETION;
++                        c->clogging_input_filters = 1;
++                    }
+                 }
+                 break;
+ 
+@@ -178,7 +199,7 @@ apr_status_t h2_c1_run(conn_rec *c)
+         }
+     }
+ 
+-    return APR_SUCCESS;
++    return rc;
+ }
+ 
+ apr_status_t h2_c1_pre_close(struct h2_conn_ctx_t *ctx, conn_rec *c)
+@@ -284,8 +305,7 @@ static int h2_c1_hook_process_connection(conn_rec* c)
+             return !OK;
+         }
+     }
+-    h2_c1_run(c);
+-    return OK;
++    return h2_c1_run(c);
+ 
+ declined:
+     ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "h2_h2, declined");
+diff --git a/modules/http2/h2_session.c b/modules/http2/h2_session.c
+index 4e601d9087..ba248d0cc2 100644
+--- a/modules/http2/h2_session.c
++++ b/modules/http2/h2_session.c
+@@ -1762,7 +1762,6 @@ static void unblock_c1_out(h2_session *session) {
+     }
+ }
+ 
+-#if H2_USE_STATE_PROCESSING
+ static int h2_send_flow_blocked(h2_session *session)
+ {
+     /* We are completely send blocked if either the connection window
+@@ -1770,7 +1769,6 @@ static int h2_send_flow_blocked(h2_session *session)
+     return ((nghttp2_session_get_remote_window_size(session->ngh2) <= 0) ||
+              h2_mplx_c1_all_streams_send_win_exhausted(session->mplx));
+ }
+-#endif
+ 
+ apr_status_t h2_session_process(h2_session *session, int async,
+                                 int *pkeepalive)
+@@ -1954,19 +1952,15 @@ apr_status_t h2_session_process(h2_session *session, int async,
+                     break;
+                 }
+             }
+-#if H2_USE_STATE_PROCESSING
+             else if (async && h2_send_flow_blocked(session)) {
+-                /* On a recent HTTPD, we can return to mpm c1 monitoring,
+-                 * as it does not treat all connections as having KeepAlive
+-                 * timing and being purgeable on load.
+-                 * By returning to the MPM, we do not block a worker
++                /* By returning to the MPM, we do not block a worker
+                  * and async wait for the client send window updates. */
+                 ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c,
+                               H2_SSSN_LOG(APLOGNO(10502), session,
+                               "BLOCKED, return to mpm c1 monitoring"));
+                 goto leaving;
+             }
+-#endif
++
+             /* No IO happening and input is exhausted. Wait with
+              * the c1 connection timeout for sth to happen in our c1/c2 sockets/pipes */
+             ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
+diff --git a/server/mpm/event/event.c b/server/mpm/event/event.c
+index 587712784f..965129d482 100644
+--- a/server/mpm/event/event.c
++++ b/server/mpm/event/event.c
+@@ -734,6 +734,9 @@ static int event_query(int query_code, int *result, apr_status_t *rv)
+     case AP_MPMQ_CAN_POLL:
+         *result = 1;
+         break;
++    case AP_MPMQ_CAN_AGAIN:
++        *result = 1;
++        break;
+     default:
+         *rv = APR_ENOTIMPL;
+         break;
+@@ -1082,6 +1085,8 @@ static void process_socket(apr_thread_t *thd, apr_pool_t * p, apr_socket_t * soc
+         if (rc != OK && rc != DONE) {
+             ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(00469)
+                           "process_socket: connection aborted");
++            close_connection(cs);
++            return;
+         }
+ 
+         /**
+@@ -1099,7 +1104,6 @@ static void process_socket(apr_thread_t *thd, apr_pool_t * p, apr_socket_t * soc
+          */
+         cs->pub.state = CONN_STATE_PROCESSING;
+         cs->pub.sense = CONN_SENSE_DEFAULT;
+-        rc = OK;
+     }
+     else {
+         c = cs->c;
+@@ -1110,76 +1114,88 @@ static void process_socket(apr_thread_t *thd, apr_pool_t * p, apr_socket_t * soc
+         c->id = conn_id;
+     }
+ 
+-    if (c->aborted) {
+-        /* do lingering close below */
+-        cs->pub.state = CONN_STATE_LINGER;
+-    }
+-    else if (cs->pub.state >= CONN_STATE_LINGER) {
+-        /* fall through */
++    if (cs->pub.state >= CONN_STATE_LINGER) {
++        goto lingering_close;
+     }
+-    else {
+-        if (cs->pub.state == CONN_STATE_PROCESSING
+-            /* If we have an input filter which 'clogs' the input stream,
+-             * like mod_ssl used to, lets just do the normal read from input
+-             * filters, like the Worker MPM does. Filters that need to write
+-             * where they would otherwise read, or read where they would
+-             * otherwise write, should set the sense appropriately.
+-             */
+-             || c->clogging_input_filters) {
+-process_connection:
+-            clogging = c->clogging_input_filters;
+-            if (clogging) {
+-                apr_atomic_inc32(&clogged_count);
+-            }
+-            rc = ap_run_process_connection(c);
+-            if (clogging) {
+-                apr_atomic_dec32(&clogged_count);
++
++    if (cs->pub.state == CONN_STATE_PROCESSING
++        /* If we have an input filter which 'clogs' the input stream,
++         * like mod_ssl used to, lets just do the normal read from input
++         * filters, like the Worker MPM does. Filters that need to write
++         * where they would otherwise read, or read where they would
++         * otherwise write, should set the sense appropriately.
++         */
++         || c->clogging_input_filters) {
++ process_connection:
++        cs->pub.state = CONN_STATE_PROCESSING;
++
++        clogging = c->clogging_input_filters;
++        if (clogging) {
++            apr_atomic_inc32(&clogged_count);
++        }
++        rc = ap_run_process_connection(c);
++        if (clogging) {
++            apr_atomic_dec32(&clogged_count);
++        }
++        /*
++         * The process_connection hooks should set the appropriate connection
++         * state upon return, for event MPM to either:
++         * - CONN_STATE_LINGER: do lingering close;
++         * - CONN_STATE_WRITE_COMPLETION: flush pending outputs using Timeout
++         *   and wait for next incoming data using KeepAliveTimeout, then come
++         *   back to process_connection() hooks;
++         * - CONN_STATE_SUSPENDED: suspend the connection such that it now
++         *   interacts with the MPM through suspend/resume_connection() hooks,
++         *   and/or registered poll callbacks (PT_USER), and/or registered
++         *   timed callbacks triggered by timer events;
++         * - CONN_STATE_PROCESSING: wait for read/write-ability of the underlying
++         *   socket using Timeout and come back to process_connection() hooks when
++         *   ready (the return value should be AGAIN in this case to not break old
++         *   or third-party modules which might return OK w/o touching the state and
++         *   expect lingering close, like with worker or prefork MPMs);
++         * - CONN_STATE_KEEPALIVE: now handled by CONN_STATE_WRITE_COMPLETION
++         *   to flush before waiting for next data (that might depend on it).
++         * If a process_connection hook returns an error or no hook sets the state
++         * to one of the above expected value, forcibly close the connection w/
++         * CONN_STATE_LINGER.  This covers the cases where no process_connection
++         * hook executes (DECLINED).
++         */
++        switch (rc) {
++        case DONE:
++            rc = OK; /* same as OK, fall through */
++        case OK:
++            if (cs->pub.state == CONN_STATE_PROCESSING) {
++                cs->pub.state = CONN_STATE_LINGER;
+             }
+-            /* The sense can be set in CONN_STATE_PROCESSING only */
+-            if (cs->pub.state != CONN_STATE_PROCESSING) {
+-                cs->pub.sense = CONN_SENSE_DEFAULT;
++            else if (cs->pub.state == CONN_STATE_KEEPALIVE) {
++                cs->pub.state = CONN_STATE_WRITE_COMPLETION;
+             }
+-            if (rc == DONE) {
++            break;
++        case AGAIN:
++            if (cs->pub.state == CONN_STATE_PROCESSING) {
+                 rc = OK;
+             }
++            break;
+         }
+-        else if (cs->pub.state == CONN_STATE_WRITE_COMPLETION) {
+-            from_wc_q = 1;
++        if (rc != OK || (cs->pub.state != CONN_STATE_LINGER
++                         && cs->pub.state != CONN_STATE_PROCESSING
++                         && cs->pub.state != CONN_STATE_WRITE_COMPLETION
++                         && cs->pub.state != CONN_STATE_SUSPENDED)) {
++            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(10111)
++                          "process_socket: connection processing returned %i "
++                          "(%sstate %i): closing",
++                          rc, rc ? "" : "unexpected ", (int)cs->pub.state);
++            cs->pub.state = CONN_STATE_LINGER;
++        }
++        else if (c->aborted) {
++            cs->pub.state = CONN_STATE_LINGER;
++        }
++        if (cs->pub.state >= CONN_STATE_LINGER) {
++            goto lingering_close;
+         }
+     }
+-    /*
+-     * The process_connection hooks above should set the connection state
+-     * appropriately upon return, for event MPM to either:
+-     * - CONN_STATE_LINGER: do lingering close;
+-     * - CONN_STATE_PROCESSING: wait for read/write-ability of the underlying
+-     *   socket with respect to its Timeout and come back to process_connection()
+-     *   hooks when ready;
+-     * - CONN_STATE_WRITE_COMPLETION: flush pending outputs using Timeout and
+-     *   wait for next incoming data using KeepAliveTimeout, then come back to
+-     *   process_connection() hooks;
+-     * - CONN_STATE_SUSPENDED: suspend the connection such that it now interacts
+-     *   with the MPM through suspend/resume_connection() hooks, and/or registered
+-     *   poll callbacks (PT_USER), and/or registered timed callbacks triggered by
+-     *   timer events.
+-     * If a process_connection hook returns an error or no hook sets the state
+-     * to one of the above expected value, we forcibly close the connection w/
+-     * CONN_STATE_LINGER.  This covers the cases where no process_connection
+-     * hook executes (DECLINED), or one returns OK w/o touching the state (i.e.
+-     * CONN_STATE_PROCESSING remains after the call) which can happen with
+-     * third-party modules not updated to work specifically with event MPM
+-     * while this was expected to do lingering close unconditionally with
+-     * worker or prefork MPMs for instance.
+-     */
+-    if (rc != OK || (cs->pub.state != CONN_STATE_LINGER
+-                     && cs->pub.state != CONN_STATE_PROCESSING
+-                     && cs->pub.state != CONN_STATE_WRITE_COMPLETION
+-                     && cs->pub.state != CONN_STATE_SUSPENDED)) {
+-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(10111)
+-                      "process_socket: connection processing %s: closing",
+-                      rc ? apr_psprintf(c->pool, "returned error %i", rc)
+-                         : apr_psprintf(c->pool, "unexpected state %i",
+-                                                 (int)cs->pub.state));
+-        cs->pub.state = CONN_STATE_LINGER;
++    else if (cs->pub.state == CONN_STATE_WRITE_COMPLETION) {
++        from_wc_q = 1;
+     }
+ 
+     if (cs->pub.state == CONN_STATE_PROCESSING) {
+@@ -1236,6 +1252,7 @@ process_connection:
+             notify_suspend(cs);
+ 
+             /* Add work to pollset. */
++            cs->pub.sense = CONN_SENSE_DEFAULT;
+             update_reqevents_from_sense(cs, CONN_SENSE_WANT_WRITE);
+             apr_thread_mutex_lock(timeout_mutex);
+             TO_QUEUE_APPEND(cs->sc->wc_q, cs);
+@@ -1257,17 +1274,18 @@ process_connection:
+         }
+         if (pending != DECLINED || c->aborted || c->keepalive != AP_CONN_KEEPALIVE) {
+             cs->pub.state = CONN_STATE_LINGER;
++            goto lingering_close;
+         }
+-        else if (ap_run_input_pending(c) == OK) {
+-            cs->pub.state = CONN_STATE_PROCESSING;
++        if (ap_run_input_pending(c) == OK) {
+             goto process_connection;
+         }
+-        else if (!listener_may_exit) {
+-            cs->pub.state = CONN_STATE_KEEPALIVE;
+-        }
+-        else {
++        if (listener_may_exit) {
+             cs->pub.state = CONN_STATE_LINGER;
++            goto lingering_close;
+         }
++
++        /* Fall through */
++        cs->pub.state = CONN_STATE_KEEPALIVE;
+     }
+ 
+     if (cs->pub.state == CONN_STATE_KEEPALIVE) {
+@@ -1285,6 +1303,7 @@ process_connection:
+         notify_suspend(cs);
+ 
+         /* Add work to pollset. */
++        cs->pub.sense = CONN_SENSE_DEFAULT;
+         update_reqevents_from_sense(cs, CONN_SENSE_WANT_READ);
+         apr_thread_mutex_lock(timeout_mutex);
+         TO_QUEUE_APPEND(cs->sc->ka_q, cs);
+@@ -1312,6 +1331,7 @@ process_connection:
+         return;
+     }
+ 
++ lingering_close:
+     /* CONN_STATE_LINGER[_*] fall through process_lingering_close() */
+     process_lingering_close(cs);
+ }
+@@ -1336,6 +1356,7 @@ static apr_status_t event_resume_suspended (conn_rec *c)
+         cs->queue_timestamp = apr_time_now();
+         notify_suspend(cs);
+ 
++        cs->pub.sense = CONN_SENSE_DEFAULT;
+         cs->pub.state = CONN_STATE_WRITE_COMPLETION;
+         update_reqevents_from_sense(cs, CONN_SENSE_WANT_WRITE);
+         apr_thread_mutex_lock(timeout_mutex);
+@@ -1765,12 +1786,11 @@ static void process_lingering_close(event_conn_state_t *cs)
+             close_connection(cs);
+             return;
+         }
+-
+-        cs->queue_timestamp = apr_time_now();
+-        /* Clear APR_INCOMPLETE_READ if it was ever set, we'll do the poll()
+-         * at the listener only from now, if needed.
+-         */
++        
++        /* All nonblocking from now, no need for APR_INCOMPLETE_READ either */
++        apr_socket_timeout_set(csd, 0);
+         apr_socket_opt_set(csd, APR_INCOMPLETE_READ, 0);
++
+         /*
+          * If some module requested a shortened waiting period, only wait for
+          * 2s (SECONDS_TO_LINGER). This is useful for mitigating certain
+@@ -1784,9 +1804,17 @@ static void process_lingering_close(event_conn_state_t *cs)
+         }
+         cs->pub.sense = CONN_SENSE_DEFAULT;
+         notify_suspend(cs);
++
++        /* One timestamp/duration for the whole lingering close time.
++         * XXX: This makes the (short_)linger_q not sorted/ordered by expiring
++         * timeouts whenever multiple schedules are necessary (EAGAIN below),
++         * but we probabaly don't care since these connections do not count
++         * for connections_above_limit() and all of them will be killed when
++         * busy or gracefully stopping anyway.
++         */
++        cs->queue_timestamp = apr_time_now();
+     }
+ 
+-    apr_socket_timeout_set(csd, 0);
+     do {
+         nbytes = sizeof(dummybuf);
+         rv = apr_socket_recv(csd, dummybuf, &nbytes);
+-- 
+2.34.1
+

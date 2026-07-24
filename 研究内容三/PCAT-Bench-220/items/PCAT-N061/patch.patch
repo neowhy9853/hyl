@@ -1,0 +1,42 @@
+From 63a2709b700d5532b8925caca5bc8b9437e7a1f3 Mon Sep 17 00:00:00 2001
+From: Serhiy Storchaka <storchaka@gmail.com>
+Date: Tue, 21 Jul 2026 09:08:45 +0300
+Subject: [PATCH] gh-154325: Skip test_add_file_after_2107() if the file system
+ rejects the timestamp (GH-154328)
+
+Some file systems (UFS and ZFS on illumos) reject timestamps that do not
+fit in 32 bits with EOVERFLOW instead of raising OverflowError.
+
+Co-authored-by: Claude Opus 4.8 <noreply@anthropic.com>
+---
+ Lib/test/test_zipfile/test_core.py | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/Lib/test/test_zipfile/test_core.py b/Lib/test/test_zipfile/test_core.py
+index 4f20209927e7b3df8c32fb5285140f72876c96d2..cd498ba13e6f4610b23e1a9892bb76cecd8c776e 100644
+--- a/Lib/test/test_zipfile/test_core.py
++++ b/Lib/test/test_zipfile/test_core.py
+@@ -1,6 +1,7 @@
+ import _pyio
+ import array
+ import contextlib
++import errno
+ import importlib.util
+ import io
+ import itertools
+@@ -655,6 +656,12 @@ def test_add_file_after_2107(self):
+             os.utime(TESTFN, (ts, ts))
+         except OverflowError:
+             self.skipTest('Host fs cannot set timestamp to required value.')
++        except OSError as exc:
++            # Some file systems (e.g. UFS and ZFS on illumos) do not
++            # support timestamps that do not fit in 32 bits.
++            if exc.errno != errno.EOVERFLOW:
++                raise
++            self.skipTest('Host fs cannot set timestamp to required value.')
+ 
+         mtime_ns = os.stat(TESTFN).st_mtime_ns
+         if mtime_ns != (4386268800 * 10**9):
+-- 
+2.34.1
+

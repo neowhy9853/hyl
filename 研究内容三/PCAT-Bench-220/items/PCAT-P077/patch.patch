@@ -1,0 +1,249 @@
+diff --git a/doc/man/man5/lloadd.conf.5 b/doc/man/man5/lloadd.conf.5
+index 7fa8aa940f2ab58b97689f046ce25fa653e16238..92ea6e90bc4d909e35b7106c92ddc3c8bae2129f 100644
+--- a/doc/man/man5/lloadd.conf.5
++++ b/doc/man/man5/lloadd.conf.5
+@@ -135,7 +135,7 @@ thread system as a hint.  The default is not to provide any hint.
+ .\" .B iotimeout
+ .\" option.
+ .TP
+-.B feature <feature> [...]
++.B enable <feature>
+ Switch additional features supported by the LDAP Load Balancer on.
+ Supported features are:
+ .RS
+@@ -148,7 +148,7 @@ the proxy authorization control (RFC 4370). No control is added to the
+ operation if initiated by a client whose bound identity matches the identity
+ configured in
+ .B bindconf
+-(no normalisation of the DN is attempted).
++(no normalisation of the DN is attempted). This feature is enabled by default.
+ 
+ If SASL binds are issued by clients and this feature is enabled, backend
+ servers need to support LDAP Who Am I? extended operation for the Load Balancer
+@@ -166,6 +166,12 @@ to detect the correct authorization identity.
+ .RE
+ .RE
+ .TP
++.B disable <feature>
++Switch features supported by the LDAP Load Balancer off. See features listed in
++the
++.B enable
++option for a list.
++.TP
+ .B include <filename>
+ Read additional configuration information from the given file before
+ continuing with the next line of the current file.
+diff --git a/servers/lloadd/config.c b/servers/lloadd/config.c
+index d9ec396b4eee033ea91b9f02bcc4a1aea96da9e4..3d6da4defeef80f240bd7fc0bbdc78faf66bdde9 100644
+--- a/servers/lloadd/config.c
++++ b/servers/lloadd/config.c
+@@ -77,9 +77,11 @@ char *slapd_args_file = NULL;
+ static struct timeval timeout_api_tv, timeout_net_tv,
+         timeout_write_tv = { 10, 0 };
+ 
+-lload_features_t lload_features;
++lload_features_t lload_features = LLOAD_FEATURES_DEFAULT;
+ int lload_write_coherence = 0;
+ 
++static lload_features_t features_requested, features_disabled;
++
+ ber_len_t sockbuf_max_incoming_client = LLOAD_SB_MAX_INCOMING_CLIENT;
+ ber_len_t sockbuf_max_incoming_upstream = LLOAD_SB_MAX_INCOMING_UPSTREAM;
+ ber_len_t sockbuf_max_pending_client = 0;
+@@ -158,6 +160,8 @@ enum {
+     CFG_MAXBUF_UPSTREAM,
+     CFG_MAXBUF_PENDING,
+     CFG_FEATURE,
++    CFG_FEATURE_ENABLE,
++    CFG_FEATURE_DISABLE,
+     CFG_THREADQS,
+     CFG_TLS_ECNAME,
+     CFG_TLS_CACERT,
+@@ -394,13 +398,28 @@ static ConfigTable config_back_cf_table[] = {
+     { "feature", "name", 2, 0, 0,
+         ARG_MAGIC|CFG_FEATURE,
+         &config_feature,
++        NULL, NULL, NULL
++    },
++    { "enable", "name", 2, 2, 0,
++        ARG_MAGIC|CFG_FEATURE_ENABLE,
++        &config_feature,
+         "( OLcfgBkAt:13.10 "
+-            "NAME 'olcBkLloadFeature' "
++            "NAME ( 'olcBkLloadFeatureEnable' 'olcBkLloadFeature' ) "
+             "DESC 'Lload features enabled' "
+             "EQUALITY caseIgnoreMatch "
+             "SYNTAX OMsDirectoryString )",
+         NULL, NULL
+     },
++    { "disable", "name", 2, 2, 0,
++        ARG_MAGIC|CFG_FEATURE_DISABLE,
++        &config_feature,
++        "( OLcfgBkAt:13.42 "
++            "NAME 'olcBkLloadFeatureDisable' "
++            "DESC 'Lload features disabled' "
++            "EQUALITY caseIgnoreMatch "
++            "SYNTAX OMsDirectoryString )",
++        NULL, NULL
++    },
+     { "TLSCACertificate", NULL, 2, 2, 0,
+ #ifdef HAVE_TLS
+         CFG_TLS_CACERT|ARG_BINARY|ARG_MAGIC,
+@@ -818,7 +837,8 @@ static ConfigOCs lloadocs[] = {
+             "$ olcBkLloadSockbufMaxUpstream "
+             "$ olcBkLloadMaxPDUPerCycle "
+             "$ olcBkLloadIOTimeout ) "
+-        "MAY ( olcBkLloadFeature "
++        "MAY ( olcBkLloadFeatureEnable "
++            "$ olcBkLloadFeatureDisable "
+             "$ olcBkLloadTcpBuffer "
+             "$ olcBkLloadTLSCACertificateFile "
+             "$ olcBkLloadTLSCACertificatePath "
+@@ -2092,11 +2112,24 @@ config_feature( ConfigArgs *c )
+         { BER_BVC("read_pause"), LLOAD_FEATURE_PAUSE },
+         { BER_BVNULL, 0 }
+     };
++    lload_features_t *fp;
+     slap_mask_t mask = 0;
+     int i;
+ 
++    switch ( c->type ) {
++        case CFG_FEATURE:
++        case CFG_FEATURE_ENABLE:
++            fp = &features_requested;
++            break;
++        case CFG_FEATURE_DISABLE:
++            fp = &features_disabled;
++            break;
++        default:
++            return 1;
++    }
++
+     if ( c->op == SLAP_CONFIG_EMIT ) {
+-        return mask_to_verbs( features, lload_features, &c->rvalue_vals );
++        return mask_to_verbs( features, *fp, &c->rvalue_vals );
+     }
+ 
+     lload_change.type = LLOAD_CHANGE_MODIFY;
+@@ -2109,11 +2142,13 @@ config_feature( ConfigArgs *c )
+     if ( c->op == LDAP_MOD_DELETE ) {
+         if ( !c->line ) {
+             /* Last value has been deleted */
+-            lload_features = 0;
++            *fp = 0;
+         } else {
+             i = verb_to_mask( c->line, features );
+-            lload_features &= ~features[i].mask;
++            *fp &= ~features[i].mask;
+         }
++        lload_features = (LLOAD_FEATURES_DEFAULT & ~features_disabled) | \
++                         features_requested;
+         return 0;
+     }
+ 
+@@ -2136,7 +2171,23 @@ config_feature( ConfigArgs *c )
+         }
+     }
+ 
+-    lload_features |= mask;
++    if ( features_requested & features_disabled ) {
++        lload_features_t overlap = features_requested & features_disabled;
++        for ( i = 1; i < c->argc; i++ ) {
++            int j = verb_to_mask( c->argv[i], features );
++            if ( features[j].mask & overlap ) {
++                snprintf( c->cr_msg, sizeof(c->cr_msg),
++                        "requested to both enable and disable feature %s",
++                        c->argv[i] );
++                Debug( LDAP_DEBUG_ANY, "%s: %s\n", c->log, c->cr_msg );
++            }
++        }
++        return 1;
++    }
++
++    *fp |= mask;
++    lload_features = (LLOAD_FEATURES_DEFAULT & ~features_disabled) | \
++                     features_requested;
+     return 0;
+ }
+ 
+diff --git a/servers/lloadd/lload.h b/servers/lloadd/lload.h
+index f99a0cb4fcbc4bf96a4d0749ebc822ff8ee0cfff..84e2d64b1e3969da18ab17ffabee0dd35ad2de69 100644
+--- a/servers/lloadd/lload.h
++++ b/servers/lloadd/lload.h
+@@ -184,6 +184,10 @@ typedef enum {
+     LLOAD_FEATURE_PAUSE = 1 << 2,
+ } lload_features_t;
+ 
++#define LLOAD_FEATURES_DEFAULT ( \
++    LLOAD_FEATURE_PROXYAUTHZ | \
++    0 )
++
+ #define LLOAD_FEATURE_SUPPORTED_MASK ( \
+     LLOAD_FEATURE_PROXYAUTHZ | \
+     0 )
+diff --git a/tests/data/lloadd-anon.conf b/tests/data/lloadd-anon.conf
+index 4c516ef340523266239323e166ffc7790ce1fbb7..affcdc48fa581f30ce9666cc95fa69b3be32baf2 100644
+--- a/tests/data/lloadd-anon.conf
++++ b/tests/data/lloadd-anon.conf
+@@ -17,6 +17,9 @@
+ sockbuf_max_incoming_client 4194303
+ sockbuf_max_incoming_upstream 4194303
+ 
++# we're anonymous and want to disable proxyauthz in this particular test
++disable proxyauthz
++
+ tier roundrobin
+ # empty tier
+ 
+diff --git a/tests/data/lloadd-empty.conf b/tests/data/lloadd-empty.conf
+index 50963a4bbdeab349ab431ae0974325dc00de3a08..2f089a5f4a5953651e31f7e51946b2e509642fe2 100644
+--- a/tests/data/lloadd-empty.conf
++++ b/tests/data/lloadd-empty.conf
+@@ -17,7 +17,7 @@
+ sockbuf_max_incoming_client 4194303
+ sockbuf_max_incoming_upstream 4194303
+ 
+-feature proxyauthz
++enable proxyauthz
+ 
+ bindconf
+     bindmethod=simple
+diff --git a/tests/data/lloadd-sasl.conf b/tests/data/lloadd-sasl.conf
+index c3d23ecd7062f0e3bc37e14f52c8da88ccc6c1c7..c8fd9c49321c0cc3a90430b39c33fdf4e8cd630e 100644
+--- a/tests/data/lloadd-sasl.conf
++++ b/tests/data/lloadd-sasl.conf
+@@ -17,7 +17,7 @@
+ sockbuf_max_incoming_client 4194303
+ sockbuf_max_incoming_upstream 4194303
+ 
+-feature proxyauthz
++enable proxyauthz
+ 
+ bindconf
+     bindmethod=sasl
+diff --git a/tests/data/lloadd-tls.conf b/tests/data/lloadd-tls.conf
+index 2821edc3b6da9b0f7934b63e424139491fe2727a..fc5bfb7bd57c11b9540d5daf2d9db01d656bd2d6 100644
+--- a/tests/data/lloadd-tls.conf
++++ b/tests/data/lloadd-tls.conf
+@@ -26,7 +26,7 @@ TLSShareSlapdCTX yes
+ sockbuf_max_incoming_client 4194303
+ sockbuf_max_incoming_upstream 4194303
+ 
+-feature proxyauthz
++enable proxyauthz
+ 
+ bindconf
+     bindmethod=simple
+diff --git a/tests/data/lloadd.conf b/tests/data/lloadd.conf
+index 8af8f7d070066a60ddbf89503865636077682e95..964dd52cd73296ff73f822146aca3613e426ccc5 100644
+--- a/tests/data/lloadd.conf
++++ b/tests/data/lloadd.conf
+@@ -17,7 +17,7 @@
+ sockbuf_max_incoming_client 4194303
+ sockbuf_max_incoming_upstream 4194303
+ 
+-feature proxyauthz
++enable proxyauthz
+ 
+ bindconf
+     bindmethod=simple

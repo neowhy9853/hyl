@@ -1,0 +1,270 @@
+diff --git a/NEWS.md b/NEWS.md
+index 087fc9ae4e4d03090fb381c6a26d7c8142325106..9177313c33299b4e3b470a01c9308ca174e3ac3f 100644
+--- a/NEWS.md
++++ b/NEWS.md
+@@ -16,6 +16,15 @@ Note that each entry is kept to a minimum, see links for details.
+ 
+ Note: We're only listing outstanding class updates.
+ 
++* C API
++
++    * `RB_NOGVL_PENDING_INTR_FAIL` is added as a flag for `rb_nogvl`.
++      `rb_nogvl` does not enter the blocking region (and does not call the
++      given function), returning `0`, if the current thread has pending
++      interrupts, including interrupts masked by `Thread.handle_interrupt`.
++      As with the existing skip path, `errno` is `0` because the function was
++      never called.
++
+ * Array
+ 
+     * `Array#pack` accepts a new format `R` and `r` for unpacking unsigned
+diff --git a/include/ruby/thread.h b/include/ruby/thread.h
+index 2fa01229e28ab0b472248c0649f3fdd4c7b1052a..1f283b2c129a0e6cf4244d549049fc7cb6cda3cf 100644
+--- a/include/ruby/thread.h
++++ b/include/ruby/thread.h
+@@ -21,9 +21,12 @@
+  */
+ 
+ /**
+- * Passing  this  flag to  rb_nogvl()  prevents  it from  checking  interrupts.
+- * Interrupts  can  impact  your  program negatively.   For  instance  consider
+- * following callback function:
++ * Passing this flag to `rb_nogvl()` prevents it from processing interrupts after
++ * the given function returns. Instead, `rb_nogvl()` returns without calling the
++ * function if an interrupt is detected before entering the blocking region.
++ * This allows the caller to check interrupts later, after it has accounted for
++ * any side effects of the function. For instance consider following callback
++ * function:
+  *
+  * ```CXX
+  * static inline int fd; // set elsewhere.
+@@ -38,15 +41,23 @@
+  * }
+  * ```
+  *
+- * Here, if it gets interrupted at (a)  or (b), `read(2)` is cancelled and this
+- * function leaks memory (which is not a good thing of course, but...).  But if
+- * it gets interrupted at (c), where `read(2)` is already done, interruption is
+- * way more catastrophic because what was read gets lost.  To reroute this kind
+- * of problem you should set this flag.  And check interrupts elsewhere at your
+- * own risk.
++ * Here, if `read(2)` is interrupted at (b), the function can observe `EINTR` and
++ * clean up. But if a Ruby interrupt is processed at (c), where `read(2)` is
++ * already done, the read data can be lost. To reroute this kind of problem you
++ * should set this flag and check interrupts later, at a point where it is safe
++ * to do so with respect to the function's side effects.
+  */
+ #define RB_NOGVL_INTR_FAIL       (0x1)
+ 
++/**
++ * Passing this flag to `rb_nogvl()` prevents it from entering the blocking
++ * region if the current thread has pending interrupts, even if they are masked
++ * by `Thread.handle_interrupt`. In that case `rb_nogvl()` returns 0 without
++ * calling the given function; `errno` is 0, the same as the existing skip path
++ * used by `RB_NOGVL_INTR_FAIL` (the function was never called).
++ */
++#define RB_NOGVL_PENDING_INTR_FAIL  (0x8)
++
+ /**
+  * Passing  this  flag   to  rb_nogvl()  indicates  that  the   passed  UBF  is
+  * async-signal-safe.   An UBF  could  be  async safe,  and  that makes  things
+diff --git a/spec/ruby/optional/capi/ext/thread_spec.c b/spec/ruby/optional/capi/ext/thread_spec.c
+index ac77e4e813b517400297af583f96b8743da9eacc..d43ae348e5474c79c0caa9d28f4bbe86f55b562f 100644
+--- a/spec/ruby/optional/capi/ext/thread_spec.c
++++ b/spec/ruby/optional/capi/ext/thread_spec.c
+@@ -172,6 +172,33 @@ static VALUE thread_spec_ruby_thread_has_gvl_p(VALUE self) {
+ }
+ #endif
+ 
++#ifdef RUBY_VERSION_IS_4_1
++struct nogvl_pending_intr_fail_data {
++  int called;
++};
++
++static void *nogvl_pending_intr_fail_func(void *ptr) {
++  struct nogvl_pending_intr_fail_data *data = ptr;
++
++  data->called = 1;
++
++  return (void *)Qtrue;
++}
++
++static VALUE thread_spec_rb_nogvl_pending_intr_fail(VALUE self) {
++  struct nogvl_pending_intr_fail_data data = {0};
++  void *ret;
++  int saved_errno;
++
++  errno = 0;
++  ret = rb_nogvl(nogvl_pending_intr_fail_func, &data, RUBY_UBF_IO, 0,
++      RB_NOGVL_PENDING_INTR_FAIL);
++  saved_errno = errno;
++
++  return rb_ary_new_from_args(3, data.called ? Qtrue : Qfalse, (VALUE)ret, INT2FIX(saved_errno));
++}
++#endif
++
+ void Init_thread_spec(void) {
+   VALUE cls = rb_define_class("CApiThreadSpecs", rb_cObject);
+   rb_define_method(cls, "rb_thread_alone", thread_spec_rb_thread_alone, 0);
+@@ -188,6 +215,9 @@ void Init_thread_spec(void) {
+ #ifdef RUBY_VERSION_IS_4_0
+   rb_define_method(cls,  "ruby_thread_has_gvl_p", thread_spec_ruby_thread_has_gvl_p, 0);
+ #endif
++#ifdef RUBY_VERSION_IS_4_1
++  rb_define_method(cls,  "rb_nogvl_pending_intr_fail", thread_spec_rb_nogvl_pending_intr_fail, 0);
++#endif
+ }
+ 
+ #ifdef __cplusplus
+diff --git a/spec/ruby/optional/capi/thread_spec.rb b/spec/ruby/optional/capi/thread_spec.rb
+index 75e0b94fdf926b96af99b7f65fe7660f884041d8..b8b2993db970c94b60735dac16654100d5e9ea32 100644
+--- a/spec/ruby/optional/capi/thread_spec.rb
++++ b/spec/ruby/optional/capi/thread_spec.rb
+@@ -192,4 +192,26 @@ def call_capi_rb_thread_wakeup
+       end
+     end
+   end
++
++  ruby_version_is "4.1" do
++    describe "rb_nogvl with RB_NOGVL_PENDING_INTR_FAIL" do
++      it "does not enter the blocking region when the current thread has masked pending interrupts" do
++        interrupted = false
++
++        begin
++          Thread.handle_interrupt(Interrupt => :never) do
++            Thread.current.raise(Interrupt)
++
++            # The flag must not call the function (nil return) and errno is 0,
++            # consistent with the in-region skip path (the function never ran).
++            @t.rb_nogvl_pending_intr_fail.should == [false, nil, 0]
++          end
++        rescue Interrupt
++          interrupted = true
++        end
++
++        interrupted.should == true
++      end
++    end
++  end
+ end
+diff --git a/thread.c b/thread.c
+index 3cfbe6beff199c25c64eb9bff9e291452ec46bac..3607b6c4e333df8f7897e1dc9c0be3d0d0357f2b 100644
+--- a/thread.c
++++ b/thread.c
+@@ -161,11 +161,11 @@ struct rb_blocking_region_buffer {
+     enum rb_thread_status prev_status;
+ };
+ 
+-static int unblock_function_set(rb_thread_t *th, rb_unblock_function_t *func, void *arg, int fail_if_interrupted);
++static int unblock_function_set(rb_thread_t *th, rb_unblock_function_t *func, void *arg, int flags);
+ static void unblock_function_clear(rb_thread_t *th);
+ 
+ static inline int blocking_region_begin(rb_thread_t *th, struct rb_blocking_region_buffer *region,
+-                                        rb_unblock_function_t *ubf, void *arg, int fail_if_interrupted);
++                                        rb_unblock_function_t *ubf, void *arg, int flags);
+ static inline void blocking_region_end(rb_thread_t *th, struct rb_blocking_region_buffer *region);
+ 
+ #define THREAD_BLOCKING_BEGIN(th) do { \
+@@ -187,11 +187,12 @@ static inline void blocking_region_end(rb_thread_t *th, struct rb_blocking_regio
+ #else
+ #define only_if_constant(expr, notconst) notconst
+ #endif
+-#define BLOCKING_REGION(th, exec, ubf, ubfarg, fail_if_interrupted) do { \
++#define RB_NOGVL_FAIL_FLAGS (RB_NOGVL_INTR_FAIL | RB_NOGVL_PENDING_INTR_FAIL)
++#define BLOCKING_REGION(th, exec, ubf, ubfarg, flags) do { \
+     struct rb_blocking_region_buffer __region; \
+-    if (blocking_region_begin(th, &__region, (ubf), (ubfarg), fail_if_interrupted) || \
+-        /* always return true unless fail_if_interrupted */ \
+-        !only_if_constant(fail_if_interrupted, TRUE)) { \
++    if (blocking_region_begin(th, &__region, (ubf), (ubfarg), flags) || \
++        /* always return true unless one of the fail flags is set */ \
++        !only_if_constant((flags) & RB_NOGVL_FAIL_FLAGS, TRUE)) { \
+         /* Important that this is inlined into the macro, and not part of \
+          * blocking_region_begin - see bug #20493 */ \
+         RB_VM_SAVE_MACHINE_CONTEXT(th); \
+@@ -318,10 +319,10 @@ rb_nativethread_lock_unlock(rb_nativethread_lock_t *lock)
+ }
+ 
+ static int
+-unblock_function_set(rb_thread_t *th, rb_unblock_function_t *func, void *arg, int fail_if_interrupted)
++unblock_function_set(rb_thread_t *th, rb_unblock_function_t *func, void *arg, int flags)
+ {
+     do {
+-        if (fail_if_interrupted) {
++        if (flags & RB_NOGVL_INTR_FAIL) {
+             if (RUBY_VM_INTERRUPTED_ANY(th->ec)) {
+                 return FALSE;
+             }
+@@ -329,6 +330,11 @@ unblock_function_set(rb_thread_t *th, rb_unblock_function_t *func, void *arg, in
+         else {
+             RUBY_VM_CHECK_INTS(th->ec);
+         }
++        if (flags & RB_NOGVL_PENDING_INTR_FAIL) {
++            if (!rb_threadptr_pending_interrupt_empty_p(th)) {
++                return FALSE;
++            }
++        }
+ 
+         rb_native_mutex_lock(&th->interrupt_lock);
+     } while (!th->ec->raised_flag && RUBY_VM_INTERRUPTED_ANY(th->ec) &&
+@@ -1560,7 +1566,7 @@ rb_thread_schedule(void)
+ 
+ static inline int
+ blocking_region_begin(rb_thread_t *th, struct rb_blocking_region_buffer *region,
+-                      rb_unblock_function_t *ubf, void *arg, int fail_if_interrupted)
++                      rb_unblock_function_t *ubf, void *arg, int flags)
+ {
+ #ifdef RUBY_ASSERT_CRITICAL_SECTION
+     VM_ASSERT(ruby_assert_critical_section_entered == 0);
+@@ -1568,7 +1574,7 @@ blocking_region_begin(rb_thread_t *th, struct rb_blocking_region_buffer *region,
+     VM_ASSERT(th == GET_THREAD());
+ 
+     region->prev_status = th->status;
+-    if (unblock_function_set(th, ubf, arg, fail_if_interrupted)) {
++    if (unblock_function_set(th, ubf, arg, flags)) {
+         th->blocking_region_buffer = region;
+         th->status = THREAD_STOPPED;
+         rb_ractor_blocking_threads_inc(th->ractor, __FILE__, __LINE__);
+@@ -1634,6 +1640,19 @@ rb_nogvl(void *(*func)(void *), void *data1,
+          rb_unblock_function_t *ubf, void *data2,
+          int flags)
+ {
++    rb_execution_context_t *ec = GET_EC();
++    rb_thread_t *th = rb_ec_thread_ptr(ec);
++
++    if (
++        (flags & RB_NOGVL_PENDING_INTR_FAIL) &&
++        !rb_threadptr_pending_interrupt_empty_p(th)
++    ) {
++        /* Match the in-region skip path, which leaves errno at saved_errno (0)
++         * because the function was never called. */
++        rb_errno_set(0);
++        return 0;
++    }
++
+     if (flags & RB_NOGVL_OFFLOAD_SAFE) {
+         VALUE scheduler = rb_fiber_scheduler_current();
+         if (scheduler != Qnil) {
+@@ -1649,8 +1668,6 @@ rb_nogvl(void *(*func)(void *), void *data1,
+     }
+ 
+     void *val = 0;
+-    rb_execution_context_t *ec = GET_EC();
+-    rb_thread_t *th = rb_ec_thread_ptr(ec);
+     rb_vm_t *vm = rb_ec_vm_ptr(ec);
+     bool is_main_thread = vm->ractor.main_thread == th;
+     int saved_errno = 0;
+@@ -1667,7 +1684,7 @@ rb_nogvl(void *(*func)(void *), void *data1,
+     BLOCKING_REGION(th, {
+         val = func(data1);
+         saved_errno = rb_errno();
+-    }, ubf, data2, flags & RB_NOGVL_INTR_FAIL);
++    }, ubf, data2, flags);
+     vm = saved_vm;
+ 
+     if (is_main_thread) vm->ubf_async_safe = 0;
+@@ -6384,4 +6401,3 @@ rb_ractor_interrupt_exec(struct rb_ractor_struct *target_r,
+     rb_thread_t *main_th = target_r->threads.main;
+     rb_threadptr_interrupt_exec(main_th, func, data, flags | rb_interrupt_exec_flag_new_thread);
+ }
+-

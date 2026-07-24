@@ -1,0 +1,95 @@
+From 6afea87220588843c975928fee3bf4371631d8b5 Mon Sep 17 00:00:00 2001
+From: mohammadmseet-hue <mohammadmseet@gmail.com>
+Date: Thu, 16 Apr 2026 02:58:27 +0200
+Subject: [PATCH] memory: add xmlGrowArray helper for overflow-checked array
+ reallocation
+
+Add a private helper function that combines xmlGrowCapacity() with
+xmlRealloc() into a single call. This reduces boilerplate at array
+growth sites where the same pattern of capacity check + realloc +
+pointer/capacity update is repeated.
+
+On success, updates the capacity and returns the new pointer.
+On failure, returns NULL with the original pointer and capacity
+preserved, avoiding the common self-assignment bug where the old
+pointer is lost.
+---
+ include/private/memory.h | 17 +++++++++++++++++
+ xmlmemory.c              | 35 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 52 insertions(+)
+
+diff --git a/include/private/memory.h b/include/private/memory.h
+index 68a2e6d..ceb0956 100644
+--- a/include/private/memory.h
++++ b/include/private/memory.h
+@@ -54,4 +54,21 @@ xmlGrowCapacity(int capacity, size_t elemSize, int min, int max) {
+     return(capacity + extra);
+ }
+ 
++/**
++ * @array:  pointer to the array
++ * @elemSize:  size of each element in bytes
++ * @capacity:  pointer to current capacity (updated on success)
++ * @min:  initial allocation size
++ * @max:  maximum number of elements
++ *
++ * Grow an array, combining overflow-checked capacity growth with
++ * reallocation. Similar to reallocarray(3) with built-in growth.
++ *
++ * On success, returns the new pointer and updates *capacity.
++ * On failure, returns NULL with the original array and capacity
++ * preserved.
++ */
++XML_HIDDEN void *
++xmlGrowArray(void *array, size_t elemSize, int *capacity, int min, int max);
++
+ #endif /* XML_MEMORY_H_PRIVATE__ */
+diff --git a/xmlmemory.c b/xmlmemory.c
+index 90c8b9c..90306e3 100644
+--- a/xmlmemory.c
++++ b/xmlmemory.c
+@@ -344,6 +344,41 @@ xmlMemoryDump(void)
+ }
+ 
+ 
++/****************************************************************
++ *								*
++ *		Array growth helper				*
++ *								*
++ ****************************************************************/
++
++/**
++ * Grow an array, combining overflow-checked capacity growth with
++ * reallocation.
++ *
++ * @param array  pointer to the array (may be NULL for first allocation)
++ * @param elemSize  size of each element in bytes
++ * @param capacity  pointer to current capacity (updated on success)
++ * @param min  initial allocation size
++ * @param max  maximum number of elements
++ * @returns the new pointer on success, or NULL on failure with the
++ *          original array and capacity preserved.
++ */
++void *
++xmlGrowArray(void *array, size_t elemSize, int *capacity, int min, int max) {
++    void *tmp;
++    int newSize;
++
++    newSize = xmlGrowCapacity(*capacity, elemSize, min, max);
++    if (newSize < 0)
++        return(NULL);
++
++    tmp = xmlRealloc(array, (size_t) newSize * elemSize);
++    if (tmp == NULL)
++        return(NULL);
++
++    *capacity = newSize;
++    return(tmp);
++}
++
+ /****************************************************************
+  *								*
+  *		Initialization Routines				*
+-- 
+2.43.0
+

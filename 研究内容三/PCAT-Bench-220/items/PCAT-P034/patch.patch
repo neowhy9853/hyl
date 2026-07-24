@@ -1,0 +1,362 @@
+diff --git a/NEWS.md b/NEWS.md
+index aa67a7ed80a672b7d95b459d3f5b7c81de61f69d..56351a5c2cbcfd524dc4a416571fcece8d1b2f99 100644
+--- a/NEWS.md
++++ b/NEWS.md
+@@ -64,6 +64,11 @@ Note: We're only listing outstanding class updates.
+       ineffect inside its body, without affecting the original Proc.
+       [[Feature #22097]]
+ 
++* Range
++
++    * `Range#clamp` is added. It returns a new `Range` instance whose
++      begin and end values are clamped to the given bounds. [[Feature #22175]]
++
+ * Regexp
+ 
+     * All instances of `Regexp` are now frozen, not just literals.
+@@ -245,6 +250,7 @@ A lot of work has gone into making Ractors more stable, performant, and usable.
+ [Feature #21981]: https://bugs.ruby-lang.org/issues/21981
+ [Feature #22137]: https://bugs.ruby-lang.org/issues/22137
+ [Feature #22139]: https://bugs.ruby-lang.org/issues/22139
++[Feature #22175]: https://bugs.ruby-lang.org/issues/22175
+ [Feature #22185]: https://bugs.ruby-lang.org/issues/22185
+ [PR #17201]: https://github.com/ruby/ruby/pull/17201
+ [RubyGems-v4.0.4]: https://github.com/rubygems/rubygems/releases/tag/v4.0.4
+diff --git a/range.c b/range.c
+index 041cd93f73ee4ea27564f9bd8aaaffa63064973f..fba73f4a39d1c3255c1df2b58b7c32362dd56748 100644
+--- a/range.c
++++ b/range.c
+@@ -192,6 +192,18 @@ range_eq(VALUE range, VALUE obj)
+     return rb_exec_recursive_paired(recursive_equal, range, obj, obj);
+ }
+ 
++/* compares _a_ and _b_ and returns:
++ * < 0: a < b
++ * = 0: a = b
++ * > 0: a > b
++ * raises an ArgumentError if non-comparable
++ */
++static int
++r_cmp(VALUE a, VALUE b)
++{
++    return OPTIMIZED_CMP(a, b);
++}
++
+ /* compares _a_ and _b_ and returns:
+  * < 0: a < b
+  * = 0: a = b
+@@ -2594,6 +2606,111 @@ range_overlap(VALUE range, VALUE other)
+     return Qtrue;
+ }
+ 
++/*
++ * call-seq:
++ *    clamp(min, max) ->  range
++ *    clamp(range)    ->  range
++ *
++ * Returns a new +Range+ instance whose begin and end values are
++ * clamped to _min_ and _max_, or to _range.begin_ and _range.end_.
++ *
++ * The returned range excludes its end if any of the following is true:
++ *
++ * - The returned end value is an excluded end value of +self+ or _range_.
++ * - Both begin and end values are clamped to the lower bound, or both
++ *   are clamped to the upper bound.  Since +self+ is entirely outside
++ *   the clamping bounds, the returned range is made empty by
++ *   excluding its end.
++ *
++ * Otherwise, the returned range includes its end.
++ *
++ * Examples:
++ *
++ *   (1..10).clamp(3, 7)       # => 3..7
++ *   (1...10).clamp(3, 7)      # => 3..7
++ *   (1...10).clamp(3, 10)     # => 3...10
++ *   (0...).clamp(0, 10)       # => 0..10
++ *
++ *   (1..10).clamp(3..7)       # => 3..7
++ *   (1..10).clamp(3...7)      # => 3...7
++ *   (1..5).clamp(3...7)       # => 3..5
++ *
++ *   (..10).clamp(3, 7)        # => 3..7
++ *   (...10).clamp(3, 7)       # => 3..7
++ *   (..10).clamp(3...7)       # => 3...7
++ *   (..5).clamp(3...7)        # => 3..5
++ *
++ *   (1..10).clamp(20..30)     # => 20...20
++ *   (1..10).clamp(-10..0)     # => 0...0
++ *   (..10).clamp(20..30)      # => 20...20
++ *
++ *   (1..10).clamp(..7)        # => 1..7
++ *   (1..10).clamp(...7)       # => 1...7
++ *   (1..5).clamp(...7)        # => 1..5
++ *
++ *   (1..10).clamp(3..)        # => 3..10
++ *   (1..10).clamp(3...)       # => 3..10
++ *   (1..).clamp(3..)          # => 3..
++ *   (1...).clamp(3...)        # => 3...
++ */
++
++static VALUE
++range_clamp(int argc, VALUE *argv, VALUE self)
++{
++    VALUE self_beg = RANGE_BEG(self);
++    VALUE self_end = RANGE_END(self);
++    int self_excl = EXCL(self);
++    VALUE min, max;
++    int clamp_beg = 0, clamp_end = 0, excl = 0;
++
++    argc = rb_scan_args(argc, argv, "11", &min, &max);
++    if (argc == 1) {
++        VALUE range = min;
++        if (!rb_range_values(range, &min, &max, &excl)) {
++            rb_raise(rb_eTypeError, "wrong argument type %s (expected Range)",
++                     rb_builtin_class_name(range));
++        }
++    }
++    if (!NIL_P(min) && !NIL_P(max) && r_cmp(min, max) > 0) {
++        rb_raise(rb_eArgError, "min argument must be less than or equal to max argument");
++    }
++
++    if (!NIL_P(min)) {
++        if (NIL_P(self_beg) || r_cmp(self_beg, min) < 0) {
++            clamp_beg = -1;
++            self_beg = min;
++        }
++        if (!NIL_P(self_end) && r_cmp(self_end, min) < 0) {
++            clamp_end = -1;
++            self_end = min;
++        }
++    }
++    if (!NIL_P(max)) {
++        if (clamp_beg == 0) {
++            if (!NIL_P(self_beg) && r_cmp(self_beg, max) > 0) {
++                clamp_beg = +1;
++                self_beg = max;
++            }
++        }
++        if (clamp_end == 0) {
++            int cmp = NIL_P(self_end) ? +1 : r_cmp(self_end, max);
++            if (cmp > 0) {
++                clamp_end = +1;
++                self_end = max;
++                self_excl = excl;
++            }
++            else if (cmp == 0) {
++                self_excl |= excl;
++            }
++        }
++    }
++    if (clamp_beg && clamp_beg == clamp_end) {
++        /* self is entirely outside the clamping bounds. */
++        self_excl = TRUE;
++    }
++    return rb_range_new(self_beg, self_end, self_excl);
++}
++
+ /* A \Range object represents a collection of values
+  * that are between given begin and end values.
+  *
+@@ -2783,6 +2900,7 @@ range_overlap(VALUE range, VALUE other)
+  * === Methods for Creating a \Range
+  *
+  * - ::new: Returns a new range.
++ * - #clamp: Returns a new range with clamped begin and end values.
+  *
+  * === Methods for Querying
+  *
+@@ -2878,4 +2996,5 @@ Init_Range(void)
+     rb_define_method(rb_cRange, "cover?", range_cover, 1);
+     rb_define_method(rb_cRange, "count", range_count, -1);
+     rb_define_method(rb_cRange, "overlap?", range_overlap, 1);
++    rb_define_method(rb_cRange, "clamp", range_clamp, -1);
+ }
+diff --git a/spec/ruby/core/range/clamp_spec.rb b/spec/ruby/core/range/clamp_spec.rb
+new file mode 100644
+index 0000000000000000000000000000000000000000..e50b4d246ae7f118497ae0715ea20bfdcfbcc041
+--- /dev/null
++++ b/spec/ruby/core/range/clamp_spec.rb
+@@ -0,0 +1,83 @@
++require_relative '../../spec_helper'
++require_relative 'fixtures/classes'
++
++ruby_version_is "4.1" do
++  describe "Range#clamp" do
++    it "clamps begin and end to min and max" do
++      (1..10).clamp(3, 7).should == (3..7)
++      (..10).clamp(3, 7).should == (3..7)
++    end
++
++    it "clamps begin and end to a Range" do
++      (1..10).clamp(3..7).should == (3..7)
++      (1..5).clamp(3...7).should == (3..5)
++      (1..10).clamp(RangeSpecs::DuckRange.new(3, 7, true)).should == (3...7)
++    end
++
++    it "treats min and max like an inclusive Range" do
++      (1...10).clamp(3, 7).should == (1...10).clamp(3..7)
++      (1...10).clamp(3, 10).should == (1...10).clamp(3..10)
++    end
++
++    it "excludes the end when the returned end is excluded by self or the argument Range" do
++      (1...10).clamp(3, 10).should == (3...10)
++      (1...10).clamp(3..10).should == (3...10)
++      (1..10).clamp(3...10).should == (3...10)
++      (..10).clamp(3...10).should == (3...10)
++    end
++
++    it "includes the end when the returned end is not an excluded end" do
++      (1...10).clamp(3, 7).should == (3..7)
++      (0...).clamp(0, 10).should == (0..10)
++      (1..5).clamp(3...7).should == (3..5)
++      (..5).clamp(3...7).should == (3..5)
++      (1..10).clamp(3...).should == (3..10)
++    end
++
++    it "handles beginless and endless argument Ranges" do
++      (1..10).clamp(..7).should == (1..7)
++      (1..10).clamp(...7).should == (1...7)
++      (1..5).clamp(...7).should == (1..5)
++
++      (1..10).clamp(3..).should == (3..10)
++      (1..).clamp(3..).should == (3..)
++      (1...).clamp(3...).should == (3...)
++    end
++
++    it "returns an inclusive point Range when begin and end are clamped to different equal bounds" do
++      (1..10).clamp(3, 3).should == (3..3)
++      (1..10).clamp(3..3).should == (3..3)
++    end
++
++    it "returns an empty Range when begin and end are clamped to the same side" do
++      (1..10).clamp(20, 30).should == (20...20)
++      (1..10).clamp(-10, 0).should == (0...0)
++      (..10).clamp(20, 30).should == (20...20)
++      (1..10).clamp(20..30).should == (20...20)
++      (1..10).clamp(-10..0).should == (0...0)
++      (..10).clamp(20..30).should == (20...20)
++      (1..2).clamp(3, 3).should == (3...3)
++      (4..10).clamp(3, 3).should == (3...3)
++      (1..).clamp(nil, 0).should == (0...0)
++      (1..).clamp(..0).should == (0...0)
++    end
++
++    it "returns a Range instance, not an instance of a subclass" do
++      RangeSpecs::MyRange.new(1, 10).clamp(3, 7).should.instance_of?(Range)
++    end
++
++    it "raises ArgumentError when min and max are not comparable" do
++      -> { (1..3).clamp(1, "z") }.should.raise(ArgumentError)
++      -> { (1..3).clamp("a", "z") }.should.raise(ArgumentError)
++    end
++
++    it "raises ArgumentError when min is greater than max" do
++      -> { (1..3).clamp(2, 1) }.should.raise(ArgumentError)
++      -> { (1..3).clamp(2..1) }.should.raise(ArgumentError)
++    end
++
++    it "raises TypeError when the single argument is not a Range" do
++      -> { (1..3).clamp(1) }.should.raise(TypeError)
++    end
++  end
++end
+diff --git a/spec/ruby/core/range/fixtures/classes.rb b/spec/ruby/core/range/fixtures/classes.rb
+index bdabfb0d1c8176c21e99ebcc82eb8a85dab224b6..5176cd42032226582a30deb914b84fe729300fc2 100644
+--- a/spec/ruby/core/range/fixtures/classes.rb
++++ b/spec/ruby/core/range/fixtures/classes.rb
+@@ -156,6 +156,20 @@ def inspect
+   class MyRange < Range
+   end
+ 
++  class DuckRange
++    def initialize(beg, end_, exclude_end = false)
++      @begin = beg
++      @end = end_
++      @exclude_end = exclude_end
++    end
++
++    attr_reader :begin, :end
++
++    def exclude_end?
++      @exclude_end
++    end
++  end
++
+   class ComparisonError < RuntimeError
+   end
+ end
+diff --git a/test/ruby/test_range.rb b/test/ruby/test_range.rb
+index ff17dca69eeb96386713ca3e9028475dad289650..e104f4a80bb3d7faa48c7a2c91d141bdf3b06246 100644
+--- a/test/ruby/test_range.rb
++++ b/test/ruby/test_range.rb
+@@ -1548,4 +1548,70 @@ def test_overlap?
+     assert_not_operator((1...3), :overlap?, (3..4))
+     assert_not_operator((...3), :overlap?, (3..))
+   end
++
++  def test_clamp
++    # Clamp begin and end to min and max.
++    assert_equal(3..7, (1..10).clamp(3, 7))
++    assert_equal(3..7, (..10).clamp(3, 7))
++
++    # Clamp begin and end to a range.
++    assert_equal(3..7, (1..10).clamp(3..7))
++    assert_equal(3..5, (1..5).clamp(3...7))
++    assert_equal(3...7, (1..10).clamp(DuckRange.new(3, 7, true)))
++
++    # Treat min and max like an inclusive range.
++    assert_equal((1...10).clamp(3..7), (1...10).clamp(3, 7))
++    assert_equal((1...10).clamp(3..10), (1...10).clamp(3, 10))
++
++    # Exclude the end when the returned end is excluded by self or the
++    # argument range.
++    assert_equal(3...10, (1...10).clamp(3, 10))
++    assert_equal(3...10, (1...10).clamp(3..10))
++    assert_equal(3...10, (1..10).clamp(3...10))
++    assert_equal(3...10, (..10).clamp(3...10))
++
++    # Include the end when the returned end is not an excluded end.
++    assert_equal(3..7, (1...10).clamp(3, 7))
++    assert_equal(0..10, (0...).clamp(0, 10))
++    assert_equal(3..5, (1..5).clamp(3...7))
++    assert_equal(3..5, (..5).clamp(3...7))
++    assert_equal(3..10, (1..10).clamp(3...))
++
++    # Handle beginless and endless argument ranges.
++    assert_equal(1..7, (1..10).clamp(..7))
++    assert_equal(1...7, (1..10).clamp(...7))
++    assert_equal(1..5, (1..5).clamp(...7))
++
++    assert_equal(3..10, (1..10).clamp(3..))
++    assert_equal(3.., (1..).clamp(3..))
++    assert_equal(3..., (1...).clamp(3...))
++
++    # Return an inclusive point range when begin and end are clamped to
++    # different equal bounds.
++    assert_equal(3..3, (1..10).clamp(3, 3))
++    assert_equal(3..3, (1..10).clamp(3..3))
++
++    # Return an empty range when begin and end are clamped to the same side.
++    assert_equal(20...20, (1..10).clamp(20, 30))
++    assert_equal(0...0, (1..10).clamp(-10, 0))
++    assert_equal(20...20, (..10).clamp(20, 30))
++    assert_equal(20...20, (1..10).clamp(20..30))
++    assert_equal(0...0, (1..10).clamp(-10..0))
++    assert_equal(20...20, (..10).clamp(20..30))
++    assert_equal(3...3, (1..2).clamp(3, 3))
++    assert_equal(3...3, (4..10).clamp(3, 3))
++    assert_equal(0...0, (1..).clamp(nil, 0))
++    assert_equal(0...0, (1..).clamp(..0))
++
++    # Return a Range instance, not an instance of a subclass.
++    subclass = Class.new(Range)
++    assert_instance_of(Range, subclass.new(1, 10).clamp(3, 7))
++
++    # Raise for invalid bounds or argument types.
++    assert_raise(ArgumentError) {(1..3).clamp(1, "z")}
++    assert_raise(ArgumentError) {(1..3).clamp("a", "z")}
++    assert_raise(ArgumentError) {(1..3).clamp(2, 1)}
++    assert_raise(ArgumentError) {(1..3).clamp(2..1)}
++    assert_raise(TypeError) {(1..3).clamp(1)}
++  end
+ end

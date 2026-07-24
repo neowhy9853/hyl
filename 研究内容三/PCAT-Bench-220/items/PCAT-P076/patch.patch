@@ -1,0 +1,81 @@
+diff --git a/doc/man/man5/slapd-mdb.5 b/doc/man/man5/slapd-mdb.5
+index d2a88b615297551926ee83172f4b05255adaafa8..844f0728abbdcae4887deef369e1b8657aeafa05 100644
+--- a/doc/man/man5/slapd-mdb.5
++++ b/doc/man/man5/slapd-mdb.5
+@@ -58,6 +58,15 @@ flushed, some number of transactions may be lost.
+ By default, a full data flush/sync is performed when each
+ transaction is committed.
+ .TP
++.B dbpagesize \ <bytes>
++Specify the page size to use for the database, in bytes. The default
++depends on the underlying filesystem's block size (typically 4096 or 8192).
++The value must be a power of two and the maximum is 65536.
++This setting usually should not need to be changed,
++but setting a larger pagesize also increases the maximum length of keys
++so it may be useful to support longer values when \fBmultival\fP is used.
++This setting only takes effect when a database is being newly created.
++.TP
+ .BI directory \ <directory>
+ Specify the directory where the LMDB files containing this database and
+ associated indexes live.
+diff --git a/servers/slapd/back-mdb/back-mdb.h b/servers/slapd/back-mdb/back-mdb.h
+index 36b5638e429c669d3b2d643365125557fda33af7..d27417f3564e95dd6596376df52612044aeae0aa 100644
+--- a/servers/slapd/back-mdb/back-mdb.h
++++ b/servers/slapd/back-mdb/back-mdb.h
+@@ -121,6 +121,8 @@ struct mdb_info {
+ 		/* less than this many values in an attr goes
+ 		 * back into main blob */
+ 
++	int mi_pagesize;
++
+ 	MDB_dbi	mi_dbis[MDB_NDB];
+ 	AttributeDescription *mi_ads[MDB_MAXADS];
+ 	int mi_adxs[MDB_MAXADS];
+diff --git a/servers/slapd/back-mdb/config.c b/servers/slapd/back-mdb/config.c
+index 0721d48ed62c70256e212a00b3905310ce3937c9..80f4d320528eb619e548861601fb5aeee19b45d4 100644
+--- a/servers/slapd/back-mdb/config.c
++++ b/servers/slapd/back-mdb/config.c
+@@ -71,6 +71,12 @@ static ConfigTable mdbcfg[] = {
+ 			"DESC 'Disable synchronous database writes' "
+ 			"EQUALITY booleanMatch "
+ 			"SYNTAX OMsBoolean SINGLE-VALUE )", NULL, NULL },
++	{ "dbpagesize", "size", 2, 2, 0, ARG_UINT|ARG_OFFSET,
++		(void *)offsetof(struct mdb_info, mi_pagesize),
++			"( OLcfgDbAt:1.15 NAME 'olcDbPageSize' "
++			"DESC 'Page size in bytes, in range 256-65536' "
++			"EQUALITY integerMatch "
++			"SYNTAX OMsInteger SINGLE-VALUE )", NULL, NULL },
+ 	{ "envflags", "flags", 2, 0, 0, ARG_MAGIC|MDB_ENVFLAGS,
+ 		mdb_cf_gen, "( OLcfgDbAt:12.3 NAME 'olcDbEnvFlags' "
+ 			"DESC 'Database environment flags' "
+@@ -153,7 +159,7 @@ static ConfigOCs mdbocs[] = {
+ 		"MAY ( olcDbCheckpoint $ olcDbEnvFlags "
+ 		"$ olcDbNoSync $ olcDbIndex $ olcDbMaxReaders $ olcDbMaxSize "
+ 		"$ olcDbMode $ olcDbSearchStack $ olcDbMaxEntrySize $ olcDbRtxnSize "
+-		"$ olcDbMultival "
++		"$ olcDbMultival $ olcDbPageSize "
+ #ifdef MDB_ENCRYPT
+ 		"$ olcDbCryptoModule $ olcDbPassphrase "
+ #endif
+diff --git a/servers/slapd/back-mdb/init.c b/servers/slapd/back-mdb/init.c
+index 0767bdfafed1ac74105da18558e260ecdc17465c..82dcabbcce21e7958a8579415a4eceb23c1166e5 100644
+--- a/servers/slapd/back-mdb/init.c
++++ b/servers/slapd/back-mdb/init.c
+@@ -126,6 +126,17 @@ mdb_db_open( BackendDB *be, ConfigReply *cr )
+ 		goto fail;
+ 	}
+ 
++	if ( mdb->mi_pagesize ) {
++		rc = mdb_env_set_pagesize( mdb->mi_dbenv, mdb->mi_pagesize );
++		if ( rc ) {
++			Debug( LDAP_DEBUG_ANY,
++				LDAP_XSTRING(mdb_db_open) ": database \"%s\": "
++				"mdb_env_set_pagesize failed: %s (%d).\n",
++				be->be_suffix[0].bv_val, mdb_strerror(rc), rc );
++			goto fail;
++		}
++	}
++
+ #ifdef MDB_ENCRYPT
+ 	if ( mdb->mi_dbenv_encfuncs ) {
+ 		mdb_modsetup( mdb->mi_dbenv, mdb->mi_dbenv_encfuncs, mdb->mi_dbenv_enckey );

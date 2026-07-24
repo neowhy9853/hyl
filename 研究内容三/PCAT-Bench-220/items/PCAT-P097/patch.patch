@@ -1,0 +1,171 @@
+From 1c3a1bac8b14c866d70b330e0229e5555670f577 Mon Sep 17 00:00:00 2001
+From: "Nicholas S. Husin" <nsh@golang.org>
+Date: Mon, 20 Jul 2026 16:20:52 -0400
+Subject: [PATCH] net/http: prioritize lowercase proxy environment variables
+
+This CL vendors in CL 801700, making ProxyFromEnvironment follow the
+recently updated behavior of x/net/http/httpproxy.FromEnvironment.
+
+Fixes #79656
+
+Change-Id: Id01c8c4011eb6cc8f51a81231622b7d16a6a6964
+Reviewed-on: https://go-review.googlesource.com/c/go/+/803022
+Reviewed-by: Damien Neil <dneil@google.com>
+Reviewed-by: Nicholas Husin <husin@google.com>
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+---
+ doc/next/6-stdlib/99-minor/net/http/79656.md        |  6 ++++++
+ src/go.mod                                          |  2 +-
+ src/go.sum                                          |  4 ++--
+ src/net/http/transport.go                           |  6 ++++--
+ src/vendor/golang.org/x/net/http/httpproxy/proxy.go | 13 +++++++------
+ src/vendor/golang.org/x/net/quic/config.go          |  3 +++
+ src/vendor/golang.org/x/net/quic/endpoint.go        |  9 ++++-----
+ src/vendor/modules.txt                              |  2 +-
+ 8 files changed, 28 insertions(+), 17 deletions(-)
+ create mode 100644 doc/next/6-stdlib/99-minor/net/http/79656.md
+
+diff --git a/doc/next/6-stdlib/99-minor/net/http/79656.md b/doc/next/6-stdlib/99-minor/net/http/79656.md
+new file mode 100644
+index 0000000000..ec4bbf09eb
+--- /dev/null
++++ b/doc/next/6-stdlib/99-minor/net/http/79656.md
+@@ -0,0 +1,6 @@
++<!-- go.dev/issue/79656 -->
++
++[ProxyFromEnvironment] now prioritizes lowercase proxy environment variables
++(`http_proxy`, `https_proxy`, and `no_proxy`) over the uppercase versions if
++both are set to different values. This change also affects default proxy lookups
++in [DefaultTransport] and [DefaultClient] by extension.
+diff --git a/src/go.mod b/src/go.mod
+index 31cff08cfb..5cd65aa1cd 100644
+--- a/src/go.mod
++++ b/src/go.mod
+@@ -4,7 +4,7 @@ go 1.28
+ 
+ require (
+ 	golang.org/x/crypto v0.54.1-0.20260714033321-10b54ffa51b1
+-	golang.org/x/net v0.57.1-0.20260714001123-e7e2eb826435
++	golang.org/x/net v0.57.1-0.20260720200444-a02ddfa7eacb
+ )
+ 
+ require (
+diff --git a/src/go.sum b/src/go.sum
+index 829e8fbf4b..f540571ca5 100644
+--- a/src/go.sum
++++ b/src/go.sum
+@@ -1,7 +1,7 @@
+ golang.org/x/crypto v0.54.1-0.20260714033321-10b54ffa51b1 h1:vGPAn+SBeT/HVkWqXTwgapJgtGQJztG0WR0OTuHzMAI=
+ golang.org/x/crypto v0.54.1-0.20260714033321-10b54ffa51b1/go.mod h1:KWL8ny2AZdGR2cWmzeHrp2azQPGogOv+HeQaVEXC2dk=
+-golang.org/x/net v0.57.1-0.20260714001123-e7e2eb826435 h1:F2VkyVpi+/NElkyxEdnKyWzMLTGeSpJBbLgHJKS1rJ0=
+-golang.org/x/net v0.57.1-0.20260714001123-e7e2eb826435/go.mod h1:KpXc8iv+r3XplLAG/f7Jsf9RPszJzdR0f58q9vGOuEU=
++golang.org/x/net v0.57.1-0.20260720200444-a02ddfa7eacb h1:4Zpnuj4Vkh1c0wOa1MvxIp+I66KR18NRN08y9bN5zL0=
++golang.org/x/net v0.57.1-0.20260720200444-a02ddfa7eacb/go.mod h1:KpXc8iv+r3XplLAG/f7Jsf9RPszJzdR0f58q9vGOuEU=
+ golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=
+ golang.org/x/sys v0.47.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
+ golang.org/x/text v0.40.0 h1:Ub2Z6/xjgF1WrYQz2nuITOEegKFtiIy+rieRJ5lHZKs=
+diff --git a/src/net/http/transport.go b/src/net/http/transport.go
+index 695f89b8cd..ef76d0852d 100644
+--- a/src/net/http/transport.go
++++ b/src/net/http/transport.go
+@@ -43,7 +43,8 @@ import (
+ // used by [DefaultClient]. It establishes network connections as needed
+ // and caches them for reuse by subsequent calls. It uses HTTP proxies
+ // as directed by the environment variables HTTP_PROXY, HTTPS_PROXY
+-// and NO_PROXY (or the lowercase versions thereof).
++// and NO_PROXY (or the lowercase versions thereof, which take
++// precedence over the uppercase versions).
+ var DefaultTransport RoundTripper = &Transport{
+ 	Proxy: ProxyFromEnvironment,
+ 	DialContext: defaultTransportDialContext(&net.Dialer{
+@@ -503,7 +504,8 @@ func (t *Transport) protocols() Protocols {
+ // ProxyFromEnvironment returns the URL of the proxy to use for a
+ // given request, as indicated by the environment variables
+ // HTTP_PROXY, HTTPS_PROXY and NO_PROXY (or the lowercase versions
+-// thereof). Requests use the proxy from the environment variable
++// thereof, which take precedence over the uppercase versions).
++// Requests use the proxy from the environment variable
+ // matching their scheme, unless excluded by NO_PROXY.
+ //
+ // The environment values may be either a complete URL or a
+diff --git a/src/vendor/golang.org/x/net/http/httpproxy/proxy.go b/src/vendor/golang.org/x/net/http/httpproxy/proxy.go
+index 5ab499b0bc..1e260f4444 100644
+--- a/src/vendor/golang.org/x/net/http/httpproxy/proxy.go
++++ b/src/vendor/golang.org/x/net/http/httpproxy/proxy.go
+@@ -80,18 +80,19 @@ type config struct {
+ 	domainMatchers []matcher
+ }
+ 
+-// FromEnvironment returns a Config instance populated from the
+-// environment variables HTTP_PROXY, HTTPS_PROXY and NO_PROXY (or the
+-// lowercase versions thereof).
++// FromEnvironment returns a Config instance populated from the environment
++// variables HTTP_PROXY, HTTPS_PROXY and NO_PROXY (or the lowercase versions
++// thereof). When both the uppercase and lowercase versions are provided, the
++// lowercase versions are prioritized.
+ //
+ // The environment values may be either a complete URL or a
+ // "host[:port]", in which case the "http" scheme is assumed. An error
+ // is returned if the value is a different form.
+ func FromEnvironment() *Config {
+ 	return &Config{
+-		HTTPProxy:  getEnvAny("HTTP_PROXY", "http_proxy"),
+-		HTTPSProxy: getEnvAny("HTTPS_PROXY", "https_proxy"),
+-		NoProxy:    getEnvAny("NO_PROXY", "no_proxy"),
++		HTTPProxy:  getEnvAny("http_proxy", "HTTP_PROXY"),
++		HTTPSProxy: getEnvAny("https_proxy", "HTTPS_PROXY"),
++		NoProxy:    getEnvAny("no_proxy", "NO_PROXY"),
+ 		CGI:        os.Getenv("REQUEST_METHOD") != "",
+ 	}
+ }
+diff --git a/src/vendor/golang.org/x/net/quic/config.go b/src/vendor/golang.org/x/net/quic/config.go
+index a9ec4bc437..d8bd7cba57 100644
+--- a/src/vendor/golang.org/x/net/quic/config.go
++++ b/src/vendor/golang.org/x/net/quic/config.go
+@@ -110,6 +110,9 @@ type Config struct {
+ // Clone returns a shallow clone of c, or nil if c is nil.
+ // It is safe to clone a [Config] that is being used concurrently by a QUIC endpoint.
+ func (c *Config) Clone() *Config {
++	if c == nil {
++		return nil
++	}
+ 	n := *c
+ 	return &n
+ }
+diff --git a/src/vendor/golang.org/x/net/quic/endpoint.go b/src/vendor/golang.org/x/net/quic/endpoint.go
+index 3dd03921f4..7466ec421d 100644
+--- a/src/vendor/golang.org/x/net/quic/endpoint.go
++++ b/src/vendor/golang.org/x/net/quic/endpoint.go
+@@ -149,12 +149,11 @@ func (e *Endpoint) Close(ctx context.Context) error {
+ 	select {
+ 	case <-e.closec:
+ 	case <-ctx.Done():
+-		for _, c := range conns {
+-			c.exit()
+-		}
+-		return ctx.Err()
+ 	}
+-	return nil
++	for _, c := range conns {
++		c.exit()
++	}
++	return ctx.Err() // nil if context hasn't expired
+ }
+ 
+ // Accept waits for and returns the next connection.
+diff --git a/src/vendor/modules.txt b/src/vendor/modules.txt
+index 3592a83513..6a02c35f7f 100644
+--- a/src/vendor/modules.txt
++++ b/src/vendor/modules.txt
+@@ -7,7 +7,7 @@ golang.org/x/crypto/cryptobyte/asn1
+ golang.org/x/crypto/hkdf
+ golang.org/x/crypto/internal/alias
+ golang.org/x/crypto/internal/poly1305
+-# golang.org/x/net v0.57.1-0.20260714001123-e7e2eb826435
++# golang.org/x/net v0.57.1-0.20260720200444-a02ddfa7eacb
+ ## explicit; go 1.25.0
+ golang.org/x/net/dns/dnsmessage
+ golang.org/x/net/http/httpguts
+-- 
+2.34.1
+

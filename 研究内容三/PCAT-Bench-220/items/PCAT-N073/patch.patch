@@ -1,0 +1,114 @@
+From 4d1000c44e2e0221477b91bbcc980b3659476dd0 Mon Sep 17 00:00:00 2001
+From: Michael Matloob <matloob@golang.org>
+Date: Fri, 3 Jul 2026 17:04:08 -0400
+Subject: [PATCH] cmd/go: split test_vet script test for improved parallelism
+
+For #78152
+
+Change-Id: I0e0a0a4bcec2c3785619162bd837fbe76a6a6964
+Reviewed-on: https://go-review.googlesource.com/c/go/+/798361
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+Reviewed-by: Dmitri Shuralyov <dmitshur@golang.org>
+Reviewed-by: Dmitri Shuralyov <dmitshur@google.com>
+Reviewed-by: David Chase <drchase@google.com>
+---
+ src/cmd/go/testdata/script/test_vet.txt       | 31 ----------------
+ .../go/testdata/script/test_vet_vetall.txt    | 37 +++++++++++++++++++
+ 2 files changed, 37 insertions(+), 31 deletions(-)
+ create mode 100644 src/cmd/go/testdata/script/test_vet_vetall.txt
+
+diff --git a/src/cmd/go/testdata/script/test_vet.txt b/src/cmd/go/testdata/script/test_vet.txt
+index 6151f912ae0db150eb1ede771f4628743d12e87a..5af26b54f9141bb189bbf15b55edef6fa09c0919 100644
+--- a/src/cmd/go/testdata/script/test_vet.txt
++++ b/src/cmd/go/testdata/script/test_vet.txt
+@@ -16,22 +16,6 @@ go test -vet=off p1.go
+ ! stderr '[\\/]vet.*-shift'
+ stdout '\[no test files\]'
+ 
+-# ensure all runs non-default vet
+-! go test -vet=all ./vetall/...
+-stderr 'using resp before checking for errors'
+-
+-# Test issue #47309
+-! go test -vet=bools,xyz ./vetall/...
+-stderr '-vet argument must be a supported analyzer'
+-
+-# Test with a single analyzer
+-! go test -vet=httpresponse ./vetall/...
+-stderr 'using resp before checking for errors'
+-
+-# Test with a list of analyzers
+-go test -vet=atomic,bools,nilfunc ./vetall/...
+-stdout 'm/vetall.*\[no tests to run\]'
+-
+ # Test issue #22890
+ go test m/vetcycle
+ stdout 'm/vetcycle.*\[no test files\]'
+@@ -67,21 +51,6 @@ import "fmt"
+ func F() {
+ 	fmt.Printf("%d") // oops
+ }
+--- vetall/p.go --
+-package p
+-
+-import "net/http"
+-
+-func F() {
+-	resp, err := http.Head("example.com")
+-	defer resp.Body.Close()
+-	if err != nil {
+-		panic(err)
+-	}
+-	// (defer statement belongs here)
+-}
+--- vetall/p_test.go --
+-package p
+ -- vetcycle/p.go --
+ package p
+ 
+diff --git a/src/cmd/go/testdata/script/test_vet_vetall.txt b/src/cmd/go/testdata/script/test_vet_vetall.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..6f7b665733796834f089ef70e54d50c892628cb2
+--- /dev/null
++++ b/src/cmd/go/testdata/script/test_vet_vetall.txt
+@@ -0,0 +1,37 @@
++[short] skip
++
++# ensure all runs non-default vet
++! go test -vet=all ./vetall/...
++stderr 'using resp before checking for errors'
++
++# Test issue #47309
++! go test -vet=bools,xyz ./vetall/...
++stderr '-vet argument must be a supported analyzer'
++
++# Test with a single analyzer
++! go test -vet=httpresponse ./vetall/...
++stderr 'using resp before checking for errors'
++
++# Test with a list of analyzers
++go test -vet=atomic,bools,nilfunc ./vetall/...
++stdout 'm/vetall.*\[no tests to run\]'
++
++-- go.mod --
++module m
++
++go 1.16
++-- vetall/p.go --
++package p
++
++import "net/http"
++
++func F() {
++	resp, err := http.Head("example.com")
++	defer resp.Body.Close()
++	if err != nil {
++		panic(err)
++	}
++	// (defer statement belongs here)
++}
++-- vetall/p_test.go --
++package p
+-- 
+2.34.1
+

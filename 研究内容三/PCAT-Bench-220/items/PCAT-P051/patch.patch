@@ -1,0 +1,105 @@
+diff --git a/dnf/cli/cli.py b/dnf/cli/cli.py
+index ca0603b7cffe14bed1528a05681da728e592e238..62b9434b7e3feb14e4282d0f77b43e80745b277d 100644
+--- a/dnf/cli/cli.py
++++ b/dnf/cli/cli.py
+@@ -844,7 +844,7 @@ class Cli(object):
+                                           dnf.conf.PRIO_DEFAULT)
+                 self.demands.cacheonly = True
+             self.base.conf._configure_from_options(opts)
+-            self._read_conf_file(opts.releasever)
++            self._read_conf_file(opts.releasever, opts.releasever_major, opts.releasever_minor)
+             if 'arch' in opts:
+                 self.base.conf.arch = opts.arch
+             self.base.conf._adjust_conf_options()
+@@ -953,7 +953,7 @@ class Cli(object):
+                       )
+                 )
+ 
+-    def _read_conf_file(self, releasever=None):
++    def _read_conf_file(self, releasever=None, releasever_major=None, releasever_minor=None):
+         timer = dnf.logging.Timer('config')
+         conf = self.base.conf
+ 
+@@ -981,18 +981,23 @@ class Cli(object):
+         subst.update_from_etc(from_root, varsdir=conf._get_value('varsdir'))
+ 
+         # cachedir, logs, releasever, and gpgkey are taken from or stored in installroot
+-        major = None
+-        minor = None
++
++        det_major = None
++        det_minor = None
+         if releasever is None and conf.releasever is None:
+-            releasever, major, minor = dnf.rpm.detect_releasevers(conf.installroot)
++            releasever, det_major, det_minor = dnf.rpm.detect_releasevers(conf.installroot)
+         elif releasever == '/':
+-            releasever, major, minor = dnf.rpm.detect_releasevers(releasever)
+-        if releasever is not None:
+-            conf.releasever = releasever
+-            if major is not None:
+-                conf.releasever_major = major
+-            if minor is not None:
+-                conf.releasever_minor = minor
++            releasever, det_major, det_minor = dnf.rpm.detect_releasevers(releasever)
++
++        def or_else(*args):
++            for arg in args:
++                if arg is not None:
++                    return arg
++            return None
++        conf.releasever = or_else(releasever, conf.releasever)
++        conf.releasever_major = or_else(releasever_major, det_major, conf.releasever_major)
++        conf.releasever_minor = or_else(releasever_minor, det_minor, conf.releasever_minor)
++
+         if conf.releasever is None:
+             logger.warning(_("Unable to detect release version (use '--releasever' to specify "
+                              "release version)"))
+diff --git a/dnf/cli/option_parser.py b/dnf/cli/option_parser.py
+index ec4696fd2c1428f5d97096ad89ffea354de01497..fba37614a03239f2b9e266946a7c5f7812883763 100644
+--- a/dnf/cli/option_parser.py
++++ b/dnf/cli/option_parser.py
+@@ -199,6 +199,12 @@ class OptionParser(argparse.ArgumentParser):
+         general_grp.add_argument("--releasever", default=None,
+                                  help=_("override the value of $releasever"
+                                         " in config and repo files"))
++        general_grp.add_argument("--releasever-major", default=None,
++                                 help=_("override the value of $releasever_major"
++                                        " in config and repo files"))
++        general_grp.add_argument("--releasever-minor", default=None,
++                                 help=_("override the value of $releasever_minor"
++                                        " in config and repo files"))
+         general_grp.add_argument("--setopt", dest="setopts", default=[],
+                                  action=self._SetoptsCallback,
+                                  help=_("set arbitrary config and repo options"))
+diff --git a/doc/command_ref.rst b/doc/command_ref.rst
+index e75a08a4d27cece996e9d4bb83b80e92ee3ede64..54c05b0f1d65faee96e113aafa53c702b6ab1d84 100644
+--- a/doc/command_ref.rst
++++ b/doc/command_ref.rst
+@@ -335,6 +335,14 @@ Options
+     Configure DNF as if the distribution release was ``<release>``. This can
+     affect cache paths, values in configuration files and mirrorlist URLs.
+ 
++``--releasever_major=<major version>``
++    Override the releasever_major variable, which is usually automatically
++    detected or taken from the part of ``$releasever`` before the first ``.``.
++
++``--releasever_minor=<minor version>``
++    Override the releasever_minor variable, which is usually automatically
++    detected or taken from the part of ``$releasever`` after the first ``.``.
++
+ .. _repofrompath_options-label:
+ 
+ 
+diff --git a/doc/conf_ref.rst b/doc/conf_ref.rst
+index 26bf6f645a1fa1601137ac0ad78022de46b1f3a8..466d45f0840c07822967b07d65b656a496c195b9 100644
+--- a/doc/conf_ref.rst
++++ b/doc/conf_ref.rst
+@@ -503,6 +503,8 @@ configuration file by your distribution to override the DNF defaults.
+ 
+     The ``$releasever_major`` and ``$releasever_minor`` variables will be automatically derived from ``$releasever`` by splitting it on the first ``.``. For example, if ``$releasever`` is set to ``1.23``, then ``$releasever_major`` will be ``1`` and ``$releasever_minor`` will be ``23``.
+ 
++    ``$releasever_major`` and ``$releasever_minor`` can also be set by the distribution.
++
+     See also :ref:`repo variables <repo-variables-label>`.
+ 
+ .. _reposdir-label:

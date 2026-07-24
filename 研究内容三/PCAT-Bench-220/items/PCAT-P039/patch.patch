@@ -1,0 +1,225 @@
+diff --git a/docs/reference/glib/string-utils.md b/docs/reference/glib/string-utils.md
+index bf9729c5179015c9c8fea699ba1771b24ebfa269..3870f6410e41a8da816ce3252c656d2557e91a95 100644
+--- a/docs/reference/glib/string-utils.md
++++ b/docs/reference/glib/string-utils.md
+@@ -59,7 +59,8 @@ which should be used instead of `%llu` or similar parameters for formatting
+ 
+ For users of GLib in C, the [func@GLib.set_str] and [func@GLib.set_str_take]
+ inline functions also exist to set a string and handle copying the new value
+-and freeing the old one.
++and freeing the old one. Similarly, [func@GLib.set_strv] and
++[func@GLib.set_strv_take] exist to set a string array.
+ 
+ ## String Copying
+ 
+diff --git a/glib/gstrfuncs.h b/glib/gstrfuncs.h
+index e9117c453632998c26461bc0d54c66a0f1e7ab66..af1dd9dbcfca1fa2271d3ff3e2fe48524253b860 100644
+--- a/glib/gstrfuncs.h
++++ b/glib/gstrfuncs.h
+@@ -570,6 +570,123 @@ g_set_str_take (char **str_pointer,
+   return TRUE;
+ }
+ 
++/**
++ * g_set_strv: (skip)
++ * @strv_pointer: (inout) (not optional) (nullable): a pointer to either
++ *   a `NULL`-terminated string array or `NULL`
++ * @new_strv: (nullable): a NULL-terminated string array to assign to
++ *   @strv_pointer
++ *
++ * Safely replaces a string vector.
++ *
++ * Updates a pointer to a `NULL`-terminated string array to a copy of @new_strv
++ * and returns whether the value was changed.
++ *
++ * If @new_strv matches the previous array, this function is a no-op. If
++ * @new_strv is different, a copy of it will be assigned to @strv_pointer and
++ * the previous array pointed to by @strv_pointer will be freed with
++ * [func@GLib.strfreev].
++ *
++ * The contents of both string arrays are compared for equality before
++ * replacing the value. In the worst case this requires O(N) time.
++ *
++ * This function avoids a potential use-after-free when @new_strv reuses
++ * pointers from the original string array. This allows callers to build
++ * a replacement array using existing strings without needing to copy
++ * them beforehand.
++ *
++ * @strv_pointer must not be `NULL`, but can point to a `NULL` value.
++ *
++ * Returns: true if the value of @strv_pointer changed, false otherwise
++ *
++ * Since: 2.90
++ */
++GLIB_AVAILABLE_STATIC_INLINE_IN_2_90
++static inline gboolean g_set_strv (char               ***strv_pointer,
++                                   const char * const   *new_strv);
++
++GLIB_AVAILABLE_STATIC_INLINE_IN_2_90
++static inline gboolean
++g_set_strv (char               ***strv_pointer,
++            const char * const   *new_strv)
++{
++  char **copy;
++
++  if ((const char * const *)*strv_pointer == new_strv)
++    return FALSE;
++
++G_GNUC_BEGIN_IGNORE_DEPRECATIONS
++  if (*strv_pointer && new_strv &&
++      g_strv_equal ((const char * const *)*strv_pointer, new_strv))
++    return FALSE;
++G_GNUC_END_IGNORE_DEPRECATIONS
++
++  copy = g_strdupv ((char **) (guintptr) new_strv);
++  g_strfreev (*strv_pointer);
++  *strv_pointer = copy;
++
++  return TRUE;
++}
++
++/**
++ * g_set_strv_take: (skip)
++ * @strv_pointer: (inout) (not optional) (nullable): a pointer to either
++ *   a `NULL`-terminated string array or `NULL`
++ * @new_strv: (transfer full) (nullable): a `NULL`-terminated string array to
++ *   assign to @strv_pointer
++ *
++ * Safely replaces a string vector, taking ownership of the new value.
++ *
++ * Updates a pointer to a `NULL`-terminated string array to @new_strv and
++ * returns whether the value was changed.
++ *
++ * If @new_strv contains the same strings as the previous array, this function
++ * is a no-op. If @new_strv is different, it will be assigned to @strv_pointer
++ * and the previous array pointed to by @strv_pointer will be freed with
++ * [func@GLib.strfreev].
++ *
++ * If @new_strv does not replace the existing value, it will be freed with
++ * [func@GLib.strfreev], unless it is `NULL`.
++ *
++ * The contents of both string arrays are compared for equality before
++ * replacing the value. In the worst case this requires O(N) time.
++ *
++ * @strv_pointer must not be `NULL`, but can point to a `NULL` value.
++ * @new_strv must be `NULL` or a string array not already stored in
++ * @strv_pointer.
++ *
++ * Returns: true if the value of @strv_pointer changed, false otherwise
++ *
++ * Since: 2.90
++ */
++GLIB_AVAILABLE_STATIC_INLINE_IN_2_90
++static inline gboolean g_set_strv_take (char ***strv_pointer,
++                                        char  **new_strv);
++
++GLIB_AVAILABLE_STATIC_INLINE_IN_2_90
++static inline gboolean
++g_set_strv_take (char ***strv_pointer,
++                 char  **new_strv)
++{
++  if (*strv_pointer == NULL && new_strv == NULL)
++    return FALSE;
++
++G_GNUC_BEGIN_IGNORE_DEPRECATIONS
++  if (*strv_pointer && new_strv &&
++      g_strv_equal ((const char * const *)*strv_pointer,
++                    (const char * const *)new_strv))
++    {
++      g_strfreev (new_strv);
++      return FALSE;
++    }
++G_GNUC_END_IGNORE_DEPRECATIONS
++
++  g_strfreev (*strv_pointer);
++  *strv_pointer = new_strv;
++
++  return TRUE;
++}
++
+ G_END_DECLS
+ 
+ #endif /* __G_STRFUNCS_H__ */
+diff --git a/glib/tests/strfuncs.c b/glib/tests/strfuncs.c
+index 7ae6e953af8af021174e21e24b936d34e15d3ac9..790dbcdb77511da60502960d484f0bb2a6349131 100644
+--- a/glib/tests/strfuncs.c
++++ b/glib/tests/strfuncs.c
+@@ -2814,6 +2814,70 @@ test_set_str_take (void)
+   g_free (str);
+ }
+ 
++static void
++test_set_strv (void)
++{
++  char **strv = NULL;
++  char **taken_strv = NULL;
++  const char * const empty_strv[] = { NULL };
++  const char * const values1[] = { "a", "b", NULL };
++  const char * const values2[] = { "a", "b", NULL };
++  const char * const values3[] = { "a", "c", NULL };
++
++  g_assert_false (g_set_strv (&strv, NULL));
++  g_assert_null (strv);
++
++  g_assert_true (g_set_strv (&strv, empty_strv));
++  g_assert_nonnull (strv);
++  g_assert_true ((gpointer)strv != (gpointer)empty_strv);
++  g_assert_true (g_strv_equal ((const char * const *)strv, empty_strv));
++
++  g_assert_false (g_set_strv (&strv, empty_strv));
++  g_assert_true (g_strv_equal ((const char * const *)strv, empty_strv));
++
++  g_assert_false (g_set_strv (&strv, (const char * const *)strv));
++  g_assert_true (g_strv_equal ((const char * const *)strv, empty_strv));
++
++  g_assert_true (g_set_strv (&strv, values1));
++  g_assert_true (g_strv_equal ((const char * const *)strv, values1));
++
++  g_assert_false (g_set_strv (&strv, values2));
++  g_assert_true (g_strv_equal ((const char * const *)strv, values1));
++
++  g_assert_true (g_set_strv (&strv, values3));
++  g_assert_true (g_strv_equal ((const char * const *)strv, values3));
++
++  g_assert_true (g_set_strv (&strv, NULL));
++  g_assert_null (strv);
++
++  g_assert_false (g_set_strv_take (&strv, NULL));
++  g_assert_null (strv);
++
++  taken_strv = g_strdupv ((char **) empty_strv);
++  g_assert_true (g_set_strv_take (&strv, g_steal_pointer (&taken_strv)));
++  g_assert_nonnull (strv);
++  g_assert_true (g_strv_equal ((const char * const *)strv, empty_strv));
++
++  taken_strv = g_strdupv ((char **) empty_strv);
++  g_assert_false (g_set_strv_take (&strv, g_steal_pointer (&taken_strv)));
++  g_assert_true (g_strv_equal ((const char * const *)strv, empty_strv));
++
++  taken_strv = g_strdupv ((char **) values1);
++  g_assert_true (g_set_strv_take (&strv, g_steal_pointer (&taken_strv)));
++  g_assert_true (g_strv_equal ((const char * const *)strv, values1));
++
++  taken_strv = g_strdupv ((char **) values2);
++  g_assert_false (g_set_strv_take (&strv, g_steal_pointer (&taken_strv)));
++  g_assert_true (g_strv_equal ((const char * const *)strv, values1));
++
++  taken_strv = g_strdupv ((char **) values3);
++  g_assert_true (g_set_strv_take (&strv, g_steal_pointer (&taken_strv)));
++  g_assert_true (g_strv_equal ((const char * const *)strv, values3));
++
++  g_assert_true (g_set_strv_take (&strv, NULL));
++  g_assert_null (strv);
++}
++
+ static void
+ test_str_is_ascii (void)
+ {
+@@ -2856,6 +2920,7 @@ main (int   argc,
+   g_test_add_func ("/strfuncs/memdup2", test_memdup2);
+   g_test_add_func ("/strfuncs/set_str", test_set_str);
+   g_test_add_func ("/strfuncs/set_str_take", test_set_str_take);
++  g_test_add_func ("/strfuncs/set_strv", test_set_strv);
+   g_test_add_func ("/strfuncs/stpcpy", test_stpcpy);
+   g_test_add_func ("/strfuncs/str_match_string", test_str_match_string);
+   g_test_add_func ("/strfuncs/str_tokenize_and_fold", test_str_tokenize_and_fold);

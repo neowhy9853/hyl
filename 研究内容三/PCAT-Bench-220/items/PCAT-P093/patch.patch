@@ -1,0 +1,130 @@
+From 16e8e067516c7c35f2affd8e9d58271707611575 Mon Sep 17 00:00:00 2001
+From: Emmanuel T Odeke <emmanuel@orijtech.com>
+Date: Tue, 16 Jun 2026 23:21:29 -0400
+Subject: [PATCH] runtime: prefix "runtime error:" to PanicNilError.Error to
+ fully confirm as runtime.Error
+
+This change adds "runtime error:" to runtime.PanicNilError's Error method
+to uniquely distinguish from other errors and to correctly conform to runtime.Error.
+
+10 years ago in CL 21214, I added runtime.plainError to help correctly conform
+runtime panics to the Go specification and it is only right and about time to add
+this prefix to PanicNilError introduced 3 years ago in CL 461956.
+
+Fixes #63813
+
+Change-Id: I0554330d105a83c5bbfd9ebf5d29b73632c73ef0
+Reviewed-on: https://go-review.googlesource.com/c/go/+/791540
+Reviewed-by: Dmitri Shuralyov <dmitshur@google.com>
+Auto-Submit: Emmanuel Odeke <emmanuel@orijtech.com>
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+Reviewed-by: Keith Randall <khr@google.com>
+Commit-Queue: Emmanuel Odeke <emmanuel@orijtech.com>
+Reviewed-by: Keith Randall <khr@golang.org>
+---
+ src/runtime/panic.go         |  2 +-
+ src/runtime/panic_test.go    | 57 ++++++++++++++++++++++++++++++++++++
+ test/fixedbugs/issue19658.go |  2 +-
+ 3 files changed, 59 insertions(+), 2 deletions(-)
+
+diff --git a/src/runtime/panic.go b/src/runtime/panic.go
+index 678fe20c25..f28807d0d8 100644
+--- a/src/runtime/panic.go
++++ b/src/runtime/panic.go
+@@ -791,7 +791,7 @@ type PanicNilError struct {
+ 	_ [0]*PanicNilError
+ }
+ 
+-func (*PanicNilError) Error() string { return "panic called with nil argument" }
++func (*PanicNilError) Error() string { return "runtime error: panic called with nil argument" }
+ func (*PanicNilError) RuntimeError() {}
+ 
+ var panicnil = &godebugInc{name: "panicnil"}
+diff --git a/src/runtime/panic_test.go b/src/runtime/panic_test.go
+index 5a4b6ae633..889b33f032 100644
+--- a/src/runtime/panic_test.go
++++ b/src/runtime/panic_test.go
+@@ -5,6 +5,7 @@
+ package runtime_test
+ 
+ import (
++	"runtime"
+ 	"slices"
+ 	"strings"
+ 	"testing"
+@@ -98,3 +99,59 @@ func TestPanicRecoverSpeed(t *testing.T) {
+ 		t.Errorf("more than 2x time increase: %v", m)
+ 	}
+ }
++
++// Test that panics with nil arguments produce the prefix
++// "runtime error:" per https://golang.org/issues/63813.
++func TestPanicNilErrorPrefix(t *testing.T) {
++	tests := []struct {
++		name      string
++		wantPanic string
++		fn        func()
++	}{
++		{
++			name:      "panic(nil)",
++			wantPanic: "runtime error: panic with nil argument",
++			fn: func() {
++				panic(nil)
++			},
++		},
++		{
++			name:      "panic((any)(nil))",
++			wantPanic: "runtime error: panic with nil argument",
++			fn: func() {
++				var foo any = nil
++				panic(foo)
++			},
++		},
++		{
++			name:      "panic((error)(nil))",
++			wantPanic: "runtime error: panic with nil argument",
++			fn: func() {
++				var err error
++				panic(err)
++			},
++		},
++	}
++
++	for _, tt := range tests {
++		tt := tt
++		t.Run(tt.name, func(t *testing.T) {
++			defer func() {
++				r := recover()
++				if r == nil {
++					t.Fatal("expected a panic")
++				}
++
++				re, ok := r.(runtime.Error)
++				if !ok {
++					t.Fatalf("wrong panic type: got %T, want runtime.Error", r)
++				}
++				if !strings.Contains(re.Error(), "runtime error: panic called with nil argument") {
++					t.Fatalf("mismatched message, missing `runtime error: panic with nil`, : got:\n%s", re.Error())
++				}
++			}()
++
++			tt.fn()
++		})
++	}
++}
+diff --git a/test/fixedbugs/issue19658.go b/test/fixedbugs/issue19658.go
+index 1ad575c269..ff61a14f6a 100644
+--- a/test/fixedbugs/issue19658.go
++++ b/test/fixedbugs/issue19658.go
+@@ -47,7 +47,7 @@ func main() {
+ 		Input  string
+ 		Expect string
+ 	}{
+-		{"", "nil", "panic: panic called with nil argument"},
++		{"", "nil", "panic: runtime error: panic called with nil argument"},
+ 		{"errors.New", `"test"`, "panic: test"},
+ 		{"S", "S{}", "panic: s-stringer"},
+ 		{"byte", "8", "panic: 8"},
+-- 
+2.34.1
+

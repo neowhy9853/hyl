@@ -1,0 +1,257 @@
+From f02c7a9b8ac443daafac8e7be5828b4010fb46d8 Mon Sep 17 00:00:00 2001
+From: Yann Ylavic <ylavic@apache.org>
+Date: Mon, 17 Oct 2022 09:48:11 +0000
+Subject: [PATCH] mod_dav: Allow to disable lock discovery via an
+ DAVLockDiscovery expression.
+
+mod_dav-fs scales badly when a few clients run PROPFIND requests to discover
+directory content. Each PROPFIND involves lockdiscovery, which in turn waits
+for a locked access to the file containing the lock database. Performances
+quickly drop because of lock contention on this file.
+
+Add a DAVLockDiscovery configuration directive that allows lockdiscovery to be
+disabled. Its argument is an Apache expression so that flexible configuration
+are possible (per-request).
+
+When lock discovery is disabled, an empty lockdiscovery property is returned on
+POPRFIND methods, just like if no lock was set on the object. That should cause
+no regression, since a client cannot rely on lockdiscovery to decide when a
+file should be accessed, the LOCK methood must be used.
+
+If DAVLockDiscovery is not specified, the behavior is unchanged.
+
+
+PR 66313.
+Submitted by: Emmanuel Dreyfus <manu netbsd.org>
+Reviewed by: ylavic
+
+
+
+git-svn-id: https://svn.apache.org/repos/asf/httpd/httpd/trunk@1904638 13f79535-47bb-0310-9956-ffa450edef68
+---
+ changes-entries/DAVLockDiscovery.txt |  2 +
+ modules/dav/main/mod_dav.c           | 55 ++++++++++++++++++++++++++--
+ modules/dav/main/mod_dav.h           |  7 +++-
+ modules/dav/main/props.c             | 16 ++++++--
+ 4 files changed, 72 insertions(+), 8 deletions(-)
+ create mode 100644 changes-entries/DAVLockDiscovery.txt
+
+diff --git a/changes-entries/DAVLockDiscovery.txt b/changes-entries/DAVLockDiscovery.txt
+new file mode 100644
+index 0000000000..1696d60465
+--- /dev/null
++++ b/changes-entries/DAVLockDiscovery.txt
+@@ -0,0 +1,2 @@
++  *) mod_dav: Allow to disable lock discovery via an DAVLockDiscovery
++     expression (per-request). PR 66313. [Emmanuel Dreyfus <manu netbsd.org>]
+diff --git a/modules/dav/main/mod_dav.c b/modules/dav/main/mod_dav.c
+index 1a4b0663f0..30ed95199e 100644
+--- a/modules/dav/main/mod_dav.c
++++ b/modules/dav/main/mod_dav.c
+@@ -83,6 +83,7 @@ typedef struct {
+     const char *dir;
+     int locktimeout;
+     int allow_depthinfinity;
++    ap_expr_info_t *allow_lockdiscovery;
+ 
+ } dav_dir_conf;
+ 
+@@ -203,6 +204,8 @@ static void *dav_merge_dir_config(apr_pool_t *p, void *base, void *overrides)
+     newconf->dir = DAV_INHERIT_VALUE(parent, child, dir);
+     newconf->allow_depthinfinity = DAV_INHERIT_VALUE(parent, child,
+                                                      allow_depthinfinity);
++    newconf->allow_lockdiscovery = DAV_INHERIT_VALUE(parent, child,
++                                                     allow_lockdiscovery);
+ 
+     return newconf;
+ }
+@@ -300,6 +303,30 @@ static const char *dav_cmd_davdepthinfinity(cmd_parms *cmd, void *config,
+     return NULL;
+ }
+ 
++/*
++ * Command handler for the DAVLockDiscovery directive, which is TAKE1.
++ */
++static const char *dav_cmd_davlockdiscovery(cmd_parms *cmd, void *config,
++                                            const char *arg)
++{
++    dav_dir_conf *conf = (dav_dir_conf *)config;
++
++    if (strncasecmp(arg, "expr=", 5) == 0) {
++        const char *err;
++        if ((arg[5] == '\0'))
++            return "missing condition";
++        conf->allow_lockdiscovery = ap_expr_parse_cmd(cmd, &arg[5],
++                                                      AP_EXPR_FLAG_DONT_VARY,
++                                                      &err, NULL);
++        if (err)
++            return err;
++    } else {
++        return "error in condition clause";
++    }
++
++    return NULL;
++}
++
+ /*
+  * Command handler for DAVMinTimeout directive, which is TAKE1
+  */
+@@ -1450,7 +1477,7 @@ static dav_error *dav_gen_supported_live_props(request_rec *r,
+     }
+ 
+     /* open the property database (readonly) for the resource */
+-    if ((err = dav_open_propdb(r, lockdb, resource, 1, NULL,
++    if ((err = dav_open_propdb(r, lockdb, resource, DAV_PROPDB_RO, NULL,
+                                &propdb)) != NULL) {
+         if (lockdb != NULL)
+             (*lockdb->hooks->close_lockdb)(lockdb);
+@@ -2045,6 +2072,8 @@ static void dav_cache_badprops(dav_walker_ctx *ctx)
+ static dav_error * dav_propfind_walker(dav_walk_resource *wres, int calltype)
+ {
+     dav_walker_ctx *ctx = wres->walk_ctx;
++    dav_dir_conf *conf;
++    int flags = DAV_PROPDB_RO;
+     dav_error *err;
+     dav_propdb *propdb;
+     dav_get_props_result propstats = { 0 };
+@@ -2068,6 +2097,20 @@ static dav_error * dav_propfind_walker(dav_walk_resource *wres, int calltype)
+         return NULL;
+     }
+ 
++    conf = ap_get_module_config(ctx->r->per_dir_config, &dav_module);
++    if (conf && conf->allow_lockdiscovery) {
++            const char *errstr = NULL;
++            int eval = ap_expr_exec(ctx->r, conf->allow_lockdiscovery, &errstr);
++            if (errstr) {
++                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(00623)
++                              "Failed to evaluate expression (%s) - ignoring",
++                              errstr);
++            } else {
++                if (!eval) 
++                    flags |= DAV_PROPDB_DISABLE_LOCKDISCOVERY;
++            }
++    }
++
+     /*
+     ** Note: ctx->doc can only be NULL for DAV_PROPFIND_IS_ALLPROP. Since
+     ** dav_get_allprops() does not need to do namespace translation,
+@@ -2077,7 +2120,7 @@ static dav_error * dav_propfind_walker(dav_walk_resource *wres, int calltype)
+     ** the resource, however, since we are opening readonly.
+     */
+     err = dav_popen_propdb(ctx->scratchpool,
+-                           ctx->r, ctx->w.lockdb, wres->resource, 1,
++                           ctx->r, ctx->w.lockdb, wres->resource, flags,
+                            ctx->doc ? ctx->doc->namespaces : NULL, &propdb);
+     if (err != NULL) {
+         /* ### do something with err! */
+@@ -2463,7 +2506,8 @@ static int dav_method_proppatch(request_rec *r)
+         return dav_handle_err(r, err, NULL);
+     }
+ 
+-    if ((err = dav_open_propdb(r, NULL, resource, 0, doc->namespaces,
++    if ((err = dav_open_propdb(r, NULL, resource,
++                               DAV_PROPDB_NONE, doc->namespaces,
+                                &propdb)) != NULL) {
+         /* undo any auto-checkout */
+         dav_auto_checkin(r, resource, 1 /*undo*/, 0 /*unlock*/, &av_info);
+@@ -5220,6 +5264,11 @@ static const command_rec dav_cmds[] =
+                  ACCESS_CONF|RSRC_CONF,
+                  "allow Depth infinity PROPFIND requests"),
+ 
++    /* per directory/location, or per server */
++    AP_INIT_TAKE1("DAVLockDiscovery", dav_cmd_davlockdiscovery, NULL,
++                  ACCESS_CONF|RSRC_CONF,
++                  "allow lock discovery by PROPFIND requests"),
++
+     { NULL }
+ };
+ 
+diff --git a/modules/dav/main/mod_dav.h b/modules/dav/main/mod_dav.h
+index 6b3dc69509..68b04f3851 100644
+--- a/modules/dav/main/mod_dav.h
++++ b/modules/dav/main/mod_dav.h
+@@ -1691,12 +1691,15 @@ struct dav_hooks_locks
+ 
+ typedef struct dav_propdb dav_propdb;
+ 
++#define DAV_PROPDB_NONE                  0 
++#define DAV_PROPDB_RO                    1
++#define DAV_PROPDB_DISABLE_LOCKDISCOVERY 2 
+ 
+ DAV_DECLARE(dav_error *) dav_open_propdb(
+     request_rec *r,
+     dav_lockdb *lockdb,
+     const dav_resource *resource,
+-    int ro,
++    int flags,
+     apr_array_header_t *ns_xlate,
+     dav_propdb **propdb);
+ 
+@@ -1705,7 +1708,7 @@ DAV_DECLARE(dav_error *) dav_popen_propdb(
+     request_rec *r,
+     dav_lockdb *lockdb,
+     const dav_resource *resource,
+-    int ro,
++    int flags,
+     apr_array_header_t *ns_xlate,
+     dav_propdb **propdb);
+ 
+diff --git a/modules/dav/main/props.c b/modules/dav/main/props.c
+index e1b6815cc8..b1efabfe24 100644
+--- a/modules/dav/main/props.c
++++ b/modules/dav/main/props.c
+@@ -185,6 +185,8 @@ struct dav_propdb {
+ 
+     dav_buffer wb_lock;           /* work buffer for lockdiscovery property */
+ 
++    int flags;                    /* ro, disable lock discovery */
++
+     /* if we ever run a GET subreq, it will be stored here */
+     request_rec *subreq;
+ 
+@@ -351,6 +353,11 @@ static dav_error * dav_insert_coreprop(dav_propdb *propdb,
+     switch (propid) {
+ 
+     case DAV_PROPID_CORE_lockdiscovery:
++        if (propdb->flags & DAV_PROPDB_DISABLE_LOCKDISCOVERY) {
++            value = "";
++            break;
++        }
++
+         if (propdb->lockdb != NULL) {
+             dav_lock *locks;
+ 
+@@ -522,17 +529,18 @@ static dav_error *dav_really_open_db(dav_propdb *propdb, int ro)
+ 
+ DAV_DECLARE(dav_error *)dav_open_propdb(request_rec *r, dav_lockdb *lockdb,
+                                         const dav_resource *resource,
+-                                        int ro,
++                                        int flags,
+                                         apr_array_header_t * ns_xlate,
+                                         dav_propdb **p_propdb)
+ {
+-    return dav_popen_propdb(r->pool, r, lockdb, resource, ro, ns_xlate, p_propdb);
++    return dav_popen_propdb(r->pool, r, lockdb, resource,
++                            flags, ns_xlate, p_propdb);
+ }
+ 
+ DAV_DECLARE(dav_error *)dav_popen_propdb(apr_pool_t *p,
+                                          request_rec *r, dav_lockdb *lockdb,
+                                          const dav_resource *resource,
+-                                         int ro,
++                                         int flags,
+                                          apr_array_header_t * ns_xlate,
+                                          dav_propdb **p_propdb)
+ {
+@@ -559,6 +567,8 @@ DAV_DECLARE(dav_error *)dav_popen_propdb(apr_pool_t *p,
+ 
+     propdb->lockdb = lockdb;
+ 
++    propdb->flags = flags;
++
+     /* always defer actual open, to avoid expense of accessing db
+      * when only live properties are involved
+      */
+-- 
+2.34.1
+

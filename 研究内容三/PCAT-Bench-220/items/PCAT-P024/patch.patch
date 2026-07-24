@@ -1,0 +1,68 @@
+diff --git a/src/insexpand.c b/src/insexpand.c
+index 0361d9a6e7e339c3de087a5714a76b61b896f214..75e55a60eb09b7717fb2d6b08f482f0ea77657ae 100644
+--- a/src/insexpand.c
++++ b/src/insexpand.c
+@@ -6408,9 +6408,10 @@ ins_compl_check_keys(int frequency, int in_compl_func)
+ 	    c = safe_vgetc();
+ 	    if (c != K_IGNORE)
+ 	    {
+-		// Don't interrupt completion when the character wasn't typed,
+-		// e.g., when doing @q to replay keys.
+-		if (c != Ctrl_R && KeyTyped)
++		// Typed keys that get mapped lose KeyTyped. Still let
++		// complete_check() interrupt, except during @r replay.
++		if (c != Ctrl_R && (KeyTyped
++			    || (in_compl_func && reg_executing == 0)))
+ 		    compl_interrupted = TRUE;
+ 
+ 		vungetc(c);
+diff --git a/src/testdir/test_ins_complete.vim b/src/testdir/test_ins_complete.vim
+index d4298aeb967f00954988594c45f6c92d55afdcb7..00fcf4e44d706e8f9fceaba98f3ad2f9ddec8195 100644
+--- a/src/testdir/test_ins_complete.vim
++++ b/src/testdir/test_ins_complete.vim
+@@ -6535,4 +6535,32 @@ func Test_call_complete_while_filtering()
+   bwipe!
+ endfunc
+ 
++func Test_complete_check_mapped_typed_key()
++  func SlowComplete(findstart, base)
++    if a:findstart
++      return col('.') - 1
++    endif
++    call complete_add('foobar')
++    let g:compl_iterations = 0
++    while !complete_check() && g:compl_iterations < 100
++      let g:compl_iterations += 1
++      sleep 5m
++    endwhile
++    return []
++  endfunc
++
++  new
++  setlocal completefunc=SlowComplete
++  setlocal completeopt=menuone,noselect
++  inoremap <buffer> <Space> <Space><Space>
++
++  let g:compl_iterations = -1
++  call feedkeys("Sfoo\<C-X>\<C-U> \<Esc>", 'tx')
++  call assert_inrange(0, 99, g:compl_iterations)
++
++  bwipe!
++  delfunc SlowComplete
++  unlet g:compl_iterations
++endfunc
++
+ " vim: shiftwidth=2 sts=2 expandtab nofoldenable
+diff --git a/src/version.c b/src/version.c
+index 12315566019943ddec0014e47df53369d90d6869..ebe7f97093070152ed40785076940dd120b74a06 100644
+--- a/src/version.c
++++ b/src/version.c
+@@ -759,6 +759,8 @@ static char *(features[]) =
+ 
+ static int included_patches[] =
+ {   /* Add new patch number below this line */
++/**/
++    741,
+ /**/
+     740,
+ /**/

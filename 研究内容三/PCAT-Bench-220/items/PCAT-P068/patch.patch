@@ -1,0 +1,694 @@
+diff --git a/doc/source/configuration/modules/omfwd.rst b/doc/source/configuration/modules/omfwd.rst
+index 39460a5f02c0da75b5f84fe7f9a094746462019b..e50fae8e204ab613eb58840f2ec807306b0507e6 100644
+--- a/doc/source/configuration/modules/omfwd.rst
++++ b/doc/source/configuration/modules/omfwd.rst
+@@ -674,6 +674,13 @@ The recommended alias, compatible with imtcp, is "StreamDriver.Mode".
+ 
+ Mode to use with the stream driver (driver-specific)
+ 
++Mode ``0`` is plain TCP for the built-in network stream drivers. A TLS-capable
++driver name such as ``ossl``, ``gtls``, or ``mbedtls`` does not activate TLS by
++itself; set mode ``1`` to use TLS. In
++``global(compatibility.defaults.secure="strict")``, an omitted mode is promoted
++to ``1`` when the effective stream driver is TLS-capable, while an explicit
++mode ``0`` is rejected.
++
+ Note: aliases help, but are not a great solution. They may
+ cause confusion if both names are used together in a single
+ config. So care must be taken when using an alias.
+diff --git a/doc/source/faq/tls_mode0_disables_tls.rst b/doc/source/faq/tls_mode0_disables_tls.rst
+index 17dfe8579c23868270fcecf8029a4fdd53fa384a..9d67ed3c20fafd905cc2aea58b343163cffa46ea 100644
+--- a/doc/source/faq/tls_mode0_disables_tls.rst
++++ b/doc/source/faq/tls_mode0_disables_tls.rst
+@@ -21,6 +21,9 @@ What this warning means
+ The warning indicates that the effective transport is not TLS-protected. Common cases are:
+ 
+ * ``imtcp`` or ``omfwd`` with ``streamdriver.mode="0"`` (plain TCP)
++* ``imtcp`` or ``omfwd`` using a TLS-capable stream driver such as ``ossl``,
++  ``gtls``, or ``mbedtls`` while the mode is still ``0``; this includes drivers
++  inherited from ``global(defaultNetstreamDriver="...")``
+ * ``omfwd`` with ``protocol="udp"``
+ * ``imrelp`` / ``omrelp`` with ``tls="off"``
+ 
+@@ -38,7 +41,10 @@ How to fix
+ 
+ Pick one explicit model and make it consistent:
+ 
+-* **Use TLS intentionally:** configure a TLS-capable transport and keep TLS-auth parameters aligned.
++* **Use TLS intentionally:** configure a TLS-capable stream driver and set
++  ``streamdriver.mode="1"`` / ``StreamDriverMode="1"``. Selecting
++  ``StreamDriver="ossl"``, ``"gtls"``, or ``"mbedtls"`` chooses the driver,
++  but mode ``1`` is what activates TLS.
+ * **Use plain transport intentionally:** remove TLS-only parameters so intent is clear and warnings stop.
+ 
+ How to turn this warning off
+@@ -50,8 +56,10 @@ You can silence them by changing the global policy:
+ * ``global(compatibility.defaults.secure="backward-compatible")``:
+   keeps old insecure defaults and suppresses these warnings.
+ * ``global(compatibility.defaults.secure="strict")``:
+-  enforces secure defaults and also suppresses these warnings because insecure
+-  defaults are no longer used.
++  promotes an omitted stream-driver mode to TLS mode ``1`` when the effective
++  stream driver is TLS-capable. An explicit ``streamdriver.mode="0"`` with a
++  TLS-capable effective driver is rejected so that strict mode does not
++  silently override explicit plain-TCP intent.
+ 
+ The recommended path is to keep ``warn`` until configuration is remediated,
+ then move to ``strict``.
+diff --git a/doc/source/rainerscript/global.rst b/doc/source/rainerscript/global.rst
+index 9b8b5f38ed672624c8805760b163128bdbc27f3d..9a985eaaa5b80d5cb603790ede3043f2558e2ec0 100644
+--- a/doc/source/rainerscript/global.rst
++++ b/doc/source/rainerscript/global.rst
+@@ -148,6 +148,10 @@ The following parameters can be set:
+   Set it to "ossl", "gtls" or "mbedtls" to select a TLS-capable driver.
+   TLS is used only when stream driver mode is also set to TLS mode
+   (for example, ``StreamDriverMode="1"`` on actions that use the driver).
++  With ``global(compatibility.defaults.secure="strict")``, ``omfwd`` and
++  ``imtcp`` promote an omitted stream-driver mode to TLS mode when this default
++  selects a TLS-capable driver. Explicit mode ``0`` remains an explicit
++  plain-TCP request and is rejected with a TLS-capable effective driver.
+   This `guide <http://www.rsyslog.com/doc/rsyslog_secure_tls.html>`_
+   shows how to use TLS.
+ 
+diff --git a/doc/source/reference/parameters/imtcp-streamdriver-mode.rst b/doc/source/reference/parameters/imtcp-streamdriver-mode.rst
+index a7788d2565ed263cfdb10770d9f24851cb3cf485..0358d63d89a93158420739730f1737084424b600 100644
+--- a/doc/source/reference/parameters/imtcp-streamdriver-mode.rst
++++ b/doc/source/reference/parameters/imtcp-streamdriver-mode.rst
+@@ -29,6 +29,12 @@ Description
+ Sets the driver mode for the currently selected
+ :doc:`network stream driver <../../concepts/netstrm_drvr>`.
+ <number> is driver specific.
++For the built-in TCP stream drivers, mode ``0`` is plain TCP and mode ``1`` is
++TLS. Selecting a TLS-capable driver such as ``ossl``, ``gtls``, or ``mbedtls``
++does not activate TLS unless the mode is ``1``. In
++``global(compatibility.defaults.secure="strict")``, an omitted mode is promoted
++to ``1`` when the effective stream driver is TLS-capable, while an explicit
++mode ``0`` is rejected.
+ 
+ The same-named input parameter can override this module setting.
+ 
+@@ -66,4 +72,3 @@ Historic names/directives for compatibility. Do not use in new configs.
+ See also
+ --------
+ See also :doc:`../../configuration/modules/imtcp`.
+-
+diff --git a/plugins/imtcp/imtcp.c b/plugins/imtcp/imtcp.c
+index 988e2d2ca7a6dc1d55f32e72ec930ea949f67819..804f76dc5d3c98f4716bc0ce2e57a181c776246e 100644
+--- a/plugins/imtcp/imtcp.c
++++ b/plugins/imtcp/imtcp.c
+@@ -61,6 +61,7 @@
+ #include "net.h"
+ #include "netstrm.h"
+ #include "errmsg.h"
++#include "glbl.h"
+ #include "tcpsrv.h"
+ #include "ruleset.h"
+ #include "rainerscript.h"
+@@ -103,6 +104,7 @@ static struct configSettings_s {
+     int iTCPLstnMax;
+     int bSuppOctetFram;
+     int iStrmDrvrMode;
++    sbool bStrmDrvrModeSet; /* stream driver mode was explicitly configured */
+     int bKeepAlive;
+     int iKeepAliveIntvl;
+     int iKeepAliveProbes;
+@@ -152,6 +154,7 @@ struct instanceConf_s {
+     char *pszNetworkNamespace; /**< optional network name to use */
+     uchar *pszStrmDrvrName; /* stream driver to use */
+     int iStrmDrvrMode;
++    sbool bStrmDrvrModeSet; /* stream driver mode was explicitly configured */
+     uchar *pszStrmDrvrAuthMode;
+     uchar *pszStrmDrvrPermitExpiredCerts;
+     uchar *pszStrmDrvrCAFile;
+@@ -184,6 +187,7 @@ struct modConfData_s {
+     int iTCPLstnMax; /* max number of sessions */
+     unsigned numWrkr;
+     int iStrmDrvrMode; /* mode for stream driver, driver-dependent (0 mostly means plain tcp) */
++    sbool bStrmDrvrModeSet; /* stream driver mode was explicitly configured */
+     int iStrmDrvrExtendedCertCheck; /* verify also purpose OID in certificate extended field */
+     int iStrmDrvrSANPreference; /* ignore CN when any SAN set */
+     int iStrmTlsVerifyDepth; /**< Verify Depth for certificate chains */
+@@ -424,11 +428,10 @@ finalize_it:
+ 
+ /** Warn in secure warn mode when imtcp listener transport/auth settings reduce security. */
+ static void warnIfInsecureListenerConfigured(const int streamDriverMode,
+-                                             const uchar *const streamDriverName,
++                                             const uchar *const effectiveStreamDriverName,
+                                              const uchar *const authMode) {
+     if (streamDriverMode == 0) {
+-        const int tlsHintsConfigured =
+-            (authMode != NULL) || (streamDriverName != NULL && strcasecmp((const char *)streamDriverName, "ptcp") != 0);
++        const int tlsHintsConfigured = (authMode != NULL) || glblIsTlsCapableNetstrmDrvr(effectiveStreamDriverName);
+         if (tlsHintsConfigured) {
+             glblWarnIfInsecureDefault(loadConf,
+                                       "imtcp has TLS-related settings but streamdriver.mode=\"0\"; mode 0 uses plain "
+@@ -449,6 +452,57 @@ static void warnIfInsecureListenerConfigured(const int streamDriverMode,
+     }
+ }
+ 
++static rsRetVal applySecureDefaultsToStreamDriver(rsconf_t *const cnf,
++                                                  int *const streamDriverMode,
++                                                  const sbool streamDriverModeSet,
++                                                  const uchar *const effectiveStreamDriverName,
++                                                  const char *const context) {
++    if (glblIsTlsCapableNetstrmDrvr(effectiveStreamDriverName) && *streamDriverMode == 0 &&
++        cnf->globals.compatDefaultsSecure == COMPAT_DEFAULTS_SECURE_STRICT) {
++        if (streamDriverModeSet) {
++            LogError(0, RS_RET_PARAM_ERROR,
++                     "%s: compatibility.defaults.secure=\"strict\" rejects explicit streamdriver.mode=\"0\" "
++                     "with TLS-capable stream driver \"%s\"; use streamdriver.mode=\"1\" to enable TLS or "
++                     "select ptcp/plain TCP intentionally",
++                     context, (const char *)effectiveStreamDriverName);
++            return RS_RET_PARAM_ERROR;
++        }
++        *streamDriverMode = 1;
++    }
++    return RS_RET_OK;
++}
++
++static const uchar *getEffectiveModuleStreamDriver(const modConfData_t *const modConf) {
++    return glblGetEffectiveNetstrmDrvr(modConf->pConf, modConf->pszStrmDrvrName);
++}
++
++static const uchar *getEffectiveInstanceStreamDriver(const instanceConf_t *const inst,
++                                                     const modConfData_t *const modConf) {
++    const uchar *const localOrModuleDrvr =
++        inst->pszStrmDrvrName == NULL ? modConf->pszStrmDrvrName : inst->pszStrmDrvrName;
++    return glblGetEffectiveNetstrmDrvr(modConf->pConf, localOrModuleDrvr);
++}
++
++static const uchar *getEffectiveInstanceAuthMode(const instanceConf_t *const inst, const modConfData_t *const modConf) {
++    return inst->pszStrmDrvrAuthMode == NULL ? modConf->pszStrmDrvrAuthMode : inst->pszStrmDrvrAuthMode;
++}
++
++static rsRetVal applySecureDefaultsToModuleConfig(modConfData_t *const modConf) {
++    return applySecureDefaultsToStreamDriver(modConf->pConf, &modConf->iStrmDrvrMode, modConf->bStrmDrvrModeSet,
++                                             getEffectiveModuleStreamDriver(modConf), "imtcp module");
++}
++
++static rsRetVal applySecureDefaultsToInstanceConfig(instanceConf_t *const inst, modConfData_t *const modConf) {
++    return applySecureDefaultsToStreamDriver(modConf->pConf, &inst->iStrmDrvrMode, inst->bStrmDrvrModeSet,
++                                             getEffectiveInstanceStreamDriver(inst, modConf), "imtcp input");
++}
++
++static rsRetVal setLegacyStrmDrvrMode(void __attribute__((unused)) * pVal, int mode) {
++    cs.iStrmDrvrMode = mode;
++    cs.bStrmDrvrModeSet = 1;
++    return RS_RET_OK;
++}
++
+ /* callbacks */
+ /* this shall go into a specific ACL module! */
+ static int isPermittedHost(struct sockaddr *addr,
+@@ -539,6 +593,7 @@ static rsRetVal createInstance(instanceConf_t **pinst) {
+     inst->pPermPeersRoot = NULL;
+     inst->gnutlsPriorityString = NULL;
+     inst->iStrmDrvrMode = loadModConf->iStrmDrvrMode;
++    inst->bStrmDrvrModeSet = loadModConf->bStrmDrvrModeSet;
+     inst->iStrmDrvrExtendedCertCheck = loadModConf->iStrmDrvrExtendedCertCheck;
+     inst->iStrmDrvrSANPreference = loadModConf->iStrmDrvrSANPreference;
+     inst->iStrmTlsVerifyDepth = loadModConf->iStrmTlsVerifyDepth;
+@@ -622,6 +677,7 @@ static rsRetVal addInstance(void __attribute__((unused)) * pVal, uchar *pNewVal)
+     }
+     inst->cnf_params->bSuppOctetFram = cs.bSuppOctetFram;
+     inst->iStrmDrvrMode = cs.iStrmDrvrMode;
++    inst->bStrmDrvrModeSet = cs.bStrmDrvrModeSet;
+     inst->bKeepAlive = cs.bKeepAlive;
+     inst->bUseFlowControl = cs.bUseFlowControl;
+     inst->bDisableLFDelim = cs.bDisableLFDelim;
+@@ -639,6 +695,9 @@ static rsRetVal addInstance(void __attribute__((unused)) * pVal, uchar *pNewVal)
+     inst->compressionDriver = cs.compressionDriver;
+     inst->compressionMaxExpansionRatio = cs.compressionMaxExpansionRatio;
+     inst->compressionMaxDecompressedBytesPerReceive = cs.compressionMaxDecompressedBytesPerReceive;
++    CHKiRet(applySecureDefaultsToInstanceConfig(inst, loadModConf));
++    warnIfInsecureListenerConfigured(inst->iStrmDrvrMode, getEffectiveInstanceStreamDriver(inst, loadModConf),
++                                     getEffectiveInstanceAuthMode(inst, loadModConf));
+ 
+ finalize_it:
+     free(pNewVal);
+@@ -804,6 +863,7 @@ BEGINnewInpInst
+             CHKmalloc(inst->pszBindRuleset = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));
+         } else if (!strcmp(inppblk.descr[i].name, "streamdriver.mode")) {
+             inst->iStrmDrvrMode = (int)pvals[i].val.d.n;
++            inst->bStrmDrvrModeSet = 1;
+         } else if (!strcmp(inppblk.descr[i].name, "streamdriver.CheckExtendedKeyPurpose")) {
+             inst->iStrmDrvrExtendedCertCheck = (int)pvals[i].val.d.n;
+         } else if (!strcmp(inppblk.descr[i].name, "streamdriver.PrioritizeSAN")) {
+@@ -919,7 +979,9 @@ BEGINnewInpInst
+             inst->ratelimitBurst = 10000;
+         }
+     }
+-    warnIfInsecureListenerConfigured(inst->iStrmDrvrMode, inst->pszStrmDrvrName, inst->pszStrmDrvrAuthMode);
++    CHKiRet(applySecureDefaultsToInstanceConfig(inst, loadModConf));
++    warnIfInsecureListenerConfigured(inst->iStrmDrvrMode, getEffectiveInstanceStreamDriver(inst, loadModConf),
++                                     getEffectiveInstanceAuthMode(inst, loadModConf));
+ 
+ finalize_it:
+     CODE_STD_FINALIZERnewInpInst cnfparamvalsDestruct(pvals, &inppblk);
+@@ -937,6 +999,7 @@ BEGINbeginCnfLoad
+     loadModConf->starvationMaxReads = DEFAULT_STARVATIONMAXREADS;
+     loadModConf->bSuppOctetFram = 1;
+     loadModConf->iStrmDrvrMode = 0;
++    loadModConf->bStrmDrvrModeSet = 0;
+     loadModConf->iStrmDrvrExtendedCertCheck = 0;
+     loadModConf->iStrmDrvrSANPreference = 0;
+     loadModConf->iStrmTlsVerifyDepth = 0;
+@@ -1034,6 +1097,7 @@ BEGINsetModCnf
+             CHKmalloc(loadModConf->pszNetworkNamespace = es_str2cstr(pvals[i].val.d.estr, NULL));
+         } else if (!strcmp(modpblk.descr[i].name, "streamdriver.mode")) {
+             loadModConf->iStrmDrvrMode = (int)pvals[i].val.d.n;
++            loadModConf->bStrmDrvrModeSet = 1;
+         } else if (!strcmp(modpblk.descr[i].name, "streamdriver.CheckExtendedKeyPurpose")) {
+             loadModConf->iStrmDrvrExtendedCertCheck = (int)pvals[i].val.d.n;
+         } else if (!strcmp(modpblk.descr[i].name, "streamdriver.PrioritizeSAN")) {
+@@ -1089,7 +1153,8 @@ BEGINsetModCnf
+      */
+     bLegacyCnfModGlobalsPermitted = 0;
+     loadModConf->configSetViaV2Method = 1;
+-    warnIfInsecureListenerConfigured(loadModConf->iStrmDrvrMode, loadModConf->pszStrmDrvrName,
++    CHKiRet(applySecureDefaultsToModuleConfig(loadModConf));
++    warnIfInsecureListenerConfigured(loadModConf->iStrmDrvrMode, getEffectiveModuleStreamDriver(loadModConf),
+                                      loadModConf->pszStrmDrvrAuthMode);
+ 
+ finalize_it:
+@@ -1111,6 +1176,7 @@ BEGINendCnfLoad
+         pModConf->iTCPSessMax = cs.iTCPSessMax;
+         pModConf->iTCPLstnMax = cs.iTCPLstnMax;
+         pModConf->iStrmDrvrMode = cs.iStrmDrvrMode;
++        pModConf->bStrmDrvrModeSet = cs.bStrmDrvrModeSet;
+         pModConf->bEmitMsgOnClose = cs.bEmitMsgOnClose;
+         pModConf->bSuppOctetFram = cs.bSuppOctetFram;
+         pModConf->iAddtlFrameDelim = cs.iAddtlFrameDelim;
+@@ -1135,7 +1201,14 @@ BEGINendCnfLoad
+             cs.pszStrmDrvrAuthMode = NULL;
+         }
+         pModConf->bPreserveCase = cs.bPreserveCase;
+-        warnIfInsecureListenerConfigured(pModConf->iStrmDrvrMode, pModConf->pszStrmDrvrName,
++        iRet = applySecureDefaultsToModuleConfig(pModConf);
++        if (iRet != RS_RET_OK) {
++            free(cs.pszStrmDrvrAuthMode);
++            cs.pszStrmDrvrAuthMode = NULL;
++            loadModConf = NULL;
++            return iRet;
++        }
++        warnIfInsecureListenerConfigured(pModConf->iStrmDrvrMode, getEffectiveModuleStreamDriver(pModConf),
+                                          pModConf->pszStrmDrvrAuthMode);
+     }
+     free(cs.pszStrmDrvrAuthMode);
+@@ -1366,6 +1439,7 @@ static rsRetVal resetConfigVariables(uchar __attribute__((unused)) * pp, void __
+     cs.iTCPLstnMax = 20;
+     cs.bSuppOctetFram = 1;
+     cs.iStrmDrvrMode = 0;
++    cs.bStrmDrvrModeSet = 0;
+     cs.bUseFlowControl = 1;
+     cs.bKeepAlive = 0;
+     cs.iKeepAliveProbes = 0;
+@@ -1451,8 +1525,8 @@ BEGINmodInit()
+                               STD_LOADABLE_MODULE_ID, &bLegacyCnfModGlobalsPermitted));
+     CHKiRet(regCfSysLineHdlr2(UCHAR_CONSTANT("inputtcpservernotifyonconnectionclose"), 0, eCmdHdlrBinary, NULL,
+                               &cs.bEmitMsgOnClose, STD_LOADABLE_MODULE_ID, &bLegacyCnfModGlobalsPermitted));
+-    CHKiRet(regCfSysLineHdlr2(UCHAR_CONSTANT("inputtcpserverstreamdrivermode"), 0, eCmdHdlrInt, NULL, &cs.iStrmDrvrMode,
+-                              STD_LOADABLE_MODULE_ID, &bLegacyCnfModGlobalsPermitted));
++    CHKiRet(regCfSysLineHdlr2(UCHAR_CONSTANT("inputtcpserverstreamdrivermode"), 0, eCmdHdlrInt, setLegacyStrmDrvrMode,
++                              NULL, STD_LOADABLE_MODULE_ID, &bLegacyCnfModGlobalsPermitted));
+     CHKiRet(regCfSysLineHdlr2(UCHAR_CONSTANT("inputtcpserverpreservecase"), 1, eCmdHdlrBinary, NULL, &cs.bPreserveCase,
+                               STD_LOADABLE_MODULE_ID, &bLegacyCnfModGlobalsPermitted));
+     CHKiRet(regCfSysLineHdlr2(UCHAR_CONSTANT("inputtcpserverlistenportfile"), 1, eCmdHdlrGetWord, NULL,
+diff --git a/runtime/glbl.c b/runtime/glbl.c
+index 53dce6b67f2d06377a815ee12a2c60224ea7c9d8..75c761a0f94a4d8c37e462c7a4ea848282dcdc79 100644
+--- a/runtime/glbl.c
++++ b/runtime/glbl.c
+@@ -111,6 +111,7 @@ DEF_ATOMIC_HELPER_MUT(mutTerminateInputs);
+ static int iFdSetSize = howmany(FD_SETSIZE, __NFDBITS) * sizeof(fd_mask); /* size of select() bitmask in bytes */
+ #endif
+ static uchar *SourceIPofLocalClient = NULL; /* [ar] Source IP for local client to be used on multihomed host */
++static uchar *GetDfltNetstrmDrvr(rsconf_t *cnf);
+ 
+ /* tables for interfacing with the v6 config system */
+ static struct cnfparamdescr cnfparamdescr[] = {
+@@ -823,6 +824,21 @@ void glblWarnIfInsecureDefault(rsconf_t *cnf, const char *detail) {
+     }
+ }
+ 
++const uchar *glblGetEffectiveNetstrmDrvr(rsconf_t *cnf, const uchar *localDrvr) {
++    if (localDrvr != NULL) {
++        return localDrvr;
++    }
++    if (cnf == NULL) {
++        return DFLT_NETSTRM_DRVR;
++    }
++    return GetDfltNetstrmDrvr(cnf);
++}
++
++int glblIsTlsCapableNetstrmDrvr(const uchar *drvr) {
++    return drvr != NULL && (!strcasecmp((const char *)drvr, "ossl") || !strcasecmp((const char *)drvr, "gtls") ||
++                            !strcasecmp((const char *)drvr, "mbedtls"));
++}
++
+ static int getDefPFFamily(rsconf_t *cnf) {
+     return cnf->globals.iDefPFFamily;
+ }
+@@ -1249,6 +1265,14 @@ void glblProcessCnf(struct cnfobj *o) {
+         } else if (!strcmp(paramblk.descr[i].name, "security.abortonidresolutionfail")) {
+             loadConf->globals.abortOnIDResolutionFail = (int)cnfparamvals[i].val.d.n;
+             cnfparamvals[i].bUsed = TRUE;
++        } else if (!strcmp(paramblk.descr[i].name, "defaultnetstreamdriver")) {
++            uchar *const cstr = (uchar *)es_str2cstr(cnfparamvals[i].val.d.estr, NULL);
++            if (cstr == NULL) {
++                LogError(0, RS_RET_OUT_OF_MEMORY, "out of memory processing defaultnetstreamdriver");
++            } else {
++                setDfltNetstrmDrvr(NULL, cstr);
++            }
++            cnfparamvals[i].bUsed = TRUE;
+         } else if (!strncmp(paramblk.descr[i].name, "compatibility.", 14)) {
+             if (processCompatGlobalParam(paramblk.descr[i].name, &cnfparamvals[i]) == RS_RET_OK) {
+                 cnfparamvals[i].bUsed = 1;
+@@ -1389,9 +1413,6 @@ rsRetVal glblDoneLoadCnf(void) {
+         } else if (!strcmp(paramblk.descr[i].name, "defaultnetstreamdrivercrlfile")) {
+             cstr = (uchar *)es_str2cstr(cnfparamvals[i].val.d.estr, NULL);
+             setDfltNetstrmDrvrCRLF(NULL, cstr);
+-        } else if (!strcmp(paramblk.descr[i].name, "defaultnetstreamdriver")) {
+-            cstr = (uchar *)es_str2cstr(cnfparamvals[i].val.d.estr, NULL);
+-            setDfltNetstrmDrvr(NULL, cstr);
+         } else if (!strcmp(paramblk.descr[i].name, "defaultopensslengine")) {
+             cstr = (uchar *)es_str2cstr(cnfparamvals[i].val.d.estr, NULL);
+             setDfltOpensslEngine(NULL, cstr);
+diff --git a/runtime/glbl.h b/runtime/glbl.h
+index 7f17d57909e5a267544e0e0823cadee6efbb1f72..5c75d17e5f587a2c1a40306e455218c58dfa99b8 100644
+--- a/runtime/glbl.h
++++ b/runtime/glbl.h
+@@ -169,5 +169,9 @@ int glblPermitSyslogdConfigFilter(rsconf_t *cnf, const char *filter);
+ int glblPermitPropertyConfigFilter(rsconf_t *cnf, const char *filter);
+ /** Emit an insecure-default warning when compatibility.defaults.secure is set to warn. */
+ void glblWarnIfInsecureDefault(rsconf_t *cnf, const char *detail);
++/** Return local stream driver name or the configured global default. */
++const uchar *glblGetEffectiveNetstrmDrvr(rsconf_t *cnf, const uchar *localDrvr);
++/** Check whether a netstream driver name selects a TLS-capable driver. */
++int glblIsTlsCapableNetstrmDrvr(const uchar *drvr);
+ 
+ #endif /* #ifndef GLBL_H_INCLUDED */
+diff --git a/tests/compat-configformat-rainerscript.sh b/tests/compat-configformat-rainerscript.sh
+index 59328f16132aa08d6a0a8e398458f592bf65b0ce..031ecf52c933273b9f9e717dc7c7b8d4a6c415f9 100755
+--- a/tests/compat-configformat-rainerscript.sh
++++ b/tests/compat-configformat-rainerscript.sh
+@@ -88,6 +88,57 @@ CONF_EOF
+ run_expect_success "${RSYSLOG_DYNNAME}.property-warn.conf" "${RSYSLOG_DYNNAME}.property-warn.log"
+ content_check 'obsolete classic property-based filter syntax encountered' "${RSYSLOG_DYNNAME}.property-warn.log"
+ 
++cat >"${RSYSLOG_DYNNAME}.omfwd-tls-driver-warn.conf" <<CONF_EOF
++global(compatibility.defaults.secure="warn")
++action(type="omfwd" target="127.0.0.1" protocol="tcp" streamdriver.name="gtls")
++CONF_EOF
++run_expect_success "${RSYSLOG_DYNNAME}.omfwd-tls-driver-warn.conf" "${RSYSLOG_DYNNAME}.omfwd-tls-driver-warn.log"
++content_check 'omfwd has TLS-related settings but streamdriver.mode="0"; mode 0 uses plain TCP so TLS is not active' \
++    "${RSYSLOG_DYNNAME}.omfwd-tls-driver-warn.log"
++
++cat >"${RSYSLOG_DYNNAME}.omfwd-global-driver-warn.conf" <<CONF_EOF
++global(compatibility.defaults.secure="warn" defaultNetstreamDriver="gtls")
++action(type="omfwd" target="127.0.0.1" protocol="tcp")
++CONF_EOF
++run_expect_success "${RSYSLOG_DYNNAME}.omfwd-global-driver-warn.conf" "${RSYSLOG_DYNNAME}.omfwd-global-driver-warn.log"
++content_check 'omfwd has TLS-related settings but streamdriver.mode="0"; mode 0 uses plain TCP so TLS is not active' \
++    "${RSYSLOG_DYNNAME}.omfwd-global-driver-warn.log"
++
++cat >"${RSYSLOG_DYNNAME}.omfwd-strict-promote.conf" <<CONF_EOF
++global(compatibility.defaults.secure="strict")
++action(type="omfwd" targetSrv="_syslog._tcp.example.invalid" protocol="tcp" streamdriver.name="gtls")
++CONF_EOF
++run_expect_failure "${RSYSLOG_DYNNAME}.omfwd-strict-promote.conf" "${RSYSLOG_DYNNAME}.omfwd-strict-promote.log"
++content_check 'targetSrv with TLS requires streamdriverpermittedpeers' "${RSYSLOG_DYNNAME}.omfwd-strict-promote.log"
++
++cat >"${RSYSLOG_DYNNAME}.omfwd-strict-explicit-mode0.conf" <<CONF_EOF
++global(compatibility.defaults.secure="strict")
++action(type="omfwd" target="127.0.0.1" protocol="tcp" streamdriver.name="gtls" streamdriver.mode="0")
++CONF_EOF
++run_expect_failure "${RSYSLOG_DYNNAME}.omfwd-strict-explicit-mode0.conf" \
++    "${RSYSLOG_DYNNAME}.omfwd-strict-explicit-mode0.log"
++content_check 'omfwd: compatibility.defaults.secure="strict" rejects explicit streamdriver.mode="0"' \
++    "${RSYSLOG_DYNNAME}.omfwd-strict-explicit-mode0.log"
++
++cat >"${RSYSLOG_DYNNAME}.omfwd-legacy-explicit-mode0.conf" <<CONF_EOF
++global(compatibility.defaults.secure="strict" compatibility.configformat.legacy="enable")
++\$ActionSendStreamDriver gtls
++\$ActionSendStreamDriverMode 0
++*.* @@127.0.0.1:6514
++CONF_EOF
++run_expect_failure "${RSYSLOG_DYNNAME}.omfwd-legacy-explicit-mode0.conf" \
++    "${RSYSLOG_DYNNAME}.omfwd-legacy-explicit-mode0.log"
++content_check 'omfwd: compatibility.defaults.secure="strict" rejects explicit streamdriver.mode="0"' \
++    "${RSYSLOG_DYNNAME}.omfwd-legacy-explicit-mode0.log"
++
++cat >"${RSYSLOG_DYNNAME}.omfwd-backcompat-global-driver.conf" <<CONF_EOF
++global(compatibility.defaults.secure="backward-compatible" defaultNetstreamDriver="gtls")
++action(type="omfwd" target="127.0.0.1" protocol="tcp")
++CONF_EOF
++run_expect_success "${RSYSLOG_DYNNAME}.omfwd-backcompat-global-driver.conf" \
++    "${RSYSLOG_DYNNAME}.omfwd-backcompat-global-driver.log"
++check_not_present 'TLS is not active' "${RSYSLOG_DYNNAME}.omfwd-backcompat-global-driver.log"
++
+ if [ ${have_imtcp_module} -eq 1 ]; then
+     cat >"${RSYSLOG_DYNNAME}.tls-warn.conf" <<CONF_EOF
+ global(compatibility.defaults.secure="warn")
+@@ -100,6 +151,29 @@ CONF_EOF
+     content_check 'imtcp has TLS-related settings but streamdriver.mode="0"; mode 0 uses plain TCP so TLS is not active' "${RSYSLOG_DYNNAME}.tls-warn.log"
+     content_check 'omfwd action uses protocol="udp" (without TLS)' "${RSYSLOG_DYNNAME}.tls-warn.log"
+ 
++    cat >"${RSYSLOG_DYNNAME}.imtcp-global-driver-warn.conf" <<CONF_EOF
++global(compatibility.defaults.secure="warn" defaultNetstreamDriver="gtls")
++module(load="../plugins/imtcp/.libs/imtcp")
++input(type="imtcp" port="0" listenPortFileName="${RSYSLOG_DYNNAME}.imtcp-global-driver-warn.port")
++action(type="omfile" file="${RSYSLOG_DYNNAME}.out")
++CONF_EOF
++    run_expect_success "${RSYSLOG_DYNNAME}.imtcp-global-driver-warn.conf" \
++        "${RSYSLOG_DYNNAME}.imtcp-global-driver-warn.log"
++    content_check 'imtcp has TLS-related settings but streamdriver.mode="0"; mode 0 uses plain TCP so TLS is not active' \
++        "${RSYSLOG_DYNNAME}.imtcp-global-driver-warn.log"
++
++    cat >"${RSYSLOG_DYNNAME}.imtcp-strict-explicit-mode0.conf" <<CONF_EOF
++global(compatibility.defaults.secure="strict" defaultNetstreamDriver="gtls")
++module(load="../plugins/imtcp/.libs/imtcp")
++input(type="imtcp" port="0" listenPortFileName="${RSYSLOG_DYNNAME}.imtcp-strict-explicit-mode0.port"
++      streamdriver.mode="0")
++action(type="omfile" file="${RSYSLOG_DYNNAME}.out")
++CONF_EOF
++    run_expect_failure "${RSYSLOG_DYNNAME}.imtcp-strict-explicit-mode0.conf" \
++        "${RSYSLOG_DYNNAME}.imtcp-strict-explicit-mode0.log"
++    content_check 'imtcp input: compatibility.defaults.secure="strict" rejects explicit streamdriver.mode="0"' \
++        "${RSYSLOG_DYNNAME}.imtcp-strict-explicit-mode0.log"
++
+     cat >"${RSYSLOG_DYNNAME}.tls-anon-warn.conf" <<CONF_EOF
+ global(compatibility.defaults.secure="warn")
+ module(load="../plugins/imtcp/.libs/imtcp")
+diff --git a/tests/compat-configformat-yaml.sh b/tests/compat-configformat-yaml.sh
+index 4e9db5b6c546c7b1cd0f343e3b76b0dadf20fe60..06f06042a7f64bac3decb541bbaa2a216db2a524 100755
+--- a/tests/compat-configformat-yaml.sh
++++ b/tests/compat-configformat-yaml.sh
+@@ -109,6 +109,39 @@ rulesets:
+ YAML_EOF
+ }
+ 
++write_yaml_omfwd_global_tls_warn_config() {
++    local cfg="$1"
++    cat >"${cfg}" <<YAML_EOF
++version: 2
++global:
++  compatibility.defaults.secure: "warn"
++  defaultNetstreamDriver: "gtls"
++rulesets:
++  - name: main
++    actions:
++      - type: omfwd
++        target: "127.0.0.1"
++        protocol: "tcp"
++YAML_EOF
++}
++
++write_yaml_omfwd_strict_explicit_mode0_config() {
++    local cfg="$1"
++    cat >"${cfg}" <<YAML_EOF
++version: 2
++global:
++  compatibility.defaults.secure: "strict"
++rulesets:
++  - name: main
++    actions:
++      - type: omfwd
++        target: "127.0.0.1"
++        protocol: "tcp"
++        streamdriver.name: "gtls"
++        streamdriver.mode: 0
++YAML_EOF
++}
++
+ write_yaml_tls_anon_warn_config() {
+     local cfg="$1"
+     cat >"${cfg}" <<YAML_EOF
+@@ -229,6 +262,18 @@ run_expect_success "${RSYSLOG_DYNNAME}.tls-warn.yaml" "${RSYSLOG_DYNNAME}.tls-wa
+ content_check 'imtcp has TLS-related settings but streamdriver.mode="0"; mode 0 uses plain TCP so TLS is not active' "${RSYSLOG_DYNNAME}.tls-warn.log"
+ content_check 'omfwd action uses protocol="udp" (without TLS)' "${RSYSLOG_DYNNAME}.tls-warn.log"
+ 
++write_yaml_omfwd_global_tls_warn_config "${RSYSLOG_DYNNAME}.omfwd-global-driver-warn.yaml"
++run_expect_success "${RSYSLOG_DYNNAME}.omfwd-global-driver-warn.yaml" \
++    "${RSYSLOG_DYNNAME}.omfwd-global-driver-warn.log"
++content_check 'omfwd has TLS-related settings but streamdriver.mode="0"; mode 0 uses plain TCP so TLS is not active' \
++    "${RSYSLOG_DYNNAME}.omfwd-global-driver-warn.log"
++
++write_yaml_omfwd_strict_explicit_mode0_config "${RSYSLOG_DYNNAME}.omfwd-strict-explicit-mode0.yaml"
++run_expect_failure "${RSYSLOG_DYNNAME}.omfwd-strict-explicit-mode0.yaml" \
++    "${RSYSLOG_DYNNAME}.omfwd-strict-explicit-mode0.log"
++content_check 'omfwd: compatibility.defaults.secure="strict" rejects explicit streamdriver.mode="0"' \
++    "${RSYSLOG_DYNNAME}.omfwd-strict-explicit-mode0.log"
++
+ write_yaml_tls_anon_warn_config "${RSYSLOG_DYNNAME}.tls-anon-warn.yaml"
+ run_expect_success "${RSYSLOG_DYNNAME}.tls-anon-warn.yaml" "${RSYSLOG_DYNNAME}.tls-anon-warn.log"
+ content_check 'imtcp uses streamdriver.authmode="anon"; server identity is not authenticated, so MITM is possible' "${RSYSLOG_DYNNAME}.tls-anon-warn.log"
+diff --git a/tools/omfwd.c b/tools/omfwd.c
+index 0c31c32e12830113b87479498a7acf54134066e6..4364c8938defec91bed5a3a4542316a45ec7f38a 100644
+--- a/tools/omfwd.c
++++ b/tools/omfwd.c
+@@ -64,6 +64,7 @@
+ #include "cfsysline.h"
+ #include "module-template.h"
+ #include "glbl.h"
++#include "rsconf.h"
+ #include "errmsg.h"
+ #include "unicode-helper.h"
+ #include "parserif.h"
+@@ -103,6 +104,7 @@ typedef struct _instanceData {
+     uchar *pszStrmDrvrRemoteSNI; /* Optional TLS SNI to use for the remote server (instead of its hostname) */
+     permittedPeers_t *pPermPeers;
+     int iStrmDrvrMode;
++    sbool bStrmDrvrModeSet;
+     int iStrmDrvrExtendedCertCheck; /* verify also purpose OID in certificate extended field */
+     int iStrmDrvrSANPreference; /* ignore CN when any SAN set */
+     int iStrmTlsVerifyDepth; /**< Verify Depth for certificate chains */
+@@ -202,6 +204,7 @@ typedef struct configSettings_s {
+     uchar *pszTplName; /* name of the default template to use */
+     uchar *pszStrmDrvr; /* name of the stream driver to use */
+     int iStrmDrvrMode; /* mode for stream driver, driver-dependent (0 mostly means plain tcp) */
++    sbool bStrmDrvrModeSet; /* stream driver mode was explicitly configured */
+     int bResendLastOnRecon; /* should the last message be re-sent on a successful reconnect? */
+     uchar *pszStrmDrvrAuthMode; /* authentication mode to use */
+     uchar *pszStrmDrvrPermitExpiredCerts; /* control how to handly expired certificates */
+@@ -295,6 +298,7 @@ BEGINinitConfVars /* (re)set config variables to default values */
+     cs.pszTplName = NULL; /* name of the default template to use */
+     cs.pszStrmDrvr = NULL; /* name of the stream driver to use */
+     cs.iStrmDrvrMode = 0; /* mode for stream driver, driver-dependent (0 mostly means plain tcp) */
++    cs.bStrmDrvrModeSet = 0;
+     cs.bResendLastOnRecon = 0; /* should the last message be re-sent on a successful reconnect? */
+     cs.pszStrmDrvrAuthMode = NULL; /* authentication mode to use */
+     cs.pszStrmDrvrRemoteSNI = NULL; /* Remote TLS SNI to use instead of hostname */
+@@ -849,6 +853,7 @@ BEGINcreateInstance
+     pData->nPorts = 1;
+     pData->target_name = NULL;
+     if (cs.pszStrmDrvr != NULL) CHKmalloc(pData->pszStrmDrvr = (uchar *)strdup((char *)cs.pszStrmDrvr));
++    pData->bStrmDrvrModeSet = cs.bStrmDrvrModeSet;
+     if (cs.pszStrmDrvrAuthMode != NULL)
+         CHKmalloc(pData->pszStrmDrvrAuthMode = (uchar *)strdup((char *)cs.pszStrmDrvrAuthMode));
+     if (cs.pszStrmDrvrRemoteSNI != NULL)
+@@ -2024,6 +2029,7 @@ static void setInstParamDefaults(instanceData *pData) {
+     pData->pszStrmDrvrPermitExpiredCerts = NULL;
+     pData->pszStrmDrvrRemoteSNI = NULL;
+     pData->iStrmDrvrMode = 0;
++    pData->bStrmDrvrModeSet = 0;
+     pData->iStrmDrvrExtendedCertCheck = 0;
+     pData->iStrmDrvrSANPreference = 0;
+     pData->iStrmTlsVerifyDepth = 0;
+@@ -2116,9 +2122,9 @@ static void warnIfNonTlsForwardingConfigured(const instanceData *const pData) {
+                                   "omfwd action uses protocol=\"udp\" (without TLS); "
+                                   "see https://docs.rsyslog.com/doc/faq/tls_mode0_disables_tls.html");
+     } else if (pData->protocol == FORW_TCP && pData->iStrmDrvrMode == 0) {
++        const uchar *const effectiveDrvr = glblGetEffectiveNetstrmDrvr(loadModConf->pConf, pData->pszStrmDrvr);
+         const int tlsHintsConfigured =
+-            (pData->pszStrmDrvrAuthMode != NULL) ||
+-            (pData->pszStrmDrvr != NULL && strcasecmp((const char *)pData->pszStrmDrvr, "ptcp") != 0);
++            (pData->pszStrmDrvrAuthMode != NULL) || glblIsTlsCapableNetstrmDrvr(effectiveDrvr);
+         if (tlsHintsConfigured) {
+             glblWarnIfInsecureDefault(loadModConf->pConf,
+                                       "omfwd has TLS-related settings but streamdriver.mode=\"0\"; mode 0 uses plain "
+@@ -2141,6 +2147,35 @@ static void warnIfNonTlsForwardingConfigured(const instanceData *const pData) {
+     }
+ }
+ 
++static rsRetVal applySecureDefaultsToForwarding(instanceData *const pData) {
++    DEFiRet;
++
++    if (pData->protocol == FORW_TCP) {
++        const uchar *const effectiveDrvr = glblGetEffectiveNetstrmDrvr(loadModConf->pConf, pData->pszStrmDrvr);
++        if (glblIsTlsCapableNetstrmDrvr(effectiveDrvr) && pData->iStrmDrvrMode == 0 &&
++            loadModConf->pConf->globals.compatDefaultsSecure == COMPAT_DEFAULTS_SECURE_STRICT) {
++            if (pData->bStrmDrvrModeSet) {
++                LogError(0, RS_RET_PARAM_ERROR,
++                         "omfwd: compatibility.defaults.secure=\"strict\" rejects explicit "
++                         "streamdriver.mode=\"0\" with TLS-capable stream driver \"%s\"; use "
++                         "streamdriver.mode=\"1\" to enable TLS or select ptcp/plain TCP intentionally",
++                         (const char *)effectiveDrvr);
++                ABORT_FINALIZE(RS_RET_PARAM_ERROR);
++            }
++            pData->iStrmDrvrMode = 1;
++        }
++    }
++
++finalize_it:
++    RETiRet;
++}
++
++static rsRetVal setLegacyStrmDrvrMode(void __attribute__((unused)) * pVal, int mode) {
++    cs.iStrmDrvrMode = mode;
++    cs.bStrmDrvrModeSet = 1;
++    return RS_RET_OK;
++}
++
+ static rsRetVal validateTargetSrvTlsAuth(const instanceData *const pData) {
+     DEFiRet;
+ 
+@@ -2264,6 +2299,7 @@ BEGINnewActInst
+         } else if (!strcmp(actpblk.descr[i].name, "streamdrivermode") ||
+                    !strcmp(actpblk.descr[i].name, "streamdriver.mode")) {
+             pData->iStrmDrvrMode = pvals[i].val.d.n;
++            pData->bStrmDrvrModeSet = 1;
+         } else if (!strcmp(actpblk.descr[i].name, "streamdriver.CheckExtendedKeyPurpose")) {
+             pData->iStrmDrvrExtendedCertCheck = pvals[i].val.d.n;
+         } else if (!strcmp(actpblk.descr[i].name, "streamdriver.PrioritizeSAN")) {
+@@ -2434,6 +2470,8 @@ BEGINnewActInst
+         ABORT_FINALIZE(RS_RET_PARAM_ERROR);
+     }
+ 
++    CHKiRet(applySecureDefaultsToForwarding(pData));
++
+     if (pData->targetSrv != NULL) {
+         if (pData->ports != NULL) {
+             parser_warnmsg("omfwd: targetSrv was set, ignoring explicit port list");
+@@ -2697,6 +2735,7 @@ BEGINparseSelectorAct
+     if (pData->protocol == FORW_TCP) {
+         pData->bResendLastOnRecon = cs.bResendLastOnRecon;
+         pData->iStrmDrvrMode = cs.iStrmDrvrMode;
++        pData->bStrmDrvrModeSet = cs.bStrmDrvrModeSet;
+         if (cs.pszStrmDrvrRemoteSNI != NULL) {
+             CHKmalloc(pData->pszStrmDrvrRemoteSNI = (uchar *)strdup((char *)cs.pszStrmDrvrRemoteSNI));
+         }
+@@ -2705,6 +2744,7 @@ BEGINparseSelectorAct
+             cs.pPermPeers = NULL;
+         }
+     }
++    CHKiRet(applySecureDefaultsToForwarding(pData));
+     warnIfNonTlsForwardingConfigured(pData);
+     CODE_STD_FINALIZERparseSelectorAct if (iRet == RS_RET_OK) {
+         setupInstStatsCtrs(pData);
+@@ -2759,6 +2799,7 @@ static rsRetVal resetConfigVariables(uchar __attribute__((unused)) * pp, void __
+ 
+     /* we now must reset all non-string values */
+     cs.iStrmDrvrMode = 0;
++    cs.bStrmDrvrModeSet = 0;
+     cs.bResendLastOnRecon = 0;
+     cs.iUDPRebindInterval = 0;
+     cs.iTCPRebindInterval = 0;
+@@ -2793,7 +2834,7 @@ BEGINmodInitNoPredecl(Fwd)
+     CHKiRet(regCfSysLineHdlr((uchar *)"actionsendtcpkeepalive_intvl", 0, eCmdHdlrInt, NULL, &cs.iKeepAliveIntvl, NULL));
+     CHKiRet(regCfSysLineHdlr((uchar *)"actionsendtcpkeepalive_time", 0, eCmdHdlrInt, NULL, &cs.iKeepAliveTime, NULL));
+     CHKiRet(regCfSysLineHdlr((uchar *)"actionsendstreamdriver", 0, eCmdHdlrGetWord, NULL, &cs.pszStrmDrvr, NULL));
+-    CHKiRet(regCfSysLineHdlr((uchar *)"actionsendstreamdrivermode", 0, eCmdHdlrInt, NULL, &cs.iStrmDrvrMode, NULL));
++    CHKiRet(regCfSysLineHdlr((uchar *)"actionsendstreamdrivermode", 0, eCmdHdlrInt, setLegacyStrmDrvrMode, NULL, NULL));
+     CHKiRet(regCfSysLineHdlr((uchar *)"actionsendstreamdriverauthmode", 0, eCmdHdlrGetWord, NULL,
+                              &cs.pszStrmDrvrAuthMode, NULL));
+     CHKiRet(regCfSysLineHdlr((uchar *)"actionsendstreamdriverremotesni", 0, eCmdHdlrGetWord, NULL,

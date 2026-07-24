@@ -1,0 +1,33 @@
+From b61737679e1f5ce2aaf19d075784a40bd5f4938a Mon Sep 17 00:00:00 2001
+From: zhuofeng <zhuofeng85@gmail.com>
+Date: Mon, 25 May 2026 10:43:30 +0800
+Subject: [PATCH] xmllint: Reject negative numbers in parseInteger
+
+strtoul wraps negative values to unsigned, which on 32-bit
+unsigned long platforms passes all range checks and silently
+disables --max-ampl. Check for leading '-' followed by a digit.
+
+Fix https://gitlab.gnome.org/GNOME/libxml2/-/work_items/1128
+---
+ xmllint.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/xmllint.c b/xmllint.c
+index 2a90e80..1219d65 100644
+--- a/xmllint.c
++++ b/xmllint.c
+@@ -2494,6 +2494,11 @@ parseInteger(unsigned long *result, FILE *errStream, const char *ctxt,
+     char *strEnd;
+     unsigned long val;
+ 
++    if (str != NULL && *str == '-') {
++        fprintf(errStream, "%s: value not allowed: %s\n", ctxt, str);
++        return(-1);
++    }
++
+     errno = 0;
+     val = strtoul(str, &strEnd, 10);
+     if (errno == EINVAL || *strEnd != 0) {
+-- 
+2.43.0
+

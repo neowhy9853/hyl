@@ -1,0 +1,203 @@
+From 29ed28820a3bd8222d7b533e41ecd4809a2162f8 Mon Sep 17 00:00:00 2001
+From: Glenn Washburn <development@efficientek.com>
+Date: Fri, 19 Aug 2022 18:06:15 -0500
+Subject: [PATCH] disk/cryptodisk: Allows UUIDs to be compared in a
+ dash-insensitive manner
+
+A user can now specify UUID strings with dashes, instead of having to remove
+dashes. This is backwards-compatibility preserving and also fixes a source
+of user confusion over the inconsistency with how UUIDs are specified
+between file system UUIDs and cryptomount UUIDs. Since cryptsetup, the
+reference implementation for LUKS, displays and generates UUIDs with dashes
+there has been additional confusion when using the UUID strings from
+cryptsetup as exact input into GRUB does not find the expected cryptodisk.
+
+A new function grub_uuidcasecmp() is added that is general enough to be used
+other places where UUIDs are being compared.
+
+Signed-off-by: Glenn Washburn <development@efficientek.com>
+Reviewed-by: Patrick Steinhardt <ps@pks.im>
+Reviewed-by: Daniel Kiper <daniel.kiper@oracle.com>
+---
+ grub-core/disk/cryptodisk.c |  4 ++--
+ grub-core/disk/geli.c       |  2 +-
+ grub-core/disk/luks.c       | 21 ++++-----------------
+ grub-core/disk/luks2.c      | 15 ++++-----------
+ include/grub/misc.h         | 30 ++++++++++++++++++++++++++++++
+ 5 files changed, 41 insertions(+), 31 deletions(-)
+
+diff --git a/grub-core/disk/cryptodisk.c b/grub-core/disk/cryptodisk.c
+index 42370db8b..17b5034d0 100644
+--- a/grub-core/disk/cryptodisk.c
++++ b/grub-core/disk/cryptodisk.c
+@@ -702,7 +702,7 @@ grub_cryptodisk_open (const char *name, grub_disk_t disk)
+   if (grub_memcmp (name, "cryptouuid/", sizeof ("cryptouuid/") - 1) == 0)
+     {
+       for (dev = cryptodisk_list; dev != NULL; dev = dev->next)
+-	if (grub_strcasecmp (name + sizeof ("cryptouuid/") - 1, dev->uuid) == 0)
++	if (grub_uuidcasecmp (name + sizeof ("cryptouuid/") - 1, dev->uuid, sizeof (dev->uuid)) == 0)
+ 	  break;
+     }
+   else
+@@ -929,7 +929,7 @@ grub_cryptodisk_get_by_uuid (const char *uuid)
+ {
+   grub_cryptodisk_t dev;
+   for (dev = cryptodisk_list; dev != NULL; dev = dev->next)
+-    if (grub_strcasecmp (dev->uuid, uuid) == 0)
++    if (grub_uuidcasecmp (dev->uuid, uuid, sizeof (dev->uuid)) == 0)
+       return dev;
+   return NULL;
+ }
+diff --git a/grub-core/disk/geli.c b/grub-core/disk/geli.c
+index 52dd50471..bd18b19e4 100644
+--- a/grub-core/disk/geli.c
++++ b/grub-core/disk/geli.c
+@@ -305,7 +305,7 @@ configure_ciphers (grub_disk_t disk, grub_cryptomount_args_t cargs)
+       return NULL;
+     }
+ 
+-  if (cargs->search_uuid != NULL && grub_strcasecmp (cargs->search_uuid, uuid) != 0)
++  if (cargs->search_uuid != NULL && grub_uuidcasecmp (cargs->search_uuid, uuid, sizeof (uuid)) != 0)
+     {
+       grub_dprintf ("geli", "%s != %s\n", uuid, cargs->search_uuid);
+       return NULL;
+diff --git a/grub-core/disk/luks.c b/grub-core/disk/luks.c
+index f0feb3844..f6a0cbc09 100644
+--- a/grub-core/disk/luks.c
++++ b/grub-core/disk/luks.c
+@@ -66,10 +66,7 @@ static grub_cryptodisk_t
+ configure_ciphers (grub_disk_t disk, grub_cryptomount_args_t cargs)
+ {
+   grub_cryptodisk_t newdev;
+-  const char *iptr;
+   struct grub_luks_phdr header;
+-  char *optr;
+-  char uuid[sizeof (header.uuid) + 1];
+   char ciphername[sizeof (header.cipherName) + 1];
+   char ciphermode[sizeof (header.cipherMode) + 1];
+   char hashspec[sizeof (header.hashSpec) + 1];
+@@ -92,19 +89,9 @@ configure_ciphers (grub_disk_t disk, grub_cryptomount_args_t cargs)
+       || grub_be_to_cpu16 (header.version) != 1)
+     return NULL;
+ 
+-  grub_memset (uuid, 0, sizeof (uuid));
+-  optr = uuid;
+-  for (iptr = header.uuid; iptr < &header.uuid[ARRAY_SIZE (header.uuid)];
+-       iptr++)
++  if (cargs->search_uuid != NULL && grub_uuidcasecmp (cargs->search_uuid, header.uuid, sizeof (header.uuid)) != 0)
+     {
+-      if (*iptr != '-')
+-	*optr++ = *iptr;
+-    }
+-  *optr = 0;
+-
+-  if (cargs->search_uuid != NULL && grub_strcasecmp (cargs->search_uuid, uuid) != 0)
+-    {
+-      grub_dprintf ("luks", "%s != %s\n", uuid, cargs->search_uuid);
++      grub_dprintf ("luks", "%s != %s\n", header.uuid, cargs->search_uuid);
+       return NULL;
+     }
+ 
+@@ -123,7 +110,7 @@ configure_ciphers (grub_disk_t disk, grub_cryptomount_args_t cargs)
+   newdev->source_disk = NULL;
+   newdev->log_sector_size = GRUB_LUKS1_LOG_SECTOR_SIZE;
+   newdev->total_sectors = grub_disk_native_sectors (disk) - newdev->offset_sectors;
+-  grub_memcpy (newdev->uuid, uuid, sizeof (uuid));
++  grub_memcpy (newdev->uuid, header.uuid, sizeof (header.uuid));
+   newdev->modname = "luks";
+ 
+   /* Configure the hash used for the AF splitter and HMAC.  */
+@@ -143,7 +130,7 @@ configure_ciphers (grub_disk_t disk, grub_cryptomount_args_t cargs)
+       return NULL;
+     }
+ 
+-  COMPILE_TIME_ASSERT (sizeof (newdev->uuid) >= sizeof (uuid));
++  COMPILE_TIME_ASSERT (sizeof (newdev->uuid) >= sizeof (header.uuid));
+   return newdev;
+ }
+ 
+diff --git a/grub-core/disk/luks2.c b/grub-core/disk/luks2.c
+index bf741d70f..ac3ab095c 100644
+--- a/grub-core/disk/luks2.c
++++ b/grub-core/disk/luks2.c
+@@ -350,8 +350,6 @@ luks2_scan (grub_disk_t disk, grub_cryptomount_args_t cargs)
+ {
+   grub_cryptodisk_t cryptodisk;
+   grub_luks2_header_t header;
+-  char uuid[sizeof (header.uuid) + 1];
+-  grub_size_t i, j;
+ 
+   if (cargs->check_boot)
+     return NULL;
+@@ -362,14 +360,9 @@ luks2_scan (grub_disk_t disk, grub_cryptomount_args_t cargs)
+       return NULL;
+     }
+ 
+-  for (i = 0, j = 0; i < sizeof (header.uuid); i++)
+-    if (header.uuid[i] != '-')
+-      uuid[j++] = header.uuid[i];
+-  uuid[j] = '\0';
+-
+-  if (cargs->search_uuid != NULL && grub_strcasecmp (cargs->search_uuid, uuid) != 0)
++  if (cargs->search_uuid != NULL && grub_uuidcasecmp (cargs->search_uuid, header.uuid, sizeof (header.uuid)) != 0)
+     {
+-      grub_dprintf ("luks2", "%s != %s\n", uuid, cargs->search_uuid);
++      grub_dprintf ("luks2", "%s != %s\n", header.uuid, cargs->search_uuid);
+       return NULL;
+     }
+ 
+@@ -377,8 +370,8 @@ luks2_scan (grub_disk_t disk, grub_cryptomount_args_t cargs)
+   if (!cryptodisk)
+     return NULL;
+ 
+-  COMPILE_TIME_ASSERT (sizeof (cryptodisk->uuid) >= sizeof (uuid));
+-  grub_memcpy (cryptodisk->uuid, uuid, sizeof (uuid));
++  COMPILE_TIME_ASSERT (sizeof (cryptodisk->uuid) >= sizeof (header.uuid));
++  grub_memcpy (cryptodisk->uuid, header.uuid, sizeof (header.uuid));
+ 
+   cryptodisk->modname = "luks2";
+   return cryptodisk;
+diff --git a/include/grub/misc.h b/include/grub/misc.h
+index 8c0ffed16..fae49105c 100644
+--- a/include/grub/misc.h
++++ b/include/grub/misc.h
+@@ -290,6 +290,36 @@ grub_strncasecmp (const char *s1, const char *s2, grub_size_t n)
+     - (int) grub_tolower ((grub_uint8_t) *s2);
+ }
+ 
++/*
++ * Do a case insensitive compare of two UUID strings by ignoring all dashes.
++ * Note that the parameter n, is the number of significant characters to
++ * compare, where significant characters are any except the dash.
++ */
++static inline int
++grub_uuidcasecmp (const char *uuid1, const char *uuid2, grub_size_t n)
++{
++  if (n == 0)
++    return 0;
++
++  while (*uuid1 && *uuid2 && --n)
++    {
++      /* Skip forward to non-dash on both UUIDs. */
++      while ('-' == *uuid1)
++        ++uuid1;
++
++      while ('-' == *uuid2)
++        ++uuid2;
++
++      if (grub_tolower ((grub_uint8_t) *uuid1) != grub_tolower ((grub_uint8_t) *uuid2))
++	break;
++
++      uuid1++;
++      uuid2++;
++    }
++
++  return (int) grub_tolower ((grub_uint8_t) *uuid1) - (int) grub_tolower ((grub_uint8_t) *uuid2);
++}
++
+ /*
+  * Note that these differ from the C standard's definitions of strtol,
+  * strtoul(), and strtoull() by the addition of two const qualifiers on the end
+-- 
+2.34.1
+

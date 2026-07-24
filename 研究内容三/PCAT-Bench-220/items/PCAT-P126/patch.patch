@@ -1,0 +1,69 @@
+From 7ae248cc9872d9cb25d4b682fbd6c00efa54de5f Mon Sep 17 00:00:00 2001
+From: Joe Orton <jorton@apache.org>
+Date: Fri, 5 Jun 2026 16:38:04 +0000
+Subject: [PATCH] Partial revert of r1934913 in ./modules/http2 to retain
+ backwards-compatibility with 2.4.x builds for that module.
+
+git-svn-id: https://svn.apache.org/repos/asf/httpd/httpd/trunk@1935039 13f79535-47bb-0310-9956-ffa450edef68
+---
+ modules/http2/h2_c2.c            | 5 +++++
+ modules/http2/h2_proxy_session.c | 8 ++++++++
+ modules/http2/h2_stream.c        | 4 ++++
+ 3 files changed, 17 insertions(+)
+
+diff --git a/modules/http2/h2_c2.c b/modules/http2/h2_c2.c
+index ad30f96d0f..79f76c0a70 100644
+--- a/modules/http2/h2_c2.c
++++ b/modules/http2/h2_c2.c
+@@ -461,8 +461,13 @@ static void check_early_hints(request_rec *r, const char *tag)
+           }
+           old_status = r->status;
+           old_line = r->status_line;
++#ifdef HTTP_EARLY_HINTS
+           r->status = HTTP_EARLY_HINTS;
+           r->status_line = ap_get_status_line(r->status);
++#else
++          r->status = 103;
++          r->status_line = "103 Early Hints";
++#endif
+           ap_send_interim_response(r, 1);
+           r->status = old_status;
+           r->status_line = old_line;
+diff --git a/modules/http2/h2_proxy_session.c b/modules/http2/h2_proxy_session.c
+index f1634eec9b..f5f0f0d63a 100644
+--- a/modules/http2/h2_proxy_session.c
++++ b/modules/http2/h2_proxy_session.c
+@@ -293,6 +293,14 @@ static int on_frame_recv(nghttp2_session *ngh2, const nghttp2_frame *frame,
+                             forward = 1;
+                         } 
+                         break;
++#ifndef HTTP_EARLY_HINTS
++                    case 103:
++                        /* workaround until we get this into http protocol base
++                         * parts. without this, unknown codes are converted to
++                         * 500... */
++                        r->status_line = "103 Early Hints";
++                        break;
++#endif
+                     default:
+                         r->status_line = ap_get_status_line(r->status);
+                         break;
+diff --git a/modules/http2/h2_stream.c b/modules/http2/h2_stream.c
+index 653af3fb18..44969cf088 100644
+--- a/modules/http2/h2_stream.c
++++ b/modules/http2/h2_stream.c
+@@ -1709,7 +1709,11 @@ static apr_status_t stream_do_response(h2_stream *stream)
+     }
+     h2_session_set_prio(stream->session, stream, stream->pref_priority);
+ 
++#ifdef HTTP_EARLY_HINTS
+     if (resp->status == HTTP_EARLY_HINTS
++#else
++    if (resp->status == 103
++#endif
+         && !h2_config_sgeti(stream->session->s, H2_CONF_EARLY_HINTS)) {
+         /* suppress sending this to the client, it might have triggered
+          * pushes and served its purpose nevertheless */
+-- 
+2.34.1
+

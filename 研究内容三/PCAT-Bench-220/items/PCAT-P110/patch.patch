@@ -1,0 +1,111 @@
+From 48f07d3fe9254520dc7371666fb517e7aa201aeb Mon Sep 17 00:00:00 2001
+From: Carlos Garcia Campos <cgarcia@igalia.com>
+Date: Tue, 13 Apr 2021 14:31:45 +0200
+Subject: [PATCH] cookies: allow non-HTTP uris for cookies
+
+It's supported for WebKit and partially allowed by soup 2.4, so better keep
+compatibility here.
+---
+ libsoup/cookies/soup-cookie-jar.c | 12 +++++++++---
+ libsoup/cookies/soup-cookie.c     | 12 +++++++-----
+ libsoup/soup-message.c            |  3 +--
+ 3 files changed, 17 insertions(+), 10 deletions(-)
+
+diff --git a/libsoup/cookies/soup-cookie-jar.c b/libsoup/cookies/soup-cookie-jar.c
+index afa3bcc1..8deccb0f 100644
+--- a/libsoup/cookies/soup-cookie-jar.c
++++ b/libsoup/cookies/soup-cookie-jar.c
+@@ -321,7 +321,7 @@ get_cookies (SoupCookieJar *jar,
+ 
+ 	priv = soup_cookie_jar_get_instance_private (jar);
+ 
+-	if (!host || !host[0])
++	if (!host)
+ 		return NULL;
+ 
+ 	/* The logic here is a little weird, but the plan is that if
+@@ -330,8 +330,14 @@ get_cookies (SoupCookieJar *jar,
+ 	 * ".com", in that order. (Logic stolen from Mozilla.)
+ 	 */
+ 	cookies = NULL;
+-	domain = cur = g_strdup_printf (".%s", host);
+-	next_domain = domain + 1;
++        if (host[0]) {
++                domain = cur = g_strdup_printf (".%s", host);
++                next_domain = domain + 1;
++        } else {
++                domain = cur = g_strdup (host);
++                next_domain = NULL;
++        }
++
+ 	do {
+ 		new_head = domain_cookies = g_hash_table_lookup (priv->domains, cur);
+ 		while (domain_cookies) {
+diff --git a/libsoup/cookies/soup-cookie.c b/libsoup/cookies/soup-cookie.c
+index f11df16b..2aa3fed9 100644
+--- a/libsoup/cookies/soup-cookie.c
++++ b/libsoup/cookies/soup-cookie.c
+@@ -175,9 +175,7 @@ parse_one_cookie (const char *header, GUri *origin)
+ {
+ 	const char *start, *end, *p;
+ 	gboolean has_value;
+-	SoupCookie *cookie;	
+-
+-        g_return_val_if_fail (origin == NULL || SOUP_URI_IS_VALID (origin), NULL);
++	SoupCookie *cookie;
+ 
+ 	cookie = g_slice_new0 (SoupCookie);
+ 
+@@ -394,7 +392,7 @@ soup_cookie_new (const char *name, const char *value,
+ /**
+  * soup_cookie_parse:
+  * @header: a cookie string (eg, the value of a Set-Cookie header)
+- * @origin: origin of the cookie, or %NULL
++ * @origin: (nullable): origin of the cookie, or %NULL
+  *
+  * Parses @header and returns a #SoupCookie. (If @header contains
+  * multiple cookies, only the first one will be parsed.)
+@@ -414,6 +412,9 @@ soup_cookie_new (const char *name, const char *value,
+ SoupCookie *
+ soup_cookie_parse (const char *cookie, GUri *origin)
+ {
++        g_return_val_if_fail (cookie != NULL, NULL);
++        g_return_val_if_fail (origin == NULL || g_uri_get_host (origin) != NULL, NULL);
++
+ 	return parse_one_cookie (cookie, origin);
+ }
+ 
+@@ -1061,7 +1062,8 @@ soup_cookie_applies_to_uri (SoupCookie *cookie, GUri *uri)
+ {
+ 	int plen;
+ 
+-        g_return_val_if_fail (SOUP_URI_IS_VALID (uri), FALSE);
++        g_return_val_if_fail (cookie != NULL, FALSE);
++        g_return_val_if_fail (uri != NULL, FALSE);
+ 
+ 	if (cookie->secure && !soup_uri_is_https (uri))
+ 		return FALSE;
+diff --git a/libsoup/soup-message.c b/libsoup/soup-message.c
+index f642b6c7..d9e9e4f3 100644
+--- a/libsoup/soup-message.c
++++ b/libsoup/soup-message.c
+@@ -1849,7 +1849,7 @@ soup_message_set_first_party (SoupMessage *msg,
+         GUri *first_party_normalized;
+ 
+ 	g_return_if_fail (SOUP_IS_MESSAGE (msg));
+-        g_return_if_fail (SOUP_URI_IS_VALID (first_party));
++        g_return_if_fail (first_party != NULL);
+ 
+ 	priv = soup_message_get_instance_private (msg);
+         first_party_normalized = soup_uri_copy_with_normalized_flags (first_party);
+@@ -1912,7 +1912,6 @@ soup_message_set_site_for_cookies (SoupMessage *msg,
+         GUri *site_for_cookies_normalized = NULL;
+ 
+ 	g_return_if_fail (SOUP_IS_MESSAGE (msg));
+-        g_return_if_fail (site_for_cookies == NULL || SOUP_URI_IS_VALID (site_for_cookies));
+ 
+ 	priv = soup_message_get_instance_private (msg);
+         if (site_for_cookies) {
+-- 
+2.34.1
+

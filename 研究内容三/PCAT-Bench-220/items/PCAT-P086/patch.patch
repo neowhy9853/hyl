@@ -1,0 +1,439 @@
+From 9770e32ce07110f0c8c7a381604ec9a490028eed Mon Sep 17 00:00:00 2001
+From: nessita <124304+nessita@users.noreply.github.com>
+Date: Mon, 18 May 2026 20:00:27 -0300
+Subject: [PATCH] gh-86533: Restore os.makedirs() ability to apply *mode*
+ recursively (GH-150011)
+
+bpo-42367: Restore os.makedirs() and pathlib.mkdir() ability to apply *mode* recursively via a new parent_mode= keyword argument.
+
+Co-authored-by: Zackery Spytz <zspytz@gmail.com>
+Co-authored-by: Erlend E. Aasland <erlend@python.org>
+Co-authored-by: Natalia <124304+nessita@users.noreply.github.com>
+Co-authored-by: Gregory P. Smith <greg@krypto.org>
+---
+ Doc/library/os.rst                            |  14 ++-
+ Doc/library/pathlib.rst                       |  12 +-
+ Doc/whatsnew/3.15.rst                         |   8 ++
+ Lib/os.py                                     |  15 ++-
+ Lib/pathlib/__init__.py                       |   8 +-
+ Lib/test/test_os/test_os.py                   | 100 ++++++++++++++--
+ Lib/test/test_pathlib/test_pathlib.py         | 107 ++++++++++++++++++
+ ...-08-30-07-44-30.gh-issue-86533.pathlib.rst |   4 +
+ 8 files changed, 251 insertions(+), 17 deletions(-)
+ create mode 100644 Misc/NEWS.d/next/Library/2025-08-30-07-44-30.gh-issue-86533.pathlib.rst
+
+diff --git a/Doc/library/os.rst b/Doc/library/os.rst
+index f6be2dec07..1a759fd9e7 100644
+--- a/Doc/library/os.rst
++++ b/Doc/library/os.rst
+@@ -2549,7 +2549,8 @@ features:
+       Windows now handles a *mode* of ``0o700``.
+ 
+ 
+-.. function:: makedirs(name, mode=0o777, exist_ok=False)
++.. function:: makedirs(name, mode=0o777, exist_ok=False, *, \
++                       parent_mode=None)
+ 
+    .. index::
+       single: directory; creating
+@@ -2567,6 +2568,12 @@ features:
+    If *exist_ok* is ``False`` (the default), a :exc:`FileExistsError` is
+    raised if the target directory already exists.
+ 
++   If *parent_mode* is not ``None``, it is used as the mode for any
++   newly-created, intermediate-level directories.  Like *mode*, it is
++   combined with the process's umask value; see :ref:`the mkdir()
++   description <mkdir_modebits>`.  Otherwise, intermediate directories are
++   created with the default mode, which is also subject to the umask.
++
+    .. note::
+ 
+       :func:`makedirs` will become confused if the path elements to create
+@@ -2593,6 +2600,11 @@ features:
+       The *mode* argument no longer affects the file permission bits of
+       newly created intermediate-level directories.
+ 
++   .. versionadded:: 3.15
++      The *parent_mode* parameter. To match the behavior from Python 3.6 and
++      earlier (where *mode* was applied to all created directories), pass
++      ``parent_mode=mode``.
++
+ 
+ .. function:: mkfifo(path, mode=0o666, *, dir_fd=None)
+ 
+diff --git a/Doc/library/pathlib.rst b/Doc/library/pathlib.rst
+index 923cd4a2c4..ab92c142c3 100644
+--- a/Doc/library/pathlib.rst
++++ b/Doc/library/pathlib.rst
+@@ -1518,7 +1518,8 @@ Creating files and directories
+       :meth:`~Path.write_bytes` methods are often used to create files.
+ 
+ 
+-.. method:: Path.mkdir(mode=0o777, parents=False, exist_ok=False)
++.. method:: Path.mkdir(mode=0o777, parents=False, exist_ok=False, *, \
++                       parent_mode=None)
+ 
+    Create a new directory at this given path.  If *mode* is given, it is
+    combined with the process's ``umask`` value to determine the file mode
+@@ -1529,6 +1530,12 @@ Creating files and directories
+    as needed; they are created with the default permissions without taking
+    *mode* into account (mimicking the POSIX ``mkdir -p`` command).
+ 
++   If *parent_mode* is not ``None``, it is used as the mode for any
++   newly-created, intermediate-level directories when *parents* is true.
++   Like *mode*, it is combined with the process's ``umask`` value.
++   Otherwise, intermediate directories are created with the default
++   permissions (also subject to the umask).
++
+    If *parents* is false (the default), a missing parent raises
+    :exc:`FileNotFoundError`.
+ 
+@@ -1542,6 +1549,9 @@ Creating files and directories
+    .. versionchanged:: 3.5
+       The *exist_ok* parameter was added.
+ 
++   .. versionadded:: 3.15
++      The *parent_mode* parameter.
++
+ 
+ .. method:: Path.symlink_to(target, target_is_directory=False)
+ 
+diff --git a/Doc/whatsnew/3.15.rst b/Doc/whatsnew/3.15.rst
+index a048e51512..93d9b18d58 100644
+--- a/Doc/whatsnew/3.15.rst
++++ b/Doc/whatsnew/3.15.rst
+@@ -1285,6 +1285,10 @@ os
+   glibc versions 2.28 and later.
+   (Contributed by Jeffrey Bosboom and Victor Stinner in :gh:`83714`.)
+ 
++* :func:`os.makedirs` function now has a *parent_mode* parameter that allows
++  specifying the mode for intermediate directories. This can be used to match
++  the behavior from Python 3.6 and earlier by passing ``parent_mode=mode``.
++  (Contributed by Zackery Spytz and Gregory P. Smith in :gh:`86533`.)
+ 
+ os.path
+ -------
+@@ -2057,6 +2061,10 @@ importlib.resources
+ pathlib
+ -------
+ 
++* :meth:`pathlib.Path.mkdir` now has a *parent_mode* parameter that allows
++  specifying the mode for intermediate directories when ``parents=True``.
++  (Contributed by Gregory P. Smith in :gh:`86533`.)
++
+ * Removed deprecated :meth:`!pathlib.PurePath.is_reserved`.
+   Use :func:`os.path.isreserved` to detect reserved paths on Windows.
+   (Contributed by Nikita Sobolev in :gh:`133875`.)
+diff --git a/Lib/os.py b/Lib/os.py
+index 52cbc5bc85..1ca4648cc9 100644
+--- a/Lib/os.py
++++ b/Lib/os.py
+@@ -219,14 +219,17 @@ def _add(str, fn):
+ # Super directory utilities.
+ # (Inspired by Eric Raymond; the doc strings are mostly his)
+ 
+-def makedirs(name, mode=0o777, exist_ok=False):
+-    """makedirs(name [, mode=0o777][, exist_ok=False])
++def makedirs(name, mode=0o777, exist_ok=False, *, parent_mode=None):
++    """makedirs(name [, mode=0o777][, exist_ok=False][, parent_mode=None])
+ 
+     Super-mkdir; create a leaf directory and all intermediate ones.  Works like
+     mkdir, except that any intermediate path segment (not just the rightmost)
+     will be created if it does not exist. If the target directory already
+     exists, raise an OSError if exist_ok is False. Otherwise no exception is
+-    raised.  This is recursive.
++    raised.  If parent_mode is not None, it will be used as the mode for any
++    newly-created, intermediate-level directories. Otherwise, intermediate
++    directories are created with the default permissions (respecting umask).
++    This is recursive.
+ 
+     """
+     head, tail = path.split(name)
+@@ -234,7 +237,11 @@ def makedirs(name, mode=0o777, exist_ok=False):
+         head, tail = path.split(head)
+     if head and tail and not path.exists(head):
+         try:
+-            makedirs(head, exist_ok=exist_ok)
++            if parent_mode is not None:
++                makedirs(head, mode=parent_mode, exist_ok=exist_ok,
++                         parent_mode=parent_mode)
++            else:
++                makedirs(head, exist_ok=exist_ok)
+         except FileExistsError:
+             # Defeats race condition when another thread created the path
+             pass
+diff --git a/Lib/pathlib/__init__.py b/Lib/pathlib/__init__.py
+index 295f633824..ffec9c545e 100644
+--- a/Lib/pathlib/__init__.py
++++ b/Lib/pathlib/__init__.py
+@@ -1204,7 +1204,7 @@ def touch(self, mode=0o666, exist_ok=True):
+         fd = os.open(self, flags, mode)
+         os.close(fd)
+ 
+-    def mkdir(self, mode=0o777, parents=False, exist_ok=False):
++    def mkdir(self, mode=0o777, parents=False, exist_ok=False, *, parent_mode=None):
+         """
+         Create a new directory at this given path.
+         """
+@@ -1213,7 +1213,11 @@ def mkdir(self, mode=0o777, parents=False, exist_ok=False):
+         except FileNotFoundError:
+             if not parents or self.parent == self:
+                 raise
+-            self.parent.mkdir(parents=True, exist_ok=True)
++            if parent_mode is not None:
++                self.parent.mkdir(mode=parent_mode, parents=True, exist_ok=True,
++                                  parent_mode=parent_mode)
++            else:
++                self.parent.mkdir(parents=True, exist_ok=True)
+             self.mkdir(mode, parents=False, exist_ok=exist_ok)
+         except OSError:
+             # Cannot rely on checking for EEXIST, since the operating system
+diff --git a/Lib/test/test_os/test_os.py b/Lib/test/test_os/test_os.py
+index e71c28424e..68cb32cd40 100644
+--- a/Lib/test/test_os/test_os.py
++++ b/Lib/test/test_os/test_os.py
+@@ -2139,6 +2139,94 @@ def test_mode(self):
+                 self.assertEqual(os.stat(path).st_mode & 0o777, 0o555)
+                 self.assertEqual(os.stat(parent).st_mode & 0o777, 0o775)
+ 
++    @unittest.skipIf(
++        support.is_emscripten or support.is_wasi,
++        "umask is not implemented on Emscripten/WASI."
++    )
++    @unittest.skipIf(
++        sys.platform == "android",
++        "Android filesystem may not honor requested permissions."
++    )
++    def test_mode_with_parent_mode(self):
++        # Test the parent_mode parameter
++        parent = os.path.join(os_helper.TESTFN, 'dir1')
++        path = os.path.join(parent, 'dir2')
++        with os_helper.temp_umask(0o002):
++            # Specify mode for both leaf and parent directories
++            os.makedirs(path, 0o770, parent_mode=0o750)
++            self.assertTrue(os.path.exists(path))
++            self.assertTrue(os.path.isdir(path))
++            if os.name != 'nt':
++                # Leaf directory gets the mode parameter
++                self.assertEqual(os.stat(path).st_mode & 0o777, 0o770)
++                # Parent directory gets the parent_mode parameter
++                self.assertEqual(os.stat(parent).st_mode & 0o777, 0o750)
++
++    @unittest.skipIf(
++        support.is_emscripten or support.is_wasi,
++        "umask is not implemented on Emscripten/WASI."
++    )
++    @unittest.skipIf(
++        sys.platform == "android",
++        "Android filesystem may not honor requested permissions."
++    )
++    def test_parent_mode_deep_hierarchy(self):
++        # Test parent_mode with deep directory hierarchy
++        base = os.path.join(os_helper.TESTFN, 'dir1', 'dir2', 'dir3')
++        with os_helper.temp_umask(0o002):
++            os.makedirs(base, 0o755, parent_mode=0o700)
++            self.assertTrue(os.path.exists(base))
++            if os.name != 'nt':
++                # Check that all parent directories have parent_mode
++                level1 = os.path.join(os_helper.TESTFN, 'dir1')
++                level2 = os.path.join(level1, 'dir2')
++                self.assertEqual(os.stat(level1).st_mode & 0o777, 0o700)
++                self.assertEqual(os.stat(level2).st_mode & 0o777, 0o700)
++                # Leaf directory has the regular mode
++                self.assertEqual(os.stat(base).st_mode & 0o777, 0o755)
++
++    @unittest.skipIf(
++        support.is_emscripten or support.is_wasi,
++        "umask is not implemented on Emscripten/WASI."
++    )
++    @unittest.skipIf(
++        sys.platform == "android",
++        "Android filesystem may not honor requested permissions."
++    )
++    def test_parent_mode_same_as_mode(self):
++        # Test emulating Python 3.6 behavior by setting parent_mode=mode
++        parent = os.path.join(os_helper.TESTFN, 'dir1')
++        path = os.path.join(parent, 'dir2')
++        with os_helper.temp_umask(0o002):
++            os.makedirs(path, 0o705, parent_mode=0o705)
++            self.assertTrue(os.path.exists(path))
++            if os.name != 'nt':
++                # Both directories should have the same mode
++                self.assertEqual(os.stat(path).st_mode & 0o777, 0o705)
++                self.assertEqual(os.stat(parent).st_mode & 0o777, 0o705)
++
++    @unittest.skipIf(
++        support.is_emscripten or support.is_wasi,
++        "umask is not implemented on Emscripten/WASI."
++    )
++    @unittest.skipIf(
++        sys.platform == "android",
++        "Android filesystem may not honor requested permissions."
++    )
++    def test_parent_mode_combined_with_umask(self):
++        # parent_mode, like mode, is combined with the process umask; it does
++        # not bypass it.
++        parent = os.path.join(os_helper.TESTFN, 'dir1')
++        path = os.path.join(parent, 'dir2')
++        with os_helper.temp_umask(0o022):
++            os.makedirs(path, 0o777, parent_mode=0o777)
++            self.assertTrue(os.path.isdir(path))
++            if os.name != 'nt':
++                # 0o777 is masked down to 0o755 by the 0o022 umask, for both
++                # the leaf (mode) and the parent (parent_mode).
++                self.assertEqual(os.stat(path).st_mode & 0o777, 0o755)
++                self.assertEqual(os.stat(parent).st_mode & 0o777, 0o755)
++
+     @unittest.skipIf(
+         support.is_wasi,
+         "WASI's umask is a stub."
+@@ -2212,15 +2300,9 @@ def test_win32_mkdir_700(self):
+         )
+ 
+     def tearDown(self):
+-        path = os.path.join(os_helper.TESTFN, 'dir1', 'dir2', 'dir3',
+-                            'dir4', 'dir5', 'dir6')
+-        # If the tests failed, the bottom-most directory ('../dir6')
+-        # may not have been created, so we look for the outermost directory
+-        # that exists.
+-        while not os.path.exists(path) and path != os_helper.TESTFN:
+-            path = os.path.dirname(path)
+-
+-        os.removedirs(path)
++        # Remove the whole tree regardless of which sub-directories a test
++        # created and regardless of their permission bits.
++        os_helper.rmtree(os_helper.TESTFN)
+ 
+ 
+ @unittest.skipUnless(hasattr(os, "chown"), "requires os.chown()")
+diff --git a/Lib/test/test_pathlib/test_pathlib.py b/Lib/test/test_pathlib/test_pathlib.py
+index 09d1b5d725..5d13d5aadc 100644
+--- a/Lib/test/test_pathlib/test_pathlib.py
++++ b/Lib/test/test_pathlib/test_pathlib.py
+@@ -2492,6 +2492,113 @@ def my_mkdir(path, mode=0o777):
+                 self.assertNotIn(str(p12), concurrently_created)
+             self.assertTrue(p.exists())
+ 
++    @unittest.skipIf(
++        is_emscripten or is_wasi,
++        "umask is not implemented on Emscripten/WASI."
++    )
++    @unittest.skipIf(
++        sys.platform == "android",
++        "Android filesystem may not honor requested permissions."
++    )
++    def test_mkdir_parents_umask(self):
++        # Test that parent directories respect umask when parent_mode is not set
++        p = self.cls(self.base, 'umasktest', 'child')
++        self.assertFalse(p.exists())
++        if os.name != 'nt':
++            with os_helper.temp_umask(0o002):
++                p.mkdir(0o755, parents=True)
++                self.assertTrue(p.exists())
++                # Leaf directory gets the specified mode
++                self.assertEqual(p.stat().st_mode & 0o777, 0o755)
++                # Parent directory respects umask (0o777 & ~0o002 = 0o775)
++                self.assertEqual(p.parent.stat().st_mode & 0o777, 0o775)
++
++    @unittest.skipIf(
++        is_emscripten or is_wasi,
++        "umask is not implemented on Emscripten/WASI."
++    )
++    @unittest.skipIf(
++        sys.platform == "android",
++        "Android filesystem may not honor requested permissions."
++    )
++    def test_mkdir_with_parent_mode(self):
++        # Test the parent_mode parameter
++        p = self.cls(self.base, 'newdirPM', 'subdirPM')
++        self.assertFalse(p.exists())
++        if os.name != 'nt':
++            # Specify different modes for parent and leaf directories
++            p.mkdir(0o755, parents=True, parent_mode=0o750)
++            self.assertTrue(p.exists())
++            self.assertTrue(p.is_dir())
++            # Leaf directory gets the mode parameter
++            self.assertEqual(p.stat().st_mode & 0o777, 0o755)
++            # Parent directory gets the parent_mode parameter
++            self.assertEqual(p.parent.stat().st_mode & 0o777, 0o750)
++
++    @unittest.skipIf(
++        is_emscripten or is_wasi,
++        "umask is not implemented on Emscripten/WASI."
++    )
++    @unittest.skipIf(
++        sys.platform == "android",
++        "Android filesystem may not honor requested permissions."
++    )
++    def test_mkdir_parent_mode_deep_hierarchy(self):
++        # Test parent_mode with deep directory hierarchy
++        p = self.cls(self.base, 'level1PM', 'level2PM', 'level3PM')
++        self.assertFalse(p.exists())
++        if os.name != 'nt':
++            p.mkdir(0o755, parents=True, parent_mode=0o700)
++            self.assertTrue(p.exists())
++            # Check that all parent directories have parent_mode
++            level1 = self.cls(self.base, 'level1PM')
++            level2 = level1 / 'level2PM'
++            self.assertEqual(level1.stat().st_mode & 0o777, 0o700)
++            self.assertEqual(level2.stat().st_mode & 0o777, 0o700)
++            # Leaf directory has the regular mode
++            self.assertEqual(p.stat().st_mode & 0o777, 0o755)
++
++    @unittest.skipIf(
++        is_emscripten or is_wasi,
++        "umask is not implemented on Emscripten/WASI."
++    )
++    @unittest.skipIf(
++        sys.platform == "android",
++        "Android filesystem may not honor requested permissions."
++    )
++    def test_mkdir_parent_mode_combined_with_umask(self):
++        # parent_mode, like mode, is combined with the process umask; it does
++        # not bypass it.
++        p = self.cls(self.base, 'umaskPM', 'child')
++        self.assertFalse(p.exists())
++        if os.name != 'nt':
++            with os_helper.temp_umask(0o022):
++                p.mkdir(0o777, parents=True, parent_mode=0o777)
++                self.assertTrue(p.exists())
++                # 0o777 is masked down to 0o755 by the 0o022 umask, for both
++                # the leaf (mode) and the parent (parent_mode).
++                self.assertEqual(p.stat().st_mode & 0o777, 0o755)
++                self.assertEqual(p.parent.stat().st_mode & 0o777, 0o755)
++
++    @unittest.skipIf(
++        is_emscripten or is_wasi,
++        "umask is not implemented on Emscripten/WASI."
++    )
++    @unittest.skipIf(
++        sys.platform == "android",
++        "Android filesystem may not honor requested permissions."
++    )
++    def test_mkdir_parent_mode_same_as_mode(self):
++        # Test setting parent_mode same as mode
++        p = self.cls(self.base, 'samedirPM', 'subdirPM')
++        self.assertFalse(p.exists())
++        if os.name != 'nt':
++            p.mkdir(0o705, parents=True, parent_mode=0o705)
++            self.assertTrue(p.exists())
++            # Both directories should have the same mode
++            self.assertEqual(p.stat().st_mode & 0o777, 0o705)
++            self.assertEqual(p.parent.stat().st_mode & 0o777, 0o705)
++
+     @needs_symlinks
+     def test_symlink_to(self):
+         P = self.cls(self.base)
+diff --git a/Misc/NEWS.d/next/Library/2025-08-30-07-44-30.gh-issue-86533.pathlib.rst b/Misc/NEWS.d/next/Library/2025-08-30-07-44-30.gh-issue-86533.pathlib.rst
+new file mode 100644
+index 0000000000..9c32671173
+--- /dev/null
++++ b/Misc/NEWS.d/next/Library/2025-08-30-07-44-30.gh-issue-86533.pathlib.rst
+@@ -0,0 +1,4 @@
++The :func:`os.makedirs` function and :meth:`pathlib.Path.mkdir` method now have
++a *parent_mode* parameter to specify the mode for intermediate directories when
++creating parent directories. This allows one to match the behavior from Python
++3.6 and earlier for :func:`os.makedirs`.
+-- 
+2.34.1
+

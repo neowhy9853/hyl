@@ -1,0 +1,89 @@
+From ca30c826476ba01ad1383f0fbb4e3d51fd998ea3 Mon Sep 17 00:00:00 2001
+From: Thomas Erbesdobler <t.erbesdobler@gmx.de>
+Date: Thu, 26 Feb 2026 13:30:44 +0000
+Subject: [PATCH 42/50] Fix broken NS responses in certain auth-zone
+ configurations.
+
+If dnsmasq is configured as an authoritatve server for zone transfer
+_only_, (ie no interface name or address in --auth-server)
+and secondary auth servers are configured, then
+queries for NS RRs at the auth zone will get mangled answers.
+This problem doesn't occur in AXFR or SOA queries, only NS queries.
+
+Thanks to Thomas Erbesdobler for finding and analysing this problem.
+The patch here is substantially his, with a little but of
+collateral code tidying by srk.
+---
+ src/auth.c    | 14 +++++++-------
+ src/rfc1035.c |  5 +++++
+ 2 files changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/src/auth.c b/src/auth.c
+index 7c34522..c318b4d 100644
+--- a/src/auth.c
++++ b/src/auth.c
+@@ -591,7 +591,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
+   if (auth && zone)
+     {
+       char *authname;
+-      int newoffset, offset = 0;
++      int newoffset = ansp - (unsigned char *)header, offset = 0;
+ 
+       if (!subnet)
+ 	authname = zone->domain;
+@@ -631,8 +631,7 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
+ 	}
+       
+       /* handle NS and SOA in auth section or for explicit queries */
+-       newoffset = ansp - (unsigned char *)header;
+-       if (((anscount == 0 && !ns) || soa) &&
++      if (((anscount == 0 && !ns) || soa) &&
+ 	  add_resource_record(header, limit, &trunc, 0, &ansp, 
+ 			      daemon->auth_ttl, NULL, T_SOA, C_IN, "ddlllll",
+ 			      authname, daemon->authserver,  daemon->hostmaster,
+@@ -650,11 +649,10 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
+       if (anscount != 0 || ns)
+ 	{
+ 	  struct name_list *secondary;
+-	  
++	 	  
+ 	  /* Only include the machine running dnsmasq if it's acting as an auth server */
+ 	  if (daemon->authinterface)
+ 	    {
+-	      newoffset = ansp - (unsigned char *)header;
+ 	      if (add_resource_record(header, limit, &trunc, -offset, &ansp, 
+ 				      daemon->auth_ttl, NULL, T_NS, C_IN, "d", offset == 0 ? authname : NULL, daemon->authserver))
+ 		{
+@@ -669,9 +667,11 @@ size_t answer_auth(struct dns_header *header, char *limit, size_t qlen, time_t n
+ 
+ 	  if (!subnet)
+ 	    for (secondary = daemon->secondary_forward_server; secondary; secondary = secondary->next)
+-	      if (add_resource_record(header, limit, &trunc, offset, &ansp, 
+-				      daemon->auth_ttl, NULL, T_NS, C_IN, "d", secondary->name))
++	      if (add_resource_record(header, limit, &trunc, -offset, &ansp, 
++				      daemon->auth_ttl, NULL, T_NS, C_IN, "d", offset == 0 ? authname : NULL, secondary->name))
+ 		{
++		  if (offset == 0) 
++		    offset = newoffset;
+ 		  if (ns) 
+ 		    anscount++;
+ 		  else
+diff --git a/src/rfc1035.c b/src/rfc1035.c
+index f0e1082..10668c0 100644
+--- a/src/rfc1035.c
++++ b/src/rfc1035.c
+@@ -1427,6 +1427,11 @@ int check_for_ignored_address(struct dns_header *header, size_t qlen)
+   return check_bad_address(header, qlen, daemon->ignore_addr, NULL, NULL);
+ }
+ 
++/* Nameoffset > 0 means that the name of the new record already exists at the given offset,
++   so use a "jump" to that.
++   Nameoffset == 0 means use the first variable argument as the name of the new record.
++   nameoffset < 0 means use the first variable argument as the start of the new record name,
++   then "jump" to -nameoffset to complete it. */
+ int add_resource_record(struct dns_header *header, char *limit, int *truncp, int nameoffset, unsigned char **pp, 
+ 			unsigned long ttl, int *offset, unsigned short type, unsigned short class, char *format, ...)
+ {
+-- 
+2.43.0
+

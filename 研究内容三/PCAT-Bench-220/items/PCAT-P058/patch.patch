@@ -1,0 +1,166 @@
+diff --git a/src/cache.c b/src/cache.c
+index 7d1b0f47a5def9411dd544d5888fc608e0ad63c5..d38d5c99c80794fffc18839eaa6a3ea5d839de1a 100644
+--- a/src/cache.c
++++ b/src/cache.c
+@@ -855,7 +855,7 @@ void cache_end_insert(void)
+ #ifdef HAVE_DNSSEC
+ void cache_update_hwm(void)
+ {
+-  /* Sneak out possibly updated crypto HWM values. */
++ /* Sneak out possibly updated crypto HWM values. */
+   unsigned char op = PIPE_OP_STATS;
+ 
+   read_write(daemon->pipe_to_parent, &op, sizeof(op), RW_WRITE);
+@@ -1000,6 +1000,7 @@ int cache_recv_insert(time_t now, int fd)
+       }
+       
+     case PIPE_OP_RESULT:
++    case PIPE_OP_KILLED:
+       {
+ 	/* UDP validation moved to TCP to avoid truncation. 
+ 	   Restart UDP validation process with the returned result. */
+@@ -1013,11 +1014,14 @@ int cache_recv_insert(time_t now, int fd)
+ 	    !read_write(fd, (unsigned char *)&ret_len, sizeof(ret_len), RW_READ) ||
+ 	    !read_write(fd, (unsigned char *)daemon->packet, ret_len, RW_READ) ||
+ 	    !read_write(fd, (unsigned char *)&forward, sizeof(forward), RW_READ) ||
+-	    !read_write(fd, (unsigned char *)&uid, sizeof(uid), RW_READ) ||
+-	    !read_write(fd, (unsigned char *)&keycount, sizeof(keycount), RW_READ) ||
+-	    !read_write(fd, (unsigned char *)&keycountp, sizeof(keycountp), RW_READ) ||
+-	    !read_write(fd, (unsigned char *)&validatecount, sizeof(validatecount), RW_READ) ||
+-	    !read_write(fd, (unsigned char *)&validatecountp, sizeof(validatecountp), RW_READ))
++	    !read_write(fd, (unsigned char *)&uid, sizeof(uid), RW_READ))
++	  return 0;
++
++	if (op == PIPE_OP_RESULT && 
++	    (!read_write(fd, (unsigned char *)&keycount, sizeof(keycount), RW_READ) ||
++	     !read_write(fd, (unsigned char *)&keycountp, sizeof(keycountp), RW_READ) ||
++	     !read_write(fd, (unsigned char *)&validatecount, sizeof(validatecount), RW_READ) ||
++	     !read_write(fd, (unsigned char *)&validatecountp, sizeof(validatecountp), RW_READ)))
+ 	  return 0;
+ 	
+ 	/* There's a tiny chance that the frec may have been freed 
+@@ -1025,9 +1029,12 @@ int cache_recv_insert(time_t now, int fd)
+ 	   the uid field which is unique modulo 2^32 for each use. */
+ 	if (uid == forward->uid)
+ 	  {
+-	    /* repatriate the work counters from the child process. */
+-	    *keycountp = keycount;
+-	    *validatecountp = validatecount;
++	    if (op == PIPE_OP_RESULT)
++	      {
++		/* repatriate the work counters from the child process. */
++		*keycountp = keycount;
++		*validatecountp = validatecount;
++	      }
+ 	    
+ 	    if (!forward->dependent)
+ 	      return_reply(now, forward, (struct dns_header *)daemon->packet, ret_len, status);
+diff --git a/src/dnsmasq.c b/src/dnsmasq.c
+index 90fd1f11c0dcd900bea33b861dc14e47ec502126..31dd1e3f907a44980b232ffb7950bdf7cd1e9efe 100644
+--- a/src/dnsmasq.c
++++ b/src/dnsmasq.c
+@@ -1335,11 +1335,42 @@ static void sig_handler(int sig)
+       if (sig == SIGTERM || sig == SIGINT)
+ 	exit(EC_MISC);
+     }
+-  else if (pid != getpid())
++  else if (daemon->pipe_to_parent != -1)
+     {
+       /* alarm is used to kill TCP children after a fixed time. */
+       if (sig == SIGALRM)
+-	_exit(0);
++	{
++#ifdef HAVE_DNSSEC
++	  if (!daemon->forward_to_tcp)
++#endif
++	    _exit(0); /* Normal TCP child */
++#ifdef HAVE_DNSSEC
++	  else
++	    {
++	      /* udp_to_tcp transfer.
++		 If daemon->header_to_tcp is NULL the waiting is over and
++		 we can let things take their course, otherwise, send a failure
++		 return down the pipe to unblock the UDP transaction and kill
++		 the process. */
++	      if (daemon->header_to_tcp)
++		{
++		  unsigned char op = PIPE_OP_KILLED;
++		  int status = STAT_ABANDONED;
++		  
++		  read_write(daemon->pipe_to_parent, &op, sizeof(op), RW_WRITE);
++		  read_write(daemon->pipe_to_parent, (unsigned char *)&status, sizeof(status), RW_WRITE);
++		  read_write(daemon->pipe_to_parent, (unsigned char *)(&daemon->plen_to_tcp), sizeof(daemon->plen_to_tcp), RW_WRITE);
++		  read_write(daemon->pipe_to_parent, (unsigned char *)(daemon->header_to_tcp), daemon->plen_to_tcp, RW_WRITE);
++		  read_write(daemon->pipe_to_parent, (unsigned char *)(&daemon->forward_to_tcp), sizeof(daemon->forward_to_tcp), RW_WRITE);
++		  read_write(daemon->pipe_to_parent, (unsigned char *)(&daemon->forward_to_tcp->uid), sizeof(daemon->forward_to_tcp->uid), RW_WRITE);
++
++		  my_syslog(LOG_INFO, _("TCP process for DNSSEC validation timed out"));
++
++		  _exit(0);
++		}
++	    }
++#endif
++	}
+     }
+   else
+     {
+@@ -2231,8 +2262,12 @@ int swap_to_tcp(struct frec *forward, time_t now, int status, struct dns_header
+ 	  close(daemon->netlinkfd);
+ 	  read_write(pipefd[1], &a, 1, RW_WRITE);
+ #endif		  
++	  alarm(CHILD_LIFETIME);
+ 	  close(pipefd[0]); /* close read end in child. */
+-	  daemon->pipe_to_parent = pipefd[1];	  
++	  daemon->pipe_to_parent = pipefd[1];
++	  daemon->forward_to_tcp = forward;
++	  daemon->header_to_tcp = header;
++	  daemon->plen_to_tcp = *plen;
+ 	}
+     }
+   
+diff --git a/src/dnsmasq.h b/src/dnsmasq.h
+index 254bacd5e8b3a4b978046757157b402a07cc8b0a..c636563f47cb18d1bb23c66f1bf48c8092f065b6 100644
+--- a/src/dnsmasq.h
++++ b/src/dnsmasq.h
+@@ -549,6 +549,7 @@ struct crec {
+ #define PIPE_OP_STATS   3  /* Update parent's stats */
+ #define PIPE_OP_IPSET   4  /* Update IPset */
+ #define PIPE_OP_NFTSET  5  /* Update NFTset */
++#define PIPE_OP_KILLED  6  /* child killed by SIGALARM */
+ 
+ /* struct sockaddr is not large enough to hold any address,
+    and specifically not big enough to hold an IPv6 address.
+@@ -1271,6 +1272,9 @@ extern struct daemon {
+   int dnssec_no_time_check;
+   int back_to_the_future;
+   int limit[LIMIT_MAX];
++  struct frec *forward_to_tcp;
++  struct dns_header *header_to_tcp;
++  ssize_t plen_to_tcp;
+ #endif
+   struct frec *frec_list;
+   struct frec_src *free_frec_src;
+diff --git a/src/forward.c b/src/forward.c
+index e2f64c01e56e7fd3da66d205468d855c2736fffc..1e935eb45044078ff0d91ba88eb81000d4459cfe 100644
+--- a/src/forward.c
++++ b/src/forward.c
+@@ -2223,7 +2223,7 @@ int tcp_from_udp(time_t now, int status, struct dns_header *header, ssize_t *ple
+ 	      
+ 	      if (n >= daemon->edns_pktsz)
+ 		{
+-		  /* still too bIg, strip optional sections and try again. */
++		  /* still too big, strip optional sections and try again. */
+ 		  new_header->nscount = htons(0);
+ 		  new_header->arcount = htons(0);
+ 		  n = resize_packet(new_header, n, NULL, 0);
+@@ -2237,6 +2237,10 @@ int tcp_from_udp(time_t now, int status, struct dns_header *header, ssize_t *ple
+ 		    }
+ 		}
+ 	      
++	      /* we have succeeded and are no longer blocked talking
++		 on a TCP connection, so if the watchdog alarm goes off,
++		 ignore it. */
++	      daemon->forward_to_tcp = NULL;
+ 	      /* return the stripped or truncated reply. */
+ 	      memcpy(header, new_header, n);
+ 	      *plenp = n;

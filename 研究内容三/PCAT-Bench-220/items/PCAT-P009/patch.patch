@@ -1,0 +1,90 @@
+From 8fa68a6e1eb58cf285b848ae83116e52d0e9a165 Mon Sep 17 00:00:00 2001
+From: Pavel Bozhko <pvbozhko@salutedevices.com>
+Date: Fri, 19 Dec 2025 19:21:59 +0300
+Subject: [PATCH 17/50] The only_failed argument has been added to the
+ log-queries parameter.
+
+This may be useful for embedded systems for example:
+log-queries without only_failed places a heavy load on the
+NAND flash memory. At the same time, logging requests
+is necessary to troubleshoot network issues.
+---
+ man/dnsmasq.8 |  2 ++
+ src/cache.c   | 12 ++++++++++++
+ src/dnsmasq.h |  3 ++-
+ src/option.c  |  2 ++
+ 4 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/man/dnsmasq.8 b/man/dnsmasq.8
+index abe0bdf..780d6d5 100644
+--- a/man/dnsmasq.8
++++ b/man/dnsmasq.8
+@@ -136,6 +136,8 @@ Log the results of DNS queries handled by dnsmasq. Enable a full cache dump on r
+ then the log has extra information at the start of each line.
+ This consists of a serial number which ties together the log lines associated with an individual query, and the IP address of the requestor. If the argument "proto" is supplied, this shows everything that "extra" does and also the network protocol used to communicate the queries. Logging of only queries to the authoritative server can be configured with
+ .B --log-queries=auth
++and logging only failed replies (Error, NXDOMAIN or NODATA) can be configured with
++.B --log-queries=only_failed
+ .TP
+ .B \-8, --log-facility=<facility>
+ Set the facility to which dnsmasq will send syslog entries, this
+diff --git a/src/cache.c b/src/cache.c
+index d38d5c9..c4edfd3 100644
+--- a/src/cache.c
++++ b/src/cache.c
+@@ -2254,6 +2254,15 @@ static char *edestr(int ede)
+     }
+ }
+ 
++static int error_occured(unsigned int flags) {
++  if (flags & F_RCODE)
++    return 1;
++  else if (flags & F_NEG)
++    return 1;
++  else
++    return 0;
++}
++
+ void log_query(unsigned int flags, char *name, union all_addr *addr, char *arg, unsigned short type)
+ {
+   char *source, *dest;
+@@ -2266,6 +2275,9 @@ void log_query(unsigned int flags, char *name, union all_addr *addr, char *arg,
+   if (!option_bool(OPT_LOG))
+     return;
+ 
++  if(option_bool(OPT_LOG_ONLY_FAILED) && !error_occured(flags))
++    return;
++
+   /* F_NOERR is reused here to indicate logs arrising from auth queries */ 
+   if (!(flags & F_NOERR) && option_bool(OPT_AUTH_LOG))
+     return;
+diff --git a/src/dnsmasq.h b/src/dnsmasq.h
+index 40f2b5c..ef7e96d 100644
+--- a/src/dnsmasq.h
++++ b/src/dnsmasq.h
+@@ -289,7 +289,8 @@ struct event_desc {
+ #define OPT_DO_0x20        75
+ #define OPT_AUTH_LOG       76
+ #define OPT_LEASEQUERY     77
+-#define OPT_LAST           78
++#define OPT_LOG_ONLY_FAILED  78
++#define OPT_LAST           79
+ 
+ #define OPTION_BITS (sizeof(unsigned int)*8)
+ #define OPTION_SIZE ( (OPT_LAST/OPTION_BITS)+((OPT_LAST%OPTION_BITS)!=0) )
+diff --git a/src/option.c b/src/option.c
+index a13f1fa..67f3a45 100644
+--- a/src/option.c
++++ b/src/option.c
+@@ -3463,6 +3463,8 @@ static int one_opt(int option, char *arg, char *errstr, char *gen_err, int comma
+ 	    }
+ 	  else if (strcmp(arg, "auth") == 0)
+ 	    set_option_bool(OPT_AUTH_LOG);
++	  else if (strcmp(arg, "only_failed") == 0)
++	    set_option_bool(OPT_LOG_ONLY_FAILED);
+ 	}
+       break;
+ 
+-- 
+2.43.0
+

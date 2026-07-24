@@ -1,0 +1,365 @@
+diff --git a/Documentation/git-multi-pack-index.adoc b/Documentation/git-multi-pack-index.adoc
+index c26196815e218affb101468bfe50f3439b0c99bb..c6d23aeeb9a037595ef182a6b5715713095f637b 100644
+--- a/Documentation/git-multi-pack-index.adoc
++++ b/Documentation/git-multi-pack-index.adoc
+@@ -12,8 +12,10 @@ SYNOPSIS
+ 'git multi-pack-index' [<options>] write [--preferred-pack=<pack>]
+ 		         [--[no-]bitmap] [--[no-]incremental] [--[no-]stdin-packs]
+ 		         [--refs-snapshot=<path>] [--[no-]write-chain-file]
++			 [--base=<checksum>]
+ 'git multi-pack-index' [<options>] compact [--[no-]incremental]
+-		         [--[no-]bitmap] [--[no-]write-chain-file] <from> <to>
++		         [--[no-]bitmap] [--base=<checksum>] [--[no-]write-chain-file]
++			 <from> <to>
+ 'git multi-pack-index' [<options>] verify
+ 'git multi-pack-index' [<options>] expire
+ 'git multi-pack-index' [<options>] repack [--batch-size=<size>]
+@@ -90,6 +92,13 @@ marker).
+ 		The checksum of the new layer is printed to standard
+ 		output, allowing the caller to assemble and write the
+ 		chain itself. Requires `--incremental`.
++
++	--base=<checksum>::
++		Specify the checksum of an existing MIDX layer to use
++		as the base when writing a new incremental layer.
++		The special value `none` indicates that the new layer
++		should have no base (i.e., it becomes a root layer).
++		Requires `--no-write-chain-file`.
+ --
+ 
+ compact::
+@@ -110,6 +119,12 @@ compact::
+ 		MIDX layer but do not update the multi-pack-index-chain
+ 		file. The checksum of the new layer is printed to
+ 		standard output. Requires `--incremental`.
++
++	--base=<checksum>::
++		Specify the checksum of an existing MIDX layer to use
++		as the base for the compacted result, instead of using
++		the immediate parent of `<from>`. The special value
++		`none` indicates that the result should have no base.
+ --
+ +
+ Note that the compact command requires writing a version-2 midx that
+diff --git a/builtin/multi-pack-index.c b/builtin/multi-pack-index.c
+index f861b4b839463b29f02bc627d1df79b219c136c7..00ffb36394d08c5bf4fb77cf880f1732ac57686b 100644
+--- a/builtin/multi-pack-index.c
++++ b/builtin/multi-pack-index.c
+@@ -16,11 +16,13 @@
+ #define BUILTIN_MIDX_WRITE_USAGE \
+ 	N_("git multi-pack-index [<options>] write [--preferred-pack=<pack>]\n" \
+ 	   "  [--[no-]bitmap] [--[no-]incremental] [--[no-]stdin-packs]\n" \
+-	   "  [--refs-snapshot=<path>] [--[no-]write-chain-file]")
++	   "  [--refs-snapshot=<path>] [--[no-]write-chain-file]\n" \
++	   "  [--base=<checksum>]")
+ 
+ #define BUILTIN_MIDX_COMPACT_USAGE \
+ 	N_("git multi-pack-index [<options>] compact [--[no-]incremental]\n" \
+-	   "  [--[no-]bitmap] [--[no-]write-chain-file] <from> <to>")
++	   "  [--[no-]bitmap] [--base=<checksum>] [--[no-]write-chain-file]\n" \
++	   "  <from> <to>")
+ 
+ #define BUILTIN_MIDX_VERIFY_USAGE \
+ 	N_("git multi-pack-index [<options>] verify")
+@@ -63,6 +65,7 @@ static char const * const builtin_multi_pack_index_usage[] = {
+ static struct opts_multi_pack_index {
+ 	char *object_dir;
+ 	const char *preferred_pack;
++	const char *incremental_base;
+ 	char *refs_snapshot;
+ 	unsigned long batch_size;
+ 	unsigned flags;
+@@ -151,6 +154,8 @@ static int cmd_multi_pack_index_write(int argc, const char **argv,
+ 			   N_("pack for reuse when computing a multi-pack bitmap")),
+ 		OPT_BIT(0, "bitmap", &opts.flags, N_("write multi-pack bitmap"),
+ 			MIDX_WRITE_BITMAP | MIDX_WRITE_REV_INDEX),
++		OPT_STRING(0, "base", &opts.incremental_base, N_("checksum"),
++			   N_("base MIDX for incremental writes")),
+ 		OPT_BIT(0, "incremental", &opts.flags,
+ 			N_("write a new incremental MIDX"), MIDX_WRITE_INCREMENTAL),
+ 		OPT_NEGBIT(0, "write-chain-file", &opts.flags,
+@@ -190,6 +195,13 @@ static int cmd_multi_pack_index_write(int argc, const char **argv,
+ 				   options);
+ 	}
+ 
++	if (opts.incremental_base &&
++	    !(opts.flags & MIDX_WRITE_NO_CHAIN)) {
++		error(_("cannot use --base without --no-write-chain-file"));
++		usage_with_options(builtin_multi_pack_index_write_usage,
++				   options);
++	}
++
+ 	source = handle_object_dir_option(repo);
+ 
+ 	FREE_AND_NULL(options);
+@@ -201,7 +213,8 @@ static int cmd_multi_pack_index_write(int argc, const char **argv,
+ 
+ 		ret = write_midx_file_only(source, &packs,
+ 					   opts.preferred_pack,
+-					   opts.refs_snapshot, opts.flags);
++					   opts.refs_snapshot,
++					   opts.incremental_base, opts.flags);
+ 
+ 		string_list_clear(&packs, 0);
+ 		free(opts.refs_snapshot);
+@@ -229,6 +242,8 @@ static int cmd_multi_pack_index_compact(int argc, const char **argv,
+ 
+ 	struct option *options;
+ 	static struct option builtin_multi_pack_index_compact_options[] = {
++		OPT_STRING(0, "base", &opts.incremental_base, N_("checksum"),
++			   N_("base MIDX for incremental writes")),
+ 		OPT_BIT(0, "bitmap", &opts.flags, N_("write multi-pack bitmap"),
+ 			MIDX_WRITE_BITMAP | MIDX_WRITE_REV_INDEX),
+ 		OPT_BIT(0, "incremental", &opts.flags,
+@@ -290,7 +305,8 @@ static int cmd_multi_pack_index_compact(int argc, const char **argv,
+ 			die(_("MIDX %s must be an ancestor of %s"), argv[0], argv[1]);
+ 	}
+ 
+-	ret = write_midx_file_compact(source, from_midx, to_midx, opts.flags);
++	ret = write_midx_file_compact(source, from_midx, to_midx,
++				      opts.incremental_base, opts.flags);
+ 
+ 	return ret;
+ }
+diff --git a/midx-write.c b/midx-write.c
+index 38c898e5ff5ef16d8e37c411076fda9f94d8e8e8..561e9eedc0e6ef245acc193e721cc4f6b3407101 100644
+--- a/midx-write.c
++++ b/midx-write.c
+@@ -1247,6 +1247,7 @@ struct write_midx_opts {
+ 
+ 	const char *preferred_pack_name;
+ 	const char *refs_snapshot;
++	const char *incremental_base;
+ 	unsigned flags;
+ };
+ 
+@@ -1330,11 +1331,32 @@ static int write_midx_internal(struct write_midx_opts *opts)
+ 
+ 	/*
+ 	 * If compacting MIDX layer(s) in the range [from, to], then the
+-	 * compacted MIDX will share the same base MIDX as 'from'.
++	 * compacted MIDX will share the same base MIDX as 'from',
++	 * unless a custom --base is specified (see below).
+ 	 */
+ 	if (ctx.compact)
+ 		ctx.base_midx = ctx.compact_from->base_midx;
+ 
++	if (opts->incremental_base) {
++		if (!strcmp(opts->incremental_base, "none")) {
++			ctx.base_midx = NULL;
++		} else {
++			while (ctx.base_midx) {
++				const char *cmp = midx_get_checksum_hex(ctx.base_midx);
++				if (!strcmp(opts->incremental_base, cmp))
++					break;
++
++				ctx.base_midx = ctx.base_midx->base_midx;
++			}
++
++			if (!ctx.base_midx) {
++				error(_("could not find base MIDX '%s'"),
++				      opts->incremental_base);
++				goto cleanup;
++			}
++		}
++	}
++
+ 	ctx.nr = 0;
+ 	ctx.alloc = ctx.m ? ctx.m->num_packs + ctx.m->num_packs_in_base : 16;
+ 	ctx.info = NULL;
+@@ -1827,7 +1849,8 @@ static int write_midx_internal(struct write_midx_opts *opts)
+ 
+ int write_midx_file(struct odb_source *source,
+ 		    const char *preferred_pack_name,
+-		    const char *refs_snapshot, unsigned flags)
++		    const char *refs_snapshot,
++		    unsigned flags)
+ {
+ 	struct write_midx_opts opts = {
+ 		.source = source,
+@@ -1842,13 +1865,16 @@ int write_midx_file(struct odb_source *source,
+ int write_midx_file_only(struct odb_source *source,
+ 			 struct string_list *packs_to_include,
+ 			 const char *preferred_pack_name,
+-			 const char *refs_snapshot, unsigned flags)
++			 const char *refs_snapshot,
++			 const char *incremental_base,
++			 unsigned flags)
+ {
+ 	struct write_midx_opts opts = {
+ 		.source = source,
+ 		.packs_to_include = packs_to_include,
+ 		.preferred_pack_name = preferred_pack_name,
+ 		.refs_snapshot = refs_snapshot,
++		.incremental_base = incremental_base,
+ 		.flags = flags,
+ 	};
+ 
+@@ -1858,12 +1884,14 @@ int write_midx_file_only(struct odb_source *source,
+ int write_midx_file_compact(struct odb_source *source,
+ 			    struct multi_pack_index *from,
+ 			    struct multi_pack_index *to,
++			    const char *incremental_base,
+ 			    unsigned flags)
+ {
+ 	struct write_midx_opts opts = {
+ 		.source = source,
+ 		.compact_from = from,
+ 		.compact_to = to,
++		.incremental_base = incremental_base,
+ 		.flags = flags | MIDX_WRITE_COMPACT,
+ 	};
+ 
+diff --git a/midx.h b/midx.h
+index 5b193882dcf0f1e804c8828383677c7b456d695b..77dd66de02bd3884f8a6bbd8d2abca7ae6adc24e 100644
+--- a/midx.h
++++ b/midx.h
+@@ -132,10 +132,13 @@ int write_midx_file(struct odb_source *source,
+ int write_midx_file_only(struct odb_source *source,
+ 			 struct string_list *packs_to_include,
+ 			 const char *preferred_pack_name,
+-			 const char *refs_snapshot, unsigned flags);
++			 const char *refs_snapshot,
++			 const char *incremental_base,
++			 unsigned flags);
+ int write_midx_file_compact(struct odb_source *source,
+ 			    struct multi_pack_index *from,
+ 			    struct multi_pack_index *to,
++			    const char *incremental_base,
+ 			    unsigned flags);
+ void clear_midx_file(struct repository *r);
+ int verify_midx_file(struct odb_source *source, unsigned flags);
+diff --git a/t/t5334-incremental-multi-pack-index.sh b/t/t5334-incremental-multi-pack-index.sh
+index 66d6894761b4a381ccf173dd00ec9e08a343d432..68a103d13d23c349f835643b44f26809036492e5 100755
+--- a/t/t5334-incremental-multi-pack-index.sh
++++ b/t/t5334-incremental-multi-pack-index.sh
+@@ -113,6 +113,36 @@ test_expect_success 'write non-incremental MIDX layer with --no-write-chain-file
+ 	test_grep "cannot use --no-write-chain-file without --incremental" err
+ '
+ 
++test_expect_success 'write MIDX layer with --base without --no-write-chain-file' '
++	test_must_fail git multi-pack-index write --bitmap --incremental \
++		--base=none 2>err &&
++	test_grep "cannot use --base without --no-write-chain-file" err
++'
++
++test_expect_success 'write MIDX layer with --base=none and --no-write-chain-file' '
++	test_commit base-none &&
++	git repack -d &&
++
++	cp "$midx_chain" "$midx_chain.bak" &&
++	layer="$(git multi-pack-index write --bitmap --incremental \
++		--no-write-chain-file --base=none)" &&
++
++	test_cmp "$midx_chain.bak" "$midx_chain" &&
++	test_path_is_file "$midxdir/multi-pack-index-$layer.midx"
++'
++
++test_expect_success 'write MIDX layer with --base=<hash> and --no-write-chain-file' '
++	test_commit base-hash &&
++	git repack -d &&
++
++	cp "$midx_chain" "$midx_chain.bak" &&
++	layer="$(git multi-pack-index write --bitmap --incremental \
++		--no-write-chain-file --base="$(nth_line 1 "$midx_chain")")" &&
++
++	test_cmp "$midx_chain.bak" "$midx_chain" &&
++	test_path_is_file "$midxdir/multi-pack-index-$layer.midx"
++'
++
+ for reuse in false single multi
+ do
+ 	test_expect_success "full clone (pack.allowPackReuse=$reuse)" '
+diff --git a/t/t5335-compact-multi-pack-index.sh b/t/t5335-compact-multi-pack-index.sh
+index 1a65d48b62b848e992f5193edacedf2af22c973a..ec1dafe89fcfce9d85344458efac488dc37e0cf3 100755
+--- a/t/t5335-compact-multi-pack-index.sh
++++ b/t/t5335-compact-multi-pack-index.sh
+@@ -304,6 +304,7 @@ test_expect_success 'MIDX compaction with --no-write-chain-file' '
+ 
+ 		layer="$(git multi-pack-index compact --incremental \
+ 			--no-write-chain-file \
++			--base="$(nth_line 1 "$midx_chain")" \
+ 			"$(nth_line 2 "$midx_chain")" \
+ 			"$(nth_line 3 "$midx_chain")")" &&
+ 
+@@ -326,4 +327,80 @@ test_expect_success 'MIDX compaction with --no-write-chain-file' '
+ 	)
+ '
+ 
++test_expect_success 'MIDX compaction with --base' '
++	git init midx-compact-with--base &&
++	(
++		cd midx-compact-with--base &&
++
++		git config maintenance.auto false &&
++
++		write_packs A B C D &&
++
++		test_line_count = 4 "$midx_chain" &&
++
++		cp "$midx_chain" "$midx_chain.bak" &&
++
++		git multi-pack-index compact --incremental \
++			--base="$(nth_line 1 "$midx_chain")" \
++			"$(nth_line 3 "$midx_chain")" \
++			"$(nth_line 4 "$midx_chain")" &&
++		test_line_count = 2 $midx_chain &&
++
++		nth_line 1 "$midx_chain.bak" >expect &&
++		nth_line 1 "$midx_chain" >actual &&
++
++		test_cmp expect actual
++	)
++'
++
++test_expect_success 'MIDX compaction with --base=none' '
++	git init midx-compact-base-none &&
++	(
++		cd midx-compact-base-none &&
++
++		git config maintenance.auto false &&
++
++		write_packs A B C D &&
++
++		test_line_count = 4 $midx_chain &&
++
++		cp "$midx_chain" "$midx_chain".bak &&
++
++		# Compact the two bottommost layers (A and B) into a new
++		# root layer with no parent.
++		git multi-pack-index compact --incremental \
++			--base=none \
++			"$(nth_line 1 "$midx_chain")" \
++			"$(nth_line 2 "$midx_chain")" &&
++
++		test_line_count = 3 $midx_chain &&
++
++		# The upper layers (C and D) should be preserved
++		# unchanged.
++		nth_line 3 "$midx_chain.bak" >expect &&
++		nth_line 4 "$midx_chain.bak" >>expect &&
++		nth_line 2 "$midx_chain" >actual &&
++		nth_line 3 "$midx_chain" >>actual &&
++
++		test_cmp expect actual
++	)
++'
++
++test_expect_success 'MIDX compaction with bogus --base checksum' '
++	git init midx-compact-bogus-base &&
++	(
++		cd midx-compact-bogus-base &&
++
++		git config maintenance.auto false &&
++
++		write_packs A B C &&
++
++		test_must_fail git multi-pack-index compact --incremental \
++			--base=deadbeef \
++			"$(nth_line 2 "$midx_chain")" \
++			"$(nth_line 3 "$midx_chain")" 2>err &&
++		test_grep "could not find base MIDX" err
++	)
++'
++
+ test_done

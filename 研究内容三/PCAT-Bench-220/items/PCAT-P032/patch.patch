@@ -1,0 +1,36 @@
+diff --git a/builtin/receive-pack.c b/builtin/receive-pack.c
+index 9c491746168a6f0674328b5c4175477034a555c7..9fbfa15a516077f30035e8fd86490c2f13f09368 100644
+--- a/builtin/receive-pack.c
++++ b/builtin/receive-pack.c
+@@ -1427,8 +1427,8 @@ static const char *push_to_checkout(unsigned char *hash,
+ 	struct run_hooks_opt opt = RUN_HOOKS_OPT_INIT;
+ 	opt.invoked_hook = invoked_hook;
+ 
+-	strvec_pushf(env, "GIT_WORK_TREE=%s", absolute_path(work_tree));
+ 	strvec_pushv(&opt.env, env->v);
++	strvec_pushf(&opt.env, "GIT_WORK_TREE=%s", absolute_path(work_tree));
+ 	strvec_push(&opt.args, hash_to_hex(hash));
+ 	if (run_hooks_opt(the_repository, push_to_checkout_hook, &opt))
+ 		return "push-to-checkout hook declined";
+diff --git a/t/t5516-fetch-push.sh b/t/t5516-fetch-push.sh
+index 46926e7bbd3a9a95f5e717591bd3b5ad6dbba2a7..a85b1fbf8b5d479e276e3c9ba67b8f9803220e01 100755
+--- a/t/t5516-fetch-push.sh
++++ b/t/t5516-fetch-push.sh
+@@ -1791,6 +1791,17 @@ test_expect_success 'updateInstead with push-to-checkout hook' '
+ 	)
+ '
+ 
++test_expect_success 'denyCurrentBranch and core.worktree' '
++	test_when_finished "rm -fr cloned cloned.git" &&
++	git clone --separate-git-dir cloned.git . cloned &&
++	git --git-dir cloned.git config receive.denyCurrentBranch updateInstead &&
++	git --git-dir cloned.git config core.worktree "$PWD/cloned" &&
++	test_commit raspberry &&
++	git push cloned.git HEAD:main &&
++	test_path_exists cloned/raspberry.t &&
++	test_must_fail git push --delete cloned.git main
++'
++
+ test_expect_success 'denyCurrentBranch and worktrees' '
+ 	git worktree add new-wt &&
+ 	git clone . cloned &&

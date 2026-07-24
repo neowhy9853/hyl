@@ -1,0 +1,86 @@
+From c6fd7de64ac7591a9708c14a34737eb9baf050bc Mon Sep 17 00:00:00 2001
+From: Sergey B Kirpichev <skirpichev@gmail.com>
+Date: Mon, 11 May 2026 01:22:16 +0300
+Subject: [PATCH] gh-149083: use sentinel to fix _functools.reduce() signature
+ (#149591)
+
+---
+ Lib/inspect.py                        | 3 ++-
+ Lib/test/test_inspect/test_inspect.py | 3 +--
+ Modules/_functoolsmodule.c            | 4 ++--
+ Modules/clinic/_functoolsmodule.c.h   | 5 +++--
+ 4 files changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/Lib/inspect.py b/Lib/inspect.py
+index 3e85625cd3..af6aa3eb37 100644
+--- a/Lib/inspect.py
++++ b/Lib/inspect.py
+@@ -2207,7 +2207,8 @@ def wrap_value(s):
+             except NameError:
+                 raise ValueError
+ 
+-        if isinstance(value, (str, int, float, bytes, bool, type(None))):
++        if isinstance(value, (str, int, float, bytes, bool, type(None),
++                              sentinel)):
+             return ast.Constant(value)
+         raise ValueError
+ 
+diff --git a/Lib/test/test_inspect/test_inspect.py b/Lib/test/test_inspect/test_inspect.py
+index 9028d42c61..7351f97fd9 100644
+--- a/Lib/test/test_inspect/test_inspect.py
++++ b/Lib/test/test_inspect/test_inspect.py
+@@ -6255,8 +6255,7 @@ def test_faulthandler_module_has_signatures(self):
+         self._test_module_has_signatures(faulthandler, unsupported_signature=unsupported_signature)
+ 
+     def test_functools_module_has_signatures(self):
+-        unsupported_signature = {"reduce"}
+-        self._test_module_has_signatures(functools, unsupported_signature=unsupported_signature)
++        self._test_module_has_signatures(functools)
+ 
+     def test_gc_module_has_signatures(self):
+         import gc
+diff --git a/Modules/_functoolsmodule.c b/Modules/_functoolsmodule.c
+index 19bdf3d47c..c702eecc70 100644
+--- a/Modules/_functoolsmodule.c
++++ b/Modules/_functoolsmodule.c
+@@ -1066,7 +1066,7 @@ _functools.reduce
+     function as func: object
+     iterable as seq: object
+     /
+-    initial as result: object = NULL
++    initial as result: object(c_default="NULL") = functools._initial_missing
+ 
+ Apply a function of two arguments cumulatively to the items of an iterable, from left to right.
+ 
+@@ -1081,7 +1081,7 @@ calculates ((((1 + 2) + 3) + 4) + 5).
+ static PyObject *
+ _functools_reduce_impl(PyObject *module, PyObject *func, PyObject *seq,
+                        PyObject *result)
+-/*[clinic end generated code: output=30d898fe1267c79d input=4ccfb74548ce5170]*/
++/*[clinic end generated code: output=30d898fe1267c79d input=5c9088c98ffe2793]*/
+ {
+     PyObject *args, *it;
+ 
+diff --git a/Modules/clinic/_functoolsmodule.c.h b/Modules/clinic/_functoolsmodule.c.h
+index 23f6663108..87cdef2ad3 100644
+--- a/Modules/clinic/_functoolsmodule.c.h
++++ b/Modules/clinic/_functoolsmodule.c.h
+@@ -71,7 +71,8 @@ exit:
+ }
+ 
+ PyDoc_STRVAR(_functools_reduce__doc__,
+-"reduce($module, function, iterable, /, initial=<unrepresentable>)\n"
++"reduce($module, function, iterable, /,\n"
++"       initial=functools._initial_missing)\n"
+ "--\n"
+ "\n"
+ "Apply a function of two arguments cumulatively to the items of an iterable, from left to right.\n"
+@@ -192,4 +193,4 @@ _functools__lru_cache_wrapper_cache_clear(PyObject *self, PyObject *Py_UNUSED(ig
+ 
+     return return_value;
+ }
+-/*[clinic end generated code: output=7f2abc718fcc35d5 input=a9049054013a1b77]*/
++/*[clinic end generated code: output=ac9e26d0a5a23d40 input=a9049054013a1b77]*/
+-- 
+2.34.1
+

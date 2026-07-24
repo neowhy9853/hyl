@@ -1,0 +1,231 @@
+diff --git a/introspection/org.freedesktop.NetworkManager.Device.xml b/introspection/org.freedesktop.NetworkManager.Device.xml
+index 802ee2fd689d2434e59dc916f24d1ab2e9658576..3b0c2c46b85790f211f490a72179763820a6753d 100644
+--- a/introspection/org.freedesktop.NetworkManager.Device.xml
++++ b/introspection/org.freedesktop.NetworkManager.Device.xml
+@@ -396,7 +396,7 @@
+ 
+     <!--
+         SetManaged:
+-        @managed: Whether the device is managed.
++        @managed:(<link linkend="NMDeviceManaged">NMDeviceManaged</link>) Whether the device is managed. Possible values are "no" (0), "yes" (1) and "reset" (2).
+         @flags: (<link linkend="NMDeviceManagedFlags">NMDeviceManagedFlags</link>) flags.
+         @since: 1.58
+ 
+@@ -404,7 +404,7 @@
+         behaviors can be achieved, like storing the new managed state to disk.
+     -->
+     <method name="SetManaged">
+-      <arg name="managed" type="b" direction="in"/>
++      <arg name="managed" type="u" direction="in"/>
+       <arg name="flags" type="u" direction="in"/>
+       </method>
+ 
+diff --git a/src/core/devices/nm-device.c b/src/core/devices/nm-device.c
+index 2a87026ed3eca3c3634b53472869850c00234628..1dbc82a4aa347cca3e83e1441e5ddf8fa90945f4 100644
+--- a/src/core/devices/nm-device.c
++++ b/src/core/devices/nm-device.c
+@@ -14941,7 +14941,7 @@ impl_device_get_applied_connection(NMDBusObject                      *obj,
+ /*****************************************************************************/
+ 
+ typedef struct {
+-    gboolean             managed_state;
++    NMDeviceManaged      managed_state;
+     NMDeviceManagedFlags managed_flags;
+ } SetManagedData;
+ 
+@@ -14959,11 +14959,13 @@ typedef struct {
+  * Returns: %TRUE if the managed state was set successfully, %FALSE otherwise.
+  */
+ static gboolean
+-set_managed(NMDevice *self, gboolean managed, NMDeviceManagedFlags flags, GError **error)
++set_managed(NMDevice *self, NMDeviceManaged managed, NMDeviceManagedFlags flags, GError **error)
+ {
+     NMDevicePrivate *priv = NM_DEVICE_GET_PRIVATE(self);
+-    NMTernary        old  = NM_TERNARY_DEFAULT;
++    NMTernary        managed_to_disk, old = NM_TERNARY_DEFAULT;
+ 
++    nm_assert(
++        NM_IN_SET(managed, NM_DEVICE_MANAGED_NO, NM_DEVICE_MANAGED_YES, NM_DEVICE_MANAGED_RESET));
+     nm_assert((flags & ~NM_DEVICE_MANAGED_FLAGS_ALL) == 0);
+ 
+     if (!NM_FLAGS_ANY(flags, NM_DEVICE_MANAGED_FLAGS_PERMANENT | NM_DEVICE_MANAGED_FLAGS_RUNTIME)) {
+@@ -14975,11 +14977,12 @@ set_managed(NMDevice *self, gboolean managed, NMDeviceManagedFlags flags, GError
+     }
+ 
+     if (flags & NM_DEVICE_MANAGED_FLAGS_PERMANENT) {
++        managed_to_disk = managed == NM_DEVICE_MANAGED_RESET ? NM_TERNARY_DEFAULT : !!managed;
+         nm_config_get_device_managed(nm_manager_get_config(priv->manager), self, &old, error);
+ 
+         if (!nm_config_set_device_managed(nm_manager_get_config(priv->manager),
+                                           self,
+-                                          managed,
++                                          managed_to_disk,
+                                           flags & NM_DEVICE_MANAGED_FLAGS_BY_MAC,
+                                           error))
+             return FALSE;
+@@ -14987,7 +14990,8 @@ set_managed(NMDevice *self, gboolean managed, NMDeviceManagedFlags flags, GError
+         /* Update the unmanaged flags after the change on disk */
+         nm_device_set_unmanaged_by_user_conf(self);
+ 
+-        if (!!nm_device_get_unmanaged_flags(self, NM_UNMANAGED_USER_CONF) != !managed) {
++        if (managed_to_disk != NM_TERNARY_DEFAULT
++            && managed_to_disk != !nm_device_get_unmanaged_flags(self, NM_UNMANAGED_USER_CONF)) {
+             /* We failed to make the new state effective on disk. Maybe the new config
+              * collides with other config. Try to revert and return error. Otherwise,
+              * we would set the runtime state correctly, but get an unexpected state
+@@ -15008,7 +15012,14 @@ set_managed(NMDevice *self, gboolean managed, NMDeviceManagedFlags flags, GError
+     }
+ 
+     if (flags & NM_DEVICE_MANAGED_FLAGS_RUNTIME) {
+-        g_object_set(self, NM_DEVICE_MANAGED, !!managed, NULL);
++        if (managed == NM_DEVICE_MANAGED_RESET) {
++            nm_device_set_unmanaged_by_flags(self,
++                                             NM_UNMANAGED_USER_EXPLICIT,
++                                             NM_UNMAN_FLAG_OP_FORGET,
++                                             NM_DEVICE_STATE_REASON_UNMANAGED_USER_EXPLICIT);
++        } else {
++            g_object_set(self, NM_DEVICE_MANAGED, !!managed, NULL);
++        }
+     }
+ 
+     return TRUE;
+@@ -15022,7 +15033,7 @@ set_managed_cb(NMDevice              *self,
+                gpointer               user_data)
+ {
+     SetManagedData      *set_managed_data = user_data;
+-    gboolean             managed;
++    NMDeviceManaged      managed;
+     NMDeviceManagedFlags flags;
+     GError              *local = NULL;
+ 
+@@ -15030,11 +15041,20 @@ set_managed_cb(NMDevice              *self,
+     flags   = set_managed_data->managed_flags;
+     nm_g_slice_free(set_managed_data);
+ 
+-    if (!error && (flags & ~NM_DEVICE_MANAGED_FLAGS_ALL) != 0) {
+-        g_set_error_literal(&error,
+-                            NM_DEVICE_ERROR,
+-                            NM_DEVICE_ERROR_INVALID_ARGUMENT,
+-                            "Invalid flags");
++    if (!error) {
++        if (!NM_IN_SET(managed,
++                       NM_DEVICE_MANAGED_NO,
++                       NM_DEVICE_MANAGED_YES,
++                       NM_DEVICE_MANAGED_RESET))
++            g_set_error_literal(&error,
++                                NM_DEVICE_ERROR,
++                                NM_DEVICE_ERROR_INVALID_ARGUMENT,
++                                "Invalid managed value");
++        else if ((flags & ~NM_DEVICE_MANAGED_FLAGS_ALL) != 0)
++            g_set_error_literal(&error,
++                                NM_DEVICE_ERROR,
++                                NM_DEVICE_ERROR_INVALID_ARGUMENT,
++                                "Invalid flags");
+     }
+ 
+     if (error) {
+@@ -15074,15 +15094,17 @@ impl_device_set_managed(NMDBusObject                      *obj,
+ {
+     NMDevice             *self  = NM_DEVICE(obj);
+     gs_free_error GError *error = NULL;
+-    gboolean              managed;
++    guint32               managed_u;
++    NMDeviceManaged       managed;
+     guint32               flags_u;
+     NMDeviceManagedFlags  flags;
+     SetManagedData       *set_managed_data;
+ 
+-    g_variant_get(parameters, "(bu)", &managed, &flags_u);
++    g_variant_get(parameters, "(uu)", &managed_u, &flags_u);
+ 
+-    flags = flags_u;
+-    nm_assert(flags == flags_u);
++    managed = managed_u;
++    flags   = flags_u;
++    nm_assert(managed == managed_u && flags == flags_u);
+ 
+     set_managed_data  = g_slice_new(SetManagedData);
+     *set_managed_data = (SetManagedData) {
+@@ -20066,7 +20088,7 @@ static const NMDBusInterfaceInfoExtended interface_info_device = {
+             NM_DEFINE_DBUS_METHOD_INFO_EXTENDED(
+                 NM_DEFINE_GDBUS_METHOD_INFO_INIT("SetManaged",
+                                                  .in_args = NM_DEFINE_GDBUS_ARG_INFOS(
+-                                                     NM_DEFINE_GDBUS_ARG_INFO("managed", "b"),
++                                                     NM_DEFINE_GDBUS_ARG_INFO("managed", "u"),
+                                                      NM_DEFINE_GDBUS_ARG_INFO("flags", "u"), ), ),
+                 .handle = impl_device_set_managed, ),
+             NM_DEFINE_DBUS_METHOD_INFO_EXTENDED(NM_DEFINE_GDBUS_METHOD_INFO_INIT("Disconnect", ),
+diff --git a/src/libnm-client-impl/libnm.ver b/src/libnm-client-impl/libnm.ver
+index 67db5394a60dd7d68893391299ae6f5e1146ed64..62d486ffa9e3ae1a013bb591f53a4d5bb99da2cc 100644
+--- a/src/libnm-client-impl/libnm.ver
++++ b/src/libnm-client-impl/libnm.ver
+@@ -2115,6 +2115,7 @@ global:
+ 	nm_device_geneve_get_ttl;
+ 	nm_device_geneve_get_type;
+ 	nm_device_managed_flags_get_type;
++	nm_device_managed_get_type;
+ 	nm_device_set_managed_async;
+ 	nm_device_set_managed_finish;
+ 	nm_ip_config_get_clat_address;
+diff --git a/src/libnm-client-impl/nm-device.c b/src/libnm-client-impl/nm-device.c
+index 605aae5fc772ec44d1eedd23c4b89664972af871..80c7de061286ca15faf576aa81b98fedb457a035 100644
+--- a/src/libnm-client-impl/nm-device.c
++++ b/src/libnm-client-impl/nm-device.c
+@@ -1485,7 +1485,7 @@ nm_device_set_managed(NMDevice *device, gboolean managed)
+  **/
+ void
+ nm_device_set_managed_async(NMDevice            *device,
+-                            gboolean             managed,
++                            NMDeviceManaged      managed,
+                             NMDeviceManagedFlags flags,
+                             GCancellable        *cancellable,
+                             GAsyncReadyCallback  callback,
+@@ -1503,7 +1503,7 @@ nm_device_set_managed_async(NMDevice            *device,
+                          _nm_object_get_path(device),
+                          NM_DBUS_INTERFACE_DEVICE,
+                          "SetManaged",
+-                         g_variant_new("(bu)", managed, flags),
++                         g_variant_new("(uu)", managed, flags),
+                          G_VARIANT_TYPE("()"),
+                          G_DBUS_CALL_FLAGS_NONE,
+                          NM_DBUS_DEFAULT_TIMEOUT_MSEC,
+diff --git a/src/libnm-client-public/nm-device.h b/src/libnm-client-public/nm-device.h
+index 958367a70ddddd3e690a3af801e9208b2b07982c..d0d004f86d662dd12c3e6c8fd0cc5146f43895ca 100644
+--- a/src/libnm-client-public/nm-device.h
++++ b/src/libnm-client-public/nm-device.h
+@@ -152,7 +152,7 @@ _NM_DEPRECATED_SYNC_METHOD
+ void nm_device_set_managed(NMDevice *device, gboolean managed);
+ NM_AVAILABLE_IN_1_58
+ void nm_device_set_managed_async(NMDevice            *device,
+-                                 gboolean             managed,
++                                 NMDeviceManaged      managed,
+                                  NMDeviceManagedFlags flags,
+                                  GCancellable        *cancellable,
+                                  GAsyncReadyCallback  callback,
+diff --git a/src/libnm-core-public/nm-dbus-interface.h b/src/libnm-core-public/nm-dbus-interface.h
+index d2ee1d86c646485c870a5a74600b6533d5e3e9e6..1bcbc004101dcc9620ee189f7b0b44e8f6305b93 100644
+--- a/src/libnm-core-public/nm-dbus-interface.h
++++ b/src/libnm-core-public/nm-dbus-interface.h
+@@ -1248,6 +1248,22 @@ typedef enum /*< flags >*/ {
+     NM_DEVICE_REAPPLY_FLAGS_PRESERVE_EXTERNAL_IP = 0x1,
+ } NMDeviceReapplyFlags;
+ 
++/**
++ * NMDeviceManaged:
++ * @NM_DEVICE_MANAGED_NO: the device is not managed.
++ * @NM_DEVICE_MANAGED_YES: the device is managed.
++ * @NM_DEVICE_MANAGED_RESET: reset the device managed state to the default value.
++ *
++ * Values for the SetManaged() D-Bus call of a device and nm_device_set_managed_async().
++ *
++ * Since: 1.58
++ */
++typedef enum {
++    NM_DEVICE_MANAGED_NO    = 0,
++    NM_DEVICE_MANAGED_YES   = 1,
++    NM_DEVICE_MANAGED_RESET = 2,
++} NMDeviceManaged;
++
+ /**
+  * NMDeviceManagedFlags:
+  * @NM_DEVICE_MANAGED_FLAGS_NONE: no flag set.

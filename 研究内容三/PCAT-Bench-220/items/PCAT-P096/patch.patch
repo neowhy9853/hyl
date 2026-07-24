@@ -1,0 +1,239 @@
+From 044c995af789121b9f5cef2206ef844ef6c8263b Mon Sep 17 00:00:00 2001
+From: Brad Fitzpatrick <bradfitz@golang.org>
+Date: Fri, 22 May 2026 03:50:05 +0000
+Subject: [PATCH] [release-branch.go1.26] runtime: tolerate vendor suffixes in
+ Linux kernel release strings
+
+Synology kernels can have a "_" in their uname version. Make the
+parsing more tolerant. And also don't throw during init if we fail to
+parse the kernel version. Instead, fall back to probing. (We can't
+probe all the time, because seccomp filters on some platforms like
+Android kill the process if we call a verbotenen system call)
+
+This regressed in CL 758902 (forked from CL 751340) on 2026-03-24,
+which started calling parseRelease unconditionally during osinit on
+32-bit Linux.
+
+Updates #79612
+Fixes #79893
+
+Change-Id: I98f61b94e54c7b9d08029f3aef664bdda9ec7f69
+Reviewed-on: https://go-review.googlesource.com/c/go/+/781800
+Reviewed-by: Jorropo <jorropo.pgm@gmail.com>
+Reviewed-by: Damien Neil <dneil@google.com>
+Reviewed-by: Michael Pratt <mpratt@google.com>
+LUCI-TryBot-Result: golang-scoped@luci-project-accounts.iam.gserviceaccount.com <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>
+Reviewed-on: https://go-review.googlesource.com/c/go/+/793960
+Auto-Submit: Junyang Shao <shaojunyang@google.com>
+Reviewed-by: Dmitri Shuralyov <dmitshur@google.com>
+Reviewed-by: Dmitri Shuralyov <dmitshur@golang.org>
+Reviewed-by: Junyang Shao <shaojunyang@google.com>
+---
+ src/runtime/export_linux_test.go  |  1 +
+ src/runtime/os_linux.go           | 75 ++++++++++++++++++-------------
+ src/runtime/os_linux32.go         | 32 ++++++++++++-
+ src/runtime/runtime_linux_test.go | 30 +++++++++++++
+ 4 files changed, 106 insertions(+), 32 deletions(-)
+
+diff --git a/src/runtime/export_linux_test.go b/src/runtime/export_linux_test.go
+index 52afd28666..f8c4b4fdc3 100644
+--- a/src/runtime/export_linux_test.go
++++ b/src/runtime/export_linux_test.go
+@@ -11,6 +11,7 @@ const SigeventMaxSize = _sigev_max_size
+ 
+ var NewOSProc0 = newosproc0
+ var Mincore = mincore
++var ParseRelease = parseRelease
+ 
+ type Siginfo siginfo
+ type Sigevent sigevent
+diff --git a/src/runtime/os_linux.go b/src/runtime/os_linux.go
+index 493567b530..0474e6c906 100644
+--- a/src/runtime/os_linux.go
++++ b/src/runtime/os_linux.go
+@@ -943,53 +943,66 @@ type kernelVersion struct {
+ }
+ 
+ // getKernelVersion returns major and minor kernel version numbers
+-// parsed from the uname release field.
+-func getKernelVersion() kernelVersion {
++// parsed from the uname release field. ok reports whether parsing
++// succeeded; on failure callers must pick a default rather than
++// failing, because this is called during osinit before the runtime
++// is fully initialized and a throw here is unrecoverable.
++func getKernelVersion() (kv kernelVersion, ok bool) {
+ 	var buf linux.Utsname
+ 	if e := linux.Uname(&buf); e != 0 {
+-		throw("uname failed")
++		return kernelVersion{}, false
+ 	}
+-
+ 	rel := gostringnocopy(&buf.Release[0])
+ 	major, minor, _, ok := parseRelease(rel)
+ 	if !ok {
+-		throw("failed to parse kernel version from uname")
++		return kernelVersion{}, false
+ 	}
+-	return kernelVersion{major: major, minor: minor}
++	return kernelVersion{major: major, minor: minor}, true
+ }
+ 
+-// parseRelease parses a dot-separated version number. It follows the
+-// semver syntax, but allows the minor and patch versions to be
+-// elided.
++// parseRelease parses a dot-separated version number from the prefix
++// of rel. It returns ok=true only if at least the major and minor
++// components were successfully parsed; the patch component is
++// best-effort. Trailing vendor or build suffixes such as
++// "-generic", "+", "_hi3535", or "-rc1" are ignored.
+ func parseRelease(rel string) (major, minor, patch int, ok bool) {
+-	// Strip anything after a dash or plus.
+-	for i := 0; i < len(rel); i++ {
+-		if rel[i] == '-' || rel[i] == '+' {
+-			rel = rel[:i]
+-			break
++	// next consumes a run of decimal digits from the front of rel,
++	// returning the parsed value. If the digits are followed by a
++	// '.', it is consumed and more is set so the caller knows to
++	// parse another component; otherwise scanning terminates and
++	// the rest of rel is discarded.
++	next := func() (n int, more, ok bool) {
++		i := 0
++		for i < len(rel) && rel[i] >= '0' && rel[i] <= '9' {
++			i++
+ 		}
+-	}
+-
+-	next := func() (int, bool) {
+-		for i := 0; i < len(rel); i++ {
+-			if rel[i] == '.' {
+-				ver, err := strconv.Atoi(rel[:i])
+-				rel = rel[i+1:]
+-				return ver, err == nil
+-			}
++		if i == 0 {
++			return 0, false, false
++		}
++		n, err := strconv.Atoi(rel[:i])
++		if err != nil {
++			return 0, false, false
++		}
++		if i < len(rel) && rel[i] == '.' {
++			rel = rel[i+1:]
++			return n, true, true
+ 		}
+-		ver, err := strconv.Atoi(rel)
+ 		rel = ""
+-		return ver, err == nil
++		return n, false, true
+ 	}
+-	if major, ok = next(); !ok || rel == "" {
+-		return
++
++	var more bool
++	if major, more, ok = next(); !ok || !more {
++		return 0, 0, 0, false
+ 	}
+-	if minor, ok = next(); !ok || rel == "" {
+-		return
++	if minor, more, ok = next(); !ok {
++		return 0, 0, 0, false
++	}
++	if !more {
++		return major, minor, 0, true
+ 	}
+-	patch, ok = next()
+-	return
++	patch, _, _ = next()
++	return major, minor, patch, true
+ }
+ 
+ // GE checks if the running kernel version
+diff --git a/src/runtime/os_linux32.go b/src/runtime/os_linux32.go
+index 1ee1cdcaf9..ff437ce653 100644
+--- a/src/runtime/os_linux32.go
++++ b/src/runtime/os_linux32.go
+@@ -10,8 +10,38 @@ import (
+ 	"unsafe"
+ )
+ 
++// configure64bitsTimeOn32BitsArchitectures decides whether to use the
++// 64-bit time variants of futex and timer_settime on 32-bit Linux.
++//
++// The choice is normally made by parsing the kernel release string
++// from uname, because probing with -ENOSYS misbehaves on some
++// kernels: Android 8.0-10 (API 26-29) has a seccomp filter that kills
++// the process on unknown syscalls instead of returning -ENOSYS, and
++// some older Synology kernels reuse the new syscall numbers for
++// unrelated vendor syscalls, which silently runs the wrong thing.
++//
++// If the kernel release string can't be parsed, fall back to probing
++// futex_time64 with a no-op FUTEX_WAKE: the kernels that motivated
++// the version check above all report parseable uname strings, so
++// reaching the probing fallback generally means we are on neither,
++// and probing is the safest available signal.
+ func configure64bitsTimeOn32BitsArchitectures() {
+-	use64bitsTimeOn32bits = getKernelVersion().GE(5, 1)
++	if kv, ok := getKernelVersion(); ok {
++		use64bitsTimeOn32bits = kv.GE(5, 1)
++		return
++	}
++	use64bitsTimeOn32bits = probeFutexTime64()
++}
++
++// probeFutexTime64 reports whether the futex_time64 syscall is
++// available on the running kernel. It issues a FUTEX_WAKE_PRIVATE
++// with a wake count of 0, which is a no-op if the syscall exists and
++// returns -ENOSYS otherwise. timer_settime64 was added to the kernel
++// in the same release (Linux 5.1), so a single probe covers both.
++func probeFutexTime64() bool {
++	var word uint32
++	ret := futex_time64(unsafe.Pointer(&word), _FUTEX_WAKE_PRIVATE, 0, nil, nil, 0)
++	return ret != -_ENOSYS
+ }
+ 
+ //go:noescape
+diff --git a/src/runtime/runtime_linux_test.go b/src/runtime/runtime_linux_test.go
+index ab2452c9e7..728d65a9d5 100644
+--- a/src/runtime/runtime_linux_test.go
++++ b/src/runtime/runtime_linux_test.go
+@@ -53,6 +53,36 @@ func TestMincoreErrorSign(t *testing.T) {
+ 	}
+ }
+ 
++func TestParseRelease(t *testing.T) {
++	tests := []struct {
++		in                  string
++		major, minor, patch int
++		ok                  bool
++	}{
++		{"6.1.0", 6, 1, 0, true},
++		{"5.15.0-91-generic", 5, 15, 0, true},
++		{"4.19.0+", 4, 19, 0, true},
++		{"6.6.0-rc1", 6, 6, 0, true},
++		// Synology embedded Linux appends a platform identifier
++		// after an underscore.
++		{"3.4.35_hi3535", 3, 4, 35, true},
++		{"2.6.32_synology", 2, 6, 32, true},
++		{"3.10", 3, 10, 0, true},
++		// A single component is not enough; major+minor required.
++		{"3", 0, 0, 0, false},
++		{"3-rc1", 0, 0, 0, false},
++		{"", 0, 0, 0, false},
++		{"bogus", 0, 0, 0, false},
++	}
++	for _, tt := range tests {
++		major, minor, patch, ok := ParseRelease(tt.in)
++		if major != tt.major || minor != tt.minor || patch != tt.patch || ok != tt.ok {
++			t.Errorf("ParseRelease(%q) = (%d, %d, %d, %v); want (%d, %d, %d, %v)",
++				tt.in, major, minor, patch, ok, tt.major, tt.minor, tt.patch, tt.ok)
++		}
++	}
++}
++
+ func TestKernelStructSize(t *testing.T) {
+ 	// Check that the Go definitions of structures exchanged with the kernel are
+ 	// the same size as what the kernel defines.
+-- 
+2.34.1
+
