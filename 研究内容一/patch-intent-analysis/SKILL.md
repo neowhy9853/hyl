@@ -1,6 +1,6 @@
 ---
 name: patch-intent-analysis
-description: 根据来源补丁的说明和变更内容分析补丁意图，判断补丁类型、问题级别、全量功能和详细分析结论，并以 JSON 返回结构化依据。用于研究内容一的补丁意图分析、单个历史补丁审查或补丁分析流程接入；不负责判断目标基线是否受影响、执行补丁合入或分析前置/后置依赖。
+description: 根据 Git 仓库中指定 commit 的说明和变更内容分析补丁意图，判断补丁类型、问题级别、全量功能和详细分析结论，并以 JSON 返回结构化依据。用于研究内容一的补丁意图分析、单个历史 commit 审查或补丁分析流程接入；调用时必须提供仓库路径和 commit ID。不负责判断目标基线是否受影响、执行补丁合入或分析前置/后置依赖。
 ---
 
 # 补丁意图分析
@@ -37,22 +37,27 @@ python <skill目录>/scripts/check_dependencies.py
 
 ## 输入
 
-接受仓库路径和补丁 ID（Git 提交 ID），或由调用者直接提供补丁说明、changed files 和 patch。对于仓库路径和补丁 ID，使用 harness 提供的结构化 Git 工具或原生 Git 命令获取补丁说明、changed files 和 patch。
+只接受以下两个必填输入：
+
+- `repo`：包含目标 commit 的本地 Git 仓库路径。
+- `commit`：目标 commit 的完整 SHA 或可唯一解析的 revision。
+
+使用 harness 提供的结构化 Git 工具或原生 Git 命令，从指定仓库读取 commit message、changed files 和完整 patch。缺少任一输入时停止分析，并要求调用者补充。
 
 ## 工作流
 
-1. 读取目标补丁的 message、changed files 和 patch，或使用调用者直接提供的证据。
+1. 解析 `repo` 和 `commit`，读取目标 commit 的 message、changed files 和完整 patch。
 2. 总结修改对象、修改内容及其效果。
 3. 确定整个 patch 的唯一补丁类型，并应用下面的决策规则。
 4. 输出 `full_feature`：用一句话概括这个补丁实际做了什么。
 5. 针对全量功能/修改写出 `detailed_analysis`。
 6. 根据补丁自身证据判断问题级别。
-7. 证据足够时立即停止。只有 patch 缺少必要符号上下文且已提供仓库和补丁 ID 时才运行：
+7. 证据足够时立即停止。只有 patch 缺少必要符号上下文时才运行：
 
    ```bash
    python <skill目录>/scripts/analyze_commit.py \
      --repo <仓库路径> \
-     --commit <补丁-id>
+     --commit <commit-id>
    ```
 
    使用其 JSON 中的 `changed_symbols`、`files` 和 `warnings` 作为辅助证据。
@@ -129,7 +134,7 @@ python <skill目录>/scripts/check_dependencies.py
 ## 证据策略
 
 - patch 展示的行为变化优先于标题措辞。
-- 输入包含仓库和补丁 ID 时必须先检查目标补丁。
+- 必须先在指定仓库中解析 commit ID 并检查目标补丁。
 - 相似补丁、RAG、调用图和符号分析只能作为直接 patch 的补充。
 - 明显补丁默认不超过两次证据收集工具调用。
 - 将 `fallback` 静态分析结果视为近似结果，不得据此声称精确调用图或引用关系。
