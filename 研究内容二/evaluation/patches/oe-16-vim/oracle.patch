@@ -1,0 +1,57 @@
+From c5bdd66558b14f04424a22d9714a9b7d0c277dac Mon Sep 17 00:00:00 2001
+From: zeertzjq <zeertzjq@outlook.com>
+Date: Sun, 4 Aug 2024 18:35:50 +0200
+Subject: [PATCH] runtime(zip): escape '[' on Unix as well
+
+Problem:  After 6f1cbfc9ab483a09877e153ad130164875c40b1d fnameescape()
+          is no longer called on the name of the file to be extracted.
+          However, while spaces indeed don't need to be escaped, unzip
+          treats '[' as a wildcard character, so it need to be escaped.
+Solution: Escape '[' on both MS-Windows and Unix.
+
+From the docs it seems '*' and '?' also need escaping, but they seem to
+actually work without escaping.
+
+fixes: neovim/neovim#29977
+closes: #15427
+
+Signed-off-by: zeertzjq <zeertzjq@outlook.com>
+Signed-off-by: Christian Brabandt <cb@256bit.org>
+---
+ runtime/autoload/zip.vim | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/runtime/autoload/zip.vim b/runtime/autoload/zip.vim
+index f77d729f036557..e8973e3c80cc8a 100644
+--- a/runtime/autoload/zip.vim
++++ b/runtime/autoload/zip.vim
+@@ -5,6 +5,7 @@
+ " Maintainer:	Charles E Campbell <NcampObell@SdrPchip.AorgM-NOSPAM>
+ " Last Change:
+ " 2024 Jul 23 by Vim Project: fix 'x' command
++" 2024 Aug 04 by Vim Project: escape '[' in name of file to be extracted
+ " License:	Vim License  (see vim's :help license)
+ " Copyright:    Copyright (C) 2005-2019 Charles E. Campbell {{{1
+ "               Permission is hereby granted to use and distribute this code,
+@@ -220,8 +221,8 @@ fun! zip#Read(fname,mode)
+   else
+    let zipfile = substitute(a:fname,'^.\{-}zipfile://\(.\{-}\)::[^\\].*$','\1','')
+    let fname   = substitute(a:fname,'^.\{-}zipfile://.\{-}::\([^\\].*\)$','\1','')
+-   let fname   = substitute(fname, '[', '[[]', 'g')
+   endif
++  let fname    = substitute(fname, '[', '[[]', 'g')
+ "  call Decho("zipfile<".zipfile.">")
+ "  call Decho("fname  <".fname.">")
+   " sanity check
+@@ -235,7 +236,7 @@ fun! zip#Read(fname,mode)
+   endif
+ 
+   " the following code does much the same thing as
+-  "   exe "keepj sil! r! ".g:zip_unzipcmd." -p -- ".s:Escape(zipfile,1)." ".s:Escape(fnameescape(fname),1)
++  "   exe "keepj sil! r! ".g:zip_unzipcmd." -p -- ".s:Escape(zipfile,1)." ".s:Escape(fname,1)
+   " but allows zipfile://... entries in quickfix lists
+   let temp = tempname()
+ "  call Decho("using temp file<".temp.">")
+-- 
+2.43.0
+

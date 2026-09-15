@@ -1,0 +1,30 @@
+From dee3952a8c19d733b7c5b1d854b1ccde947d770d Mon Sep 17 00:00:00 2001
+From: Nic <138107617+nicbadiu@users.noreply.github.com>
+Date: Fri, 28 Jun 2024 12:56:34 +0300
+Subject: [PATCH] Allow local downloads to same `downloaddir`
+
+Currently when `dnf download --downloaddir <dir> <package>` sources`<package>` from `<dir>` it triggers a `shutil.SameFileError` exception and aborts the entire download process.
+
+This goes against the current flow which marks locally present RPMs that match a remote RPM as `[SKIPPED] <package>.rpm: Already downloaded`.
+
+This change allows downloads of locally sourced packages to the same file, treating it as a no-op.
+---
+ dnf/base.py | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/dnf/base.py b/dnf/base.py
+index dac3cefd7a..c1affc8cba 100644
+--- a/dnf/base.py
++++ b/dnf/base.py
+@@ -1320,7 +1320,10 @@ def download_packages(self, pkglist, progress=None, callback_total=None):
+                                             pkg.location.lstrip("/"))
+                 else:
+                     location = os.path.join(pkg.repo.pkgdir, pkg.location.lstrip("/"))
+-                shutil.copy(location, self.conf.destdir)
++                try:
++                    shutil.copy(location, self.conf.destdir)
++                except shutil.SameFileError:
++                    pass
+ 
+     def add_remote_rpms(self, path_list, strict=True, progress=None):
+         # :api

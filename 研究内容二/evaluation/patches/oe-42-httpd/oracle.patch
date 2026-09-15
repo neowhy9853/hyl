@@ -1,0 +1,201 @@
+From 61645eaac828e2603203d2dfafca938f22580655 Mon Sep 17 00:00:00 2001
+From: Eric Covener <covener@apache.org>
+Date: Wed, 3 Apr 2024 11:49:53 +0000
+Subject: [PATCH] let httpd handle CL/TE for non-http handlers
+
+Submitted By: ylavic, covener
+
+
+
+git-svn-id: https://svn.apache.org/repos/asf/httpd/httpd/trunk@1916769 13f79535-47bb-0310-9956-ffa450edef68
+
+Conflict:NA
+Reference:https://github.com/apache/httpd/commit/61645eaac828e2603203d2dfafca938f22580655
+
+---
+ include/util_script.h           |  2 ++
+ modules/aaa/mod_authnz_fcgi.c   |  8 ++++++++
+ modules/generators/cgi_common.h | 16 +++++++++++++---
+ modules/http/http_filters.c     | 12 ++++++++++++
+ modules/proxy/ajp_header.c      | 10 ++++++++++
+ modules/proxy/mod_proxy_fcgi.c  |  9 +++++++++
+ modules/proxy/mod_proxy_scgi.c  |  8 ++++++++
+ modules/proxy/mod_proxy_uwsgi.c |  6 ++++++
+ 8 files changed, 68 insertions(+), 3 deletions(-)
+
+diff --git a/include/util_script.h b/include/util_script.h
+index 3566bd3..0557c7f 100644
+--- a/include/util_script.h
++++ b/include/util_script.h
+@@ -225,6 +225,8 @@ AP_DECLARE(int) ap_scan_script_header_err_core_ex(request_rec *r, char *buffer,
+  */
+ AP_DECLARE(void) ap_args_to_table(request_rec *r, apr_table_t **table);
+ 
++#define AP_TRUST_CGILIKE_CL_ENVVAR "ap_trust_cgilike_cl"
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/modules/aaa/mod_authnz_fcgi.c b/modules/aaa/mod_authnz_fcgi.c
+index 1aadcc2..69743f1 100644
+--- a/modules/aaa/mod_authnz_fcgi.c
++++ b/modules/aaa/mod_authnz_fcgi.c
+@@ -571,6 +571,14 @@ static apr_status_t handle_response(const fcgi_provider_conf *conf,
+                                       "parsing -> %d/%d",
+                                       fn, status, r->status);
+ 
++                        /* FCGI has its own body framing mechanism which we don't
++                         * match against any provided Content-Length, so let the
++                         * core determine C-L vs T-E based on what's actually sent.
++                         */
++                        if (!apr_table_get(r->subprocess_env, AP_TRUST_CGILIKE_CL_ENVVAR))
++                            apr_table_unset(r->headers_out, "Content-Length");
++                        apr_table_unset(r->headers_out, "Transfer-Encoding");
++
+                         if (rspbuf) { /* caller wants to see response body,
+                                        * if any
+                                        */
+diff --git a/modules/generators/cgi_common.h b/modules/generators/cgi_common.h
+index 69df73c..66f9418 100644
+--- a/modules/generators/cgi_common.h
++++ b/modules/generators/cgi_common.h
+@@ -26,6 +26,7 @@
+ 
+ #include "httpd.h"
+ #include "util_filter.h"
++#include "util_script.h"
+ 
+ static APR_OPTIONAL_FN_TYPE(ap_ssi_get_tag_and_value) *cgi_pfn_gtv;
+ static APR_OPTIONAL_FN_TYPE(ap_ssi_parse_string) *cgi_pfn_ps;
+@@ -428,9 +429,18 @@ static int cgi_handle_response(request_rec *r, int nph, apr_bucket_brigade *bb,
+         char sbuf[MAX_STRING_LEN];
+         int ret;
+ 
+-        if ((ret = ap_scan_script_header_err_brigade_ex(r, bb, sbuf,
+-                                                        APLOG_MODULE_INDEX)))
+-        {
++        ret = ap_scan_script_header_err_brigade_ex(r, bb, sbuf,
++                                                   APLOG_MODULE_INDEX);
++
++        /* xCGI has its own body framing mechanism which we don't
++         * match against any provided Content-Length, so let the
++         * core determine C-L vs T-E based on what's actually sent.
++         */
++        if (!apr_table_get(r->subprocess_env, AP_TRUST_CGILIKE_CL_ENVVAR))
++            apr_table_unset(r->headers_out, "Content-Length");
++        apr_table_unset(r->headers_out, "Transfer-Encoding");
++
++        if (ret != OK) {
+             /* In the case of a timeout reading script output, clear
+              * the brigade to avoid a second attempt to read the
+              * output. */
+diff --git a/modules/http/http_filters.c b/modules/http/http_filters.c
+index 1a8df34..cef601c 100644
+--- a/modules/http/http_filters.c
++++ b/modules/http/http_filters.c
+@@ -778,6 +778,18 @@ static APR_INLINE int check_headers(request_rec *r)
+     struct check_header_ctx ctx;
+     core_server_config *conf =
+             ap_get_core_module_config(r->server->module_config);
++    const char *val;
++ 
++    if ((val = apr_table_get(r->headers_out, "Transfer-Encoding"))) {
++        if (apr_table_get(r->headers_out, "Content-Length")) {
++            apr_table_unset(r->headers_out, "Content-Length");
++            r->connection->keepalive = AP_CONN_CLOSE;
++        }
++        if (!ap_is_chunked(r->pool, val)) {
++            r->connection->keepalive = AP_CONN_CLOSE;
++            return 0;
++        }
++    }
+ 
+     ctx.r = r;
+     ctx.strict = (conf->http_conformance != AP_HTTP_CONFORMANCE_UNSAFE);
+diff --git a/modules/proxy/ajp_header.c b/modules/proxy/ajp_header.c
+index a09a2e4..0266a7d 100644
+--- a/modules/proxy/ajp_header.c
++++ b/modules/proxy/ajp_header.c
+@@ -17,6 +17,8 @@
+ #include "ajp_header.h"
+ #include "ajp.h"
+ 
++#include "util_script.h"
++
+ APLOG_USE_MODULE(proxy_ajp);
+ 
+ static const char *response_trans_headers[] = {
+@@ -669,6 +671,14 @@ static apr_status_t ajp_unmarshal_response(ajp_msg_t *msg,
+         }
+     }
+ 
++    /* AJP has its own body framing mechanism which we don't
++     * match against any provided Content-Length, so let the
++     * core determine C-L vs T-E based on what's actually sent.
++     */
++    if (!apr_table_get(r->subprocess_env, AP_TRUST_CGILIKE_CL_ENVVAR))
++        apr_table_unset(r->headers_out, "Content-Length");
++    apr_table_unset(r->headers_out, "Transfer-Encoding");
++
+     return APR_SUCCESS;
+ }
+ 
+diff --git a/modules/proxy/mod_proxy_fcgi.c b/modules/proxy/mod_proxy_fcgi.c
+index 831bd15..d420df6 100644
+--- a/modules/proxy/mod_proxy_fcgi.c
++++ b/modules/proxy/mod_proxy_fcgi.c
+@@ -779,6 +779,15 @@ recv_again:
+ 
+                             status = ap_scan_script_header_err_brigade_ex(r, ob,
+                                 NULL, APLOG_MODULE_INDEX);
++
++                            /* FCGI has its own body framing mechanism which we don't
++                             * match against any provided Content-Length, so let the
++                             * core determine C-L vs T-E based on what's actually sent.
++                             */
++                            if (!apr_table_get(r->subprocess_env, AP_TRUST_CGILIKE_CL_ENVVAR))
++                                apr_table_unset(r->headers_out, "Content-Length");
++                            apr_table_unset(r->headers_out, "Transfer-Encoding");
++
+                             /* suck in all the rest */
+                             if (status != OK) {
+                                 apr_bucket *tmp_b;
+diff --git a/modules/proxy/mod_proxy_scgi.c b/modules/proxy/mod_proxy_scgi.c
+index 5444a5c..d63c833 100644
+--- a/modules/proxy/mod_proxy_scgi.c
++++ b/modules/proxy/mod_proxy_scgi.c
+@@ -390,6 +390,14 @@ static int pass_response(request_rec *r, proxy_conn_rec *conn)
+         return status;
+     }
+ 
++    /* SCGI has its own body framing mechanism which we don't
++     * match against any provided Content-Length, so let the
++     * core determine C-L vs T-E based on what's actually sent.
++     */
++    if (!apr_table_get(r->subprocess_env, AP_TRUST_CGILIKE_CL_ENVVAR))
++        apr_table_unset(r->headers_out, "Content-Length");
++    apr_table_unset(r->headers_out, "Transfer-Encoding");
++
+     conf = ap_get_module_config(r->per_dir_config, &proxy_scgi_module);
+     if (conf->sendfile && conf->sendfile != scgi_sendfile_off) {
+         short err = 1;
+diff --git a/modules/proxy/mod_proxy_uwsgi.c b/modules/proxy/mod_proxy_uwsgi.c
+index fd76c95..4e57196 100644
+--- a/modules/proxy/mod_proxy_uwsgi.c
++++ b/modules/proxy/mod_proxy_uwsgi.c
+@@ -404,6 +404,12 @@ static int uwsgi_response(request_rec *r, proxy_conn_rec * backend,
+         return HTTP_BAD_GATEWAY;
+     }
+ 
++    /* T-E wins over C-L */
++    if (apr_table_get(r->headers_out, "Transfer-Encoding")) {
++        apr_table_unset(r->headers_out, "Content-Length");
++        backend->close = 1;
++    }
++
+     if ((buf = apr_table_get(r->headers_out, "Content-Type"))) {
+         ap_set_content_type(r, apr_pstrdup(r->pool, buf));
+     }
+-- 
+2.33.0
+

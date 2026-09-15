@@ -1,0 +1,44 @@
+From 7d8519c92d55f073b4a6cc57e27ea34b5c4dc5d1 Mon Sep 17 00:00:00 2001
+From: Flos Lonicerae <lonicerae@gmail.com>
+Date: Fri, 19 Apr 2024 16:55:55 +0800
+Subject: [PATCH] Do not free the uninitialized cstring.
+
+  * Better deal with corrupted queue messages
+---
+ runtime/obj.c       | 6 +++++-
+ runtime/stringbuf.c | 2 +-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/runtime/obj.c b/runtime/obj.c
+index c78b1d27a..03a56f7a3 100644
+--- a/runtime/obj.c
++++ b/runtime/obj.c
+@@ -518,7 +518,11 @@ static rsRetVal objDeserializeStr(cstr_t **ppCStr, int iLen, strm_t *pStrm)
+ 	cstrFinalize(pCStr);
+ 
+ 	/* check terminator */
+-	if(c != ':') ABORT_FINALIZE(RS_RET_INVALID_DELIMITER);
++	if(c != ':') {
++		/* Initialized to NULL */
++		*ppCStr = NULL;
++		ABORT_FINALIZE(RS_RET_INVALID_DELIMITER);
++	}
+ 
+ 	*ppCStr = pCStr;
+ 
+diff --git a/runtime/stringbuf.c b/runtime/stringbuf.c
+index ea39b7c82..9c639a04e 100644
+--- a/runtime/stringbuf.c
++++ b/runtime/stringbuf.c
+@@ -219,7 +219,7 @@ finalize_it:
+ 
+ void rsCStrDestruct(cstr_t **const ppThis)
+ {
+-	free((*ppThis)->pBuf);
++	if ((*ppThis)->pBuf) free((*ppThis)->pBuf);
+ 	RSFREEOBJ(*ppThis);
+ 	*ppThis = NULL;
+ }
+-- 
+2.25.1
+

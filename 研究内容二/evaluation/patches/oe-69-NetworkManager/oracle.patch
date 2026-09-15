@@ -1,0 +1,39 @@
+From e2b75a388672eee514e4efa02b506b0a9ffaa9f0 Mon Sep 17 00:00:00 2001
+From: Fernando Fernandez Mancera <ffmancera@riseup.net>
+Date: Sun, 17 Oct 2021 12:12:58 +0200
+Subject: [PATCH] core: reload config for active devices
+
+When NetworkManager is reloaded the config from active devices is not
+being reloaded properly.
+
+Related: https://bugzilla.redhat.com/1852445
+
+Fixes: 121c58f0c48d ('core: set number of SR-IOV VFs asynchronously')
+
+Conflict:NA
+Reference:https://gitlab.freedesktop.org/NetworkManager/NetworkManager/-/commit/e2b75a388672eee514e4efa02b506b0a9ffaa9f0
+Signed-off-by: Fernando Fernandez Mancera <ffmancera@riseup.net>
+(cherry picked from commit ff9b64c923abf072aa789862be94bcb0de08e2f4)
+---
+ src/core/devices/nm-device.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/core/devices/nm-device.c b/src/core/devices/nm-device.c
+index 50386d0018..7bfdf80137 100644
+--- a/src/core/devices/nm-device.c
++++ b/src/core/devices/nm-device.c
+@@ -5976,9 +5976,10 @@ config_changed(NMConfig *          config,
+ {
+     NMDevicePrivate *priv = NM_DEVICE_GET_PRIVATE(self);
+ 
+-    if (priv->state <= NM_DEVICE_STATE_DISCONNECTED || priv->state > NM_DEVICE_STATE_ACTIVATED) {
++    if (priv->state <= NM_DEVICE_STATE_DISCONNECTED || priv->state >= NM_DEVICE_STATE_ACTIVATED) {
+         priv->ignore_carrier = nm_config_data_get_ignore_carrier(config_data, self);
+-        if (NM_FLAGS_HAS(changes, NM_CONFIG_CHANGE_VALUES))
++        if (NM_FLAGS_HAS(changes, NM_CONFIG_CHANGE_VALUES)
++            && !nm_device_get_applied_setting(self, NM_TYPE_SETTING_SRIOV))
+             device_init_static_sriov_num_vfs(self);
+     }
+ }
+-- 
+2.23.0

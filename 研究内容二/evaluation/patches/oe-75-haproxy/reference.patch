@@ -1,0 +1,91 @@
+From c725db17e8416ffb3c1537aea756356228ce5e3c Mon Sep 17 00:00:00 2001
+From: Willy Tarreau <w@1wt.eu>
+Date: Mon, 2 Sep 2024 15:18:51 +0200
+Subject: [PATCH] BUG/MAJOR: mux-h2: always clear MUX_MFULL and DEM_MROOM when
+ clearing the mbuf
+
+There exists an extremely tricky code path that was revealed in 3.0 by
+the glitches feature, though it might theoretically have existed before.
+
+TL;DR: a mux mbuf may be full after successfully sending GOAWAY, and
+discard its remaining contents without clearing H2_CF_MUX_MFULL and
+H2_CF_DEM_MROOM, then endlessly loop in h2_send(), until the watchdog
+takes care of it.
+
+What can happen is the following: Some data are received, h2_io_cb() is
+called. h2_recv() is called to receive the incoming data. Then
+h2_process() is called and in turn calls h2_process_demux() to process
+input data. At some point, a glitch limit is reached and h2c_error() is
+called to close the connection. The input frame was incomplete, so some
+data are left in the demux buffer. Then h2_send() is called, which in
+turn calls h2_process_mux(), which manages to queue the GOAWAY frame,
+turning the state to H2_CS_ERROR2. The frame is sent, and h2_process()
+calls h2_send() a last time (doing nothing) and leaves. The streams
+are all woken up to notify about the error.
+
+Multiple backend streams were waiting to be scheduled and are woken up
+in turn, before their parents being notified, and communicate with the
+h2 mux in zero-copy-forward mode, request a buffer via h2_nego_ff(),
+fill it, and commit it with h2_done_ff(). At some point the mux's output
+buffer is full, and gets flags H2_CF_MUX_MFULL.
+
+The io_cb is called again to process more incoming data. h2_send() isn't
+called (polled) or does nothing (e.g. TCP socket buffers full). h2_recv()
+may or may not do anything (doesn't matter). h2_process() is called since
+some data remain in the demux buf. It goes till the end, where it finds
+st0 == H2_CS_ERROR2 and clears the mbuf. We're now in a situation where
+the mbuf is empty and MFULL is still present.
+
+Then it calls h2_send(), which doesn't call h2_process_mux() due to
+MFULL, doesn't enter the for() loop since all buffers are empty, then
+keeps sent=0, which doesn't allow to clear the MFULL flag, and since
+"done" was not reset, it loops forever there.
+
+Note that the glitches make the issue more reproducible but theoretically
+it could happen with any other GOAWAY (e.g. PROTOCOL_ERROR). What makes
+it not happen with the data produced on the parsing side is that we
+process a single buffer of input at once, and there's no way to amplify
+this to 30 buffers of responses (RST_STREAM, GOAWAY, SETTINGS ACK,
+WINDOW_UPDATE, PING ACK etc are all quite small), and since the mbuf is
+cleared upon every exit from h2_process() once the error was sent, it is
+not possible to accumulate response data across multiple calls. And the
+regular h2_snd_buf() path checks for st0 >= H2_CS_ERROR so it will not
+produce any data there either.
+
+Probably that h2_nego_ff() should check for H2_CS_ERROR before accepting
+to deliver a buffer, but this needs to be carefully studied. In the mean
+time the real problem is that the MFULL flag was kept when clearing the
+buffer, making the two inconsistent.
+
+Since it doesn't seem possible to trigger this sequence without the
+zero-copy-forward mechanism, this fix needs to be backported as far as
+2.9, along with previous commit "MINOR: mux-h2: try to clear DEM_MROOM
+and MUX_MFULL at more places" which will strengthen the consistency
+between these checks.
+
+Many thanks to Annika Wickert for her detailed report that allowed to
+diagnose this problem. CVE-2024-45506 was assigned to this problem.
+
+(cherry picked from commit 830e50561c6636be4ada175d03e8df992abbbdcd)
+Signed-off-by: Willy Tarreau <w@1wt.eu>
+---
+ src/mux_h2.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/mux_h2.c b/src/mux_h2.c
+index 633445c3c..e19295852 100644
+--- a/src/mux_h2.c
++++ b/src/mux_h2.c
+@@ -867,6 +867,9 @@ static inline void h2_release_mbuf(struct h2c *h2c)
+ 		b_free(buf);
+ 		count++;
+ 	}
++
++	h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
++
+ 	if (count)
+ 		offer_buffers(NULL, count);
+ }
+-- 
+2.25.1
+

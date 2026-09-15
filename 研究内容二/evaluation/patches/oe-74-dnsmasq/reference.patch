@@ -1,0 +1,45 @@
+From ae85ea38581e97445622d2dad79cd09775cb201a Mon Sep 17 00:00:00 2001
+From: Simon Kelley <simon@thekelleys.org.uk>
+Date: Thu, 21 Nov 2024 15:42:49 +0000
+Subject: [PATCH] Fix buffer overflow when configured lease-change script name
+ is too long.
+
+Thanks to Daniel Rhea for finding this one.
+---
+ CHANGELOG   | 4 ++++
+ src/lease.c | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/CHANGELOG b/CHANGELOG
+index 90817f1c..ef9756d7 100644
+--- a/CHANGELOG
++++ b/CHANGELOG
+@@ -11,6 +11,10 @@ version 2.91
+ 	which is clearly rare in the wild, but if it did exist it could
+ 	provoke a SIGSEV. Thanks to Daniel Rhea for fuzzing this one.
+ 
++	Fix buffer overflow when configured lease-change script name
++	is too long.
++	Thanks to Daniel Rhea for finding this one.
++
+ version 2.90
+ 	Fix reversion in --rev-server introduced in 2.88 which
+ 	caused breakage if the prefix length is not exactly divisible
+diff --git a/src/lease.c b/src/lease.c
+index 55e8443b..a1330214 100644
+--- a/src/lease.c
++++ b/src/lease.c
+@@ -150,6 +150,10 @@ void lease_init(time_t now)
+ #ifdef HAVE_SCRIPT
+       if (daemon->lease_change_command)
+ 	{
++	  /* 6 == strlen(" init") plus terminator */
++	  if (strlen(daemon->lease_change_command) + 6 > DHCP_BUFF_SZ)
++	    die(_("lease-change script name is too long"), NULL, EC_FILE);
++	  
+ 	  strcpy(daemon->dhcp_buff, daemon->lease_change_command);
+ 	  strcat(daemon->dhcp_buff, " init");
+ 	  leasestream = popen(daemon->dhcp_buff, "r");
+-- 
+2.25.1
+

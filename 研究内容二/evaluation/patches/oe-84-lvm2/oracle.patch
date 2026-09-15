@@ -1,0 +1,45 @@
+From a203499ba32aabec0e8a9002517e1608e4e83b2c Mon Sep 17 00:00:00 2001
+From: Zdenek Kabelac <zkabelac@redhat.com>
+Date: Mon, 25 Sep 2023 11:47:40 +0200
+Subject: [PATCH] dm-event: release buffer on dm_event_get_version
+
+Avoid memory leak in this function.
+---
+ daemons/dmeventd/libdevmapper-event.c | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/daemons/dmeventd/libdevmapper-event.c b/daemons/dmeventd/libdevmapper-event.c
+index 9e4dd2469..0aabc03e6 100644
+--- a/daemons/dmeventd/libdevmapper-event.c
++++ b/daemons/dmeventd/libdevmapper-event.c
+@@ -844,6 +844,7 @@ int dm_event_get_registered_device(struct dm_event_handler *dmevh, int next)
+ int dm_event_get_version(struct dm_event_fifos *fifos, int *version) {
+ 	char *p;
+ 	struct dm_event_daemon_message msg = { 0 };
++	int ret = 0;
+ 
+ 	if (daemon_talk(fifos, &msg, DM_EVENT_CMD_HELLO, NULL, NULL, 0, 0))
+ 		return 0;
+@@ -851,13 +852,17 @@ int dm_event_get_version(struct dm_event_fifos *fifos, int *version) {
+ 	*version = 0;
+ 
+ 	if (!p || !(p = strchr(p, ' '))) /* Message ID */
+-		return 0;
++		goto out;
+ 	if (!(p = strchr(p + 1, ' '))) /* HELLO */
+-		return 0;
++		goto out;
+ 	if ((p = strchr(p + 1, ' '))) /* HELLO, once more */
+ 		*version = atoi(p);
+ 
+-	return 1;
++	ret = 1;
++out:
++	free(msg.data);
++
++	return ret;
+ }
+ 
+ void dm_event_log_set(int debug_log_level, int use_syslog)
+-- 
+2.39.3

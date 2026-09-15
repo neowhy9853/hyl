@@ -1,0 +1,40 @@
+From eda99fc3839dcd439270ba5977ca6628bd9752cc Mon Sep 17 00:00:00 2001
+From: "Bryn M. Reeves" <bmr@redhat.com>
+Date: Thu, 31 Aug 2023 16:59:02 +0100
+Subject: [PATCH] Clean up group struct in _stats_create_group() error path
+
+Fix a double free in the error path from _stats_create_group() by
+clearing the group struct embedded in the dm_stats handle before
+returning:
+
+    device-mapper: message ioctl on  (253:0) failed: Invalid argument
+    Could not create regions from file /var/tmp/File With Spaces.
+    free(): double free detected in tcache 2
+    Aborted (core dumped)
+---
+ libdm/libdm-stats.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/libdm/libdm-stats.c b/libdm/libdm-stats.c
+index 62b28b69d..dc2907f4e 100644
+--- a/libdm/libdm-stats.c
++++ b/libdm/libdm-stats.c
+@@ -3908,9 +3908,14 @@ static int _stats_create_group(struct dm_stats *dms, dm_bitset_t regions,
+ 
+ 	/* force an update of the group tag stored in aux_data */
+ 	if (!_stats_set_aux(dms, *group_id, dms->regions[*group_id].aux_data))
+-		return 0;
++		goto bad;
+ 
+ 	return 1;
++bad:
++	group->group_id = DM_STATS_GROUP_NOT_PRESENT;
++	group->regions = NULL;
++	dm_free((char *) group->alias);
++	return 0;
+ }
+ 
+ static int _stats_group_check_overlap(const struct dm_stats *dms,
+-- 
+2.25.1
+

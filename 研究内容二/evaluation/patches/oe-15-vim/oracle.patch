@@ -1,0 +1,44 @@
+From f209dcd3defb95bae21b2740910e6aa7bb940531 Mon Sep 17 00:00:00 2001
+From: Christian Brabandt <cb@256bit.org>
+Date: Wed, 12 Mar 2025 22:04:01 +0100
+Subject: [PATCH] patch 9.1.1198: [security]: potential data loss with zip.vim
+
+Problem:  [security]: potential data loss with zip.vim and special
+          crafted zip files (RyotaK)
+Solution: use glob '[-]' to protect filenames starting with '-'
+
+Github Advisory:
+https://github.com/vim/vim/security/advisories/GHSA-693p-m996-3rmf
+
+Signed-off-by: Christian Brabandt <cb@256bit.org>
+---
+ runtime/autoload/zip.vim | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/runtime/autoload/zip.vim b/runtime/autoload/zip.vim
+index 4a53fc5f28656..dae4ddeb9921e 100644
+--- a/runtime/autoload/zip.vim
++++ b/runtime/autoload/zip.vim
+@@ -8,6 +8,7 @@
+ " 2024 Aug 04 by Vim Project: escape '[' in name of file to be extracted
+ " 2024 Aug 05 by Vim Project: workaround for the FreeBSD's unzip
+ " 2024 Aug 18 by Vim Project: correctly handle special globbing chars
++" 2025 Mar 11 by Vim Project: handle filenames with leading '-' correctly
+ " License:	Vim License  (see vim's :help license)
+ " Copyright:    Copyright (C) 2005-2019 Charles E. Campbell {{{1
+ "               Permission is hereby granted to use and distribute this code,
+@@ -409,6 +410,11 @@ fun! zip#Extract()
+     return
+    endif
+    let target = fname->substitute('\[', '[[]', 'g')
++   " unzip 6.0 does not support -- to denote end-of-arguments
++   " unzip 6.1 (2010) apparently supports, it, but hasn't been released
++   " so the workaround is to use glob '[-]' so that it won't be considered an argument
++   " else, it would be possible to use 'unzip -o <file.zip> '-d/tmp' to extract the whole archive
++   let target = target->substitute('^-', '[&]', '')
+    if &shell =~ 'cmd' && (has("win32") || has("win64"))
+      let target = target
+  		\ ->substitute('[?*]', '[&]', 'g')
+-- 
+2.43.0
+

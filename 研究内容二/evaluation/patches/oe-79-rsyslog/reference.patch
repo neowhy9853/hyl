@@ -1,0 +1,82 @@
+From 25224fb536488ae63e6addd2c9005bc2b8dc126a Mon Sep 17 00:00:00 2001
+From: Rainer Gerhards <rgerhards@adiscon.com>
+Date: Wed, 21 Feb 2024 09:31:00 +0100
+Subject: [PATCH] omfile: do not carry out actual action when writing to
+ /dev/null
+
+In some use cases omfile is configured to write to /dev/null. This seems
+primarily be done because of statistics gathering but maybe some other
+scenarios. We now add conditional logic to not do any actual omfile
+action when the target file is /dev/null.
+
+Note: this check only works on static file names. When /dev/null is
+evaluated as part of dynafile, it will be handled just in the regular
+case like before this patch.
+---
+ tools/omfile.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/tools/omfile.c b/tools/omfile.c
+index 1702a3039..cf464cd1c 100644
+--- a/tools/omfile.c
++++ b/tools/omfile.c
+@@ -17,7 +17,7 @@
+  * pipes. These have been moved to ompipe, to reduced the entanglement
+  * between the two different functionalities. -- rgerhards
+  *
+- * Copyright 2007-2023 Adiscon GmbH.
++ * Copyright 2007-2024 Adiscon GmbH.
+  *
+  * This file is part of rsyslog.
+  *
+@@ -139,6 +139,7 @@ typedef struct _instanceData {
+ 	strm_t	*pStrm;		/* our output stream */
+ 	short nInactive;	/* number of minutes not writen (STATIC files only) */
+ 	char	bDynamicName;	/* 0 - static name, 1 - dynamic name (with properties) */
++	int	isDevNull;	/* do we "write" to /dev/null? - if so, do nothing */
+ 	int	fCreateMode;	/* file creation mode for open() */
+ 	int	fDirCreateMode;	/* creation mode for mkdir() */
+ 	int	bCreateDirs;	/* auto-create directories? */
+@@ -1081,6 +1082,11 @@ BEGINcommitTransaction
+ 	instanceData *__restrict__ const pData = pWrkrData->pData;
+ 	unsigned i;
+ CODESTARTcommitTransaction
++
++	if(pData->isDevNull) {
++		goto terminate;
++	}
++
+ 	pthread_mutex_lock(&pData->mutWrite);
+ 
+ 	for(i = 0 ; i < nParams ; ++i) {
+@@ -1105,6 +1111,8 @@ finalize_it:
+ 		iRet = (pData->bDynamicName && runModConf->bDynafileDoNotSuspend) ?
+ 			RS_RET_OK : RS_RET_SUSPENDED;
+ 	}
++
++terminate:
+ ENDcommitTransaction
+ 
+ 
+@@ -1135,6 +1143,7 @@ setInstParamDefaults(instanceData *__restrict__ const pData)
+ 	pData->useCryprov = 0;
+ 	pData->iCloseTimeout = -1;
+ 	pData->iSizeLimit = 0;
++	pData->isDevNull = 0;
+ 	pData->pszSizeLimitCmd = NULL;
+ }
+ 
+@@ -1378,6 +1387,10 @@ CODESTARTnewActInst
+ 		ABORT_FINALIZE(RS_RET_MISSING_CNFPARAMS);
+ 	}
+ 
++	if(!strcmp((const char*) pData->fname, "/dev/null")) {
++		pData->isDevNull = 1;
++	}
++
+ 	if(pData->sigprovName != NULL) {
+ 		initSigprov(pData, lst);
+ 	}
+-- 
+2.25.1
+

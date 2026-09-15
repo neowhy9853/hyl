@@ -1,0 +1,32 @@
+From 25aabc2b8ee1e19ced6f4da9d866cf9378fc4c5a Mon Sep 17 00:00:00 2001
+From: Christian Brabandt <cb@256bit.org>
+Date: Tue, 14 Nov 2023 19:31:34 +0100
+Subject: [PATCH] patch 9.0.2106: [security]: Use-after-free in win_close()
+
+Problem:  [security]: Use-after-free in win_close()
+Solution: Check window is valid, before accessing it
+
+If the current window structure is no longer valid (because a previous
+autocommand has already freed this window), fail and return before
+attempting to set win->w_closing variable.
+
+Add a test to trigger ASAN in CI
+
+Signed-off-by: Christian Brabandt <cb@256bit.org>
+---
+ src/window.c               |   2 ++
+ 1 files changed, 2 insertions(+)
+
+diff --git a/src/window.c b/src/window.c
+index f77ede330d304..55ce31c886437 100644
+--- a/src/window.c
++++ b/src/window.c
+@@ -2682,6 +2682,8 @@ win_close(win_T *win, int free_buf)
+ 	    reset_VIsual_and_resel();	// stop Visual mode
+ 
+ 	    other_buffer = TRUE;
++	    if (!win_valid(win))
++		return FAIL;
+ 	    win->w_closing = TRUE;
+ 	    apply_autocmds(EVENT_BUFLEAVE, NULL, NULL, FALSE, curbuf);
+ 	    if (!win_valid(win))

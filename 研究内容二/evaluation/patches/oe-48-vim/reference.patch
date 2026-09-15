@@ -1,0 +1,122 @@
+From 25aabc2b8ee1e19ced6f4da9d866cf9378fc4c5a Mon Sep 17 00:00:00 2001
+From: Christian Brabandt <cb@256bit.org>
+Date: Tue, 14 Nov 2023 19:31:34 +0100
+Subject: [PATCH] patch 9.0.2106: [security]: Use-after-free in win_close()
+
+Problem:  [security]: Use-after-free in win_close()
+Solution: Check window is valid, before accessing it
+
+If the current window structure is no longer valid (because a previous
+autocommand has already freed this window), fail and return before
+attempting to set win->w_closing variable.
+
+Add a test to trigger ASAN in CI
+
+Signed-off-by: Christian Brabandt <cb@256bit.org>
+---
+ src/testdir/crash/poc1     | Bin 0 -> 3264 bytes
+ src/testdir/test_crash.vim |  33 +++++++++++++++++++++++++++++++++
+ src/version.c              |   2 ++
+ src/window.c               |   2 ++
+ 4 files changed, 37 insertions(+)
+ create mode 100644 src/testdir/crash/poc1
+
+diff --git a/src/testdir/crash/poc1 b/src/testdir/crash/poc1
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec223f16b8803b676e4c47620190a77f13a18e93
+GIT binary patch
+literal 3264
+zcmeHJO-K}B82&cggYQ~>C2T(weJ<gutuibfYBkXy3zq&|!i5wYcfMUW=0|77l1O$t
+zM6?!m4DA*q)un@715bAG;Gui>K!^gx%k+M;x(@5Q^p8Og?9BV~yx;e}e6!DtZe%rU
+zM6z^4I@SyKv#O*UrfwXWlJXK@0$k|Gl6s{B>&%GDOc|Oc>kX~CY-Y~1up}QJF<FOZ
+zC|0M+$2%};b%H!*8|>^@x|hq!6_c|T#>aWcl0&R*o0@r1)5gcEV?@@Krcj4GG?wlR
+zH8V)xU`er8N>c_?!?K>?YStQ-&1Oi+D!XlFyLdXQ@}}$Iq|Gf`*wNU@*vW7#5>9f{
+z3^xN~T*=}XrU~vW;Uu!AT~_r`cM%83&=MGQbxz<7{@%IP++1U0V{D1meM<N728vh~
+z7k1nCdP?o@@A}dnKOKs2Zqdb$i;Ii>TkwP);WufWD3T~`T6@2n(u25>|8gV@xFw^j
+zm(XGa@YuANjJ!I!j|o1#xM{bz0UGhqVv3GZiYwKLn#z0E*4F2PnOaeYM1iApZ7<&T
+zBwSdD#Ak)YnJo?E8EJS0)Tmbow$T#@d$LA-rmBGXC|+_zSYS&cdll~&$UWjFqQK8{
+z$H$qfgQ~Zw!<;3KGcSr|6FqUO11!$0iEBz>xKJp(EEKvAlU8UY=iJHt{-EYR5u9lc
+z2K_2|{0RCW!@U4y5?I#<N)!_mGvGkpxyyY(9T)@WiGx1tQqcLDa{7IcnFgdyMxhT!
+z5OZSJ1Em?Kdg8=~v)-Sq;Sb$8PZ#I3B^X5RtOtY;>T&;)i6=pRWUDno)_#Ovjk{2m
+ze7WgkS8UU(XpwxW^XC-_KO20*GOOja^W}l6{?n@2Ka_m*+t+oU=H3D3{%aFp2mXu5
+zZxN9d7zI=Ftw8sNkyV8#o7$;6l9O`+E(ob1MXPu{6bRUa2niL^xnD>qN(}+-aL3Gf
+zgpr{zI>%a29E+-n?^0JaZOJRXc%GsjH8)C7l4py`g|3$*)N7sSlJF6$@B(>&VS>z`
+zc>v$KMGIx69wop`u3V$GSJkq0zRP{T!CERI@7&r5ZoR+Q8mbV%o_B_v&s1ox6xum*
+iUTSG}b|=d@$$1+6x6GX_=aoOTmZ2zqC{@4uP52G8=Ec<j
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/testdir/test_crash.vim b/src/testdir/test_crash.vim
+index 5cd07e2a3..b093b053c 100644
+--- a/src/testdir/test_crash.vim
++++ b/src/testdir/test_crash.vim
+@@ -110,6 +110,39 @@ func Test_crash1()
+   call delete('X_crash1_result.txt')
+ endfunc
+ 
++func Test_crash1_2()
++  CheckNotBSD
++  CheckExecutable dash
++
++  " The following used to crash Vim
++  let opts = #{cmd: 'sh'}
++  let vim  = GetVimProg()
++  let result = 'X_crash1_1_result.txt'
++
++  let buf = RunVimInTerminal('sh', opts)
++
++  let file = 'crash/poc1'
++  let cmn_args = "%s -u NONE -i NONE -n -e -s -S %s -c ':qa!'"
++  let args = printf(cmn_args, vim, file)
++  call term_sendkeys(buf, args ..
++    \ '  && echo "crash 1: [OK]" > '.. result .. "\<cr>")
++  call TermWait(buf, 150)
++
++  " clean up
++  exe buf .. "bw!"
++
++  exe "sp " .. result
++
++  let expected = [
++      \ 'crash 1: [OK]',
++      \ ]
++
++  call assert_equal(expected, getline(1, '$'))
++  bw!
++
++  call delete(result)
++endfunc
++
+ func Test_crash2()
+   " The following used to crash Vim
+   let opts = #{wait_for_ruler: 0, rows: 20}
+diff --git a/src/version.c b/src/version.c
+index f9d1593c0..ec021985f 100644
+--- a/src/version.c
++++ b/src/version.c
+@@ -704,6 +704,8 @@ static char *(features[]) =
+ 
+ static int included_patches[] =
+ {   /* Add new patch number below this line */
++/**/
++    2106,
+ /**/
+     2105,
+ /**/
+diff --git a/src/window.c b/src/window.c
+index f77ede330..55ce31c88 100644
+--- a/src/window.c
++++ b/src/window.c
+@@ -2682,6 +2682,8 @@ win_close(win_T *win, int free_buf)
+ 	    reset_VIsual_and_resel();	// stop Visual mode
+ 
+ 	    other_buffer = TRUE;
++	    if (!win_valid(win))
++		return FAIL;
+ 	    win->w_closing = TRUE;
+ 	    apply_autocmds(EVENT_BUFLEAVE, NULL, NULL, FALSE, curbuf);
+ 	    if (!win_valid(win))
+-- 
+2.25.1
+

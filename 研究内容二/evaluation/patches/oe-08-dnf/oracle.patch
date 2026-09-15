@@ -1,0 +1,73 @@
+From 96f8d79c37e119ff56f730797865121b63241a6b Mon Sep 17 00:00:00 2001
+From: Jaroslav Mracek <jmracek@redhat.com>
+Date: Thu, 15 Feb 2024 11:28:59 +0100
+Subject: [PATCH] Add all candidates for reinstall to solver
+
+Resolves: https://issues.redhat.com/browse/RHEL-25005
+
+Conflict:NA
+Reference:https://github.com/rpm-software-management/dnf/commit/96f8d79c37e119ff56f730797865121b63241a6b
+---
+ dnf/base.py           | 9 ++++++---
+ dnf/query.py          | 5 ++++-
+ tests/test_queries.py | 7 ++++++-
+ 3 files changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/dnf/base.py b/dnf/base.py
+index 9b59b9d7e5..552d53f4c7 100644
+--- a/dnf/base.py
++++ b/dnf/base.py
+@@ -2336,19 +2336,22 @@ def reinstall(self, pkg_spec, old_reponame=None, new_reponame=None,
+ 
+         if not installed_pkgs:
+             raise dnf.exceptions.PackagesNotInstalledError(
+-                'no package matched', pkg_spec, available_nevra2pkg.values())
++                'no package matched', pkg_spec, available_q.run())
+ 
+         cnt = 0
+         clean_deps = self.conf.clean_requirements_on_remove
++        strict = self.conf.strict
+         for installed_pkg in installed_pkgs:
+             try:
+-                available_pkg = available_nevra2pkg[ucd(installed_pkg)]
++                available_pkgs = available_nevra2pkg[ucd(installed_pkg)]
+             except KeyError:
+                 if not remove_na:
+                     continue
+                 self._goal.erase(installed_pkg, clean_deps=clean_deps)
+             else:
+-                self._goal.install(available_pkg)
++                sltr = dnf.selector.Selector(self.sack)
++                sltr.set(pkg=available_pkgs)
++                self._goal.install(select=sltr, optional=(not strict))
+             cnt += 1
+ 
+         if cnt == 0:
+diff --git a/dnf/query.py b/dnf/query.py
+index ab4139bf9a..02e631a6ec 100644
+--- a/dnf/query.py
++++ b/dnf/query.py
+@@ -43,4 +43,7 @@ def _by_provides(sack, patterns, ignore_case=False, get_query=False):
+     return q.run()
+ 
+ def _per_nevra_dict(pkg_list):
+-    return {ucd(pkg):pkg for pkg in pkg_list}
++    nevra_dic = {}
++    for pkg in pkg_list:
++        nevra_dic.setdefault(ucd(pkg), []).append(pkg)
++    return nevra_dic
+diff --git a/tests/test_queries.py b/tests/test_queries.py
+index cdcb7ca453..e025300879 100644
+--- a/tests/test_queries.py
++++ b/tests/test_queries.py
+@@ -128,4 +128,9 @@ def test_per_nevra_dict(self):
+         dct = dnf.query._per_nevra_dict(pkgs)
+         self.assertCountEqual(dct.keys(),
+                               ["lotus-3-16.x86_64", "lotus-3-16.i686"])
+-        self.assertCountEqual(dct.values(), pkgs)
++        test_list = []
++        for list_items in dct.values():
++            for item in list_items:
++                test_list.append(item)
++
++        self.assertCountEqual(test_list, pkgs)

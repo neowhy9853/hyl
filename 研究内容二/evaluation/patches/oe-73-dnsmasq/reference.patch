@@ -1,0 +1,57 @@
+From b087cf4a6c3dd4c323a099770a44c24812381bf4 Mon Sep 17 00:00:00 2001
+From: Simon Kelley <simon@thekelleys.org.uk>
+Date: Thu, 21 Nov 2024 15:28:31 +0000
+Subject: [PATCH] Fix out-of-bounds heap read in order_qsort().
+
+We only need to order two server records on the ->serial field.
+Literal address records are smaller and don't have
+this field and don't need to be ordered on it.
+To actually provoke this bug seems to need the same server-literal
+to be repeated twice, eg --address=/a/1.1.1.1 --address-/a/1.1.1.1
+which is clearly rare in the wild, but if it did exist it could
+provoke a SIGSEV. Thanks to Daniel Rhea for fuzzing this one.
+---
+ CHANGELOG          | 10 +++++++++-
+ src/domain-match.c |  4 ++--
+ 2 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/CHANGELOG b/CHANGELOG
+index 0f8dbea1..90817f1c 100644
+--- a/CHANGELOG
++++ b/CHANGELOG
+@@ -1,7 +1,15 @@
+ version 2.91
+ 	Fix spurious "resource limit exceeded messages". Thanks to 
+ 	Dominik Derigs for the bug report.
+-	
++
++	Fix out-of-bounds heap read in order_qsort().
++	We only need to order two server records on the ->serial field.
++	Literal address records are smaller and don't have
++	this field and don't need to be ordered on it.
++	To actually provoke this bug seems to need the same server-literal
++	to be repeated twice, eg --address=/a/1.1.1.1 --address-/a/1.1.1.1
++	which is clearly rare in the wild, but if it did exist it could
++	provoke a SIGSEV. Thanks to Daniel Rhea for fuzzing this one.
+ 
+ version 2.90
+ 	Fix reversion in --rev-server introduced in 2.88 which
+diff --git a/src/domain-match.c b/src/domain-match.c
+index 3b7b60ef..e286b2dc 100644
+--- a/src/domain-match.c
++++ b/src/domain-match.c
+@@ -541,9 +541,9 @@ static int order_qsort(const void *a, const void *b)
+ 
+   /* Finally, order by appearance in /etc/resolv.conf etc, for --strict-order */
+   if (rc == 0)
+-    if (!(s1->flags & SERV_LITERAL_ADDRESS))
++    if (!(s1->flags & SERV_IS_LOCAL) && !(s2->flags & SERV_IS_LOCAL))
+       rc = s1->serial - s2->serial;
+-
++  
+   return rc;
+ }
+ 
+-- 
+2.25.1
+

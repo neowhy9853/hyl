@@ -1,0 +1,67 @@
+From 0d73970ec161300a55b630f71bbf72b5c41f28b9 Mon Sep 17 00:00:00 2001
+From: Eric Covener <covener@apache.org>
+Date: Wed, 3 Apr 2024 12:12:55 +0000
+Subject: [PATCH] Merge r1916771 from trunk:
+
+bail after too many failed reads
+
+Submitted By: icing
+
+
+
+
+git-svn-id: https://svn.apache.org/repos/asf/httpd/httpd/branches/2.4.x@1916779 13f79535-47bb-0310-9956-ffa450edef68
+---
+ modules/http2/h2_session.c | 10 +++++++---
+ modules/http2/h2_stream.c  |  1 +
+ modules/http2/h2_stream.h  |  1 +
+ 3 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/modules/http2/h2_session.c b/modules/http2/h2_session.c
+index 1e560e4779..5724fdadb0 100644
+--- a/modules/http2/h2_session.c
++++ b/modules/http2/h2_session.c
+@@ -319,9 +319,13 @@ static int on_header_cb(nghttp2_session *ngh2, const nghttp2_frame *frame,
+     
+     status = h2_stream_add_header(stream, (const char *)name, namelen,
+                                   (const char *)value, valuelen);
+-    if (status != APR_SUCCESS
+-        && (!stream->rtmp
+-            || stream->rtmp->http_status == H2_HTTP_STATUS_UNSET)) {
++    if (status != APR_SUCCESS &&
++        (!stream->rtmp ||
++         stream->rtmp->http_status == H2_HTTP_STATUS_UNSET ||
++         /* We accept a certain amount of failures in order to reply
++          * with an informative HTTP error response like 413. But if the
++          * client is too wrong, we fail the request a RESET of the stream */
++         stream->request_headers_failed > 100)) {
+         return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
+     }
+     return 0;
+diff --git a/modules/http2/h2_stream.c b/modules/http2/h2_stream.c
+index f6c9202451..ee87555f9f 100644
+--- a/modules/http2/h2_stream.c
++++ b/modules/http2/h2_stream.c
+@@ -813,6 +813,7 @@ apr_status_t h2_stream_add_header(h2_stream *stream,
+     
+ cleanup:
+     if (error) {
++        ++stream->request_headers_failed;
+         set_error_response(stream, error);
+         return APR_EINVAL; 
+     }
+diff --git a/modules/http2/h2_stream.h b/modules/http2/h2_stream.h
+index d68d426038..405978a44d 100644
+--- a/modules/http2/h2_stream.h
++++ b/modules/http2/h2_stream.h
+@@ -91,6 +91,7 @@ struct h2_stream {
+     struct h2_request *rtmp;    /* request being assembled */
+     apr_table_t *trailers_in;   /* optional, incoming trailers */
+     int request_headers_added;  /* number of request headers added */
++    int request_headers_failed; /* number of request headers failed to add */
+ 
+ #if AP_HAS_RESPONSE_BUCKETS
+     ap_bucket_response *response; /* the final, non-interim response or NULL */
+-- 
+2.25.1
+

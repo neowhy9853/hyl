@@ -1,0 +1,40 @@
+From 9c42177d0936f9cbfc0dcbfb994821dad8322ed7 Mon Sep 17 00:00:00 2001
+From: eaglegai <eaglegai@163.com>
+Date: Tue, 24 Dec 2024 23:03:06 +0800
+Subject: [PATCH] mptcp: fix error handling rp_filter when kernel don't support
+ mptcp
+
+When the kernel don't support mptcp, NetworkManager should disable mptcp
+and shouldn't change rp_filter from 1 to 2. However, when checking file
+/proc/sys/net/mptcp/enabled, val v's type is defined to guint32, and
+nm_platform_sysctl_get_int32 return -1, v becomes a very large number
+and can't set mptcp_flags to NM_MPTCP_FLAGS_DISABLED.
+
+https://gitlab.freedesktop.org/NetworkManager/NetworkManager/-/issues/1686
+https://gitlab.freedesktop.org/NetworkManager/NetworkManager/-/merge_requests/2093
+
+Fixes: c00873e08f ('mptcp: rework "connection.mptcp-flags" for enabling MPTCP')
+
+Conflict:no
+Reference:https://gitlab.freedesktop.org/NetworkManager/NetworkManager/-/commit/9c42177d0936f9cbfc0dcbfb994821dad8322ed7
+
+---
+ src/core/devices/nm-device.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/core/devices/nm-device.c b/src/core/devices/nm-device.c
+index ba3e07c9a39..8bd73ea1bb8 100644
+--- a/src/core/devices/nm-device.c
++++ b/src/core/devices/nm-device.c
+@@ -1489,7 +1489,7 @@ _prop_get_connection_mptcp_flags(NMDevice *self)
+ 
+     if (!NM_FLAGS_HAS(mptcp_flags, NM_MPTCP_FLAGS_DISABLED)) {
+         if (!NM_FLAGS_HAS(mptcp_flags, NM_MPTCP_FLAGS_ALSO_WITHOUT_SYSCTL)) {
+-            guint32 v;
++            gint32 v;
+ 
+             /* If enabled, but without "also-without-sysctl", then MPTCP is still
+              * disabled, if the sysctl says so...
+-- 
+GitLab
+

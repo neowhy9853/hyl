@@ -1,0 +1,60 @@
+From dbe5cba4f725dea49dc70740efe550b141f2cc4c Mon Sep 17 00:00:00 2001
+From: Michael Biebl <biebl@debian.org>
+Date: Wed, 10 Apr 2024 19:28:52 +0200
+Subject: [PATCH] fix printing of time_t values
+
+time_t can be 64bit, even on 32bit architectures. So always use 64bit
+integers (PRId64) when printing time_t values and upcast as necessary.
+
+See https://wiki.debian.org/ReleaseGoals/64bit-time
+
+Fixes: #5355
+---
+ contrib/mmkubernetes/mmkubernetes.c |  5 +++--
+ plugins/imfile/imfile.c             | 11 +++++++----
+ 2 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/contrib/mmkubernetes/mmkubernetes.c b/contrib/mmkubernetes/mmkubernetes.c
+index 525962e..f6d475e 100644
+--- a/contrib/mmkubernetes/mmkubernetes.c
++++ b/contrib/mmkubernetes/mmkubernetes.c
+@@ -1722,8 +1722,9 @@ queryKB(wrkrInstanceData_t *pWrkrData, char *url, time_t now, struct json_object
+ 		now -= pWrkrData->pData->cache->lastBusyTime;
+ 		if (now < pWrkrData->pData->busyRetryInterval) {
+ 			LogMsg(0, RS_RET_RETRY, LOG_DEBUG,
+-				"mmkubernetes: Waited [%ld] of [%d] seconds for the requested url [%s]\n",
+-				now, pWrkrData->pData->busyRetryInterval, url);
++				"mmkubernetes: Waited [%"PRId64"] of [%d] seconds for "
++				"the requested url [%s]\n",
++				(int64_t) now, pWrkrData->pData->busyRetryInterval, url);
+ 			ABORT_FINALIZE(RS_RET_RETRY);
+ 		} else {
+ 			LogMsg(0, RS_RET_OK, LOG_DEBUG,
+diff --git a/plugins/imfile/imfile.c b/plugins/imfile/imfile.c
+index 3b0bb10..6c5764f 100644
+--- a/plugins/imfile/imfile.c
++++ b/plugins/imfile/imfile.c
+@@ -857,13 +857,16 @@ detect_updates(fs_edge_t *const edge)
+ 				sbool is_file = act->edge->is_file;
+ 				if (!is_file || act->time_to_delete + FILE_DELETE_DELAY < ttNow) {
+ 				DBGPRINTF("detect_updates obj gone away, unlinking: "
+-					"'%s', ttDelete: %lds, ttNow:%ld isFile: %d\n",
+-					act->name, ttNow - (act->time_to_delete + FILE_DELETE_DELAY), ttNow, is_file);
++					"'%s', ttDelete: %"PRId64"s, ttNow:%"PRId64" isFile: %d\n",
++					act->name, (int64_t) ttNow - (act->time_to_delete + FILE_DELETE_DELAY),
++					(int64_t) ttNow, is_file);
+ 					act_obj_unlink(act);
+ 					restart = 1;
+ 				} else {
+-				DBGPRINTF("detect_updates obj gone away, keep '%s' open: %ld/%ld/%lds!\n",
+-					act->name, act->time_to_delete, ttNow, ttNow - act->time_to_delete);
++				DBGPRINTF("detect_updates obj gone away, keep '%s' "
++					"open: %"PRId64"/%"PRId64"/%"PRId64"s!\n",
++					act->name, (int64_t) act->time_to_delete, (int64_t) ttNow,
++					        (int64_t) ttNow - act->time_to_delete);
+ 					pollFile(act);
+ 				}
+ 			}
+-- 
+2.27.0
+

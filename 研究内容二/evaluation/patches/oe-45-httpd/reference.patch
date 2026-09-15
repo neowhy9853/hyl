@@ -1,0 +1,35 @@
+From 62aa64e5aea21dd969db97aded4443c98c0735ac Mon Sep 17 00:00:00 2001
+From: Eric Covener <covener@apache.org>
+Date: Mon, 24 Jun 2024 17:51:42 +0000
+Subject: [PATCH] Merge r1918548 from trunk:
+
+mod_http2: early exit if bb is null
+
+
+
+git-svn-id: https://svn.apache.org/repos/asf/httpd/httpd/branches/2.4.x@1918557 13f79535-47bb-0310-9956-ffa450edef68
+---
+ modules/http2/h2_c2.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/modules/http2/h2_c2.c b/modules/http2/h2_c2.c
+index a955200944..c65a521ab8 100644
+--- a/modules/http2/h2_c2.c
++++ b/modules/http2/h2_c2.c
+@@ -370,6 +370,13 @@ static apr_status_t h2_c2_filter_out(ap_filter_t* f, apr_bucket_brigade* bb)
+     h2_conn_ctx_t *conn_ctx = h2_conn_ctx_get(f->c);
+     apr_status_t rv;
+ 
++   if (bb == NULL) {
++#if !AP_MODULE_MAGIC_AT_LEAST(20180720, 1)
++        f->c->data_in_output_filters = 0;
++#endif
++        return APR_SUCCESS;
++    }
++
+     ap_assert(conn_ctx);
+ #if AP_HAS_RESPONSE_BUCKETS
+     if (!conn_ctx->has_final_response) {
+-- 
+2.25.1
+

@@ -1,0 +1,274 @@
+From e8ba5e106444fc78558f4ff26e9ce946f89216f4 Mon Sep 17 00:00:00 2001
+From: Willy Tarreau <w@1wt.eu>
+Date: Wed, 9 Aug 2023 08:32:48 +0200
+Subject: [PATCH] BUG/MAJOR: http: reject any empty content-length header value
+
+The content-length header parser has its dedicated function, in order
+to take extreme care about invalid, unparsable, or conflicting values.
+But there's a corner case in it, by which it stops comparing values
+when reaching the end of the header. This has for a side effect that
+an empty value or a value that ends with a comma does not deserve
+further analysis, and it acts as if the header was absent.
+
+While this is not necessarily a problem for the value ending with a
+comma as it will be cause a header folding and will disappear, it is a
+problem for the first isolated empty header because this one will not
+be recontructed when next ones are seen, and will be passed as-is to the
+backend server. A vulnerable HTTP/1 server hosted behind haproxy that
+would just use this first value as "0" and ignore the valid one would
+then not be protected by haproxy and could be attacked this way, taking
+the payload for an extra request.
+
+In field the risk depends on the server. Most commonly used servers
+already have safe content-length parsers, but users relying on haproxy
+to protect a known-vulnerable server might be at risk (and the risk of
+a bug even in a reputable server should never be dismissed).
+
+A configuration-based work-around consists in adding the following rule
+in the frontend, to explicitly reject requests featuring an empty
+content-length header that would have not be folded into an existing
+one:
+
+    http-request deny if { hdr_len(content-length) 0 }
+
+The real fix consists in adjusting the parser so that it always expects a
+value at the beginning of the header or after a comma. It will now reject
+requests and responses having empty values anywhere in the C-L header.
+
+This needs to be backported to all supported versions. Note that the
+modification was made to functions h1_parse_cont_len_header() and
+http_parse_cont_len_header(). Prior to 2.8 the latter was in
+h2_parse_cont_len_header(). One day the two should be refused but the
+former is also used by Lua.
+
+The HTTP messaging reg-tests were completed to test these cases.
+
+Thanks to Ben Kallus of Dartmouth College and Narf Industries for
+reporting this! (this is in GH #2237).
+
+(cherry picked from commit 6492f1f29d738457ea9f382aca54537f35f9d856)
+Signed-off-by: Amaury Denoyelle <adenoyelle@haproxy.com>
+(cherry picked from commit a32f99f6f991d123ea3e307bf8aa63220836d365)
+Signed-off-by: Amaury Denoyelle <adenoyelle@haproxy.com>
+(cherry picked from commit 65921ee12d88e9fb1fa9f6cd8198fd64b3a3f37f)
+Signed-off-by: Amaury Denoyelle <adenoyelle@haproxy.com>
+(cherry picked from commit d17c50010d591d1c070e1cb0567a06032d8869e9)
+[wt: applied to h2_parse_cont_len_header() in src/h2.c instead]
+Signed-off-by: Willy Tarreau <w@1wt.eu>
+(cherry picked from commit ba9afd2774c03e434165475b537d0462801f49bb)
+Signed-off-by: Willy Tarreau <w@1wt.eu>
+---
+ reg-tests/http-messaging/h1_to_h1.vtc | 26 ++++++++++++
+ reg-tests/http-messaging/h2_to_h1.vtc | 60 +++++++++++++++++++++++++++
+ src/h1.c                              | 20 +++++++--
+ src/h2.c                              | 20 +++++++--
+ 4 files changed, 120 insertions(+), 6 deletions(-)
+
+diff --git a/reg-tests/http-messaging/h1_to_h1.vtc b/reg-tests/http-messaging/h1_to_h1.vtc
+index 5b02f172433b..39708a246f6d 100644
+--- a/reg-tests/http-messaging/h1_to_h1.vtc
++++ b/reg-tests/http-messaging/h1_to_h1.vtc
+@@ -269,3 +269,29 @@ client c3h1 -connect ${h1_feh1_sock} {
+ 	# arrive here.
+ 	expect_close
+ } -run
++
++client c4h1 -connect ${h1_feh1_sock} {
++	# this request is invalid and advertises an invalid C-L ending with an
++        # empty value, which results in a stream error.
++	txreq \
++	  -req "GET" \
++	  -url "/test31.html" \
++          -hdr "content-length: 0," \
++          -hdr "connection: close"
++	rxresp
++	expect resp.status == 400
++	expect_close
++} -run
++
++client c5h1 -connect ${h1_feh1_sock} {
++	# this request is invalid and advertises an empty C-L, which results
++	# in a stream error.
++	txreq \
++	  -req "GET" \
++	  -url "/test41.html" \
++          -hdr "content-length:" \
++          -hdr "connection: close"
++	rxresp
++	expect resp.status == 400
++	expect_close
++} -run
+diff --git a/reg-tests/http-messaging/h2_to_h1.vtc b/reg-tests/http-messaging/h2_to_h1.vtc
+index 481aded12aee..3ed3751902e1 100644
+--- a/reg-tests/http-messaging/h2_to_h1.vtc
++++ b/reg-tests/http-messaging/h2_to_h1.vtc
+@@ -10,6 +10,8 @@ barrier b1 cond 2 -cyclic
+ barrier b2 cond 2 -cyclic
+ barrier b3 cond 2 -cyclic
+ barrier b4 cond 2 -cyclic
++barrier b5 cond 2 -cyclic
++barrier b6 cond 2 -cyclic
+ 
+ server s1 {
+ 	rxreq
+@@ -31,6 +33,12 @@ server s1 {
+ 
+ 	barrier b4 sync
+ 	# the next request is never received
++
++	barrier b5 sync
++	# the next request is never received
++
++	barrier b6 sync
++	# the next request is never received
+ } -repeat 2 -start
+ 
+ haproxy h1 -conf {
+@@ -115,6 +123,32 @@ client c1h2 -connect ${h1_feh2_sock} {
+ 		txdata -data "this is sent and ignored"
+ 		rxrst
+ 	} -run
++
++	# fifth request is invalid and advertises an invalid C-L ending with an
++        # empty value, which results in a stream error.
++	stream 9 {
++		barrier b5 sync
++		txreq \
++		  -req "GET" \
++		  -scheme "https" \
++		  -url "/test5.html" \
++		  -hdr "content-length" "0," \
++		  -nostrend
++		rxrst
++	} -run
++
++	# sixth request is invalid and advertises an empty C-L, which results
++	# in a stream error.
++	stream 11 {
++		barrier b6 sync
++		txreq \
++		  -req "GET" \
++		  -scheme "https" \
++		  -url "/test6.html" \
++		  -hdr "content-length" "" \
++		  -nostrend
++		rxrst
++	} -run
+ } -run
+ 
+ # HEAD requests : don't work well yet
+@@ -257,4 +291,30 @@ client c3h2 -connect ${h1_feh2_sock} {
+ 		txdata -data "this is sent and ignored"
+ 		rxrst
+ 	} -run
++
++	# fifth request is invalid and advertises invalid C-L ending with an
++        # empty value, which results in a stream error.
++	stream 9 {
++		barrier b5 sync
++		txreq \
++		  -req "POST" \
++		  -scheme "https" \
++		  -url "/test25.html" \
++		  -hdr "content-length" "0," \
++		  -nostrend
++		rxrst
++	} -run
++
++	# sixth request is invalid and advertises an empty C-L, which results
++	# in a stream error.
++	stream 11 {
++		barrier b6 sync
++		txreq \
++		  -req "POST" \
++		  -scheme "https" \
++		  -url "/test26.html" \
++		  -hdr "content-length" "" \
++		  -nostrend
++		rxrst
++	} -run
+ } -run
+diff --git a/src/h1.c b/src/h1.c
+index 83912343d2c1..f351af8f7125 100644
+--- a/src/h1.c
++++ b/src/h1.c
+@@ -29,13 +29,20 @@ int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value)
+ 	int not_first = !!(h1m->flags & H1_MF_CLEN);
+ 	struct ist word;
+ 
+-	word.ptr = value->ptr - 1; // -1 for next loop's pre-increment
++	word.ptr = value->ptr;
+ 	e = value->ptr + value->len;
+ 
+-	while (++word.ptr < e) {
++	while (1) {
++		if (word.ptr >= e) {
++			/* empty header or empty value */
++			goto fail;
++		}
++
+ 		/* skip leading delimiter and blanks */
+-		if (unlikely(HTTP_IS_LWS(*word.ptr)))
++		if (unlikely(HTTP_IS_LWS(*word.ptr))) {
++			word.ptr++;
+ 			continue;
++		}
+ 
+ 		/* digits only now */
+ 		for (cl = 0, n = word.ptr; n < e; n++) {
+@@ -74,6 +81,13 @@ int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value)
+ 		h1m->flags |= H1_MF_CLEN;
+ 		h1m->curr_len = h1m->body_len = cl;
+ 		*value = word;
++
++		/* Now either n==e and we're done, or n points to the comma,
++		 * and we skip it and continue.
++		 */
++		if (n++ == e)
++			break;
++
+ 		word.ptr = n;
+ 	}
+ 	/* here we've reached the end with a single value or a series of
+diff --git a/src/h2.c b/src/h2.c
+index bda4b05c7e22..b25aee10a51b 100644
+--- a/src/h2.c
++++ b/src/h2.c
+@@ -79,13 +79,20 @@ int h2_parse_cont_len_header(unsigned int *msgf, struct ist *value, unsigned lon
+ 	int not_first = !!(*msgf & H2_MSGF_BODY_CL);
+ 	struct ist word;
+ 
+-	word.ptr = value->ptr - 1; // -1 for next loop's pre-increment
++	word.ptr = value->ptr;
+ 	e = value->ptr + value->len;
+ 
+-	while (++word.ptr < e) {
++	while (1) {
++		if (word.ptr >= e) {
++			/* empty header or empty value */
++			goto fail;
++		}
++
+ 		/* skip leading delimiter and blanks */
+-		if (unlikely(HTTP_IS_LWS(*word.ptr)))
++		if (unlikely(HTTP_IS_LWS(*word.ptr))) {
++			word.ptr++;
+ 			continue;
++		}
+ 
+ 		/* digits only now */
+ 		for (cl = 0, n = word.ptr; n < e; n++) {
+@@ -124,6 +131,13 @@ int h2_parse_cont_len_header(unsigned int *msgf, struct ist *value, unsigned lon
+ 		*msgf |= H2_MSGF_BODY_CL;
+ 		*body_len = cl;
+ 		*value = word;
++
++		/* Now either n==e and we're done, or n points to the comma,
++		 * and we skip it and continue.
++		 */
++		if (n++ == e)
++			break;
++
+ 		word.ptr = n;
+ 	}
+ 	/* here we've reached the end with a single value or a series of

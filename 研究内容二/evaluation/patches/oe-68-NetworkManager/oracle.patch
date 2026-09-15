@@ -1,0 +1,52 @@
+From 9d7c09261475b29e30f62d7ea644ec5a782e6cec Mon Sep 17 00:00:00 2001
+From: Thomas Haller <thaller@redhat.com>
+Date: Mon, 11 Oct 2021 22:16:00 +0200
+Subject: [PATCH] libnm: fix crash on failure of
+ nm_vpn_plugin_info_new_from_file()
+
+nm_vpn_plugin_info_new_from_file() may fail as NMVpnPlugin is an
+GInitable. As such, the destructor must handle the case where the
+instance was only partly initialized.
+
+  #0  g_logv (log_domain=0x7f7144703071 "GLib", log_level=G_LOG_LEVEL_CRITICAL, format=<optimized out>, args=<optimized out>) at ../glib/gmessages.c:1413
+  #1  0x00007f71446b3903 in g_log (log_domain=<optimized out>, log_level=<optimized out>, format=<optimized out>) at ../glib/gmessages.c:1451
+  #2  0x000056455b8e58d0 in finalize (object=0x7f7128008180 [NMVpnPluginInfo]) at src/libnm-core-impl/nm-vpn-plugin-info.c:1280
+  #3  0x00007f71447b8b18 in g_object_unref (_object=<optimized out>) at ../gobject/gobject.c:3524
+  #4  g_object_unref (_object=0x7f7128008180) at ../gobject/gobject.c:3416
+  #5  0x00007f714486bc09 in g_initable_new_valist
+      (object_type=<optimized out>, first_property_name=0x56455b925c20 "filename", var_args=var_args@entry=0x7ffe702b1140, cancellable=cancellable@entry=0x0, error=error@entry=0x7ffe702b1248) at ../gio/ginitable.c:250
+  #6  0x00007f714486bcad in g_initable_new
+      (object_type=<optimized out>, cancellable=cancellable@entry=0x0, error=error@entry=0x7ffe702b1248, first_property_name=first_property_name@entry=0x56455b925c20 "filename")
+      at ../gio/ginitable.c:162
+  #7  0x000056455b8e69f6 in nm_vpn_plugin_info_new_from_file
+      (filename=filename@entry=0x56455c951ec0 "/opt/test/lib/NetworkManager/VPN/nm-openvpn-service.name", error=error@entry=0x7ffe702b1248) at src/libnm-core-impl/nm-vpn-plugin-info.c:1221
+  #8  0x000056455b88ce9a in vpn_dir_changed
+      (monitor=monitor@entry=0x7f7128007860 [GInotifyFileMonitor], file=file@entry=0x7f712c005600, other_file=other_file@entry=0x0, event_type=<optimized out>, user_data=<optimized out>)
+      at src/core/vpn/nm-vpn-manager.c:182
+  #9  0x00007f71448697a3 in _g_cclosure_marshal_VOID__OBJECT_OBJECT_ENUMv
+      (closure=0x56455c7e4250, return_value=<optimized out>, instance=<optimized out>, args=<optimized out>, marshal_data=<optimized out>, n_params=<optimized out>, param_types=0x56455c7355a0) at ../gio/gmarshal-internal.c:1380
+
+Conflict:NA
+Reference:https://gitlab.freedesktop.org/NetworkManager/NetworkManager/commit/9d7c09261475b29e30f62d7ea644ec5a782e6cec
+
+Fixes: d6226bd98713 ('libnm: add NMVpnPluginInfo class')
+(cherry picked from commit 841c45a4f5c0ee34674fe24ef8f9198ca506a64e)
+---
+ src/libnm-core-impl/nm-vpn-plugin-info.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/libnm-core-impl/nm-vpn-plugin-info.c b/src/libnm-core-impl/nm-vpn-plugin-info.c
+index dc77dfd025..665863d108 100644
+--- a/src/libnm-core-impl/nm-vpn-plugin-info.c
++++ b/src/libnm-core-impl/nm-vpn-plugin-info.c
+@@ -1277,7 +1277,7 @@ finalize(GObject *object)
+     g_free(priv->auth_dialog);
+     g_strfreev(priv->aliases);
+     g_free(priv->filename);
+-    g_hash_table_unref(priv->keys);
++    nm_g_hash_table_unref(priv->keys);
+ 
+     nm_clear_pointer(&priv->keyfile, g_key_file_unref);
+ 
+-- 
+2.23.0
