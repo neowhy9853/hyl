@@ -1,0 +1,383 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/2ff861/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/2ff861/patch.diff",
+  "profile": "haproxy",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "src/server.c"
+    ],
+    "total_hunks": 3,
+    "public_api_hunks": 3,
+    "patch_metrics": {
+      "patch_bytes": 3609,
+      "patch_lines": 90,
+      "diff_added_lines": 14,
+      "diff_deleted_lines": 11,
+      "diff_context_lines": 53,
+      "churn": 25,
+      "raw_hunks": 3,
+      "candidate_hunks": 3,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 5930,
+      "public_candidate_hunks": 3,
+      "surface_counts": {
+        "cli_options": 2,
+        "cli": 2,
+        "config": 3,
+        "config_keys": 1,
+        "persistence_state": 2,
+        "runtime_api": 2
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/server.c",
+      "old_start": 6221,
+      "old_end": 6227,
+      "new_start": 6221,
+      "new_end": 6226,
+      "context_hint": "static int cli_parse_add_server(char **args, char *payload, struct appctx *appct",
+      "added_lines": [],
+      "deleted_lines": [
+        "\tint next_id;"
+      ],
+      "context_lines": [
+        "\tstruct server *srv;",
+        "\tchar *be_name, *sv_name, *errmsg;",
+        "\tint errcode, argc;",
+        "\tconst int parse_flags = SRV_PARSE_DYNAMIC|SRV_PARSE_PARSE_ADDR;",
+        "",
+        "\tusermsgs_clr(\"CLI\");"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "appctx",
+        "next_id",
+        "cli_parse_add_server"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "cli_options",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+          },
+          {
+            "name": "cli",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Command-line interface"
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "haproxy.cfg directive parsing and semantics"
+          }
+        ],
+        "surface_reasons": [
+          "cli_options",
+          "cli",
+          "config"
+        ],
+        "profile": "haproxy",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "appctx",
+        "snippet_start_line": 6192,
+        "snippet_end_line": 6256,
+        "snippet": "\t\t\t\t}\n\t\t\t}\n\n\t\t\tkwl = LIST_NEXT(&kwl->list, struct srv_kw_list *, list);\n\t\t\tctx->obj1 = kwl;\n\t\t\tctx->obj2 = kwl->kw;\n\t\t}\n\t\tbreak;\n\n\tcase ADD_SRV_MODE_DEF:\n\t\t/* Add srv parser must return 1 to prevent I/O handler execution in default mode. */\n\t\tABORT_NOW();\n\t\tbreak;\n\t}\n\n\treturn 1;\n\n full:\n\treturn 0;\n}\n\n/* Parse a \"add server\" command.\n *\n * Returns 1 to skip I/O handler processing, unless a sub-command is executed.\n */\nstatic int cli_parse_add_server(char **args, char *payload, struct appctx *appctx, void *private)\n{\n\tstruct add_srv_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));\n\tstruct proxy *be;\n\tstruct server *srv;\n\tchar *be_name, *sv_name, *errmsg;\n\tint errcode, argc;\n\tconst int parse_flags = SRV_PARSE_DYNAMIC|SRV_PARSE_PARSE_ADDR;\n\n\tusermsgs_clr(\"CLI\");\n\n\tif (!cli_has_level(appctx, ACCESS_LVL_ADMIN))\n\t\treturn 1;\n\n\t++args;\n\n\tif (strcmp(args[1], \"help\") == 0) {\n\t\tctx->mode = ADD_SRV_MODE_HELP;\n\t\tctx->obj2 = ctx->obj1 = NULL;\n\t\treturn 0;\n\t}\n\n\tctx->mode = ADD_SRV_MODE_DEF;\n\tsv_name = be_name = args[1];\n\t/* split backend/server arg */\n\twhile (*sv_name && *(++sv_name)) {\n\t\tif (*sv_name == '/') {\n\t\t\t*sv_name = '\\0';\n\t\t\t++sv_name;\n\t\t\tbreak;\n\t\t}\n\t}\n\n\tif (!*sv_name)\n\t\treturn cli_err(appctx, \"Require 'backend/server'.\\n\");\n\n\tbe = proxy_be_by_name(be_name);\n\tif (!be)\n\t\treturn cli_err(appctx, \"No such backend.\\n\");\n\n"
+      }
+    },
+    {
+      "file": "src/server.c",
+      "old_start": 6388,
+      "old_end": 6393,
+      "new_start": 6387,
+      "new_end": 6405,
+      "context_hint": "static int cli_parse_add_server(char **args, char *payload, struct appctx *appct",
+      "added_lines": [
+        "\t/* Generate the server ID if not manually specified. This must be",
+        "\t * performed before the server queuing in LB tree (srv_alloc_lb()).",
+        "\t * Proxy tree ID insertion though is only done when all fallible",
+        "\t * operation are completed.",
+        "\t */",
+        "\tif (!srv->puid) {",
+        "\t\tsrv->puid = server_get_next_id(be, 1);",
+        "\t\tif (!srv->puid) {",
+        "\t\t\tha_alert(\"Cannot attach server : no id left in proxy\\n\");",
+        "\t\t\tgoto out;",
+        "\t\t}",
+        "\t}",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\tif (errcode)",
+        "\t\tgoto out;",
+        "",
+        "\tif (!srv_alloc_lb(srv, be)) {",
+        "\t\tha_alert(\"Failed to initialize load-balancing data.\\n\");",
+        "\t\tgoto out;"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "appctx",
+        "Generate",
+        "the",
+        "server",
+        "ID",
+        "not",
+        "ha_free"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "cli_options",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+          },
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "cli",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Command-line interface"
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "haproxy.cfg directive parsing and semantics"
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "runtime_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Admin socket, stats, and runtime API commands"
+          }
+        ],
+        "surface_reasons": [
+          "cli_options",
+          "config_keys",
+          "cli",
+          "config",
+          "persistence_state",
+          "runtime_api"
+        ],
+        "profile": "haproxy",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "appctx",
+        "snippet_start_line": 6359,
+        "snippet_end_line": 6435,
+        "snippet": "\t\t\tgoto out;\n\t\t}\n\t}\n\n\tif (srv->trackit) {\n\t\tif (srv_apply_track(srv, be))\n\t\t\tgoto out;\n\t}\n\n\t/* Init check/agent if configured. The check is manually disabled\n\t * because a dynamic server is started in a disable state. It must be\n\t * manually activated via a \"enable health/agent\" command.\n\t */\n\tif (srv->do_check) {\n\t\tif (init_srv_check(srv))\n\t\t\tgoto out;\n\n\t\tsrv->check.state &= ~CHK_ST_ENABLED;\n\t}\n\n\tif (srv->do_agent) {\n\t\tif (init_srv_agent_check(srv))\n\t\t\tgoto out;\n\n\t\tsrv->agent.state &= ~CHK_ST_ENABLED;\n\t}\n\n\terrcode = srv_preinit(srv);\n\tif (errcode)\n\t\tgoto out;\n\n\t/* Generate the server ID if not manually specified. This must be\n\t * performed before the server queuing in LB tree (srv_alloc_lb()).\n\t * Proxy tree ID insertion though is only done when all fallible\n\t * operation are completed.\n\t */\n\tif (!srv->puid) {\n\t\tsrv->puid = server_get_next_id(be, 1);\n\t\tif (!srv->puid) {\n\t\t\tha_alert(\"Cannot attach server : no id left in proxy\\n\");\n\t\t\tgoto out;\n\t\t}\n\t}\n\n\tif (!srv_alloc_lb(srv, be)) {\n\t\tha_alert(\"Failed to initialize load-balancing data.\\n\");\n\t\tgoto out;\n\t}\n\n\tif (!stats_allocate_proxy_counters_internal(&srv->extra_counters,\n\t                                            COUNTERS_SV,\n\t                                            STATS_PX_CAP_SRV,\n\t                                            &srv->per_tgrp->extra_counters_storage,\n\t                                            &srv->per_tgrp[1].extra_counters_storage -\n\t                                            &srv->per_tgrp[0].extra_counters_storage)) {\n\t\tha_alert(\"failed to allocate extra counters for server.\\n\");\n\t\tgoto out;\n\t}\n\n\terrcode = srv_postinit(srv);\n\tif (errcode)\n\t\tgoto out;\n\n\t/* All fallible operations completed, the server can now be made visible. */\n\n\t/* insert the server in the backend trees */\n\tserver_index_id(be, srv);\n\tcebis_item_insert(&be->conf.used_server_name, conf.name_node, id, srv);\n\t/* addr_key could be NULL if FQDN resolution is postponed (ie: add server from cli) */\n\tif (srv->addr_key)\n\t\tcebuis_item_insert(&be->used_server_addr, addr_node, addr_key, srv);\n\n\t/* check if LSB bit (odd bit) is set for reuse_cnt */\n\tif (srv_id_reuse_cnt & 1) {\n\t\t/* cnt must be increased */\n\t\tsrv_id_reuse_cnt++;\n\t}\n"
+      }
+    },
+    {
+      "file": "src/server.c",
+      "old_start": 6407,
+      "old_end": 6422,
+      "new_start": 6419,
+      "new_end": 6425,
+      "context_hint": "static int cli_parse_add_server(char **args, char *payload, struct appctx *appct",
+      "added_lines": [
+        "\t/* All fallible operations completed, the server can now be made visible. */"
+      ],
+      "deleted_lines": [
+        "\t/* generate the server id if not manually specified */",
+        "\tif (!srv->puid) {",
+        "\t\tnext_id = server_get_next_id(be, 1);",
+        "\t\tif (!next_id) {",
+        "\t\t\tha_alert(\"Cannot attach server : no id left in proxy\\n\");",
+        "\t\t\tgoto out;",
+        "\t\t}",
+        "",
+        "\t\tsrv->puid = next_id;",
+        "\t}"
+      ],
+      "context_lines": [
+        "\tif (errcode)",
+        "\t\tgoto out;",
+        "",
+        "",
+        "\t/* insert the server in the backend trees */",
+        "\tserver_index_id(be, srv);",
+        ""
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "appctx",
+        "All",
+        "fallible",
+        "operations",
+        "completed",
+        "the",
+        "ha_alert"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "haproxy.cfg directive parsing and semantics"
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "runtime_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Admin socket, stats, and runtime API commands"
+          }
+        ],
+        "surface_reasons": [
+          "config",
+          "persistence_state",
+          "runtime_api"
+        ],
+        "profile": "haproxy",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "appctx",
+        "snippet_start_line": 6378,
+        "snippet_end_line": 6455,
+        "snippet": "\n\tif (srv->do_agent) {\n\t\tif (init_srv_agent_check(srv))\n\t\t\tgoto out;\n\n\t\tsrv->agent.state &= ~CHK_ST_ENABLED;\n\t}\n\n\terrcode = srv_preinit(srv);\n\tif (errcode)\n\t\tgoto out;\n\n\t/* Generate the server ID if not manually specified. This must be\n\t * performed before the server queuing in LB tree (srv_alloc_lb()).\n\t * Proxy tree ID insertion though is only done when all fallible\n\t * operation are completed.\n\t */\n\tif (!srv->puid) {\n\t\tsrv->puid = server_get_next_id(be, 1);\n\t\tif (!srv->puid) {\n\t\t\tha_alert(\"Cannot attach server : no id left in proxy\\n\");\n\t\t\tgoto out;\n\t\t}\n\t}\n\n\tif (!srv_alloc_lb(srv, be)) {\n\t\tha_alert(\"Failed to initialize load-balancing data.\\n\");\n\t\tgoto out;\n\t}\n\n\tif (!stats_allocate_proxy_counters_internal(&srv->extra_counters,\n\t                                            COUNTERS_SV,\n\t                                            STATS_PX_CAP_SRV,\n\t                                            &srv->per_tgrp->extra_counters_storage,\n\t                                            &srv->per_tgrp[1].extra_counters_storage -\n\t                                            &srv->per_tgrp[0].extra_counters_storage)) {\n\t\tha_alert(\"failed to allocate extra counters for server.\\n\");\n\t\tgoto out;\n\t}\n\n\terrcode = srv_postinit(srv);\n\tif (errcode)\n\t\tgoto out;\n\n\t/* All fallible operations completed, the server can now be made visible. */\n\n\t/* insert the server in the backend trees */\n\tserver_index_id(be, srv);\n\tcebis_item_insert(&be->conf.used_server_name, conf.name_node, id, srv);\n\t/* addr_key could be NULL if FQDN resolution is postponed (ie: add server from cli) */\n\tif (srv->addr_key)\n\t\tcebuis_item_insert(&be->used_server_addr, addr_node, addr_key, srv);\n\n\t/* check if LSB bit (odd bit) is set for reuse_cnt */\n\tif (srv_id_reuse_cnt & 1) {\n\t\t/* cnt must be increased */\n\t\tsrv_id_reuse_cnt++;\n\t}\n\t/* srv_id_reuse_cnt is always even at this stage, divide by 2 to\n\t * save some space\n\t * (sizeof(srv->rid) is half of sizeof(srv_id_reuse_cnt))\n\t */\n\tsrv->rid = (srv_id_reuse_cnt) ? (srv_id_reuse_cnt / 2) : 0;\n\n\t/* generate new server's dynamic cookie if enabled on backend */\n\tif (be->ck_opts & PR_CK_DYNAMIC) {\n\t\tsrv_set_dyncookie(srv);\n\t}\n\n\t/* adding server cannot fail when we reach this:\n\t * publishing EVENT_HDL_SUB_SERVER_ADD\n\t */\n\tsrv_event_hdl_publish(EVENT_HDL_SUB_SERVER_ADD, srv, 1);\n\n\tthread_release();\n\n\t/* Start the check task. The server must be fully initialized.\n\t *\n"
+      }
+    }
+  ]
+}

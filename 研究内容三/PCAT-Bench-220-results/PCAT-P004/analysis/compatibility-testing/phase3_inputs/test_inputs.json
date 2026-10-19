@@ -1,0 +1,109 @@
+{
+  "inputs": [
+    {
+      "input_id": "I1-describe",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/sysctl.h:30"],
+      "branch_targeted": "installed UAPI macro value and CTL_MAXNAME-sized array capacity",
+      "input_type": "uapi_compile_macro",
+      "command": "phase2_environment/probes/{before,after}/ctl_maxname_probe --describe",
+      "expected_output": "before value/count/bytes=10/10/40; after=8/8/32",
+      "reachability_signal": "compiled executable embeds the selected installed CTL_MAXNAME value",
+      "setup_required": "before/after headers_install and GCC",
+      "dependencies": ["cc"]
+    },
+    {
+      "input_id": "I2-negative",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/sysctl.h:30"],
+      "branch_targeted": "invalid negative nlen",
+      "input_type": "boundary_value",
+      "command": "ctl_maxname_probe --nlen -1",
+      "expected_output": "both reject with exit 1",
+      "reachability_signal": "canonical accepted=0 observation",
+      "setup_required": "compiled probes",
+      "dependencies": []
+    },
+    {
+      "input_id": "I3-zero",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/sysctl.h:30"],
+      "branch_targeted": "empty/zero component boundary",
+      "input_type": "boundary_value",
+      "command": "ctl_maxname_probe --nlen 0",
+      "expected_output": "both accept with exit 0",
+      "reachability_signal": "canonical accepted=1 observation",
+      "setup_required": "compiled probes",
+      "dependencies": []
+    },
+    {
+      "input_id": "I4-new-boundary",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/sysctl.h:30"],
+      "branch_targeted": "new exact maximum nlen 8",
+      "input_type": "boundary_value",
+      "command": "ctl_maxname_probe --nlen 8",
+      "expected_output": "both accept with exit 0",
+      "reachability_signal": "canonical accepted=1 observation",
+      "setup_required": "compiled probes",
+      "dependencies": []
+    },
+    {
+      "input_id": "I5-old-valid-9",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/sysctl.h:30"],
+      "branch_targeted": "first old-valid/new-invalid value",
+      "input_type": "cross_boundary_value",
+      "command": "ctl_maxname_probe --nlen 9",
+      "expected_output": "before accepts exit 0; after rejects exit 1",
+      "reachability_signal": "acceptance result changes only with installed CTL_MAXNAME",
+      "setup_required": "compiled probes",
+      "dependencies": []
+    },
+    {
+      "input_id": "I6-old-boundary-10",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/sysctl.h:30"],
+      "branch_targeted": "old exact maximum nlen 10",
+      "input_type": "cross_boundary_value",
+      "command": "ctl_maxname_probe --nlen 10",
+      "expected_output": "before accepts exit 0; after rejects exit 1",
+      "reachability_signal": "acceptance result changes only with installed CTL_MAXNAME",
+      "setup_required": "compiled probes",
+      "dependencies": []
+    },
+    {
+      "input_id": "I7-old-invalid-11",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/sysctl.h:30"],
+      "branch_targeted": "value above both maximums",
+      "input_type": "boundary_value",
+      "command": "ctl_maxname_probe --nlen 11",
+      "expected_output": "both reject with exit 1",
+      "reachability_signal": "canonical accepted=0 observation",
+      "setup_required": "compiled probes",
+      "dependencies": []
+    },
+    {
+      "input_id": "I8-legacy-compile",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/sysctl.h:30"],
+      "branch_targeted": "unchanged downstream source requiring at least nine components",
+      "input_type": "downstream_compile",
+      "command": "compile legacy_consumer.c against each installed header tree",
+      "expected_output": "before compile exit 0; after compile exit 1 with static assertion",
+      "reachability_signal": "GCC diagnostic names the CTL_MAXNAME>=9 assertion",
+      "setup_required": "before/after headers_install and GCC",
+      "dependencies": ["cc"]
+    }
+  ],
+  "diversity": {
+    "old_valid": [9, 10],
+    "old_invalid": [-1, 11],
+    "exact_boundaries": [8, 10],
+    "null_or_empty_analogue": [0],
+    "maximum_or_overflow_analogue": [11],
+    "downstream_compile": true,
+    "runtime_kernel_path": "not applicable because the changed macro has no execution-code references"
+  }
+}

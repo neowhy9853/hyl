@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/b61737/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/libxml2",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/b61737/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/b61737",
+  "patch_id": "b61737679e1f5ce2aaf19d075784a40bd5f4938a",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "parseInteger (CLI integer argument parser)",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "xmllint.c",
+        "old_lines": [
+          2496,
+          2496
+        ],
+        "new_lines": [
+          2497,
+          2500
+        ],
+        "symbol": "parseInteger"
+      },
+      "old_behavior": "parseInteger() passed the input string directly to strtoul(), which silently wraps negative signed values to large unsigned values. For example, --max-ampl -1 set the amplification limit to ULONG_MAX, effectively disabling the protection. --maxmem -1 similarly assigned an enormous memory limit.",
+      "new_behavior": "parseInteger() now checks for a leading '\\-' character before calling strtoul(). If a negative value is detected, it prints an error message (\"<context>: value not allowed: <value>\") to errStream and returns -1, rejecting the input.",
+      "compatibility_reason": "CLI options --maxmem, --pretty, and --max-ampl use parseInteger() to parse their arguments. Previously, negative values were silently accepted via strtoul() wrapping. Now they are rejected with an error. Any script, wrapper, or user relying on passing negative values to these options (even accidentally) will experience a behavior change — the command will now fail with an error message instead of silently proceeding with a wrapped value.",
+      "test_recommendation": "Verify that xmllint --maxmem -1, xmllint --pretty -1, and xmllint --max-ampl -1 all produce error messages and exit with non-zero status. Verify that positive values and zero continue to work as before. Check boundary values (e.g., --maxmem 0, --maxmem 1, --maxmem <actual limit>).",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/b61737/compatibility-testing"
+}

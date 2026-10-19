@@ -1,0 +1,650 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P022/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P022",
+  "base_ref": "6ca5cdba185aeb3b7f72ae0dd61b6a9685d8c416^",
+  "base_commit": "5dd5c8b5a66af18904d4e015ce3120e2686ddb23",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "available",
+  "patch_id": "6ca5cdba185aeb3b7f72ae0dd61b6a9685d8c416",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/python/cpython/commit/6ca5cdba185aeb3b7f72ae0dd61b6a9685d8c416",
+    "download_url": "https://github.com/python/cpython/commit/6ca5cdba185aeb3b7f72ae0dd61b6a9685d8c416.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P022/_patch-cache/6ca5cdba185a.patch",
+    "commit": "6ca5cdba185aeb3b7f72ae0dd61b6a9685d8c416",
+    "base_ref_inferred": "6ca5cdba185aeb3b7f72ae0dd61b6a9685d8c416^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "cpython",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "soft threshold exceeded",
+    "churn=290 >= 250"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 19102,
+    "patch_lines": 500,
+    "diff_added_lines": 195,
+    "diff_deleted_lines": 95,
+    "diff_context_lines": 143,
+    "churn": 290,
+    "raw_hunks": 19,
+    "candidate_hunks": 9,
+    "skipped_doc_hunks": 10,
+    "changed_files": 7,
+    "candidate_context_bytes": 16790,
+    "public_candidate_hunks": 5,
+    "surface_counts": {
+      "public_headers": 4,
+      "user_visible_output": 1,
+      "c_api": 4,
+      "stable_abi": 2,
+      "tests": 2,
+      "python_exceptions": 1
+    },
+    "candidates_json_bytes": 49611
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 4
+  },
+  "summary": {
+    "total_changed_files": 7,
+    "total_candidates": 9,
+    "compatibility_changes": 5,
+    "high_priority": 2,
+    "medium_priority": 2,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "cpython",
+      "affected_surface": "Stable ABI — PyCriticalSection and PyCriticalSection2 struct layouts committed as full-abi in public header",
+      "affected_api": {
+        "name": "PyCriticalSection / PyCriticalSection2",
+        "kind": "struct_type",
+        "language": "c"
+      },
+      "location": {
+        "file": "Include/critical_section.h",
+        "old_lines": [
+          4,
+          9
+        ],
+        "new_lines": [
+          39,
+          57
+        ],
+        "symbol": "PyCriticalSection"
+      },
+      "old_behavior": "PyCriticalSection and PyCriticalSection2 were internal types defined only in Include/cpython/critical_section.h. They were forward-declared as opaque typedefs in the internal header and their full struct definitions were in the internal-only code path. The public header (Include/critical_section.h) did not expose their layout.",
+      "new_behavior": "Both structs are now fully defined with typedef in the public header Include/critical_section.h. Their layouts (uintptr_t _cs_prev + PyMutex* _cs_mutex for PyCriticalSection; PyCriticalSection _cs_base + PyMutex* _cs_mutex2 for PyCriticalSection2) are now part of the Stable ABI with struct_abi_kind='full-abi'.",
+      "compatibility_reason": "Moving struct definitions from internal to public header with full-abi commits their binary layout to the Stable ABI contract. Future CPython releases cannot change the size, alignment, field order, or types of these structs without breaking the Stable ABI. This is a forward-looking compatibility constraint that freezes internal structures.",
+      "evidence": [
+        {
+          "file": "Include/critical_section.h",
+          "lines": [
+            41,
+            57
+          ],
+          "snippet": "typedef struct PyCriticalSection {\n    uintptr_t _cs_prev;\n    struct PyMutex *_cs_mutex;\n} PyCriticalSection;\n\ntypedef struct PyCriticalSection2 {\n    PyCriticalSection _cs_base;\n    struct PyMutex *_cs_mutex2;\n} PyCriticalSection2;"
+        },
+        {
+          "file": "Misc/stable_abi.toml",
+          "lines": [
+            2696,
+            2698
+          ],
+          "snippet": "[struct.PyCriticalSection]\n    added = '3.15'\n    struct_abi_kind = 'full-abi'"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "These structs are now installed in the public header Include/critical_section.h and visible to any code including Python.h. They are marked as full-abi in the Stable ABI registry. Third-party C extensions can now allocate and access these structs.",
+      "uncertainty": "The struct layout is currently small and stable, but committing to full-abi removes the option to add fields later without a major version bump.",
+      "manual_review_required": false,
+      "recommended_review": "Confirm that PyCriticalSection2 embedding PyCriticalSection as first member is intentional and that the struct sizes are appropriate for long-term ABI stability.",
+      "test_recommendation": "Verify sizeof(PyCriticalSection) and sizeof(PyCriticalSection2) match between free-threaded and non-free-threaded builds. Verify field offsets are stable across compiler configurations.",
+      "test_entries": [],
+      "source_shard_result": "shards/shard-result-0002.json",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=struct_type with contract/signature type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0014",
+            "file": "Include/critical_section.h",
+            "old_lines": [
+              4,
+              9
+            ],
+            "new_lines": [
+              4,
+              94
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "c_api",
+              "stable_abi"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers and declarations."
+              },
+              {
+                "name": "c_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "CPython C API"
+              },
+              {
+                "name": "stable_abi",
+                "test_priority": "high",
+                "public": true,
+                "description": "Limited API / Stable ABI"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=struct_type with contract/signature type=ABI_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "cpython",
+      "affected_surface": "Stable ABI / Public C API — 4 new function declarations added to public header",
+      "affected_api": {
+        "name": "PyCriticalSection_Begin / PyCriticalSection_End / PyCriticalSection2_Begin / PyCriticalSection2_End",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "Include/critical_section.h",
+        "old_lines": [
+          4,
+          9
+        ],
+        "new_lines": [
+          59,
+          69
+        ],
+        "symbol": "PyCriticalSection_Begin"
+      },
+      "old_behavior": "PyCriticalSection_Begin, PyCriticalSection_End, PyCriticalSection2_Begin, PyCriticalSection2_End were declared with PyAPI_FUNC in the CPython-internal header (Include/cpython/critical_section.h) only. They were NOT available when building with Py_LIMITED_API (Stable ABI mode).",
+      "new_behavior": "All 4 functions are now declared with PyAPI_FUNC in the public header Include/critical_section.h, before the #ifndef Py_LIMITED_API guard. They are now part of the Stable ABI and callable from Limited API extensions.",
+      "compatibility_reason": "4 functions are promoted from internal-only API to public Stable ABI. Code using Py_LIMITED_API can now call these functions. Existing non-Limited API users see no change (same functions, same signatures). The PyCriticalSection_BeginMutex and PyCriticalSection2_BeginMutex functions remain internal-only (kept in cpython/critical_section.h).",
+      "evidence": [
+        {
+          "file": "Include/critical_section.h",
+          "lines": [
+            59,
+            69
+          ],
+          "snippet": "PyAPI_FUNC(void)\nPyCriticalSection_Begin(PyCriticalSection *c, PyObject *op);\n\nPyAPI_FUNC(void)\nPyCriticalSection_End(PyCriticalSection *c);\n\nPyAPI_FUNC(void)\nPyCriticalSection2_Begin(PyCriticalSection2 *c, PyObject *a, PyObject *b);\n\nPyAPI_FUNC(void)\nPyCriticalSection2_End(PyCriticalSection2 *c);"
+        },
+        {
+          "file": "Doc/c-api/synchronization.rst",
+          "lines": [
+            102,
+            112
+          ],
+          "snippet": ".. c:function:: void PyCriticalSection_Begin(PyCriticalSection *c, PyObject *op)\n                void PyCriticalSection_End(PyCriticalSection *c)\n                void PyCriticalSection2_Begin(PyCriticalSection2 *c, PyObject *a, PyObject *b)\n                void PyCriticalSection2_End(PyCriticalSection2 *c);\n\n   To be used only as in the macro expansions"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The functions carry PyAPI_FUNC in a public header and are registered in the Stable ABI dataset (stable_abi.dat) and toml registry.",
+      "uncertainty": "These functions do nothing in non-free-threaded builds. Stable ABI consumers calling them on non-free-threaded builds will observe no side effects.",
+      "manual_review_required": false,
+      "recommended_review": "Verify the Stable ABI function entries are consistent across stable_abi.dat, stable_abi.toml, and PC/python3dll.c.",
+      "test_recommendation": "Build a Stable ABI (Py_LIMITED_API) extension calling these 4 functions. Verify they link and call successfully on both free-threaded and non-free-threaded CPython builds.",
+      "test_entries": [],
+      "source_shard_result": "shards/shard-result-0002.json",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0014",
+            "file": "Include/critical_section.h",
+            "old_lines": [
+              4,
+              9
+            ],
+            "new_lines": [
+              4,
+              94
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "c_api",
+              "stable_abi"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers and declarations."
+              },
+              {
+                "name": "c_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "CPython C API"
+              },
+              {
+                "name": "stable_abi",
+                "test_priority": "high",
+                "public": true,
+                "description": "Limited API / Stable ABI"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.9,
+      "package_profile": "cpython",
+      "affected_surface": "Stable ABI — Py_BEGIN_CRITICAL_SECTION / Py_END_CRITICAL_SECTION / Py_BEGIN_CRITICAL_SECTION2 / Py_END_CRITICAL_SECTION2 macros now defined in public header",
+      "affected_api": {
+        "name": "Py_BEGIN_CRITICAL_SECTION / Py_END_CRITICAL_SECTION / Py_BEGIN_CRITICAL_SECTION2 / Py_END_CRITICAL_SECTION2",
+        "kind": "macro",
+        "language": "c"
+      },
+      "location": {
+        "file": "Include/critical_section.h",
+        "old_lines": [
+          4,
+          9
+        ],
+        "new_lines": [
+          74,
+          94
+        ],
+        "symbol": "Py_BEGIN_CRITICAL_SECTION"
+      },
+      "old_behavior": "These macros were defined only in the internal header cpython/critical_section.h. When using Py_LIMITED_API (Stable ABI), the internal header was not included, so these macros were unavailable.",
+      "new_behavior": "The macros are now defined in the public header Include/critical_section.h before the Py_LIMITED_API guard. They expand to the full implementation calling the Stable ABI functions. In non-free-threaded builds, cpython/critical_section.h then #undefs and redefines them as no-ops, preserving existing non-Limited API behavior.",
+      "compatibility_reason": "Stable ABI (Py_LIMITED_API) consumers gain access to these macros for the first time. Non-Limited API consumers see a macro redefinition chain (public header defines -> internal header undefs + redefines for no-op) but the end result is behaviorally identical. The #undef guard prevents macro redefinition warnings.",
+      "evidence": [
+        {
+          "file": "Include/critical_section.h",
+          "lines": [
+            74,
+            94
+          ],
+          "snippet": "# define Py_BEGIN_CRITICAL_SECTION(op)                                  \\\n    {                                                                   \\\n        PyCriticalSection _py_cs;                                       \\\n        PyCriticalSection_Begin(&_py_cs, _PyObject_CAST(op))\n\n# define Py_END_CRITICAL_SECTION()                                      \\\n        PyCriticalSection_End(&_py_cs);                                 \\\n    }"
+        },
+        {
+          "file": "Include/cpython/critical_section.h",
+          "lines": [
+            34,
+            37
+          ],
+          "snippet": "#undef Py_BEGIN_CRITICAL_SECTION\n#undef Py_END_CRITICAL_SECTION\n#undef Py_BEGIN_CRITICAL_SECTION2\n#undef Py_END_CRITICAL_SECTION2"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The macros are now accessible via the public Include/critical_section.h header, visible to any consumer of Python.h. Non-Limited API consumers experience a double-definition pattern, but the public header's definition is the Stable ABI canonical version.",
+      "uncertainty": "The macro double-definition (public header then undef+redefine in internal header) is a change in include mechanics. Compiler diagnostic behavior around macro redefinition may differ between toolchains.",
+      "manual_review_required": false,
+      "recommended_review": "Test macro expansion behavior under -Wmacro-redefined or equivalent compiler flags. Confirm the #undef pattern does not produce spurious warnings.",
+      "test_recommendation": "Compile a test file that includes Python.h both with and without Py_LIMITED_API defined. Verify macros expand correctly in both modes. Test with -Wmacro-redefined to check for warnings.",
+      "test_entries": [],
+      "source_shard_result": "shards/shard-result-0002.json",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=macro with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0014",
+            "file": "Include/critical_section.h",
+            "old_lines": [
+              4,
+              9
+            ],
+            "new_lines": [
+              4,
+              94
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "c_api",
+              "stable_abi"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers and declarations."
+              },
+              {
+                "name": "c_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "CPython C API"
+              },
+              {
+                "name": "stable_abi",
+                "test_priority": "high",
+                "public": true,
+                "description": "Limited API / Stable ABI"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=macro with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "cpython",
+      "affected_surface": "Internal header restructuring — CPython-internal cpython/critical_section.h removes typedefs, function declarations, and non-MUTEX macro definitions",
+      "affected_api": {
+        "name": "PyCriticalSection / PyCriticalSection2 (internal typedefs removed)",
+        "kind": "shared_library_symbol",
+        "language": "c"
+      },
+      "location": {
+        "file": "Include/cpython/critical_section.h",
+        "old_lines": [
+          43,
+          54
+        ],
+        "new_lines": [
+          34,
+          37
+        ],
+        "symbol": "PyCriticalSection_Begin"
+      },
+      "old_behavior": "Include/cpython/critical_section.h contained forward typedefs (typedef struct PyCriticalSection PyCriticalSection), full function declarations (PyCriticalSection_Begin, PyCriticalSection_End, PyCriticalSection2_Begin, PyCriticalSection2_End), and all macro definitions for both GIL-disabled and non-GIL-disabled builds.",
+      "new_behavior": "The internal header removes: forward typedefs, 4 function declarations, and non-_MUTEX macro definitions (Py_BEGIN_CRITICAL_SECTION, Py_END_CRITICAL_SECTION, etc.). Non-_MUTEX macros under #ifndef Py_GIL_DISABLED are replaced with #undef + no-op redefinitions. _MUTEX variants and the basic deadlock avoidance documentation comments remain.",
+      "compatibility_reason": "This is a header reorganization that moves public-origin declarations to the public header while keeping internal-only declarations in the internal header. No well-behaved code should be affected because cpython/critical_section.h has '#error \"this header file must not be included directly\"'. The #undef directives ensure a clean macro transition. However, any code that bypassed the guard and directly included this header loses access to the removed declarations.",
+      "evidence": [
+        {
+          "file": "Include/cpython/critical_section.h",
+          "lines": [
+            34,
+            37
+          ],
+          "snippet": "#undef Py_BEGIN_CRITICAL_SECTION\n#undef Py_END_CRITICAL_SECTION\n#undef Py_BEGIN_CRITICAL_SECTION2\n#undef Py_END_CRITICAL_SECTION2"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Although the changed header is marked internal, the change is part of a broader ABI surface expansion. The restructuring directly enables the Stable ABI changes in the public header. Any third-party code that bypassed the include guard would be affected.",
+      "uncertainty": "Low risk due to the direct-include guard error. However, the removal of forward declarations from the internal header means any code that relied on the old internal header layout could be affected.",
+      "manual_review_required": false,
+      "recommended_review": "Grep for any third-party code that directly includes cpython/critical_section.h.",
+      "test_recommendation": "Build all in-tree C extensions; verify none directly include cpython/critical_section.h.",
+      "test_entries": [],
+      "source_shard_result": "shards/shard-result-0002.json",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=shared_library_symbol with compatibility_type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0012",
+            "file": "Include/cpython/critical_section.h",
+            "old_lines": [
+              43,
+              94
+            ],
+            "new_lines": [
+              34,
+              52
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "c_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers and declarations."
+              },
+              {
+                "name": "c_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "CPython C API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=shared_library_symbol with compatibility_type=ABI_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0005",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.9,
+      "package_profile": "cpython",
+      "affected_surface": "Stable ABI — Windows DLL export table (PC/python3dll.c) adds 4 new exported function symbols",
+      "affected_api": {
+        "name": "PyCriticalSection_Begin / PyCriticalSection_End / PyCriticalSection2_Begin / PyCriticalSection2_End",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "PC/python3dll.c",
+        "old_lines": [
+          174,
+          179
+        ],
+        "new_lines": [
+          174,
+          183
+        ],
+        "symbol": "PyCriticalSection_Begin"
+      },
+      "old_behavior": "PyCriticalSection_Begin, PyCriticalSection_End, PyCriticalSection2_Begin, PyCriticalSection2_End were not exported by the Windows python3.dll (Stable ABI forwarder DLL).",
+      "new_behavior": "These 4 functions are now exported via EXPORT_FUNC() in PC/python3dll.c, making them available to Windows Stable ABI consumers.",
+      "compatibility_reason": "New exported symbols in the Stable ABI forwarder DLL. Windows Stable ABI consumers can now resolve these symbols at link time. This is an ABI surface expansion.",
+      "evidence": [
+        {
+          "file": "PC/python3dll.c",
+          "lines": [
+            177,
+            180
+          ],
+          "snippet": "EXPORT_FUNC(PyCriticalSection2_Begin)\nEXPORT_FUNC(PyCriticalSection2_End)\nEXPORT_FUNC(PyCriticalSection_Begin)\nEXPORT_FUNC(PyCriticalSection_End)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "PC/python3dll.c is the Stable ABI forwarder DLL source for Windows. New exports are directly consumeable by third-party C extensions.",
+      "uncertainty": "These functions are no-ops on non-free-threaded builds; the DLL export adds versioned symbol entries even when the function body is empty.",
+      "manual_review_required": false,
+      "recommended_review": "Verify the exported function ordinals and ensure no existing exports are displaced.",
+      "test_recommendation": "Build a Stable ABI extension on Windows that calls these functions; verify they are resolvable at link time and callable at runtime.",
+      "test_entries": [],
+      "source_shard_result": "shards/shard-result-0003.json",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0019",
+            "file": "PC/python3dll.c",
+            "old_lines": [
+              174,
+              179
+            ],
+            "new_lines": [
+              174,
+              183
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "python_exceptions",
+              "stable_abi"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "python_exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type, message, and failure-path compatibility."
+              },
+              {
+                "name": "stable_abi",
+                "test_priority": "high",
+                "public": true,
+                "description": "Limited API / Stable ABI"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ABI_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill.",
+  "shard_aggregation": {
+    "result_files": [
+      "shards/shard-result-0001.json",
+      "shards/shard-result-0002.json",
+      "shards/shard-result-0003.json",
+      "shards/shard-result-0004.json"
+    ],
+    "input_findings": 5,
+    "deduped_findings": 5,
+    "dedupe_key": "affected_api.name + location.file + location.new_lines + compatibility_type"
+  }
+}

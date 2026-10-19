@@ -1,0 +1,135 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/b9fa07/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/b9fa07/patch.diff",
+  "profile": "haproxy",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "src/pool.c"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 1252,
+      "patch_lines": 36,
+      "diff_added_lines": 7,
+      "diff_deleted_lines": 1,
+      "diff_context_lines": 9,
+      "churn": 8,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 2549,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "network_protocol": 1,
+        "persistence_state": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/pool.c",
+      "old_start": 370,
+      "old_end": 375,
+      "new_start": 370,
+      "new_end": 382,
+      "context_hint": "struct pool_head *create_pool_from_reg(const char *name, struct pool_registratio",
+      "added_lines": [
+        "\tif (invalid_char(name)) {",
+        "\t\tha_alert(\"Pool '%s' declared at %s:%u contains invalid chars in its name and \"",
+        "\t\t\t \"cannot be registered. Please report to developers. Aborting.\\n\",",
+        "\t\t\t name, reg->file, reg->line);",
+        "\t\treturn NULL;",
+        "\t}",
+        ""
+      ],
+      "deleted_lines": [
+        "- "
+      ],
+      "context_lines": [
+        "\t\treturn NULL;",
+        "\t}",
+        "",
+        "\textra_mark = (pool_debugging & POOL_DBG_TAG) ? POOL_EXTRA_MARK : 0;",
+        "\textra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;",
+        "\textra = extra_mark + extra_caller;",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "pool_head",
+        "invalid_char",
+        "name",
+        "ha_alert",
+        "Pool",
+        "s"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          }
+        ],
+        "surface_reasons": [
+          "network_protocol",
+          "persistence_state"
+        ],
+        "profile": "haproxy",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "pool_head",
+        "snippet_start_line": 341,
+        "snippet_end_line": 412,
+        "snippet": "\tstruct pool_head *entry;\n\tstruct list *start;\n\tunsigned int align;\n\tunsigned int best_diff;\n\tint thr __maybe_unused;\n\n\t/* alignment of zero means type alignment */\n\tif (!alignment)\n\t\talignment = reg->type_align;\n\n\t/* extend alignment if needed */\n\tif (alignment < sizeof(void*))\n\t\talignment = sizeof(void*);\n\telse if (alignment & (alignment - 1)) {\n\t\t/* not power of two! round up to next power of two by filling\n\t\t * all LSB in O(log(log(N))) then increment the result.\n\t\t */\n\t\tint shift = 1;\n\t\tdo {\n\t\t\talignment |= alignment >> shift;\n\t\t\tshift *= 2;\n\t\t} while (alignment & (alignment + 1));\n\t\talignment++;\n\t}\n\n\tif (reg->type_align && alignment < reg->type_align) {\n\t\tha_alert(\"BUG in the code: at %s:%u, requested creation of pool '%s' aligned to %u \"\n\t\t\t \"while type requires alignment of %u! Please report to developers. Aborting.\\n\",\n\t\t\t reg->file, reg->line, name, alignment, reg->type_align);\n\t\treturn NULL;\n\t}\n\n\tif (invalid_char(name)) {\n\t\tha_alert(\"Pool '%s' declared at %s:%u contains invalid chars in its name and \"\n\t\t\t \"cannot be registered. Please report to developers. Aborting.\\n\",\n\t\t\t name, reg->file, reg->line);\n\t\treturn NULL;\n\t}\n\n\textra_mark = (pool_debugging & POOL_DBG_TAG) ? POOL_EXTRA_MARK : 0;\n\textra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;\n\textra = extra_mark + extra_caller;\n\n\tif (size > 0xFFFFFFFFULL || (size + extra) > 0xFFFFFFFFULL || (uint)(size + extra) < (uint)reg_size)\n\t\tgoto ovf;\n\n\tif (!(pool_debugging & POOL_DBG_NO_CACHE)) {\n\t\t/* we'll store two lists there, we need the room for this. Let's\n\t\t * make sure it's always OK even when including the extra word\n\t\t * that is stored after the pci struct.\n\t\t */\n\t\tif (size + extra - extra_caller < sizeof(struct pool_cache_item))\n\t\t\tsize = sizeof(struct pool_cache_item) + extra_caller - extra;\n\t}\n\n\t/* Now we know our size is set to the strict minimum possible. It may\n\t * be OK for elements allocated with an exact size (e.g. buffers), but\n\t * we're going to round the size up 16 bytes to merge almost identical\n\t * pools together. We only round up however when we add the debugging\n\t * tag since it's used to detect overflows. Otherwise we only round up\n\t * to the size of a word to preserve alignment.\n\t */\n\tif (!(flags & MEM_F_EXACT)) {\n\t\talign = (pool_debugging & POOL_DBG_TAG) ? sizeof(void *) : 16;\n\t\tsize  = ((size + align - 1) & -(ullong)align);\n\t}\n\n\tif (pool_debugging & POOL_DBG_BACKUP) {\n\t\t/* keep a full backup of the pool at release time. We need\n\t\t * a word-aligned size, so it's fine to do it now.\n\t\t */\n\t\textra += size;\n"
+      }
+    }
+  ]
+}

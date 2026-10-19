@@ -1,0 +1,283 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/vim",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/vim/pca-results/16f562/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/16f562",
+  "base_ref": "203210e48b75e8af501c4f40f91671c4a8556f28",
+  "base_commit": "203210e48b75e8af501c4f40f91671c4a8556f28",
+  "patch_apply_status": "applied_3way",
+  "patch_apply_message": "patch applied to scriptfile.c and test_stacktrace.vim cleanly; version.c had minor conflict resolved",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "16f562",
+  "package_profile": "vim",
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 2,
+    "compatibility_changes": 2,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 2
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.7,
+      "package_profile": "vim",
+      "affected_surface": "Vim script: expand('<sfile>') / getscriptname() via ESTACK_SCRIPT path",
+      "affected_api": {
+        "name": "estack_sfile",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/scriptfile.c",
+        "old_lines": [
+          166,
+          175
+        ],
+        "new_lines": [
+          166,
+          176
+        ],
+        "symbol": "estack_sfile"
+      },
+      "old_behavior": "When iterating the execution stack for ESTACK_SCRIPT, if an ETYPE_AUCMD entry has es_info.aucmd == NULL (autocommand not yet matched to a pattern), calling acp_script_ctx(entry->es_info.aucmd) dereferences a NULL pointer, causing a crash/segfault.",
+      "new_behavior": "Before calling acp_script_ctx(), the code now checks entry->es_info.aucmd != NULL. If it is NULL, def_ctx is set to NULL, and the subsequent def_ctx != NULL guard causes the function to return NULL instead of crashing. This allows <sfile> expansion to gracefully handle autocommand entries without a matched pattern.",
+      "compatibility_reason": "This is a bug fix for a crash. The old behavior (crash) is not a valid contract. The new behavior returns NULL in the edge case where an autocommand on the execution stack has not yet matched a pattern. Vim scripts calling expand('<sfile>') during such a state will now get NULL instead of crashing. No backward incompatibility: existing working callers are unaffected, and the crash case was unrecoverable before.",
+      "evidence": [
+        {
+          "file": "src/scriptfile.c",
+          "lines": [
+            166,
+            176
+          ],
+          "snippet": "\t    if (entry->es_type == ETYPE_UFUNC || entry->es_type == ETYPE_AUCMD)\n\t    {\n\t\tsctx_T *def_ctx = entry->es_type == ETYPE_UFUNC\n\t\t\t      ? &entry->es_info.ufunc->uf_script_ctx\n\t\t\t      : entry->es_info.aucmd != NULL\n\t\t\t\t  ? acp_script_ctx(entry->es_info.aucmd) : NULL;\n\n\t\treturn def_ctx != NULL && def_ctx->sc_sid > 0\n\t\t\t   ? vim_strsave(SCRIPT_ITEM(def_ctx->sc_sid)->sn_name)\n\t\t\t   : NULL;\n\t    }"
+        },
+        {
+          "file": "src/scriptfile.c",
+          "lines": [
+            155,
+            181
+          ],
+          "snippet": "    // If evaluated in a function or autocommand, return the path of the script\n    // where it is defined, at script level the current script path is returned\n    // instead.\n    if (which == ESTACK_SCRIPT)\n    {\n\t// Walk the stack backwards, starting from the current frame.\n\tfor (idx = exestack.ga_len - 1; idx >= 0; --idx, --entry)\n\t{\n\t    if (entry->es_type == ETYPE_UFUNC || entry->es_type == ETYPE_AUCMD)\n\t    {\n\t\tsctx_T *def_ctx = entry->es_type == ETYPE_UFUNC\n\t\t\t      ? &entry->es_info.ufunc->uf_script_ctx\n\t\t\t      : entry->es_info.aucmd != NULL\n\t\t\t\t  ? acp_script_ctx(entry->es_info.aucmd) : NULL;\n\n\t\treturn def_ctx != NULL && def_ctx->sc_sid > 0\n\t\t\t   ? vim_strsave(SCRIPT_ITEM(def_ctx->sc_sid)->sn_name)\n\t\t\t   : NULL;\n\t    }\n\t    else if (entry->es_type == ETYPE_SCRIPT)\n\t\treturn vim_strsave(entry->es_name);\n\t}\n\treturn NULL;\n    }"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "estack_sfile is called during <sfile> expansion in Vim script, which is a user-facing feature. The change affects observable Vim behavior: previously a crash would occur, now expand('<sfile>') gracefully returns NULL.",
+      "uncertainty": "It is difficult to confirm all trigger paths for es_info.aucmd being NULL without dynamic analysis. The crash was reported in the context of the more prompt with 'verbose' set, but other paths may exist.",
+      "manual_review_required": false,
+      "recommended_review": "No manual review needed. The change is a straightforward NULL-guard addition that fixes a crash.",
+      "test_recommendation": "Use the existing test Test_getstacktrace_during_autocmd_prompt in test_stacktrace.vim to verify the fix. Additionally, test expand('<sfile>') in the same autocmd-prompt scenario.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/scriptfile.c",
+            "old_lines": [
+              166,
+              175
+            ],
+            "new_lines": [
+              166,
+              176
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli",
+              "ex_commands",
+              "vimscript",
+              "ui_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "ex_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ex command syntax and behavior"
+              },
+              {
+                "name": "vimscript",
+                "test_priority": "high",
+                "public": true,
+                "description": "Vimscript/Vim9 API, functions, and type semantics"
+              },
+              {
+                "name": "ui_behavior",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible editor behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.7,
+      "package_profile": "vim",
+      "affected_surface": "Vim script: getstacktrace() function and v:stacktrace variable",
+      "affected_api": {
+        "name": "stacktrace_create",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/scriptfile.c",
+        "old_lines": [
+          322,
+          332
+        ],
+        "new_lines": [
+          323,
+          337
+        ],
+        "symbol": "stacktrace_create"
+      },
+      "old_behavior": "When processing an ETYPE_AUCMD entry in stacktrace_create(), the code unconditionally dereferences entry->es_info.aucmd via sctx_T sctx = *acp_script_ctx(entry->es_info.aucmd). If aucmd is NULL (autocommand not yet matched to a pattern), this is a NULL-pointer dereference causing a crash.",
+      "new_behavior": "The code now checks entry->es_info.aucmd != NULL before calling acp_script_ctx(). If NULL, sctx is set to NULL. The filepath is set to empty string \"\" and lnum is not incremented. The stacktrace entry is still pushed but with empty filepath and base lnum. The getstacktrace() / v:stacktrace APIs now gracefully return a stacktrace entry for the unmatched autocommand with empty filepath instead of crashing.",
+      "compatibility_reason": "This is a bug fix for a crash. The old behavior (crash) is not a valid contract. The new behavior gracefully handles the edge case. No backward incompatibility: previously the scenario was unrecoverable (crash), now it produces valid output. Vim scripts that call getstacktrace() or read v:stacktrace during an unmatched autocommand will now receive data instead of crashing.",
+      "evidence": [
+        {
+          "file": "src/scriptfile.c",
+          "lines": [
+            323,
+            337
+          ],
+          "snippet": "\telse if (entry->es_type == ETYPE_AUCMD)\n\t{\n\t    // The autocmd may not have a matching pattern yet, in which case\n\t    // es_info.aucmd is still NULL.\n\t    sctx_T *sctx = entry->es_info.aucmd != NULL\n\t\t\t       ? acp_script_ctx(entry->es_info.aucmd) : NULL;\n\t    char_u *filepath = sctx != NULL && sctx->sc_sid > 0 ?\n\t\t\t\t   get_scriptname(sctx->sc_sid) : (char_u *)\"\";\n\n\t    if (sctx != NULL)\n\t\tlnum += sctx->sc_lnum;\n\t    stacktrace_push_item(l, NULL, entry->es_name, lnum, filepath);\n\t}"
+        },
+        {
+          "file": "src/scriptfile.c",
+          "lines": [
+            297,
+            339
+          ],
+          "snippet": "    list_T *\nstacktrace_create(void)\n{\n    list_T\t*l;\n    int\t\ti;\n\n    l = list_alloc();\n    if (l == NULL)\n\treturn NULL;\n\n    for (i = 0; i < exestack.ga_len; ++i)\n    {\n\testack_T *entry = &((estack_T *)exestack.ga_data)[i];\n\tlinenr_T lnum = entry->es_lnum;\n\n\tif (entry->es_type == ETYPE_SCRIPT)\n\t    stacktrace_push_item(l, NULL, NULL, lnum, entry->es_name);\n\telse if (entry->es_type == ETYPE_UFUNC)\n\t{\n\t    ufunc_T *fp = entry->es_info.ufunc;\n\t    sctx_T sctx = fp->uf_script_ctx;\n\t    char_u *filepath = sctx.sc_sid > 0 ?\n\t\t\t\t   get_scriptname(sctx.sc_sid) : (char_u *)\"\";\n\n\t    lnum += sctx.sc_lnum;\n\t    stacktrace_push_item(l, fp, NULL, lnum, filepath);\n\t}\n\telse if (entry->es_type == ETYPE_AUCMD)\n\t{\n\t    // The autocmd may not have a matching pattern yet, in which case\n\t    // es_info.aucmd is still NULL.\n\t    sctx_T *sctx = entry->es_info.aucmd != NULL\n\t\t\t       ? acp_script_ctx(entry->es_info.aucmd) : NULL;\n\t    char_u *filepath = sctx != NULL && sctx->sc_sid > 0 ?\n\t\t\t\t   get_scriptname(sctx->sc_sid) : (char_u *)\"\";\n\n\t    if (sctx != NULL)\n\t\tlnum += sctx->sc_lnum;\n\t    stacktrace_push_item(l, NULL, entry->es_name, lnum, filepath);\n\t}\n    }\n    return l;\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "stacktrace_create() feeds into getstacktrace() and v:stacktrace, both of which are public Vim script APIs. The change is observable through these APIs: previously crashing scenario now returns data.",
+      "uncertainty": "The exact conditions for es_info.aucmd being NULL are timing-dependent (autocommand lifecycle before pattern match). The reported trigger is the more prompt with 'verbose' set, but other paths may exist.",
+      "manual_review_required": false,
+      "recommended_review": "No manual review needed. The change is a straightforward NULL-guard addition that fixes a crash. The new test Test_getstacktrace_during_autocmd_prompt covers the reported scenario.",
+      "test_recommendation": "Run the existing test Test_getstacktrace_during_autocmd_prompt in test_stacktrace.vim. Also run the existing Test_getstacktrace, Test_getstacktrace_event, Test_vstacktrace, and Test_stacktrace_vim9 tests to ensure no regressions.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "src/scriptfile.c",
+            "old_lines": [
+              322,
+              332
+            ],
+            "new_lines": [
+              323,
+              337
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "cli",
+              "ex_commands",
+              "vimscript",
+              "ui_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "ex_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ex command syntax and behavior"
+              },
+              {
+                "name": "vimscript",
+                "test_priority": "high",
+                "public": true,
+                "description": "Vimscript/Vim9 API, functions, and type semantics"
+              },
+              {
+                "name": "ui_behavior",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible editor behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ]
+}

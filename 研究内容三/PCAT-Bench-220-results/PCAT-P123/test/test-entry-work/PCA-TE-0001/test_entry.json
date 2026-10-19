@@ -1,0 +1,53 @@
+{
+  "finding_id": "PCA-0001",
+  "task_id": "PCA-TE-0001",
+  "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+  "artifact_path": "test-entry-work/PCA-TE-0001/runs/test_entry.sh",
+  "run_command": "bash test_entry.sh",
+  "expected_signal": "Output contains error message 'attempt to redefine a function being executed'",
+  "reachability_signal": "The error message text matches code at function.c line 67",
+  "execution": {
+    "cwd": "test-entry-work/PCA-TE-0001/runs",
+    "prerequisites": ["Built grub-emu binary at ${ANALYSIS_REPO}/grub-core/grub-emu"],
+    "limitations": [
+      "grub-emu interactive stdin mode does not handle nested {} in function definitions",
+      "Full QEMU-based testing (grub-shell) requires QEMU which is not available",
+      "Single-line function definitions with no nested {} work correctly",
+      "Multi-line function definitions must be tested via QEMU with grub-shell"
+    ]
+  },
+  "contract_probe": {
+    "before": {
+      "expectation": "Redefining a function during execution succeeds (old behavior, UAF bug)",
+      "command": "echo 'function f { echo a; }; function outer { echo x; f; function f { echo b; }; echo y; }; outer; f' | grub-emu-after",
+      "expected_observable": "Function redefines without error (UAF possible)"
+    },
+    "after": {
+      "expectation": "Redefining a function during execution fails with GRUB_ERR_BAD_ARGUMENT",
+      "command": "echo 'function f { echo a; }; function outer { echo x; f; function f { echo b; }; echo y; }; outer; f' | grub-emu-after",
+      "expected_observable": "Error: attempt to redefine a function being executed"
+    }
+  },
+  "input_strategy": "CLI_script_command",
+  "generated_inputs": [
+    {
+      "id": "I1",
+      "description": "Test redefinition during execution via grub-shell",
+      "type": "grub_script",
+      "content": "function myfunc { echo executing; }\nfunction wrapper { echo wrapper_start; myfunc; function myfunc { echo redefined; }; echo wrapper_end; }\nmyfunc\nwrapper\nmyfunc",
+      "expected_before": "executing\nwrapper_start\nexecuting\nwrapper_end\nredefined",
+      "expected_after": "executing\nwrapper_start\nexecuting\nerror: attempt to redefine a function being executed\nwrapper_end\nexecuting"
+    }
+  ],
+  "verification_result": {
+    "status": "needs_env",
+    "reason": "QEMU not available for grub-shell execution. grub-emu built successfully. Nesting function definitions interactively not supported by grub-emu's stdin parser.",
+    "partial_evidence": [
+      "grub-emu binary built successfully at grub-core/grub-emu (5.1MB)",
+      "grub-shell-tester script generated",
+      "grub-shell script generated",
+      "source command loads config files correctly",
+      "Single-line function definitions (without nested {}) work correctly"
+    ]
+  }
+}

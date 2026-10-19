@@ -1,0 +1,346 @@
+{
+  "shard_id": "SHARD-0007",
+  "surface": "user_visible_output",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    2,
+    6,
+    5
+  ],
+  "hunk_ids": [
+    "HUNK-0003",
+    "HUNK-0007",
+    "HUNK-0006"
+  ],
+  "files": [
+    "src/core/devices/nm-device-bond.c",
+    "src/libnm-core-impl/nm-setting-bond.c"
+  ],
+  "symbols": [
+    "NM_BOND_MODE_8023AD",
+    "NM_BOND_MODE_ALB",
+    "NM_BOND_MODE_TLB",
+    "NM_IN_SET",
+    "mode",
+    "reapply_connection",
+    "set_bond_arp_ip_targets",
+    "set_bond_attr_or_default",
+    "bond_mode",
+    "g_prefix_error",
+    "verify",
+    "an",
+    "in",
+    "invalid",
+    "is",
+    "value"
+  ],
+  "metrics": {
+    "hunks": 3,
+    "context_bytes": 8889
+  },
+  "candidates": [
+    {
+      "file": "src/core/devices/nm-device-bond.c",
+      "old_start": 907,
+      "old_end": 912,
+      "new_start": 910,
+      "new_end": 917,
+      "context_hint": "reapply_connection(NMDevice *device, NMConnection *con_old, NMConnection *con_ne",
+      "added_lines": [
+        "    if (!NM_IN_SET(mode, NM_BOND_MODE_TLB, NM_BOND_MODE_ALB, NM_BOND_MODE_8023AD))",
+        "        set_bond_attr_or_default(device, s_bond, NM_SETTING_BOND_OPTION_ARP_MISSED_MAX);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    set_bond_arp_ip_targets(device, s_bond);",
+        "",
+        "    set_bond_attrs_or_default(device, s_bond, NM_MAKE_STRV(OPTIONS_REAPPLY_SUBSET));",
+        "",
+        "    _balance_slb_setup(self, con_new);",
+        "}"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "reapply_connection",
+        "NM_IN_SET",
+        "mode",
+        "NM_BOND_MODE_TLB",
+        "NM_BOND_MODE_ALB",
+        "NM_BOND_MODE_8023AD",
+        "set_bond_attr_or_default",
+        "set_bond_arp_ip_targets"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Connection profile and daemon configuration semantics"
+          },
+          {
+            "name": "dbus_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Stable D-Bus interfaces, properties, signals, and methods"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "config",
+          "dbus_api"
+        ],
+        "profile": "networkmanager",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "reapply_connection",
+        "snippet_start_line": 878,
+        "snippet_end_line": 947,
+        "snippet": "                return FALSE;\n            }\n        }\n\n        return TRUE;\n    }\n\n    device_class = NM_DEVICE_CLASS(nm_device_bond_parent_class);\n    return device_class->can_reapply_change(device, setting_name, s_old, s_new, diffs, error);\n}\n\nstatic void\nreapply_connection(NMDevice *device, NMConnection *con_old, NMConnection *con_new)\n{\n    NMDeviceBond  *self = NM_DEVICE_BOND(device);\n    NMSettingBond *s_bond;\n    const char    *value;\n    NMBondMode     mode;\n\n    NM_DEVICE_CLASS(nm_device_bond_parent_class)->reapply_connection(device, con_old, con_new);\n\n    _LOGD(LOGD_BOND, \"reapplying bond settings\");\n    s_bond = nm_connection_get_setting_bond(con_new);\n    g_return_if_fail(s_bond);\n\n    value = nm_setting_bond_get_option_normalized(s_bond, NM_SETTING_BOND_OPTION_MODE);\n    mode  = _nm_setting_bond_mode_from_string(value);\n    g_return_if_fail(mode != NM_BOND_MODE_UNKNOWN);\n\n    /* Below we set only the bond options that the kernel allows modifying\n     * while keeping the bond interface up */\n\n    set_bond_arp_ip_targets(device, s_bond);\n\n    set_bond_attrs_or_default(device, s_bond, NM_MAKE_STRV(OPTIONS_REAPPLY_SUBSET));\n    if (!NM_IN_SET(mode, NM_BOND_MODE_TLB, NM_BOND_MODE_ALB, NM_BOND_MODE_8023AD))\n        set_bond_attr_or_default(device, s_bond, NM_SETTING_BOND_OPTION_ARP_MISSED_MAX);\n\n    _balance_slb_setup(self, con_new);\n}\n\nstatic void\ndeactivate(NMDevice *device)\n{\n    NMDeviceBond *self = NM_DEVICE_BOND(device);\n\n    _balance_slb_setup(self, NULL);\n}\n\n/*****************************************************************************/\n\ngboolean\nnm_device_bond_is_slb(NMDevice *device)\n{\n    NMConnection  *connection;\n    NMSettingBond *s_bond;\n\n    connection = nm_device_get_applied_connection(device);\n    if (!connection)\n        return FALSE;\n\n    s_bond = nm_connection_get_setting_bond(connection);\n    if (!s_bond)\n        return FALSE;\n\n    if (!_nm_setting_bond_opt_value_as_intbool(s_bond, NM_SETTING_BOND_OPTION_BALANCE_SLB))\n        return FALSE;\n\n    return TRUE;\n}\n"
+      }
+    },
+    {
+      "file": "src/libnm-core-impl/nm-setting-bond.c",
+      "old_start": 950,
+      "old_end": 955,
+      "new_start": 957,
+      "new_end": 965,
+      "context_hint": "verify(NMSetting *setting, NMConnection *connection, GError **error)",
+      "added_lines": [
+        "    }",
+        "",
+        "    if (NM_IN_SET(bond_mode, NM_BOND_MODE_TLB, NM_BOND_MODE_ALB, NM_BOND_MODE_8023AD)) {"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "            g_prefix_error(error, \"%s.%s: \", NM_SETTING_BOND_SETTING_NAME, NM_SETTING_BOND_OPTIONS);",
+        "            return FALSE;",
+        "        }",
+        "        if (arp_missed_max > 0) {",
+        "            g_set_error(error,",
+        "                        NM_CONNECTION_ERROR,"
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "verify",
+        "NM_IN_SET",
+        "bond_mode",
+        "NM_BOND_MODE_TLB",
+        "NM_BOND_MODE_ALB",
+        "NM_BOND_MODE_8023AD",
+        "g_prefix_error"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Connection profile and daemon configuration semantics"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "config"
+        ],
+        "profile": "networkmanager",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "verify",
+        "snippet_start_line": 921,
+        "snippet_end_line": 995,
+        "snippet": "     * primary needs [ active-backup, tlb, alb ]\n     */\n\n    /* Verify bond mode */\n    mode_str = _bond_get_option(self, NM_SETTING_BOND_OPTION_MODE);\n    if (!mode_str) {\n        g_set_error(error,\n                    NM_CONNECTION_ERROR,\n                    NM_CONNECTION_ERROR_INVALID_PROPERTY,\n                    _(\"mandatory option '%s' is missing\"),\n                    NM_SETTING_BOND_OPTION_MODE);\n        g_prefix_error(error, \"%s.%s: \", NM_SETTING_BOND_SETTING_NAME, NM_SETTING_BOND_OPTIONS);\n        return FALSE;\n    }\n    bond_mode = _nm_setting_bond_mode_from_string(mode_str);\n    if (bond_mode == NM_BOND_MODE_UNKNOWN) {\n        g_set_error(error,\n                    NM_CONNECTION_ERROR,\n                    NM_CONNECTION_ERROR_INVALID_PROPERTY,\n                    _(\"'%s' is not a valid value for '%s'\"),\n                    mode_str,\n                    NM_SETTING_BOND_OPTION_MODE);\n        g_prefix_error(error, \"%s.%s: \", NM_SETTING_BOND_SETTING_NAME, NM_SETTING_BOND_OPTIONS);\n        return FALSE;\n    }\n\n    /* Make sure mode is compatible with other settings */\n    if (NM_IN_SET(bond_mode, NM_BOND_MODE_TLB, NM_BOND_MODE_ALB)) {\n        if (arp_interval > 0) {\n            g_set_error(error,\n                        NM_CONNECTION_ERROR,\n                        NM_CONNECTION_ERROR_INVALID_PROPERTY,\n                        _(\"'%s=%s' is incompatible with '%s > 0'\"),\n                        NM_SETTING_BOND_OPTION_MODE,\n                        mode_str,\n                        NM_SETTING_BOND_OPTION_ARP_INTERVAL);\n            g_prefix_error(error, \"%s.%s: \", NM_SETTING_BOND_SETTING_NAME, NM_SETTING_BOND_OPTIONS);\n            return FALSE;\n        }\n    }\n\n    if (NM_IN_SET(bond_mode, NM_BOND_MODE_TLB, NM_BOND_MODE_ALB, NM_BOND_MODE_8023AD)) {\n        if (arp_missed_max > 0) {\n            g_set_error(error,\n                        NM_CONNECTION_ERROR,\n                        NM_CONNECTION_ERROR_INVALID_PROPERTY,\n                        _(\"'%s=%s' is incompatible with '%s > 0'\"),\n                        NM_SETTING_BOND_OPTION_MODE,\n                        mode_str,\n                        NM_SETTING_BOND_OPTION_ARP_MISSED_MAX);\n            g_prefix_error(error, \"%s.%s: \", NM_SETTING_BOND_SETTING_NAME, NM_SETTING_BOND_OPTIONS);\n            return FALSE;\n        }\n    }\n\n    primary = _bond_get_option(self, NM_SETTING_BOND_OPTION_PRIMARY);\n    if (NM_IN_SET(bond_mode, NM_BOND_MODE_ACTIVEBACKUP, NM_BOND_MODE_TLB, NM_BOND_MODE_ALB)) {\n        GError *tmp_error = NULL;\n\n        if (primary && !nm_utils_ifname_valid_kernel(primary, &tmp_error)) {\n            g_set_error(error,\n                        NM_CONNECTION_ERROR,\n                        NM_CONNECTION_ERROR_INVALID_PROPERTY,\n                        _(\"'%s' is not valid for the '%s' option: %s\"),\n                        primary,\n                        NM_SETTING_BOND_OPTION_PRIMARY,\n                        tmp_error->message);\n            g_prefix_error(error, \"%s.%s: \", NM_SETTING_BOND_SETTING_NAME, NM_SETTING_BOND_OPTIONS);\n            g_error_free(tmp_error);\n            return FALSE;\n        }\n    } else if (primary) {\n        g_set_error(error,\n                    NM_CONNECTION_ERROR,\n                    NM_CONNECTION_ERROR_INVALID_PROPERTY,\n"
+      }
+    },
+    {
+      "file": "src/libnm-core-impl/nm-setting-bond.c",
+      "old_start": 894,
+      "old_end": 906,
+      "new_start": 898,
+      "new_end": 913,
+      "context_hint": "verify(NMSetting *setting, NMConnection *connection, GError **error)",
+      "added_lines": [
+        "    /* \"0\" is an invalid value in the kernel, but we used to accept it to indicate \"default value\".",
+        "     * Keep accepting \"0\" as a valid value, although we'll apply a different value, actually.",
+        "     * Bond modes that don't accept arp_missed_max must just ignore the \"0\" value, too. */",
+        "    arp_missed_max = _atoi(_bond_get_option(self, NM_SETTING_BOND_OPTION_ARP_MISSED_MAX) ?: \"0\");",
+        ""
+      ],
+      "deleted_lines": [
+        "    arp_missed_max =",
+        "        _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_ARP_MISSED_MAX));"
+      ],
+      "context_lines": [
+        "",
+        "    miimon       = _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_MIIMON));",
+        "    arp_interval = _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_ARP_INTERVAL));",
+        "    num_grat_arp = _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_NUM_GRAT_ARP));",
+        "    num_unsol_na = _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_NUM_UNSOL_NA));",
+        "    peer_notif_delay =",
+        "        _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_PEER_NOTIF_DELAY));",
+        "",
+        "    /* Option restrictions:",
+        "     *",
+        "     * arp_interval conflicts [ alb, tlb ]"
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "verify",
+        "is",
+        "an",
+        "invalid",
+        "value",
+        "in",
+        "g_prefix_error"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Connection profile and daemon configuration semantics"
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "config",
+          "persistence_state"
+        ],
+        "profile": "networkmanager",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "verify",
+        "snippet_start_line": 865,
+        "snippet_end_line": 943,
+        "snippet": "    NMSettingBondPrivate    *priv = NM_SETTING_BOND_GET_PRIVATE(setting);\n    int                      miimon;\n    int                      arp_interval;\n    int                      arp_missed_max;\n    int                      num_grat_arp;\n    int                      num_unsol_na;\n    int                      peer_notif_delay;\n    const char              *mode_str;\n    const char              *arp_ip_target = NULL;\n    const char              *ns_ip6_target;\n    const char              *lacp_rate;\n    const char              *lacp_active;\n    const char              *primary;\n    const char              *s;\n    NMBondMode               bond_mode;\n    guint                    i;\n    const NMUtilsNamedValue *n;\n\n    _ensure_options_idx_cache(priv);\n\n    if (priv->options_idx_cache) {\n        for (i = 0; priv->options_idx_cache[i].name; i++) {\n            n = &priv->options_idx_cache[i];\n\n            if (!n->value_str || !_nm_setting_bond_validate_option(n->name, n->value_str, error)) {\n                g_prefix_error(error,\n                               \"%s.%s: \",\n                               NM_SETTING_BOND_SETTING_NAME,\n                               NM_SETTING_BOND_OPTIONS);\n                return FALSE;\n            }\n        }\n    }\n\n    miimon       = _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_MIIMON));\n    arp_interval = _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_ARP_INTERVAL));\n    num_grat_arp = _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_NUM_GRAT_ARP));\n    num_unsol_na = _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_NUM_UNSOL_NA));\n    peer_notif_delay =\n        _atoi(_bond_get_option_or_default(self, NM_SETTING_BOND_OPTION_PEER_NOTIF_DELAY));\n\n    /* \"0\" is an invalid value in the kernel, but we used to accept it to indicate \"default value\".\n     * Keep accepting \"0\" as a valid value, although we'll apply a different value, actually.\n     * Bond modes that don't accept arp_missed_max must just ignore the \"0\" value, too. */\n    arp_missed_max = _atoi(_bond_get_option(self, NM_SETTING_BOND_OPTION_ARP_MISSED_MAX) ?: \"0\");\n\n    /* Option restrictions:\n     *\n     * arp_interval conflicts [ alb, tlb ]\n     * arp_interval needs arp_ip_target\n     * arp_validate does not work with [ BOND_MODE_8023AD, BOND_MODE_TLB, BOND_MODE_ALB ]\n     * arp_missed_max does not work with [ BOND_MODE_8023AD, BOND_MODE_TLB, BOND_MODE_ALB ]\n     * downdelay needs miimon\n     * updelay needs miimon\n     * peer_notif_delay needs miimon enabled\n     * peer_notif_delay must be a miimon multiple\n     * primary needs [ active-backup, tlb, alb ]\n     */\n\n    /* Verify bond mode */\n    mode_str = _bond_get_option(self, NM_SETTING_BOND_OPTION_MODE);\n    if (!mode_str) {\n        g_set_error(error,\n                    NM_CONNECTION_ERROR,\n                    NM_CONNECTION_ERROR_INVALID_PROPERTY,\n                    _(\"mandatory option '%s' is missing\"),\n                    NM_SETTING_BOND_OPTION_MODE);\n        g_prefix_error(error, \"%s.%s: \", NM_SETTING_BOND_SETTING_NAME, NM_SETTING_BOND_OPTIONS);\n        return FALSE;\n    }\n    bond_mode = _nm_setting_bond_mode_from_string(mode_str);\n    if (bond_mode == NM_BOND_MODE_UNKNOWN) {\n        g_set_error(error,\n                    NM_CONNECTION_ERROR,\n                    NM_CONNECTION_ERROR_INVALID_PROPERTY,\n                    _(\"'%s' is not a valid value for '%s'\"),\n                    mode_str,\n                    NM_SETTING_BOND_OPTION_MODE);\n        g_prefix_error(error, \"%s.%s: \", NM_SETTING_BOND_SETTING_NAME, NM_SETTING_BOND_OPTIONS);\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

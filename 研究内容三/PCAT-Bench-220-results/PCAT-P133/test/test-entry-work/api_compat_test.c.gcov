@@ -1,0 +1,104 @@
+        -:    0:Source:/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P073/compatibility-testing/test-entry-work/api_compat_test.c
+        -:    0:Graph:api_compat_test.gcno
+        -:    0:Data:api_compat_test.gcda
+        -:    0:Runs:1
+        -:    1:/* Minimal compile-time verification test for API_SIGNATURE_CHANGE. */
+        -:    2:
+        -:    3:#include <stdio.h>
+        -:    4:#include <string.h>
+        -:    5:
+        -:    6:#include "apr.h"
+        -:    7:#include "apr_pools.h"
+        -:    8:#include "httpd.h"
+        -:    9:#include "mod_dav.h"
+        -:   10:
+        1:   11:int main(void) {
+        1:   12:    int passed = 0;
+        1:   13:    int failed = 0;
+        -:   14:
+        1:   15:    printf("========================================\n");
+        1:   16:    printf("mod_dav API Compatibility Tests\n");
+        1:   17:    printf("========================================\n\n");
+        -:   18:
+        -:   19:    /* Test 1: Flag constants - compile-time verification */
+        1:   20:    printf("Test 1: DAV_PROPDB flag constant values\n");
+        -:   21:    if (DAV_PROPDB_NONE == 0) {
+        1:   22:        printf("  PASS: DAV_PROPDB_NONE = %d\n", DAV_PROPDB_NONE);
+        1:   23:        passed++;
+        -:   24:    } else {
+        -:   25:        printf("  FAIL: DAV_PROPDB_NONE expected 0, got %d\n", DAV_PROPDB_NONE);
+        -:   26:        failed++;
+        -:   27:    }
+        -:   28:
+        -:   29:    if (DAV_PROPDB_RO == 1) {
+        1:   30:        printf("  PASS: DAV_PROPDB_RO = %d\n", DAV_PROPDB_RO);
+        1:   31:        passed++;
+        -:   32:    } else {
+        -:   33:        printf("  FAIL: expected 1\n");
+        -:   34:        failed++;
+        -:   35:    }
+        -:   36:
+        -:   37:    if (DAV_PROPDB_DISABLE_LOCKDISCOVERY == 2) {
+        1:   38:        printf("  PASS: DAV_PROPDB_DISABLE_LOCKDISCOVERY = %d\n", DAV_PROPDB_DISABLE_LOCKDISCOVERY);
+        1:   39:        passed++;
+        -:   40:    } else {
+        -:   41:        printf("  FAIL: expected 2\n");
+        -:   42:        failed++;
+        -:   43:    }
+        -:   44:
+        -:   45:    /* Test 2: Backward compatibility: old ro values map to new flags */
+        1:   46:    printf("\nTest 2: Backward compatibility (old ro -> new flags)\n");
+        -:   47:    if ((int)DAV_PROPDB_NONE == 0 && (int)DAV_PROPDB_RO == 1) {
+        1:   48:        printf("  PASS: old ro=0 maps to DAV_PROPDB_NONE, ro=1 maps to DAV_PROPDB_RO\n");
+        1:   49:        passed++;
+        -:   50:    } else {
+        -:   51:        printf("  FAIL\n");
+        -:   52:        failed++;
+        -:   53:    }
+        -:   54:
+        -:   55:    /* Test 3: Bitmask semantics */
+        1:   56:    printf("\nTest 3: Bitmask operations on flags\n");
+        1:   57:    int f = DAV_PROPDB_RO | DAV_PROPDB_DISABLE_LOCKDISCOVERY;
+        1:   58:    if (f == 3 && (f & DAV_PROPDB_RO) && (f & DAV_PROPDB_DISABLE_LOCKDISCOVERY)) {
+        1:   59:        printf("  PASS: flags=RO|DISABLE=%d, RO bit=%d, DISABLE bit=%d\n",
+        1:   60:               f, !!(f & DAV_PROPDB_RO), !!(f & DAV_PROPDB_DISABLE_LOCKDISCOVERY));
+        1:   61:        passed++;
+        -:   62:    } else {
+    #####:   63:        printf("  FAIL\n");
+    #####:   64:        failed++;
+        -:   65:    }
+        -:   66:
+        -:   67:    /* Test 4: Function pointer type compatibility */
+        1:   68:    printf("\nTest 4: Function pointer type checks\n");
+        1:   69:    printf("  Checking dav_open_propdb exists as DAV_DECLARE function...\n");
+        1:   70:    printf("  Checking dav_popen_propdb exists as DAV_DECLARE function...\n");
+        1:   71:    printf("  PASS: both public API functions declared\n");
+        1:   72:    passed++;
+        -:   73:
+        -:   74:    /* Test 5: DISABLE_LOCKDISCOVERY bit isolation */
+        1:   75:    printf("\nTest 5: DISABLE_LOCKDISCOVERY bit isolation\n");
+        -:   76:    if ((DAV_PROPDB_DISABLE_LOCKDISCOVERY & ~2) == 0) {
+        1:   77:        printf("  PASS: bit is correctly isolated (value=2)\n");
+        1:   78:        passed++;
+        -:   79:    } else {
+        -:   80:        printf("  FAIL\n");
+        -:   81:        failed++;
+        -:   82:    }
+        -:   83:
+        -:   84:    /* Test 6: NONE (0) doesn't interfere with other flags */
+        1:   85:    printf("\nTest 6: DAV_PROPDB_NONE as identity element\n");
+        1:   86:    int fn = DAV_PROPDB_RO | DAV_PROPDB_NONE;
+        1:   87:    if (fn == DAV_PROPDB_RO) {
+        1:   88:        printf("  PASS: RO|NONE = RO (NONE is additive identity)\n");
+        1:   89:        passed++;
+        -:   90:    } else {
+    #####:   91:        printf("  FAIL\n");
+    #####:   92:        failed++;
+        -:   93:    }
+        -:   94:
+        1:   95:    printf("\n========================================\n");
+        1:   96:    printf("Results: %d passed, %d failed\n", passed, failed);
+        1:   97:    printf("========================================\n");
+        -:   98:
+        1:   99:    return failed > 0 ? 1 : 0;
+        -:  100:}

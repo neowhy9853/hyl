@@ -1,0 +1,154 @@
+{
+  "shard_id": "SHARD-0010",
+  "surface": "network_protocol",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    47
+  ],
+  "hunk_ids": [
+    "HUNK-0063"
+  ],
+  "files": [
+    "runtime/net.c"
+  ],
+  "symbols": [
+    "BEGINobjQueryInterface",
+    "here",
+    "isAllowedSenderList",
+    "pIf"
+  ],
+  "metrics": {
+    "hunks": 1,
+    "context_bytes": 4457
+  },
+  "candidates": [
+    {
+      "file": "runtime/net.c",
+      "old_start": 1624,
+      "old_end": 1629,
+      "new_start": 1689,
+      "new_end": 1695,
+      "context_hint": "BEGINobjQueryInterface(net)",
+      "added_lines": [
+        "    pIf->isAllowedSenderList = isAllowedSenderList;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    pIf->PermittedPeerWildcardMatch = PermittedPeerWildcardMatch;",
+        "    pIf->CmpHost = CmpHost;",
+        "    pIf->HasRestrictions = HasRestrictions;",
+        "    pIf->GetIFIPAddr = getIFIPAddr;",
+        "",
+        "    pIf->netns_save = netns_save;"
+      ],
+      "hunk_id": "HUNK-0063",
+      "changed_symbols": [
+        "BEGINobjQueryInterface",
+        "pIf",
+        "isAllowedSenderList",
+        "here"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "daemon_control",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "Runtime daemon control, metrics, and administration interfaces."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "network_protocol",
+          "daemon_control",
+          "persistence_state",
+          "module_api",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "BEGINobjQueryInterface",
+        "snippet_start_line": 1595,
+        "snippet_end_line": 1725,
+        "snippet": "    *bHasRestrictions = (pAllowRoot == NULL) ? 0 : 1;\n\nfinalize_it:\n    if (iRet != RS_RET_OK) {\n        *bHasRestrictions = 1; /* in this case it is better to check individually */\n        DBGPRINTF(\"Error %d trying to obtain ACL restriction state of '%s'\\n\", iRet, pszType);\n    }\n    RETiRet;\n}\n\n\n/* return the IP address (IPv4/6) for the provided interface. Returns\n * RS_RET_NOT_FOUND if interface can not be found in interface list.\n * The family must be correct (AF_INET vs. AF_INET6, AF_UNSPEC means\n * either of *these two*).\n * The function re-queries the interface list (at least in theory).\n * However, it caches entries in order to avoid too-frequent requery.\n * rgerhards, 2012-03-06\n */\nstatic rsRetVal getIFIPAddr(uchar *szif, int family, uchar *pszbuf, int lenBuf) {\n#ifdef _AIX\n    struct ifaddrs_rsys *ifaddrs = NULL;\n    struct ifaddrs_rsys *ifa;\n#else\n    struct ifaddrs *ifaddrs = NULL;\n    struct ifaddrs *ifa;\n#endif\n    union {\n        struct sockaddr *sa;\n        struct sockaddr_in *ipv4;\n        struct sockaddr_in6 *ipv6;\n    } savecast;\n    void *pAddr;\n    DEFiRet;\n\n    if (getifaddrs(&ifaddrs) != 0) {\n        ABORT_FINALIZE(RS_RET_ERR);\n    }\n\n    for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {\n        if (strcmp(ifa->ifa_name, (char *)szif)) continue;\n        savecast.sa = ifa->ifa_addr;\n        if ((family == AF_INET6 || family == AF_UNSPEC) && ifa->ifa_addr->sa_family == AF_INET6) {\n            pAddr = &(savecast.ipv6->sin6_addr);\n            inet_ntop(AF_INET6, pAddr, (char *)pszbuf, lenBuf);\n            break;\n        } else if (/*   (family == AF_INET || family == AF_UNSPEC)\n                  &&*/\n                   ifa->ifa_addr->sa_family == AF_INET) {\n            pAddr = &(savecast.ipv4->sin_addr);\n            inet_ntop(AF_INET, pAddr, (char *)pszbuf, lenBuf);\n            break;\n        }\n    }\n\n    if (ifaddrs != NULL) freeifaddrs(ifaddrs);\n\n    if (ifa == NULL) iRet = RS_RET_NOT_FOUND;\n\nfinalize_it:\n    RETiRet;\n}\n\n\n/* queryInterface function\n * rgerhards, 2008-03-05\n */\nBEGINobjQueryInterface(net)\n    CODESTARTobjQueryInterface(net);\n    if (pIf->ifVersion != netCURR_IF_VERSION) { /* check for current version, increment on each change */\n        ABORT_FINALIZE(RS_RET_INTERFACE_NOT_SUPPORTED);\n    }\n\n    /* ok, we have the right interface, so let's fill it\n     * Please note that we may also do some backwards-compatibility\n     * work here (if we can support an older interface version - that,\n     * of course, also affects the \"if\" above).\n     */\n    pIf->cvthname = cvthname;\n    /* things to go away after proper modularization */\n    pIf->addAllowedSenderLine = addAllowedSenderLine;\n    pIf->addAllowedSenderEntry = addAllowedSenderEntry;\n    pIf->DestructAllowedSenders = DestructAllowedSenders;\n    pIf->PrintAllowedSenders = PrintAllowedSenders;\n    pIf->clearAllowedSenders = clearAllowedSenders;\n    pIf->debugListenInfo = debugListenInfo;\n    pIf->create_udp_socket = create_udp_socket;\n    pIf->closeUDPListenSockets = closeUDPListenSockets;\n    pIf->isAllowedSender = isAllowedSender;\n    pIf->isAllowedSender2 = isAllowedSender2;\n    pIf->should_use_so_bsdcompat = should_use_so_bsdcompat;\n    pIf->getLocalHostname = getLocalHostname;\n    pIf->AddPermittedPeer = AddPermittedPeer;\n    pIf->DestructPermittedPeers = DestructPermittedPeers;\n    pIf->PermittedPeerWildcardMatch = PermittedPeerWildcardMatch;\n    pIf->CmpHost = CmpHost;\n    pIf->HasRestrictions = HasRestrictions;\n    pIf->isAllowedSenderList = isAllowedSenderList;\n    pIf->GetIFIPAddr = getIFIPAddr;\n\n    pIf->netns_save = netns_save;\n    pIf->netns_restore = netns_restore;\n    pIf->netns_switch = netns_switch;\n    pIf->netns_socket = netns_socket;\nfinalize_it:\nENDobjQueryInterface(net)\n\n\n/* exit our class\n * rgerhards, 2008-03-10\n */\nBEGINObjClassExit(net, OBJ_IS_LOADABLE_MODULE) /* CHANGE class also in END MACRO! */\n    CODESTARTObjClassExit(net);\n    /* release objects we no longer need */\n    objRelease(glbl, CORE_COMPONENT);\n    objRelease(prop, CORE_COMPONENT);\nENDObjClassExit(net)\n\n\n/* Initialize the net class. Must be called as the very first method\n * before anything else is called inside this class.\n * rgerhards, 2008-02-19\n */\nBEGINAbstractObjClassInit(net, 1, OBJ_IS_CORE_MODULE) /* class, version */\n    /* request objects we use */\n    CHKiRet(objUse(glbl, CORE_COMPONENT));\n    CHKiRet(objUse(prop, CORE_COMPONENT));\n\n    /* set our own handlers */\nENDObjClassInit(net)\n\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

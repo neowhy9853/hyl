@@ -1,0 +1,86 @@
+{
+  "entries": [
+    {
+      "id": "ENTRY-0001",
+      "finding_id": "PCA-0001",
+      "entry_kind": "config_cli_reproducer",
+      "artifact_path": "test-entry-work/ENTRY-0001/",
+      "run_command": "slaptest -f <test_conf> -u",
+      "expected_signal": "exit code 0 for valid config, exit code non-zero for invalid config",
+      "reachability_signal": "process exit code",
+      "execution": {
+        "cwd": "/tmp/pca-openldap",
+        "binary": "/tmp/pca-openldap/servers/slapd/slaptest"
+      },
+      "contract_probe": {
+        "type": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "before_command": "slaptest -f <before_conf> -u",
+        "after_command": "slaptest -f <after_conf> -u",
+        "oracle": "exit code must be 0 for known-good config parameters"
+      },
+      "prerequisites": ["built slapd binary with coverage"],
+      "limitations": ["slaptest -u only validates config syntax, not runtime DB behavior"]
+    },
+    {
+      "id": "ENTRY-0002",
+      "finding_id": "PCA-0001",
+      "entry_kind": "config_cli_reproducer",
+      "artifact_path": "test-entry-work/ENTRY-0002/",
+      "run_command": "slapadd -f <test_conf_with_pagesize> -l <ldif>",
+      "expected_signal": "exit code 0, database created with specified pagesize",
+      "reachability_signal": "data.mdb file size correlates with pagesize setting",
+      "execution": {
+        "cwd": "/tmp/pca-openldap",
+        "binary": "/tmp/pca-openldap/servers/slapd/slapadd"
+      },
+      "contract_probe": {
+        "type": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "expected_observation": "database file created with pagesize-aligned size"
+      },
+      "prerequisites": ["built slapd with coverage", "temporary database directory"],
+      "limitations": []
+    },
+    {
+      "id": "ENTRY-0003",
+      "finding_id": "PCA-0002",
+      "entry_kind": "runtime_behavior_reproducer",
+      "artifact_path": "test-entry-work/ENTRY-0003/",
+      "run_command": "slapadd -f <test_conf_with_invalid_pagesize> -l <ldif>",
+      "expected_signal": "exit code 1, error message about mdb_env_set_pagesize failure",
+      "reachability_signal": "gcov confirms init.c lines 129-136 were executed",
+      "execution": {
+        "cwd": "/tmp/pca-openldap",
+        "binary": "/tmp/pca-openldap/servers/slapd/slapadd"
+      },
+      "contract_probe": {
+        "type": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "expected_observation": "runtime validates pagesize value and rejects invalid ones"
+      },
+      "prerequisites": ["built slapd with coverage"],
+      "limitations": []
+    },
+    {
+      "id": "ENTRY-0004",
+      "finding_id": "PCA-0002",
+      "entry_kind": "runtime_behavior_reproducer",
+      "artifact_path": "test-entry-work/ENTRY-0004/",
+      "run_command": "slapadd -f <test_conf_default> -l <ldif> (no dbpagesize)",
+      "expected_signal": "exit code 0, default pagesize used",
+      "reachability_signal": "gcov confirms init.c line 129 was executed (mi_pagesize=0 path)",
+      "execution": {
+        "cwd": "/tmp/pca-openldap",
+        "binary": "/tmp/pca-openldap/servers/slapd/slapadd"
+      },
+      "contract_probe": {
+        "type": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "expected_observation": "no pagesize config -> default LMDB pagesize"
+      },
+      "prerequisites": ["built slapd with coverage"],
+      "limitations": []
+    }
+  ]
+}

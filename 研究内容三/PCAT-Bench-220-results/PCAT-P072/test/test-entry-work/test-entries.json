@@ -1,0 +1,35 @@
+{
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "config_reproducer",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+      "build_command": "cd {VERSION_DIR} && ./configure CFLAGS='-O0 -g --coverage' LDFLAGS='--coverage' --disable-udev_sync --disable-udev_rules --disable-selinux --disable-readline --without-blkid --with-thin=none --with-cache=none --with-vdo=none --with-writecache=none --disable-lvmimportvdo && make -j$(nproc)",
+      "run_command": "LD_LIBRARY_PATH={VERSION_DIR}/libdm/ioctl LVM_SYSTEM_DIR={CONFIG_DIR} {VERSION_DIR}/tools/lvm dumpconfig 2>&1; echo \"EXIT_CODE=$?\"",
+      "target_location": {
+        "file": "libdm/libdm-config.c",
+        "new_lines": [734, 741],
+        "symbol": "_type"
+      },
+      "reachability_signal": "Output contains 'Failed to read int token.' when config has invalid integer values; or successfully dumps config when values are valid",
+      "expected_signal": "Old behavior accepts non-numeric/trailing-char ints silently; new behavior rejects them with 'Failed to read int token.'",
+      "execution": {
+        "cwd": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/591a1c/compatibility-testing",
+        "timeout_seconds": 300,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Create config files with TOK_INT values: (a) valid integer '777', (b) non-numeric 'abc', (c) trailing chars '123abc', (d) special creation_time ERANGE case. Compare before (unpatched) vs after (patched) behavior.",
+      "contract_probe": {
+        "probe_id": "config_int_acceptance",
+        "before_command": "LD_LIBRARY_PATH={BEFORE_DIR}/libdm/ioctl LVM_SYSTEM_DIR={CONFIG_DIR} {BEFORE_DIR}/tools/lvm dumpconfig 2>&1; echo \"EXIT_CODE=$?\"",
+        "after_command": "LD_LIBRARY_PATH={AFTER_DIR}/libdm/ioctl LVM_SYSTEM_DIR={CONFIG_DIR} {AFTER_DIR}/tools/lvm dumpconfig 2>&1; echo \"EXIT_CODE=$?\"",
+        "comparison": "acceptance",
+        "cwd": ".",
+        "timeout_seconds": 30
+      },
+      "limitations": "Cannot test kernel device-mapper backed operations. Testing only userspace config parsing via dumpconfig. The _type() parse path is reached when lvm reads config files during any command."
+    }
+  ]
+}

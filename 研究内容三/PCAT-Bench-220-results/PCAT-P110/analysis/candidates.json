@@ -1,0 +1,724 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P050/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P050/patch.diff",
+  "profile": "libsoup",
+  "summary": {
+    "total_changed_files": 3,
+    "changed_files": [
+      "libsoup/cookies/soup-cookie-jar.c",
+      "libsoup/cookies/soup-cookie.c",
+      "libsoup/soup-message.c"
+    ],
+    "total_hunks": 8,
+    "public_api_hunks": 8,
+    "patch_metrics": {
+      "patch_bytes": 3975,
+      "patch_lines": 108,
+      "diff_added_lines": 17,
+      "diff_deleted_lines": 10,
+      "diff_context_lines": 52,
+      "churn": 27,
+      "raw_hunks": 8,
+      "candidate_hunks": 8,
+      "skipped_doc_hunks": 0,
+      "changed_files": 3,
+      "candidate_context_bytes": 15342,
+      "public_candidate_hunks": 8,
+      "surface_counts": {
+        "user_visible_output": 4,
+        "http_semantics": 8,
+        "persistence_state": 2,
+        "network_protocol": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "libsoup/cookies/soup-cookie-jar.c",
+      "old_start": 321,
+      "old_end": 327,
+      "new_start": 321,
+      "new_end": 327,
+      "context_hint": "get_cookies (SoupCookieJar *jar,",
+      "added_lines": [
+        "\tif (!host)"
+      ],
+      "deleted_lines": [
+        "\tif (!host || !host[0])"
+      ],
+      "context_lines": [
+        "",
+        "\tpriv = soup_cookie_jar_get_instance_private (jar);",
+        "",
+        "\t\treturn NULL;",
+        "",
+        "\t/* The logic here is a little weird, but the plan is that if"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "get_cookies",
+        "host"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "get_cookies",
+        "snippet_start_line": 292,
+        "snippet_end_line": 357,
+        "snippet": "\n\tif (top_level == NULL)\n\t\treturn TRUE;\n\n\tif (policy == SOUP_SAME_SITE_POLICY_LAX && is_top_level_navigation &&\n\t    (is_safe_method || for_http == FALSE))\n\t\treturn TRUE;\n\n\tif (is_top_level_navigation && cookie_uri == NULL)\n\t\treturn FALSE;\n\n\treturn soup_host_matches_host (g_uri_get_host (cookie_uri ? cookie_uri : top_level), g_uri_get_host (uri));\n}\n\nstatic GSList *\nget_cookies (SoupCookieJar *jar,\n             GUri          *uri,\n             GUri          *top_level,\n             GUri          *site_for_cookies,\n             gboolean       is_safe_method,\n             gboolean       for_http,\n             gboolean       is_top_level_navigation,\n             gboolean       copy_cookies)\n{\n\tSoupCookieJarPrivate *priv;\n\tGSList *cookies, *domain_cookies;\n\tchar *domain, *cur, *next_domain;\n\tGSList *new_head, *cookies_to_remove = NULL, *p;\n        const char *host = g_uri_get_host (uri);\n\n\tpriv = soup_cookie_jar_get_instance_private (jar);\n\n\tif (!host)\n\t\treturn NULL;\n\n\t/* The logic here is a little weird, but the plan is that if\n\t * host is \"www.foo.com\", we will end up looking up\n\t * cookies for \".www.foo.com\", \"www.foo.com\", \".foo.com\", and\n\t * \".com\", in that order. (Logic stolen from Mozilla.)\n\t */\n\tcookies = NULL;\n        if (host[0]) {\n                domain = cur = g_strdup_printf (\".%s\", host);\n                next_domain = domain + 1;\n        } else {\n                domain = cur = g_strdup (host);\n                next_domain = NULL;\n        }\n\n\tdo {\n\t\tnew_head = domain_cookies = g_hash_table_lookup (priv->domains, cur);\n\t\twhile (domain_cookies) {\n\t\t\tGSList *next = domain_cookies->next;\n\t\t\tSoupCookie *cookie = domain_cookies->data;\n\n\t\t\tif (soup_cookie_get_expires (cookie) && soup_date_time_is_past (soup_cookie_get_expires (cookie))) {\n\t\t\t\tcookies_to_remove = g_slist_append (cookies_to_remove,\n\t\t\t\t\t\t\t\t    cookie);\n\t\t\t\tnew_head = g_slist_delete_link (new_head, domain_cookies);\n\t\t\t\tg_hash_table_insert (priv->domains,\n\t\t\t\t\t\t     g_strdup (cur),\n\t\t\t\t\t\t     new_head);\n\t\t\t} else if (soup_cookie_applies_to_uri (cookie, uri) &&\n\t\t\t           cookie_is_valid_for_same_site_policy (cookie, is_safe_method, uri, top_level,\n\t\t\t\t                                         site_for_cookies, is_top_level_navigation,\n\t\t\t\t\t\t\t\t\t for_http) &&\n"
+      }
+    },
+    {
+      "file": "libsoup/cookies/soup-cookie-jar.c",
+      "old_start": 330,
+      "old_end": 337,
+      "new_start": 330,
+      "new_end": 343,
+      "context_hint": "get_cookies (SoupCookieJar *jar,",
+      "added_lines": [
+        "        if (host[0]) {",
+        "                domain = cur = g_strdup_printf (\".%s\", host);",
+        "                next_domain = domain + 1;",
+        "        } else {",
+        "                domain = cur = g_strdup (host);",
+        "                next_domain = NULL;",
+        "        }",
+        ""
+      ],
+      "deleted_lines": [
+        "\tdomain = cur = g_strdup_printf (\".%s\", host);",
+        "\tnext_domain = domain + 1;"
+      ],
+      "context_lines": [
+        "\t * \".com\", in that order. (Logic stolen from Mozilla.)",
+        "\t */",
+        "\tcookies = NULL;",
+        "\tdo {",
+        "\t\tnew_head = domain_cookies = g_hash_table_lookup (priv->domains, cur);",
+        "\t\twhile (domain_cookies) {"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "get_cookies",
+        "host",
+        "domain",
+        "cur",
+        "g_strdup_printf",
+        "s"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "get_cookies",
+        "snippet_start_line": 301,
+        "snippet_end_line": 373,
+        "snippet": "\t\treturn FALSE;\n\n\treturn soup_host_matches_host (g_uri_get_host (cookie_uri ? cookie_uri : top_level), g_uri_get_host (uri));\n}\n\nstatic GSList *\nget_cookies (SoupCookieJar *jar,\n             GUri          *uri,\n             GUri          *top_level,\n             GUri          *site_for_cookies,\n             gboolean       is_safe_method,\n             gboolean       for_http,\n             gboolean       is_top_level_navigation,\n             gboolean       copy_cookies)\n{\n\tSoupCookieJarPrivate *priv;\n\tGSList *cookies, *domain_cookies;\n\tchar *domain, *cur, *next_domain;\n\tGSList *new_head, *cookies_to_remove = NULL, *p;\n        const char *host = g_uri_get_host (uri);\n\n\tpriv = soup_cookie_jar_get_instance_private (jar);\n\n\tif (!host)\n\t\treturn NULL;\n\n\t/* The logic here is a little weird, but the plan is that if\n\t * host is \"www.foo.com\", we will end up looking up\n\t * cookies for \".www.foo.com\", \"www.foo.com\", \".foo.com\", and\n\t * \".com\", in that order. (Logic stolen from Mozilla.)\n\t */\n\tcookies = NULL;\n        if (host[0]) {\n                domain = cur = g_strdup_printf (\".%s\", host);\n                next_domain = domain + 1;\n        } else {\n                domain = cur = g_strdup (host);\n                next_domain = NULL;\n        }\n\n\tdo {\n\t\tnew_head = domain_cookies = g_hash_table_lookup (priv->domains, cur);\n\t\twhile (domain_cookies) {\n\t\t\tGSList *next = domain_cookies->next;\n\t\t\tSoupCookie *cookie = domain_cookies->data;\n\n\t\t\tif (soup_cookie_get_expires (cookie) && soup_date_time_is_past (soup_cookie_get_expires (cookie))) {\n\t\t\t\tcookies_to_remove = g_slist_append (cookies_to_remove,\n\t\t\t\t\t\t\t\t    cookie);\n\t\t\t\tnew_head = g_slist_delete_link (new_head, domain_cookies);\n\t\t\t\tg_hash_table_insert (priv->domains,\n\t\t\t\t\t\t     g_strdup (cur),\n\t\t\t\t\t\t     new_head);\n\t\t\t} else if (soup_cookie_applies_to_uri (cookie, uri) &&\n\t\t\t           cookie_is_valid_for_same_site_policy (cookie, is_safe_method, uri, top_level,\n\t\t\t\t                                         site_for_cookies, is_top_level_navigation,\n\t\t\t\t\t\t\t\t\t for_http) &&\n\t\t\t\t   (for_http || !soup_cookie_get_http_only (cookie)))\n\t\t\t\tcookies = g_slist_append (cookies, copy_cookies ? soup_cookie_copy (cookie) : cookie);\n\n\t\t\tdomain_cookies = next;\n\t\t}\n\t\tcur = next_domain;\n\t\tif (cur)\n\t\t\tnext_domain = strchr (cur + 1, '.');\n\t} while (cur);\n\tg_free (domain);\n\n\tfor (p = cookies_to_remove; p; p = p->next) {\n\t\tSoupCookie *cookie = p->data;\n\n\t\tsoup_cookie_jar_changed (jar, cookie, NULL);\n\t\tsoup_cookie_free (cookie);\n"
+      }
+    },
+    {
+      "file": "libsoup/cookies/soup-cookie.c",
+      "old_start": 175,
+      "old_end": 183,
+      "new_start": 175,
+      "new_end": 181,
+      "context_hint": "parse_one_cookie (const char *header, GUri *origin)",
+      "added_lines": [
+        "\tSoupCookie *cookie;"
+      ],
+      "deleted_lines": [
+        "\tSoupCookie *cookie;\t",
+        "",
+        "        g_return_val_if_fail (origin == NULL || SOUP_URI_IS_VALID (origin), NULL);"
+      ],
+      "context_lines": [
+        "{",
+        "\tconst char *start, *end, *p;",
+        "\tgboolean has_value;",
+        "",
+        "\tcookie = g_slice_new0 (SoupCookie);",
+        ""
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "parse_one_cookie",
+        "SoupCookie",
+        "cookie",
+        "g_return_val_if_fail",
+        "origin",
+        "NULL"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "parse_one_cookie",
+        "snippet_start_line": 146,
+        "snippet_end_line": 211,
+        "snippet": "\t\tp++;\n\tstart = skip_lws (p);\n\tfor (p = start; !is_value_ender (*p); p++)\n\t\t;\n\tend = unskip_lws (p, start);\n\n\tif (copy)\n\t\tvalue = g_strndup (start, end - start);\n\telse\n\t\tvalue = NULL;\n\n\t*val_p = p;\n\treturn value;\n}\n\nstatic GDateTime *\nparse_date (const char **val_p)\n{\n\tchar *value;\n\tGDateTime *date;\n\n\tvalue = parse_value (val_p, TRUE);\n\tdate = soup_date_time_new_from_http_string (value);\n\tg_free (value);\n\treturn date;\n}\n\nstatic SoupCookie *\nparse_one_cookie (const char *header, GUri *origin)\n{\n\tconst char *start, *end, *p;\n\tgboolean has_value;\n\tSoupCookie *cookie;\n\n\tcookie = g_slice_new0 (SoupCookie);\n\n\t/* Parse the NAME */\n\tstart = skip_lws (header);\n\tfor (p = start; !is_attr_ender (*p); p++)\n\t\t;\n\tif (*p == '=') {\n\t\tend = unskip_lws (p, start);\n\t\tcookie->name = g_strndup (start, end - start);\n\t} else {\n\t\t/* No NAME; Set cookie->name to \"\" and then rewind to\n\t\t * re-parse the string as a VALUE.\n\t\t */\n\t\tcookie->name = g_strdup (\"\");\n\t\tp = start;\n\t}\n\n\t/* Parse the VALUE */\n\tcookie->value = parse_value (&p, TRUE);\n\n\t/* Parse attributes */\n\twhile (*p == ';') {\n\t\tstart = skip_lws (p + 1);\n\t\tfor (p = start; !is_attr_ender (*p); p++)\n\t\t\t;\n\t\tend = unskip_lws (p, start);\n\n\t\thas_value = (*p == '=');\n#define MATCH_NAME(name) ((end - start == strlen (name)) && !g_ascii_strncasecmp (start, name, end - start))\n\n\t\tif (MATCH_NAME (\"domain\") && has_value) {\n\t\t\tcookie->domain = parse_value (&p, TRUE);\n"
+      }
+    },
+    {
+      "file": "libsoup/cookies/soup-cookie.c",
+      "old_start": 394,
+      "old_end": 400,
+      "new_start": 392,
+      "new_end": 398,
+      "context_hint": "soup_cookie_new (const char *name, const char *value,",
+      "added_lines": [
+        " * @origin: (nullable): origin of the cookie, or %NULL"
+      ],
+      "deleted_lines": [
+        " * @origin: origin of the cookie, or %NULL"
+      ],
+      "context_lines": [
+        "/**",
+        " * soup_cookie_parse:",
+        " * @header: a cookie string (eg, the value of a Set-Cookie header)",
+        " *",
+        " * Parses @header and returns a #SoupCookie. (If @header contains",
+        " * multiple cookies, only the first one will be parsed.)"
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "soup_cookie_new",
+        "origin",
+        "nullable",
+        "of",
+        "the",
+        "cookie",
+        "cookie_new_internal"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "persistence_state",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "soup_cookie_new",
+        "snippet_start_line": 365,
+        "snippet_end_line": 428,
+        "snippet": " * multiples thereof) to calculate this value. (If you really care\n * about setting the exact time that the cookie will expire, use\n * soup_cookie_set_expires().)\n *\n * Returns: a new #SoupCookie.\n *\n **/\nSoupCookie *\nsoup_cookie_new (const char *name, const char *value,\n\t\t const char *domain, const char *path,\n\t\t int max_age)\n{\n\tg_return_val_if_fail (name != NULL, NULL);\n\tg_return_val_if_fail (value != NULL, NULL);\n\n\t/* We ought to return if domain is NULL too, but this used to\n\t * do be incorrectly documented as legal, and it wouldn't\n\t * break anything as long as you called\n\t * soup_cookie_set_domain() immediately after. So we warn but\n\t * don't return, to discourage that behavior but not actually\n\t * break anyone doing it.\n\t */\n\tg_warn_if_fail (domain != NULL);\n\n\treturn cookie_new_internal (name, value, domain, path, max_age);\n}\n\n/**\n * soup_cookie_parse:\n * @header: a cookie string (eg, the value of a Set-Cookie header)\n * @origin: (nullable): origin of the cookie, or %NULL\n *\n * Parses @header and returns a #SoupCookie. (If @header contains\n * multiple cookies, only the first one will be parsed.)\n *\n * If @header does not have \"path\" or \"domain\" attributes, they will\n * be defaulted from @origin. If @origin is %NULL, path will default\n * to \"/\", but domain will be left as %NULL. Note that this is not a\n * valid state for a #SoupCookie, and you will need to fill in some\n * appropriate string for the domain if you want to actually make use\n * of the cookie.\n *\n * Returns: (nullable): a new #SoupCookie, or %NULL if it could\n * not be parsed, or contained an illegal \"domain\" attribute for a\n * cookie originating from @origin.\n *\n **/\nSoupCookie *\nsoup_cookie_parse (const char *cookie, GUri *origin)\n{\n        g_return_val_if_fail (cookie != NULL, NULL);\n        g_return_val_if_fail (origin == NULL || g_uri_get_host (origin) != NULL, NULL);\n\n\treturn parse_one_cookie (cookie, origin);\n}\n\n/**\n * soup_cookie_get_name:\n * @cookie: a #SoupCookie\n *\n * Gets @cookie's name\n *\n * Returns: @cookie's name\n *\n"
+      }
+    },
+    {
+      "file": "libsoup/cookies/soup-cookie.c",
+      "old_start": 414,
+      "old_end": 419,
+      "new_start": 412,
+      "new_end": 420,
+      "context_hint": "soup_cookie_new (const char *name, const char *value,",
+      "added_lines": [
+        "        g_return_val_if_fail (cookie != NULL, NULL);",
+        "        g_return_val_if_fail (origin == NULL || g_uri_get_host (origin) != NULL, NULL);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "SoupCookie *",
+        "soup_cookie_parse (const char *cookie, GUri *origin)",
+        "{",
+        "\treturn parse_one_cookie (cookie, origin);",
+        "}",
+        ""
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "soup_cookie_new",
+        "g_return_val_if_fail",
+        "cookie",
+        "NULL",
+        "origin",
+        "g_uri_get_host",
+        "soup_cookie_parse"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "persistence_state",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "soup_cookie_new",
+        "snippet_start_line": 385,
+        "snippet_end_line": 450,
+        "snippet": "\t * break anyone doing it.\n\t */\n\tg_warn_if_fail (domain != NULL);\n\n\treturn cookie_new_internal (name, value, domain, path, max_age);\n}\n\n/**\n * soup_cookie_parse:\n * @header: a cookie string (eg, the value of a Set-Cookie header)\n * @origin: (nullable): origin of the cookie, or %NULL\n *\n * Parses @header and returns a #SoupCookie. (If @header contains\n * multiple cookies, only the first one will be parsed.)\n *\n * If @header does not have \"path\" or \"domain\" attributes, they will\n * be defaulted from @origin. If @origin is %NULL, path will default\n * to \"/\", but domain will be left as %NULL. Note that this is not a\n * valid state for a #SoupCookie, and you will need to fill in some\n * appropriate string for the domain if you want to actually make use\n * of the cookie.\n *\n * Returns: (nullable): a new #SoupCookie, or %NULL if it could\n * not be parsed, or contained an illegal \"domain\" attribute for a\n * cookie originating from @origin.\n *\n **/\nSoupCookie *\nsoup_cookie_parse (const char *cookie, GUri *origin)\n{\n        g_return_val_if_fail (cookie != NULL, NULL);\n        g_return_val_if_fail (origin == NULL || g_uri_get_host (origin) != NULL, NULL);\n\n\treturn parse_one_cookie (cookie, origin);\n}\n\n/**\n * soup_cookie_get_name:\n * @cookie: a #SoupCookie\n *\n * Gets @cookie's name\n *\n * Returns: @cookie's name\n *\n **/\nconst char *\nsoup_cookie_get_name (SoupCookie *cookie)\n{\n\treturn cookie->name;\n}\n\n/**\n * soup_cookie_set_name:\n * @cookie: a #SoupCookie\n * @name: the new name\n *\n * Sets @cookie's name to @name\n *\n **/\nvoid\nsoup_cookie_set_name (SoupCookie *cookie, const char *name)\n{\n\tg_free (cookie->name);\n\tcookie->name = g_strdup (name);\n}\n\n"
+      }
+    },
+    {
+      "file": "libsoup/cookies/soup-cookie.c",
+      "old_start": 1061,
+      "old_end": 1067,
+      "new_start": 1062,
+      "new_end": 1069,
+      "context_hint": "soup_cookie_applies_to_uri (SoupCookie *cookie, GUri *uri)",
+      "added_lines": [
+        "        g_return_val_if_fail (cookie != NULL, FALSE);",
+        "        g_return_val_if_fail (uri != NULL, FALSE);"
+      ],
+      "deleted_lines": [
+        "        g_return_val_if_fail (SOUP_URI_IS_VALID (uri), FALSE);"
+      ],
+      "context_lines": [
+        "{",
+        "\tint plen;",
+        "",
+        "",
+        "\tif (cookie->secure && !soup_uri_is_https (uri))",
+        "\t\treturn FALSE;"
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "soup_cookie_applies_to_uri",
+        "g_return_val_if_fail",
+        "cookie",
+        "NULL",
+        "FALSE",
+        "uri"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "soup_cookie_applies_to_uri",
+        "snippet_start_line": 1032,
+        "snippet_end_line": 1099,
+        "snippet": "\tGString *str;\n\n\tg_return_val_if_fail (cookies != NULL, NULL);\n\n\tstr = g_string_new (NULL);\n\twhile (cookies) {\n\t\tserialize_cookie (cookies->data, str, FALSE);\n\t\tcookies = cookies->next;\n\t}\n\n\treturn g_string_free (str, FALSE);\n}\n\n/**\n * soup_cookie_applies_to_uri:\n * @cookie: a #SoupCookie\n * @uri: a #GUri\n *\n * Tests if @cookie should be sent to @uri.\n *\n * (At the moment, this does not check that @cookie's domain matches\n * @uri, because it assumes that the caller has already done that.\n * But don't rely on that; it may change in the future.)\n *\n * Returns: %TRUE if @cookie should be sent to @uri, %FALSE if\n * not\n *\n **/\ngboolean\nsoup_cookie_applies_to_uri (SoupCookie *cookie, GUri *uri)\n{\n\tint plen;\n\n        g_return_val_if_fail (cookie != NULL, FALSE);\n        g_return_val_if_fail (uri != NULL, FALSE);\n\n\tif (cookie->secure && !soup_uri_is_https (uri))\n\t\treturn FALSE;\n\n\tif (cookie->expires && soup_date_time_is_past (cookie->expires))\n\t\treturn FALSE;\n\n\tplen = strlen (cookie->path);\n\tif (plen == 0)\n\t\treturn TRUE;\n\n        GUri *normalized_uri = soup_uri_copy_with_normalized_flags (uri);\n        const char *uri_path = g_uri_get_path (normalized_uri);\n\tif (strncmp (cookie->path, uri_path, plen) != 0 ||\n\t    (cookie->path[plen - 1] != '/' && uri_path[plen] &&\n             uri_path[plen] != '/')) {\n                     g_uri_unref (normalized_uri);\n                     return FALSE;\n        }\n\n        g_uri_unref (normalized_uri);\n\treturn TRUE;\n}\n\n/**\n * soup_cookie_equal:\n * @cookie1: a #SoupCookie\n * @cookie2: a #SoupCookie\n *\n * Tests if @cookie1 and @cookie2 are equal.\n *\n * Note that currently, this does not check that the cookie domains\n * match. This may change in the future.\n"
+      }
+    },
+    {
+      "file": "libsoup/soup-message.c",
+      "old_start": 1849,
+      "old_end": 1855,
+      "new_start": 1849,
+      "new_end": 1855,
+      "context_hint": "soup_message_set_first_party (SoupMessage *msg,",
+      "added_lines": [
+        "        g_return_if_fail (first_party != NULL);"
+      ],
+      "deleted_lines": [
+        "        g_return_if_fail (SOUP_URI_IS_VALID (first_party));"
+      ],
+      "context_lines": [
+        "        GUri *first_party_normalized;",
+        "",
+        "\tg_return_if_fail (SOUP_IS_MESSAGE (msg));",
+        "",
+        "\tpriv = soup_message_get_instance_private (msg);",
+        "        first_party_normalized = soup_uri_copy_with_normalized_flags (first_party);"
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "soup_message_set_first_party",
+        "g_return_if_fail",
+        "first_party",
+        "NULL",
+        "SOUP_URI_IS_VALID"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "soup_message_set_first_party",
+        "snippet_start_line": 1820,
+        "snippet_end_line": 1885,
+        "snippet": " * Returns: (transfer none): the @msg's first party #GUri\n * \n **/\nGUri *\nsoup_message_get_first_party (SoupMessage *msg)\n{\n\tSoupMessagePrivate *priv;\n\n\tg_return_val_if_fail (SOUP_IS_MESSAGE (msg), NULL);\n\n\tpriv = soup_message_get_instance_private (msg);\n\treturn priv->first_party;\n}\n\n/**\n * soup_message_set_first_party:\n * @msg: a #SoupMessage\n * @first_party: the #GUri for the @msg's first party\n * \n * Sets @first_party as the main document #GUri for @msg. For\n * details of when and how this is used refer to the documentation for\n * #SoupCookieJarAcceptPolicy.\n *\n **/\nvoid\nsoup_message_set_first_party (SoupMessage *msg,\n\t\t\t      GUri        *first_party)\n{\n\tSoupMessagePrivate *priv;\n        GUri *first_party_normalized;\n\n\tg_return_if_fail (SOUP_IS_MESSAGE (msg));\n        g_return_if_fail (first_party != NULL);\n\n\tpriv = soup_message_get_instance_private (msg);\n        first_party_normalized = soup_uri_copy_with_normalized_flags (first_party);\n        if (!first_party_normalized)\n                return;\n\n\tif (priv->first_party) {\n\t\tif (soup_uri_equal (priv->first_party, first_party_normalized)) {\n                        g_uri_unref (first_party_normalized);\n                        return;\n                }\n\n\t\tg_uri_unref (priv->first_party);\n\t}\n\n\tpriv->first_party = g_steal_pointer (&first_party_normalized);\n\tg_object_notify (G_OBJECT (msg), \"first-party\");\n}\n\n/**\n * soup_message_get_site_for_cookies:\n * @msg: a #SoupMessage\n *\n * Gets @msg's site for cookies #GUri\n *\n * Returns: (transfer none): the @msg's site for cookies #GUri\n *\n **/\nGUri *\nsoup_message_get_site_for_cookies (SoupMessage *msg)\n{\n\tSoupMessagePrivate *priv;\n\n"
+      }
+    },
+    {
+      "file": "libsoup/soup-message.c",
+      "old_start": 1912,
+      "old_end": 1918,
+      "new_start": 1912,
+      "new_end": 1917,
+      "context_hint": "soup_message_set_site_for_cookies (SoupMessage *msg,",
+      "added_lines": [],
+      "deleted_lines": [
+        "        g_return_if_fail (site_for_cookies == NULL || SOUP_URI_IS_VALID (site_for_cookies));"
+      ],
+      "context_lines": [
+        "        GUri *site_for_cookies_normalized = NULL;",
+        "",
+        "\tg_return_if_fail (SOUP_IS_MESSAGE (msg));",
+        "",
+        "\tpriv = soup_message_get_instance_private (msg);",
+        "        if (site_for_cookies) {",
+        ""
+      ],
+      "hunk_id": "HUNK-0008",
+      "changed_symbols": [
+        "soup_message_set_site_for_cookies",
+        "g_return_if_fail",
+        "site_for_cookies",
+        "NULL",
+        "SOUP_URI_IS_VALID"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "network_protocol",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "soup_message_set_site_for_cookies",
+        "snippet_start_line": 1883,
+        "snippet_end_line": 1947,
+        "snippet": "{\n\tSoupMessagePrivate *priv;\n\n\tg_return_val_if_fail (SOUP_IS_MESSAGE (msg), NULL);\n\n\tpriv = soup_message_get_instance_private (msg);\n\treturn priv->site_for_cookies;\n}\n\n/**\n * soup_message_set_site_for_cookies:\n * @msg: a #SoupMessage\n * @site_for_cookies: (nullable): the #GUri for the @msg's site for cookies\n *\n * Sets @site_for_cookies as the policy URL for same-site cookies for @msg.\n *\n * It is either the URL of the top-level document or %NULL depending on whether the registrable\n * domain of this document's URL matches the registrable domain of its parent's/opener's\n * URL. For the top-level document it is set to the document's URL.\n *\n * See the [same-site spec](https://tools.ietf.org/html/draft-ietf-httpbis-cookie-same-site-00)\n * for more information.\n *\n **/\nvoid\nsoup_message_set_site_for_cookies (SoupMessage *msg,\n\t\t\t           GUri        *site_for_cookies)\n{\n\tSoupMessagePrivate *priv;\n        GUri *site_for_cookies_normalized = NULL;\n\n\tg_return_if_fail (SOUP_IS_MESSAGE (msg));\n\n\tpriv = soup_message_get_instance_private (msg);\n        if (site_for_cookies) {\n                site_for_cookies_normalized = soup_uri_copy_with_normalized_flags (site_for_cookies);\n                if (!site_for_cookies_normalized)\n                        return;\n        }\n\n\tif (priv->site_for_cookies) {\n\t\tif (site_for_cookies_normalized && soup_uri_equal (priv->site_for_cookies, site_for_cookies_normalized)) {\n                        g_uri_unref (site_for_cookies_normalized);\n                        return;\n                }\n\n\t\tg_uri_unref (priv->site_for_cookies);\n\t}\n\n\tpriv->site_for_cookies = g_steal_pointer (&site_for_cookies_normalized);\n\tg_object_notify (G_OBJECT (msg), \"site-for-cookies\");\n}\n\n/**\n * soup_message_set_is_top_level_navigation:\n * @msg: a #SoupMessage\n * @is_top_level_navigation: if %TRUE indicate the current request is a top-level navigation\n *\n * See the [same-site spec](https://tools.ietf.org/html/draft-ietf-httpbis-cookie-same-site-00)\n * for more information.\n *\n **/\nvoid\nsoup_message_set_is_top_level_navigation (SoupMessage *msg,\n\t\t\t                 gboolean     is_top_level_navigation)\n"
+      }
+    }
+  ]
+}

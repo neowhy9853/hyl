@@ -1,0 +1,335 @@
+{
+  "repo": "/data7/wanghy/tmp/opencode/linux-src",
+  "analysis_repo": "/data7/wanghy/tmp/opencode/linux-src",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P039",
+  "base_ref": "HEAD",
+  "base_commit": "1590cf0321f1f44663171b945a9d5a595b6fba38",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "The equivalent upstream commit has already been merged into mainline v7.2-rc4. The stable backport patch from gregkh/linux.git could not be applied or reversed cleanly because the mainline code has evolved with different context lines. Static analysis performed using the patch diff against the current mainline state.",
+  "analysis_worktree_status": "available",
+  "patch_id": "09dc18894148381d3bfc550083b1236043870dce",
+  "package_profile": "kernel_6_6",
+  "summary": {
+    "total_changed_files": 7,
+    "total_candidates": 9,
+    "compatibility_changes": 3,
+    "high_priority": 2,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "RDMA userspace verbs API — ibv_rereg_mr / rereg_user_mr",
+      "affected_api": {
+        "name": "rereg_user_mr",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "drivers/infiniband/core/umem.c",
+        "old_lines": [
+          326,
+          328
+        ],
+        "new_lines": [
+          326,
+          344
+        ],
+        "symbol": "ib_umem_check_rereg"
+      },
+      "old_behavior": "调用 ibv_rereg_mr 并设置 IBV_REREG_MR_ACCESS 标志将 MR 从只读访问权限变更为可写访问权限时，操作会成功，即使底层 umem 最初并未按可写方式 pin 住（即 umem->writable 为 false）。这可能导致安全漏洞：调用方获得了对未正确 pin 住的内存的写访问权限。",
+      "new_behavior": "如果 MR 最初注册为只读（umem->writable == false），且调用方尝试通过 IB_MR_REREG_ACCESS（不伴随 IB_MR_REREG_TRANS）将访问权限变更为可写，则操作现在返回 -EACCES。只有当 MR 最初注册为可写，或同时使用 IB_MR_REREG_TRANS 重新注册时，才允许将访问权限变更为可写。",
+      "compatibility_reason": "以前在 rereg_user_mr 中将 RO→RW 访问变更视为成功的用户空间 RDMA 应用程序，现在将收到 -EACCES 错误。这是一个收紧的输入契约变更：之前被接受的合法输入现在被拒绝了。受影响的标志组合为：IB_MR_REREG_ACCESS 单独设置（不伴随 IB_MR_REREG_TRANS），且新的访问标志包含可写权限（IB_ACCESS_LOCAL_WRITE、IB_ACCESS_REMOTE_WRITE、IB_ACCESS_REMOTE_ATOMIC 或 IB_ACCESS_MW_BIND），而原始 MR 注册时没有可写权限。此变更影响所有 RDMA 驱动程序（hns、irdma、mlx4、mlx5、rxe 以及任何其他调用 ib_umem_check_rereg 的驱动程序）。",
+      "evidence": [
+        {
+          "file": "drivers/infiniband/core/umem.c",
+          "lines": [
+            670,
+            684
+          ],
+          "snippet": "int ib_umem_check_rereg(struct ib_umem *umem, int flags, int new_access_flags)\n{\n\tif (!umem)\n\t\treturn 0;\n\n\tif ((flags & IB_MR_REREG_ACCESS) && !(flags & IB_MR_REREG_TRANS))\n\t\tif (ib_access_writable(new_access_flags) && !umem->writable)\n\t\t\treturn -EACCES;\n\treturn 0;\n}\nEXPORT_SYMBOL(ib_umem_check_rereg);"
+        },
+        {
+          "file": "drivers/infiniband/hw/hns/hns_roce_mr.c",
+          "lines": [
+            300,
+            308
+          ],
+          "snippet": "\tret = ib_umem_check_rereg(mr->pbl_mtr.umem, flags, mr_access_flags);\n\tif (ret)\n\t\tgoto err_out;"
+        },
+        {
+          "file": "drivers/infiniband/hw/irdma/verbs.c",
+          "lines": [
+            3793,
+            3800
+          ],
+          "snippet": "\tret = ib_umem_check_rereg(iwmr->region, flags, new_access);\n\tif (ret)\n\t\treturn ERR_PTR(ret);"
+        },
+        {
+          "file": "drivers/infiniband/hw/mlx4/mr.c",
+          "lines": [
+            210,
+            216
+          ],
+          "snippet": "\terr = ib_umem_check_rereg(mmr->umem, flags, mr_access_flags);\n\tif (err)\n\t\treturn ERR_PTR(err);"
+        },
+        {
+          "file": "drivers/infiniband/hw/mlx5/mr.c",
+          "lines": [
+            1185,
+            1192
+          ],
+          "snippet": "\terr = ib_umem_check_rereg(mr->umem, flags, new_access_flags);\n\tif (err)\n\t\treturn ERR_PTR(err);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "rereg_user_mr 是 RDMA 用户空间 verbs API 的一部分，通过 ib_uverbs_rereg_mr 向用户空间暴露，最终通过 ibv_rereg_mr() libibverbs 调用。ib_access_writable 所使用的访问标志集合是用户空间可见的 IBV 访问标志。新行为会影响任何使用 rereg MR 来动态改变访问权限的用户空间 RDMA 应用程序。",
+      "uncertainty": "补丁为来自 gregkh/linux.git 稳定版代码库的回移植补丁，而非主线内核补丁。主线内核 v7.2-rc4 中已包含等效的代码变更（来自上游提交 badad6fad60），但上下文行可能略有不同。此分析基于主线内核中的等效代码变更。此外，umem->writable 标志的设置逻辑未被此补丁修改——之前已决定 umem->writable 含义的代码路径仍然保持不变。",
+      "manual_review_required": false,
+      "recommended_review": "确认 umem->writable 在所有注册 MR 的代码路径上被正确设置。检查是否存在任何可能合法将 RO MR 重新注册为 RW MR 的用例（例如，最初使用只读访问创建、后续需要写访问的 MR）。",
+      "test_recommendation": "使用包含 IBV_REREG_MR_ACCESS 标志（不伴随 IBV_REREG_MR_TRANS）和包含写位的目标访问标志，对初始以只读访问注册的 MR 执行 ibv_rereg_mr() 调用的回归测试。验证返回码为 -EACCES（而非成功）。同时使用 RO→RW（应失败）和 RW→RO（应成功）两种访问标志变更测试 rereg 路径，并验证 RW MR 重新注册为 RW 时不会触发错误返回。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "drivers/infiniband/core/umem.c",
+            "old_lines": [
+              326,
+              328
+            ],
+            "new_lines": [
+              326,
+              344
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "exported_symbols"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "exported_symbols",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported kernel symbols used by modules"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "内核模块 ABI — EXPORT_SYMBOL 符号表",
+      "affected_api": {
+        "name": "ib_umem_check_rereg",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "drivers/infiniband/core/umem.c",
+        "old_lines": [
+          326,
+          328
+        ],
+        "new_lines": [
+          326,
+          344
+        ],
+        "symbol": "ib_umem_check_rereg"
+      },
+      "old_behavior": "内核导出符号表中不存在符号 ib_umem_check_rereg。任何依赖它的外部内核模块将无法加载。",
+      "new_behavior": "通过 EXPORT_SYMBOL 新增导出的内核符号 ib_umem_check_rereg。该符号现在对加载的内核模块可见，并且新的 IB 核心模块将所有内核模块的符号依赖版本提升到包含该新符号的版本。",
+      "compatibility_reason": "在稳定版内核中新增导出的符号属于 ABI 变更。内核模块的符号依赖关系（通过 Module.symvers 跟踪）现在要求 IB 核心模块提供 ib_umem_check_rereg。对 IB 核心模块重新编译的树外 RDMA 驱动程序将期望此符号存在。重新编译的驱动程序无法在不包含此符号的旧内核上加载，且升级到包含此补丁的新内核可能需要重新编译树外模块。",
+      "evidence": [
+        {
+          "file": "drivers/infiniband/core/umem.c",
+          "lines": [
+            674,
+            684
+          ],
+          "snippet": "int ib_umem_check_rereg(struct ib_umem *umem, int flags, int new_access_flags)\n{\n\tif (!umem)\n\t\treturn 0;\n\n\tif ((flags & IB_MR_REREG_ACCESS) && !(flags & IB_MR_REREG_TRANS))\n\t\tif (ib_access_writable(new_access_flags) && !umem->writable)\n\t\t\treturn -EACCES;\n\treturn 0;\n}\nEXPORT_SYMBOL(ib_umem_check_rereg);"
+        },
+        {
+          "file": "include/rdma/ib_umem.h",
+          "lines": [
+            181,
+            181
+          ],
+          "snippet": "int ib_umem_check_rereg(struct ib_umem *umem, int flags, int new_access_flags);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "EXPORT_SYMBOL 将该函数标记为公共内核 ABI 的一部分。任何树外内核模块都可以链接到该符号。内核在 /proc/kallsyms 和 Module.symvers 中跟踪导出的符号，它们是公共的内核 ABI 面。",
+      "uncertainty": null,
+      "manual_review_required": false,
+      "recommended_review": "如果下游内核模块政策要求，需在发行版内核 ABI 白名单 / kABI 跟踪中记录该符号。",
+      "test_recommendation": "通过验证 /proc/kallsyms 或 Module.symvers 中是否存在该符号来确认符号可见性。尝试加载一个使用该符号编译的树外 RDMA 内核模块，验证其正确链接。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "drivers/infiniband/core/umem.c",
+            "old_lines": [
+              326,
+              328
+            ],
+            "new_lines": [
+              326,
+              344
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "exported_symbols"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "exported_symbols",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported kernel symbols used by modules"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ABI_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "RDMA 公共头文件 — include/rdma/ib_umem.h 中的 !CONFIG_INFINIBAND_USER_MEM 存根",
+      "affected_api": {
+        "name": "ib_umem_check_rereg",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "include/rdma/ib_umem.h",
+        "old_lines": [
+          203,
+          207
+        ],
+        "new_lines": [
+          205,
+          215
+        ],
+        "symbol": "ib_umem_check_rereg"
+      },
+      "old_behavior": "在配置为 !CONFIG_INFINIBAND_USER_MEM 的内核构建中，rereg_user_mr 驱动程序回调不会被调用（因为用户空间 RDMA 需要 CONFIG_INFINIBAND_USER_MEM）。不存在对应的存根，因此如果某些代码路径意外到达了 rereg_user_mr，结果未定义。",
+      "new_behavior": "在不配置 CONFIG_INFINIBAND_USER_MEM 的情况下，新增的 ib_umem_check_rereg 存根无条件返回 -EOPNOTSUPP。如果任何代码路径在此配置下调用了 rereg_user_mr 驱动程序回调（带有 IB_MR_REREG_ACCESS 且不伴随 IB_MR_REREG_TRANS），它将收到 -EOPNOTSUPP 并失败。",
+      "compatibility_reason": "理论上，在此配置下行为会发生变化：任何到达该代码路径的调用都会收到 -EOPNOTSUPP，而之前行为未定义。但实际上，rereg_user_mr 仅通过要求 CONFIG_INFINIBAND_USER_MEM 的 ib_uverbs 层调用，因此该存根不会被触及。这是一个仅存在于编译期的兼容性变更，运行时影响极小。",
+      "evidence": [
+        {
+          "file": "include/rdma/ib_umem.h",
+          "lines": [
+            295,
+            299
+          ],
+          "snippet": "static inline int ib_umem_check_rereg(struct ib_umem *umem, int flags,\n\t\t\t\t      int new_access_flags)\n{\n\treturn -EOPNOTSUPP;\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "存根定义在 public header（include/rdma/ib_umem.h）中。虽然该代码路径在实践中几乎不可能被触发，但它是编译到内核镜像中的公共代码，且改变了该配置下的可观察行为。",
+      "uncertainty": "CONFIG_INFINIBAND_USER_MEM 在实际启用 RDMA 的内核中始终被设置。rereg_user_mr 仅通过 ib_uverbs（需要 CONFIG_INFINIBAND_USER_MEM）调用。因此，达到此存根的可能性极低。该变更主要是编译期的形式化处理，用以保持代码在禁用 IB 用户内存构建时的编译正确性。",
+      "manual_review_required": true,
+      "recommended_review": "人工确认在 !CONFIG_INFINIBAND_USER_MEM 配置下，rereg_user_mr 驱动程序回调确实无法被触发。如果下游内核拥有不经过 uverbs 层即调用 rereg_user_mr 的树外补丁，该存根变更可能会破坏其行为。",
+      "test_recommendation": "低优先级：如果下游使用 CONFIG_INFINIBAND_USER_MEM=n 的内核配置，则以仅包含 IB_MR_REREG_ACCESS 标志（不伴随 IB_MR_REREG_TRANS）的 ibv_rereg_mr 进行回归测试，验证其是否正确失败。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0009",
+            "file": "include/rdma/ib_umem.h",
+            "old_lines": [
+              203,
+              207
+            ],
+            "new_lines": [
+              205,
+              215
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers and declarations."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+    }
+  ]
+}

@@ -1,0 +1,196 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/vim",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/vim/pca-results/0001-p/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/0001-p",
+  "base_ref": "27865e206ce6bba7cd5fe5ba379ce245e447bc92",
+  "base_commit": "27865e206ce6bba7cd5fe5ba379ce245e447bc92",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "0001-patch",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/vim_patch_37d85f/0001-patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "vim",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "normal",
+  "heavy_reason": [
+    "user requested normal mode; no hard threshold exceeded"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 2442,
+    "patch_lines": 85,
+    "diff_added_lines": 34,
+    "diff_deleted_lines": 3,
+    "diff_context_lines": 18,
+    "churn": 37,
+    "raw_hunks": 3,
+    "candidate_hunks": 3,
+    "skipped_doc_hunks": 0,
+    "changed_files": 3,
+    "candidate_context_bytes": 4288,
+    "public_candidate_hunks": 2,
+    "surface_counts": {
+      "ex_commands": 3,
+      "vimscript": 1,
+      "ui_behavior": 3,
+      "tests": 1,
+      "proc_sys_consumers": 1
+    },
+    "candidates_json_bytes": 14557
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 3,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "vim",
+      "affected_surface": "Vimscript complete_check() function contract",
+      "affected_api": {
+        "name": "complete_check()",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/insexpand.c",
+        "old_lines": [
+          6408,
+          6416
+        ],
+        "new_lines": [
+          6408,
+          6417
+        ],
+        "symbol": "ins_compl_check_keys"
+      },
+      "old_behavior": "complete_check() (via ins_compl_check_keys) sets compl_interrupted = TRUE only when KeyTyped is set. Mapped typed keys lose the KeyTyped flag, so complete_check() returns FALSE for mapped input, causing the completion function loop to continue until the iteration limit.",
+      "new_behavior": "complete_check() (via ins_compl_check_keys) sets compl_interrupted = TRUE when KeyTyped is set, OR when in_compl_func is TRUE and reg_executing == 0 (not replaying a register). This allows complete_check() to return TRUE for mapped typed keys during completion, causing the completion function loop to exit early when the user types a mapped key.",
+      "compatibility_reason": "The complete_check() Vim function is a documented public Vimscript API. The patch changes its observable behavior: previously it would not return TRUE for mapped typed keys during completion; now it does (except during @r register replay). Vim plugins or scripts that call complete_check() to poll for user interruption will now observe earlier interruption when the user has mapped keys. This is an additive behavioral change that fixes a documented bug - the intended behavior was always to detect user input. The compatibility risk is extremely low because: (1) the change only makes the function work in more cases (additive), (2) any code depending on complete_check() NOT detecting mapped input was relying on buggy behavior, (3) the @r replay case is explicitly excluded.",
+      "evidence": [
+        {
+          "file": "src/insexpand.c",
+          "lines": [
+            6408,
+            6417
+          ],
+          "snippet": "\t    c = safe_vgetc();\n\t    if (c != K_IGNORE)\n\t    {\n\t\t// Typed keys that get mapped lose KeyTyped. Still let\n\t\t// complete_check() interrupt, except during @r replay.\n\t\tif (c != Ctrl_R && (KeyTyped\n\t\t\t    || (in_compl_func && reg_executing == 0)))\n\t\t    compl_interrupted = TRUE;\n\n\t\tvungetc(c);\n\t    }"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "ins_compl_check_keys() is an internal C function, but it implements the documented Vimscript function complete_check() (registered in src/evalfunc.c as f_complete_check). The behavioral change propagates directly to the public API: complete_check() now returns TRUE under conditions where it previously returned FALSE. This is externally observable by any Vim plugin or script calling complete_check().",
+      "uncertainty": "Low uncertainty. The code change is small and well-understood. The only uncertainty is whether any existing Vim plugins depend on the buggy behavior (i.e., rely on complete_check() returning FALSE for mapped keys during completion). Such dependencies would be relying on a known bug.",
+      "manual_review_required": false,
+      "recommended_review": "Review any Vim plugins that call complete_check() inside a custom completion function loop. If they rely on the loop running for a certain number of iterations (via sleep 5m or similar), the loop will now exit earlier when the user has a key mapping active. The fix is backward-compatible in all normal cases.",
+      "test_recommendation": "Run the existing test_ins_complete.vim test suite with focus on Test_complete_check_mapped_typed_key. Additionally, test mapped <Space> insertion during completion to verify the fix works and does not introduce regressions in other completion scenarios.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [
+          "additive_behavior_only",
+          "no_external_observable_break"
+        ],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/insexpand.c",
+            "old_lines": [
+              6408,
+              6416
+            ],
+            "new_lines": [
+              6408,
+              6417
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "ex_commands",
+              "vimscript",
+              "ui_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "ex_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ex command syntax and behavior"
+              },
+              {
+                "name": "vimscript",
+                "test_priority": "high",
+                "public": true,
+                "description": "Vimscript/Vim9 API, functions, and type semantics"
+              },
+              {
+                "name": "ui_behavior",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible editor behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "analysis_summary": {
+    "notes": "PCA-0001 test_priority overridden from calibrator's recommended_priority=high to agent_final=low. Reason: this is a bug fix with additive behavior only (complete_check() now works for mapped input where it previously didn't), and there is no external observable breakage - any code relying on the old behavior was depending on a known bug. The change is backward-compatible in all normal use cases."
+  },
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

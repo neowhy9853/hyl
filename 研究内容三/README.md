@@ -25,10 +25,11 @@ PCAT Agent\(`patch-compatibility-utils`\) 是一个用于补丁兼容性分析�
 |Skill|用途|主要输出|
 |---|---|---|
 |`patch-compatibility-utils`|根据用户意图路由到分析或测试|路由到对应子 Skill|
-|`patch-compatibility-analysis`|静态分析补丁中存在的兼容性变更|`analysis.json`、`report.md`、候选和静态证据|
-|`patch-compatibility-testing`|对补丁进行定向动态测试和覆盖率验证|`test-summary.json`、`COVERAGE_REPORT.md`|
+|`patch-compatibility-analysis`|静态分析补丁中存在的兼容性变更|`analysis.json`、`report.md`、`affected-scope.json`、候选和静态证据|
+|`patch-compatibility-testing`|对补丁进行定向动态测试和覆盖率验证|`test-summary.json`、`TEST_REPORT.md`、`COVERAGE_REPORT.md`|
 |`package-profile-generator`|按仓库生成或更新包 API surface profile|`profiles/packages/<name>.yaml`|
 |`test-entry-generator`|根据 analysis findings 生成可运行测试入口|`test-entry-work/test-entries.json`、verification 结果|
+|`pca-batch-runner`|对一批补丁执行无人值守、可断点续跑的批量兼容性分析|`batch_summary.json`、`batch_report.md`|
 
 基本工作流如下：
 
@@ -37,15 +38,17 @@ repo + patch
     │
     ▼
 patch-compatibility-analysis
-    │  analysis.json -> report.md # 补丁分析报告
+    │  analysis.json -> report.md       # 补丁分析报告
+    │  affected-scope.json              # 每条 finding 的额外影响范围（下游依赖）
     ▼
 询问是否继续测试
     │ 是
     ▼
 patch-compatibility-testing
     │
-    ├── test-summary.json          # 测试结果事实
-    └── COVERAGE_REPORT.md         # 补丁测试报告
+    ├── test-summary.json              # 测试结果事实（含 coverage_report）
+    ├── TEST_REPORT.md                 # 总体测试报告
+    └── COVERAGE_REPORT.md             # 专门的覆盖率报告
 ```
 
 ### 安装 Skill
@@ -171,16 +174,19 @@ Agent 会执行以下步骤：
 
 5. 更新 `analysis.json` 和 `report.md`
 
-6. 运行 `validate_analysis.py` 校验结果
+6. 运行 `orchestrator.py --attach-impact-scope` 计算每条 finding 的额外影响范围（下游依赖），生成 `affected-scope.json`；对无法自动解析的 finding 人工复核并补写 `agent_review`
+
+7. 运行 `validate_analysis.py`（含 `--require-affected-scope`）校验结果
 
 分析完成后，产物目录包含：
 
 |文件|说明|
 |---|---|
-|`analysis.json`|结构化兼容性分析结果（含 findings、evidence、优先级）|
-|`report.md`|中文可读分析报告|
+|`analysis.json`|结构化兼容性分析结果（含 findings、evidence、优先级，以及每条 finding 的 `affected_scope` 额外影响范围）|
+|`report.md`|中文可读分析报告（含每条 finding 的额外影响范围/下游依赖章节）|
 |`patch.diff`|本次实际分析的补丁副本|
 |`candidates.json`|`diff_parser.py` 生成的结构化候选|
+|`affected-scope.json`|每条 finding 的反向依赖范围：直接调用方、间接依赖、受影响文件、入口点和测试依赖|
 |`analysis-context.json`|给 Agent 使用的压缩上下文|
 |`effective-profile.yaml`|本次实际生效的合成 profile|
 |`_worktrees/patched/`|已应用补丁的隔离分析 worktree|
@@ -201,11 +207,12 @@ Agent 会执行以下步骤：
 
 |文件|说明|
 |---|---|
-|`<TEST_RESULT_DIR>/test-summary.json`|结构化测试结果事实源，包含 entry、输入、契约、覆盖率、行为差异、blocker 和结论|
+|`<TEST_RESULT_DIR>/test-summary.json`|结构化测试结果事实源，包含 entry、输入、契约、覆盖率、行为差异、blocker、结论和专门的 `coverage_report` 覆盖率数据集|
 |`<TEST_RESULT_DIR>/phase3_contracts/contracts.jsonl`|每次类型专属契约执行的原始逐条结果|
 |`<TEST_RESULT_DIR>/phase3_contracts/contract_summary.json`|契约通过、违约、跳过数量及总体状态|
 |`<TEST_RESULT_DIR>/phase3_contracts/contract_verification.json`|契约汇总、逐条结果和 breach 清单|
-|`<TEST_RESULT_DIR>/COVERAGE_REPORT.md`|从 `test-summary.json` 确定性渲染的补丁测试报告|
+|`<TEST_RESULT_DIR>/TEST_REPORT.md`|从 `test-summary.json` 确定性渲染的总体测试报告|
+|`<TEST_RESULT_DIR>/COVERAGE_REPORT.md`|从 `test-summary.json` 确定性渲染的专门覆盖率报告（门槛、按 finding/文件覆盖率、未覆盖行分析、迭代历史）|
 
 `test-summary.json` 的状态分类：
 
@@ -216,6 +223,50 @@ Agent 会执行以下步骤：
 - `partial`：部分测试执行，但仍有未完成项
 
 - `blocked`：无实际执行，需确认环境授权
+
+#### 批量扫描补丁
+
+`pca-batch-runner` 是编排层子 Skill，用于对一批补丁（如 `PCAT-Bench-220` 全集）执行无人值守、可断点续跑的批量兼容性分析。它不修改分析/测试脚本，按原样复用：并发计数、分派、重试与续跑由 `scripts/batch_runner.py` 决定，LLM 只在每个用例独立的子 Agent 会话内做补丁语义判定。
+
+下面是一个提示词示例：
+
+```Plain Text
+使用 pca-batch-runner 扫描 PCAT-Bench-220 的全部补丁，只做分析，跑完给我汇总报告。
+```
+
+两种运行模式：
+
+|mode|行为|
+|---|---|
+|`analysis`（默认）|仅静态分析至 `analysis.json` 校验通过，分析完清理 worktree|
+|`analysis-test`|分析后串接定向测试，超时 ×3 且保留 worktree；需逐用例（或全局）`env_authorized: true`，未授权用例记 skipped|
+
+关键能力：
+
+- **可断点续跑**：以产物而非退出码判定完成（`analysis.json` 校验通过 \+ `affected-scope.json` 存在），`--resume` 只补未完成用例，已有有效产物自动标记 `already_done`
+
+- **进程级隔离**：每个用例以独立 `opencode run` 子进程组运行，可单独超时/Kill/重试；任何路径不残留孤儿进程
+
+- **治理机制**：连续失败熔断、磁盘低水位暂停、批次锁与孤儿回收、断点自愈（补全缺失的 `affected-scope.json`）
+
+- **进度可观测**：`batch_state.json` 原子落盘 \+ `progress.jsonl` 事件流与心跳，支持拉取式、跟随式、里程碑唤醒、外部推送和会话注入五种汇报模式
+
+- **结果聚合**：批次结束生成 `batch_summary.json` 与 `batch_report.md`；对清单提供 `expected` 的用例计算 Accuracy、Precision、Recall、F1、MCC 等评测指标
+
+常用命令：
+
+```Bash
+# 生成清单 / 预检（不 clone、不启子进程）
+python3 scripts/gen_manifest.py --from-bench <PCAT-Bench-220/items> --output <manifest.yaml>
+python3 scripts/batch_runner.py --manifest <manifest.yaml> --dry-run
+
+# 无人值守运行 / 恢复 / 进度跟随
+nohup python3 scripts/batch_runner.py --manifest <manifest.yaml> > batch-run.out 2>&1 &
+python3 scripts/batch_runner.py --manifest <manifest.yaml> --resume
+python3 scripts/batch_runner.py --progress --manifest <manifest.yaml> --follow
+```
+
+完整参数、状态机与事件流说明见 `patch-compatibility-utils/pca-batch-runner/SKILL.md`。
 
 ## 分析流程
 
@@ -372,6 +423,8 @@ Phase 1         Phase 1.5       Phase 2       Phase 3       Phase 4        Phase
 - `test_priority` 和 `test_recommendation` — 分析阶段给出的测试指导
 
 - `static_call_chains` — 从公开入口到变更代码的调用链
+
+- `affected_scope` — 分析阶段计算的反向依赖范围（直接调用方、间接依赖、受影响入口点、测试依赖），可作为测试入口与输入选择的补充证据
 
 产物：`<TEST_RESULT_DIR>/phase1_impact/impact_map.json`。若 analysis 中无确认 findings，记录该状态，仅在有用户要求时对 `patch.diff` 的可执行变更行做覆盖率测试。
 
@@ -587,6 +640,15 @@ llvm-profdata merge -o merged.profdata *.profraw
 llvm-cov export <binary> -instr-profile=merged.profdata > coverage.json
 ```
 
+同时用 `collect_coverage.py --json-output` 采集结构化的逐行覆盖率数据（含 hit count），作为 `coverage_report` 和专门覆盖率报告的支撑证据：
+
+```Bash
+python3 "<TEST_SKILL_DIR>/scripts/collect_coverage.py" \
+  <project_dir> "<TEST_RESULT_DIR>/phase4_execution/gcov_report.md" \
+  --file <changed-file> --lines <line> <line> ... \
+  --json-output "<TEST_RESULT_DIR>/phase4_execution/coverage_data.json"
+```
+
 gcov 行标记含义：
 
 - `N: line` — 执行了 N 次（COVERED）
@@ -616,7 +678,7 @@ gcov 行标记含义：
 4. 3 轮后仍未达标 → 文档化剩余行及根因
 ```
 
-产物：`phase4_execution/coverage_iterations.json`。
+产物：`phase4_execution/coverage_iterations.json`。每轮结果汇总进 `coverage_report.iterations`，剩余未覆盖行必须在 `coverage_report.uncovered_line_analysis` 中逐行分类并说明原因。
 
 #### Step 4d: Before/After 行为对比
 
@@ -642,13 +704,15 @@ gcov 行标记含义：
 
 ### Phase 5: 覆盖率报告
 
-`test-summary.json` 是唯一最终结果源， Markdown 报告由确定性格式化器渲染。
+`test-summary.json` 是唯一最终结果源，由确定性格式化器渲染两份报告：总体测试报告 `TEST_REPORT.md` 和专门的覆盖率报告 `COVERAGE_REPORT.md`（门槛、总览、按 finding/文件覆盖率、未覆盖行分析、迭代历史、方法与注意事项）。
 
 **字段要求**（须符合 `schemas/test_output_schema.json`）：
 
 - `patch_line_coverage_rate`：补丁行覆盖率（`[0, 100]` 百分比）
 
 - `coverage_gate`：默认 `80`
+
+- `coverage_report`：专门的覆盖率数据集（必填），包含 `tool`、`optimization`、`coverage_data`、`gate`、`findings[]`、`files[]`、`uncovered_line_analysis[]`、`iterations[]`、`caveats[]`；每条未覆盖行必须有分类与原因，文件与 finding 汇总必须与 summary 补丁计数一致
 
 - 每个 finding 的 `coverage.rate`、entry 验证状态、合同结果、行为差异、blocker 和产物路径
 

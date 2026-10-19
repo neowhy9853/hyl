@@ -1,0 +1,90 @@
+commit 2ff861747cd745f2698e3e74c7f10b64a656be0c
+Author: Amaury Denoyelle <adenoyelle@haproxy.com>
+Date:   Fri Jun 12 10:54:42 2026 +0200
+
+    BUG/MINOR: server: fix add server with consistent hash balancing
+    
+    When a dynamic server is added with consistent hash balancing on the
+    backend, its lb_nodes elements are allocated and associated with a
+    calculated server key. This operation is performed in add server handler
+    via srv_alloc_lb(). By default, the server key is based on its ID.
+    However, automatic server ID is calculated later in add server handler,
+    which means the initial lb_nodes are not valid.
+    
+    This could cause load balacing issue but in fact this is not directly
+    visible as the server key is recalculated when the dynamic server is
+    enabled via chash_queue_dequeue_srv() : all server lb_nodes are dequeued
+    and requeued with the now proper key.
+    
+    Thus, "add server" handler must be corrected as it is buggy when
+    considering it alone. The simplest solution of the current patch is to
+    initialize server ID before srv_alloc_lb() is invoked. There is no issue
+    as handler runs under thread isolation so there is no risk of multiple
+    servers manipulating the same ID. Server insertion in proxy ID tree is
+    still performed at the end of the handler when all fallible operation
+    are completed.
+    
+    The fact that server key is recalculated when the server is set to ready
+    state is a side effect of the following patch which was introduced in
+    3.0. What this means though is that users of older releases are facing a
+    bigger issue, with load-balancing not working as expected. Thus,
+    this patch is even more crucial for 2.8 and older releases.
+    
+      faa8c3e024b1e4e5833a8deaa6545675036544c6
+      MEDIUM: lb-chash: Deterministic node hashes based on server address
+    
+    This should fix github issue #3413. Thanks to Joao Morais for is
+    analysis on the problem.
+    
+    This must be backported to all stable releases.
+
+diff --git a/src/server.c b/src/server.c
+index 957fc4c..8de9094 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -6221,7 +6221,6 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
+ 	struct server *srv;
+ 	char *be_name, *sv_name, *errmsg;
+ 	int errcode, argc;
+-	int next_id;
+ 	const int parse_flags = SRV_PARSE_DYNAMIC|SRV_PARSE_PARSE_ADDR;
+ 
+ 	usermsgs_clr("CLI");
+@@ -6388,6 +6387,19 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
+ 	if (errcode)
+ 		goto out;
+ 
++	/* Generate the server ID if not manually specified. This must be
++	 * performed before the server queuing in LB tree (srv_alloc_lb()).
++	 * Proxy tree ID insertion though is only done when all fallible
++	 * operation are completed.
++	 */
++	if (!srv->puid) {
++		srv->puid = server_get_next_id(be, 1);
++		if (!srv->puid) {
++			ha_alert("Cannot attach server : no id left in proxy\n");
++			goto out;
++		}
++	}
++
+ 	if (!srv_alloc_lb(srv, be)) {
+ 		ha_alert("Failed to initialize load-balancing data.\n");
+ 		goto out;
+@@ -6407,16 +6419,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
+ 	if (errcode)
+ 		goto out;
+ 
+-	/* generate the server id if not manually specified */
+-	if (!srv->puid) {
+-		next_id = server_get_next_id(be, 1);
+-		if (!next_id) {
+-			ha_alert("Cannot attach server : no id left in proxy\n");
+-			goto out;
+-		}
+-
+-		srv->puid = next_id;
+-	}
++	/* All fallible operations completed, the server can now be made visible. */
+ 
+ 	/* insert the server in the backend trees */
+ 	server_index_id(be, srv);

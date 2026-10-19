@@ -1,0 +1,92 @@
+{
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "api_harness",
+      "status": "draft_needs_refinement",
+      "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+      "build_command": "make -j$(nproc) BUILDDIR=build-pca CFLAGS='-Wall -W -O0 -g --coverage' LDFLAGS='--coverage' COPTS='-DHAVE_DNSSEC'",
+      "run_command": "sudo bash test-entry-work/PCA-0001/reproducer.sh",
+      "target_location": {
+        "file": "src/rfc3315.c",
+        "new_lines": [113, 130],
+        "symbol": "dhcp6_maybe_relay"
+      },
+      "reachability_signal": "gcov shows coverage on src/rfc3315.c lines 123-126 (the sz < 4 check and early return)",
+      "expected_signal": "After binary returns 0 for DHCPv6 packet with sz < 4, before binary exhibits undefined behavior (crash or unpredictable)",
+      "execution": {
+        "cwd": "analysis_repo",
+        "timeout_seconds": 120,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Send DHCPv6 packets with sz=0,1,2,3,4 to dnsmasq DHCPv6 port (547) and observe behavior. Valid inputs: sz>=4. Invalid inputs: sz<4. Exact boundary at sz=4.",
+      "contract_probe": {
+        "probe_id": "dhcp6_input_acceptance_boundary",
+        "command": "echo 'requires raw socket harness'; exit 1",
+        "before_command": "ip netns exec pca-dhcp6-test {BEFORE_BIN} --no-daemon --no-resolv ... && send_raw_dhcp6_packet sz=3",
+        "after_command": "ip netns exec pca-dhcp6-test {AFTER_BIN} --no-daemon --no-resolv ... && send_raw_dhcp6_packet sz=3",
+        "comparison": "acceptance",
+        "cwd": "analysis_repo",
+        "timeout_seconds": 60
+      },
+      "limitations": "Requires root/sudo for network namespace creation and raw socket access for sending crafted DHCPv6 packets. The workspace sandbox does not allow raw socket/privileged network operations."
+    },
+    {
+      "finding_id": "PCA-0002",
+      "entry_id": "PCA-TE-0002",
+      "entry_kind": "api_harness",
+      "status": "draft_needs_refinement",
+      "artifact_path": "test-entry-work/PCA-0002/reproducer.sh",
+      "build_command": "make -j$(nproc) BUILDDIR=build-pca CFLAGS='-Wall -W -O0 -g --coverage' LDFLAGS='--coverage' COPTS='-DHAVE_DNSSEC'",
+      "run_command": "sudo bash test-entry-work/PCA-0002/reproducer.sh",
+      "target_location": {
+        "file": "src/rfc3315.c",
+        "new_lines": [241, 248],
+        "symbol": "dhcp6_maybe_relay"
+      },
+      "reachability_signal": "gcov shows coverage on src/rfc3315.c line 243 (the opt6_first call) and lines 2118-2136 (opt6_first body)",
+      "expected_signal": "After binary returns without crash for truncated RELAY-FORW; before binary may crash or exhibit UB",
+      "execution": {
+        "cwd": "analysis_repo",
+        "timeout_seconds": 120,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Send DHCPv6 RELAY-FORW messages with sz between 4 and 36 bytes (truncated after header) to exercise the opts > end path. Exact boundaries: sz=37 (minimum valid), sz=4-36 (truncated), sz=34 (opts just past end).",
+      "contract_probe": {
+        "probe_id": "dhcp6_relay_option_bounds",
+        "command": "echo 'requires raw socket harness'; exit 1",
+        "before_command": "ip netns exec pca-dhcp6-test {BEFORE_BIN} --no-daemon --no-resolv ... && send_raw_dhcp6_relay_forw sz=20",
+        "after_command": "ip netns exec pca-dhcp6-test {AFTER_BIN} --no-daemon --no-resolv ... && send_raw_dhcp6_relay_forw sz=20",
+        "comparison": "acceptance",
+        "cwd": "analysis_repo",
+        "timeout_seconds": 60
+      },
+      "limitations": "Requires root/sudo for network namespace and raw socket access. The truncated RELAY-FORW test specifically needs raw packet crafting to set the message type to DHCP6RELAYFORW with incomplete header."
+    },
+    {
+      "finding_id": "coverage_smoke",
+      "entry_id": "PCA-TE-SMOKE",
+      "entry_kind": "cli_command",
+      "status": "runnable_verified",
+      "artifact_path": "",
+      "build_command": "",
+      "run_command": "./build-pca/dnsmasq --version",
+      "target_location": {
+        "file": "src/rfc3315.c",
+        "new_lines": [0, 0],
+        "symbol": ""
+      },
+      "reachability_signal": "Binary executes and reports version with DHCPv6 support enabled",
+      "expected_signal": "Version output includes 'DHCPv6' in compile time options",
+      "execution": {
+        "cwd": "analysis_repo",
+        "timeout_seconds": 10,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "smoke test to verify both binaries build and link with DHCPv6 support",
+      "contract_probe": null,
+      "limitations": "Does not exercise the changed code path; only verifies binary integrity"
+    }
+  ]
+}

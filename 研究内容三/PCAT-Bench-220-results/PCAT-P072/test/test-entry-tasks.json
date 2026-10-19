@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/591a1c/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/lvm2",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/591a1c/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/591a1c",
+  "patch_id": "591a1c9310506124685cacc75aa338e31a148a06",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "_type (config integer parsing path)",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libdm/libdm-config.c",
+        "old_lines": [
+          733,
+          740
+        ],
+        "new_lines": [
+          734,
+          741
+        ],
+        "symbol": "_type"
+      },
+      "old_behavior": "The strtoll() call used NULL endptr, so only errno was checked after conversion. Non-numeric tokens (e.g. 'abc') would silently produce value 0, and tokens with trailing non-numeric characters (e.g. '123abc') would silently parse the leading numeric portion and ignore the tail. The only rejected case was errno ERANGE (overflow/underflow, except for creation_time).",
+      "new_behavior": "The strtoll() call now captures endptr and additionally checks: (endptr == p->tb) to detect zero-digit conversions (non-numeric input), and (endptr != p->te) to detect unconsumed trailing characters. Both cases now enter the error path and produce 'Failed to read int token.' / return NULL (unless errno==ERANGE && key==creation_time).",
+      "compatibility_reason": "Config integer parsing is now stricter. Any lvm.conf, LVM metadata, profile, or command-line config string that previously happened to pass a non-integer or a value with trailing characters (e.g. whitespace due to lax formatting, stray characters, or partial migration) will now fail with 'Failed to read int token.' rather than silently producing a numeric value. This can break existing deployments that rely on the old lenient parsing, particularly during upgrades where previously-valid metadata sections or config snippets now refuse to load.",
+      "test_recommendation": "Test config files with: (1) non-numeric integer keys (e.g. 'key = abc'), (2) integers with trailing non-numeric characters (e.g. 'key = 123abc'), and (3) integers with trailing whitespace depending on tokenizer behavior. All should now produce errors. Also test that well-formed integer config keys (e.g. 'key = 123') continue to work correctly, including the creation_time ERANGE special case.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/591a1c/compatibility-testing"
+}

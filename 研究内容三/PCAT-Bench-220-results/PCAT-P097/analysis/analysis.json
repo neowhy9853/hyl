@@ -1,0 +1,438 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P037/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P037",
+  "base_ref": "1c3a1bac8b14c866d70b330e0229e5555670f577~1",
+  "base_commit": "0c0dacdf0b84a675b51b9ddfe61d9e331356fe8b",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "1c3a1bac8b14c866d70b330e0229e5555670f577",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/golang/go/commit/1c3a1bac8b14c866d70b330e0229e5555670f577.patch",
+    "download_url": "https://github.com/golang/go/commit/1c3a1bac8b14c866d70b330e0229e5555670f577.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P037/_patch-cache/1c3a1bac8b14.patch",
+    "commit": "1c3a1bac8b14c866d70b330e0229e5555670f577"
+  },
+  "package_profile": "golang",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 7652,
+    "patch_lines": 168,
+    "diff_added_lines": 28,
+    "diff_deleted_lines": 17,
+    "diff_context_lines": 64,
+    "churn": 45,
+    "raw_hunks": 9,
+    "candidate_hunks": 8,
+    "skipped_doc_hunks": 1,
+    "changed_files": 7,
+    "candidate_context_bytes": 13545,
+    "public_candidate_hunks": 5,
+    "surface_counts": {
+      "go_exported_api": 5,
+      "go_errors": 4,
+      "user_visible_output": 4,
+      "stdlib": 2,
+      "errors": 4,
+      "config_keys": 4
+    },
+    "candidates_json_bytes": 40475
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 7,
+    "total_candidates": 8,
+    "compatibility_changes": 3,
+    "high_priority": 1,
+    "medium_priority": 1,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "golang",
+      "affected_surface": "net/http 标准库代理环境变量解析行为",
+      "affected_api": {
+        "name": "ProxyFromEnvironment / DefaultTransport / DefaultClient",
+        "kind": "config_key",
+        "language": "go"
+      },
+      "location": {
+        "file": "src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
+        "old_lines": [
+          112,
+          114
+        ],
+        "new_lines": [
+          93,
+          95
+        ],
+        "symbol": "FromEnvironment"
+      },
+      "old_behavior": "getEnvAny(\"HTTP_PROXY\", \"http_proxy\") 优先返回大写环境变量的值；getEnvAny(\"HTTPS_PROXY\", \"https_proxy\") 优先返回大写环境变量的值；getEnvAny(\"NO_PROXY\", \"no_proxy\") 优先返回大写环境变量的值。即大写形式优先级高于小写形式。",
+      "new_behavior": "getEnvAny(\"http_proxy\", \"HTTP_PROXY\") 优先返回小写环境变量的值；getEnvAny(\"https_proxy\", \"HTTPS_PROXY\") 优先返回小写环境变量的值；getEnvAny(\"no_proxy\", \"NO_PROXY\") 优先返回小写环境变量的值。即小写形式优先级高于大写形式。",
+      "compatibility_reason": "当 $HTTP_PROXY 与 $http_proxy 同时设置且值不同时（如 CGI 环境中两者均可能被设置），旧版使用大写值，新版使用小写值，代理解析结果发生变化。该变更影响 http.DefaultTransport、http.DefaultClient 以及所有直接调用 http.ProxyFromEnvironment 的代码。根据 #79656 的文档说明，此变更旨在使 Go 的行为与业界惯例一致（小写形式优先）。",
+      "evidence": [
+        {
+          "file": "src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
+          "lines": [
+            93,
+            95
+          ],
+          "snippet": "HTTPProxy:  getEnvAny(\"http_proxy\", \"HTTP_PROXY\"),\nHTTPSProxy: getEnvAny(\"https_proxy\", \"HTTPS_PROXY\"),\nNoProxy:    getEnvAny(\"no_proxy\", \"NO_PROXY\"),"
+        },
+        {
+          "file": "src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
+          "lines": [
+            100,
+            107
+          ],
+          "snippet": "func getEnvAny(names ...string) string {\n\tfor _, n := range names {\n\t\tif val := os.Getenv(n); val != \"\" {\n\t\t\treturn val\n\t\t}\n\t}\n\treturn \"\"\n}"
+        },
+        {
+          "file": "src/net/http/transport.go",
+          "lines": [
+            1040,
+            1044
+          ],
+          "snippet": "func envProxyFunc() func(*url.URL) (*url.URL, error) {\n\tenvProxyOnce.Do(func() {\n\t\tenvProxyFuncValue = httpproxy.FromEnvironment().ProxyFunc()\n\t})\n\treturn envProxyFuncValue\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "ProxyFromEnvironment 是 net/http 公开文档化 API，由 DefaultTransport 和 DefaultClient 直接使用。该函数的行为变更会影响所有使用 Go 标准库 HTTP 客户端的程序，属于用户可观察的运行时行为变化。",
+      "uncertainty": "仅当同时设置同名的大小写环境变量且值不同时，行为差异才可观察。若仅设置其中一种形式（大写或小写），则新旧行为一致。",
+      "manual_review_required": false,
+      "recommended_review": "建议审查 CGI 环境下的代理行为，因为 CGI 规范要求 HTTP_PROXY 必须设置为大写形式，同时某些 CGI 服务端可能也设置小写形式。",
+      "test_recommendation": "测试应在设置 HTTP_PROXY=http://up:8080 和 http_proxy=http://low:8080 两种不同值的情况下，验证 Go HTTP 客户端实际使用小写值 http://low:8080。同理测试 HTTPS_PROXY/https_proxy 和 NO_PROXY/no_proxy 的组合。还需验证仅设置一种形式时行为不变。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
+            "old_lines": [
+              80,
+              97
+            ],
+            "new_lines": [
+              80,
+              98
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "go_exported_api",
+              "go_errors",
+              "config_keys",
+              "user_visible_output",
+              "errors"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "go_exported_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported Go functions, methods, types, interfaces, constants, and variables."
+              },
+              {
+                "name": "go_errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel value, wrapping, and comparison behavior."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel errors, error wrapping"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.9,
+      "package_profile": "golang",
+      "affected_surface": "golang.org/x/net/quic Endpoint.Close 资源清理与返回值行为",
+      "affected_api": {
+        "name": "Endpoint.Close",
+        "kind": "exported_function",
+        "language": "go"
+      },
+      "location": {
+        "file": "src/vendor/golang.org/x/net/quic/endpoint.go",
+        "old_lines": [
+          149,
+          153
+        ],
+        "new_lines": [
+          149,
+          156
+        ],
+        "symbol": "Endpoint.Close"
+      },
+      "old_behavior": "当 Close() 通过 e.closec 正常完成时（非超时路径），不调用 conn.exit() 清理连接，返回 nil。仅在 ctx.Done() 超时路径才调用 conn.exit() 并返回 ctx.Err()。",
+      "new_behavior": "无论 Close() 通过 e.closec 正常完成还是 ctx.Done() 超时，始终对每个连接调用 c.exit() 进行清理，并始终返回 ctx.Err()（正常完成时 ctx.Err() 返回 nil，与原 nil 返回等价）。",
+      "compatibility_reason": "该变更修复了一个 bug：正常关闭路径未调用 c.exit() 进行连接清理。同时返回值从固定 nil 改为 ctx.Err()，当 context 未超时时 ctx.Err() 返回 nil，行为等价；但当 context 已被取消时，返回值从 nil 变更为非 nil 错误。对于依赖 Close() 返回 nil 判断关闭成功的调用方，此为可观察的行为变化。",
+      "evidence": [
+        {
+          "file": "src/vendor/golang.org/x/net/quic/endpoint.go",
+          "lines": [
+            149,
+            156
+          ],
+          "snippet": "select {\ncase <-e.closec:\ncase <-ctx.Done():\n}\nfor _, c := range conns {\n\tc.exit()\n}\nreturn ctx.Err() // nil if context hasn't expired"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Endpoint.Close 是 golang.org/x/net/quic 包的公开导出方法，虽然此副本位于 Go 标准库的 vendor 目录中，但标准库内部使用它实现 HTTP/3 功能，且独立导入 golang.org/x/net/quic 的用户也会受此行为变更影响。",
+      "uncertainty": "该变更实际上是 bug 修复，使清理路径更完整。对正常关闭场景（context 未取消），返回值等价；对 context 已取消场景的返回值变化需要确认是否有调用方依赖旧的 nil 返回值。",
+      "manual_review_required": false,
+      "recommended_review": "确认 Go 标准库内部所有 Endpoint.Close 的调用方是否依赖返回 nil 来判断关闭成功，以及是否已正确处理 ctx.Err() 返回值。",
+      "test_recommendation": "测试 Endpoint.Close 在正常关闭（context 未取消）和 context 已取消两种场景下的 conn exit 调用和返回值。验证正常关闭时返回 nil（ctx.Err()），并确认所有连接都已清理。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0008",
+            "file": "src/vendor/golang.org/x/net/quic/endpoint.go",
+            "old_lines": [
+              149,
+              160
+            ],
+            "new_lines": [
+              149,
+              159
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "go_exported_api",
+              "go_errors",
+              "config_keys",
+              "user_visible_output",
+              "errors"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "go_exported_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported Go functions, methods, types, interfaces, constants, and variables."
+              },
+              {
+                "name": "go_errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel value, wrapping, and comparison behavior."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel errors, error wrapping"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "golang",
+      "affected_surface": "golang.org/x/net/quic Config.Clone 输入合法性放宽",
+      "affected_api": {
+        "name": "Config.Clone",
+        "kind": "exported_function",
+        "language": "go"
+      },
+      "location": {
+        "file": "src/vendor/golang.org/x/net/quic/config.go",
+        "old_lines": [
+          110,
+          115
+        ],
+        "new_lines": [
+          112,
+          118
+        ],
+        "symbol": "Config.Clone"
+      },
+      "old_behavior": "调用 (*Config)(nil).Clone() 时，执行 n := *c 会解引用 nil 指针导致 panic。",
+      "new_behavior": "调用 (*Config)(nil).Clone() 时，先检查 c == nil 并安全返回 nil，不发成 panic。",
+      "compatibility_reason": "输入契约放宽：原先对 nil receiver 的 Clone() 调用会 panic，现在安全返回 nil。这是一个向后兼容的变更——所有此前正常工作的代码继续正常工作，同时新增了对 nil receiver 的安全处理。属于 additive behavior，不破坏现有正确调用。",
+      "evidence": [
+        {
+          "file": "src/vendor/golang.org/x/net/quic/config.go",
+          "lines": [
+            112,
+            118
+          ],
+          "snippet": "func (c *Config) Clone() *Config {\n\tif c == nil {\n\t\treturn nil\n\t}\n\tn := *c\n\treturn &n\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Config.Clone 是 golang.org/x/net/quic 包的公开导出方法。虽然此副本位于 Go 标准库的 vendor 目录中，但它定义了公共 API 的行为契约。独立导入 golang.org/x/net/quic 的用户同样受到该变更的影响。",
+      "uncertainty": "该变更是纯粹的安全加固，不影响任何此前正常工作的代码。低置信度来源于无法确定是否有代码依赖旧的 panic 行为作为某种错误检测机制，但这种场景极为罕见且不符合 Go 语言惯用法。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核，此变更是标准的安全加固。",
+      "test_recommendation": "测试 Config.Clone 在 nil receiver 和 非 nil receiver 场景下的行为，确认 nil receiver 返回 nil 且不 panic。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0007",
+            "file": "src/vendor/golang.org/x/net/quic/config.go",
+            "old_lines": [
+              110,
+              115
+            ],
+            "new_lines": [
+              110,
+              118
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "go_exported_api",
+              "config_keys"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "go_exported_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported Go functions, methods, types, interfaces, constants, and variables."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

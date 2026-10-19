@@ -1,0 +1,192 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P042/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P042",
+  "base_ref": "1e927a468500df5b39462c1c39c73e1f20b4fdb9^",
+  "base_commit": "214a2042b16b3c8d798a8b9ef9f36094f13a9859",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "1e927a468500df5b39462c1c39c73e1f20b4fdb9",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/gregkh/linux/commit/1e927a468500df5b39462c1c39c73e1f20b4fdb9",
+    "download_url": "https://github.com/gregkh/linux/commit/1e927a468500df5b39462c1c39c73e1f20b4fdb9.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P042/_patch-cache/1e927a468500.patch",
+    "commit": "1e927a468500df5b39462c1c39c73e1f20b4fdb9",
+    "base_ref_inferred": "1e927a468500df5b39462c1c39c73e1f20b4fdb9^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "kernel_6_6",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 2674,
+    "patch_lines": 54,
+    "diff_added_lines": 1,
+    "diff_deleted_lines": 3,
+    "diff_context_lines": 16,
+    "churn": 4,
+    "raw_hunks": 2,
+    "candidate_hunks": 2,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 2819,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "syscall": 1,
+      "syscall_wrappers": 1
+    },
+    "candidates_json_bytes": 8880
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 2,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "tracefs error_log: error position reporting for eprobe argument parsing via traceprobe_parse_probe_arg -> parse_probe_arg -> parse_probe_vars -> __trace_probe_log_err",
+      "affected_api": {
+        "name": "parse_probe_vars",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "kernel/trace/trace_probe.c",
+        "old_lines": [
+          933,
+          940
+        ],
+        "new_lines": [
+          933,
+          938
+        ],
+        "symbol": "parse_probe_vars"
+      },
+      "old_behavior": "当 eprobe 参数指定了不存在的事件字段且非 comm/COMM 时，parse_probe_vars 在进行错误报告前会执行 ctx->offset = 0（\"backward compatibility\"），导致错误位置始终指向参数串起始位置（offset 0），无法指出具体哪个变量无效。",
+      "new_behavior": "移除了 ctx->offset = 0 的重置逻辑。错误位置保留 parse_trace_event_arg 或其他解析步骤已经设置的 ctx->offset 值，正确指向实际的无效参数位置。",
+      "compatibility_reason": "该变更改变了 tracefs error_log 中 eprobe 参数解析错误的错误位置输出。之前错误位置总是 0（参数起始位置），现在错误位置指向实际的错误变量处。编写到 dynamic_events 的用户和解析 error_log 的工具会观察到不同的错误位置数字。由于 error_log 是诊断接口而非稳定 ABI，且旧行为（始终 offset=0）本身是错误的，兼容性影响范围较小。对应的测试用例也已更新验证正确位置。",
+      "evidence": [
+        {
+          "file": "kernel/trace/trace_probe.c",
+          "lines": [
+            936,
+            937
+          ],
+          "snippet": "\t\t/* backward compatibility */\n\t\tctx->offset = 0;"
+        },
+        {
+          "file": "kernel/trace/trace_probe.c",
+          "lines": [
+            1020,
+            1022
+          ],
+          "snippet": "inval:\n\t__trace_probe_log_err(ctx->offset, err);\n\treturn -EINVAL;"
+        },
+        {
+          "file": "tools/testing/selftests/ftrace/test.d/dynevent/eprobes_syntax_errors.tc",
+          "lines": [
+            22,
+            23
+          ],
+          "snippet": "check_error 'e:foo/bar syscalls/sys_enter_openat ^arg=$foo'\t# BAD_ATTACH_ARG\n->\ncheck_error 'e:foo/bar syscalls/sys_enter_openat arg=^$foo'\t# BAD_ATTACH_ARG"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "虽然 parse_probe_vars 是 static 函数，但其通过 traceprobe_parse_probe_arg -> traceprobe_parse_probe_arg_body -> parse_probe_arg 调用链可达，最终错误输出通过 __trace_probe_log_err 写入 tracefs error_log，用户空间在写入 dynamic_events 时可观察到错误位置变化。",
+      "uncertainty": "error_log 为诊断接口，无文档化的稳定契约；旧行为（offset=0）本身是 bug，新行为是正确的。部分工具可能假定 offset 0 作为兼容锚点，但实际影响范围很小。",
+      "manual_review_required": false,
+      "recommended_review": "确认无用户空间工具硬编码依赖 offset=0 的 eprobe 错误位置输出。",
+      "test_recommendation": "通过 tracefs dynamic_events 接口写入无效参数验证 error_log 中错误位置能正确指向无效变量，并核对已有的 eprobes_syntax_errors.tc 测试通过。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "kernel/trace/trace_probe.c",
+            "old_lines": [
+              933,
+              940
+            ],
+            "new_lines": [
+              933,
+              938
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "syscall"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "syscall",
+                "test_priority": "high",
+                "public": true,
+                "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

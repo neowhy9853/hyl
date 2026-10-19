@@ -1,0 +1,149 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/226b56/analysis.json",
+  "patch_id": "226b5608",
+  "result_dir": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/226b56/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/libxml2",
+    "base_commit": "310564cc6b2c5766bbf053bc29353df6e6a655b6",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/226b56/_worktrees/patched",
+    "package_profile": "libxml2",
+    "patch_commit": "226b560837b90dea9b14431eca6e6fda8fb01ab4"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc",
+    "optimization": "-O0",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Host build with Ninja, CMake, gcc. All 22 CTest tests pass on both versions."
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 3,
+    "entries_generated": 3,
+    "entries_verified": 3,
+    "inputs_planned": 3,
+    "inputs_executed": 3,
+    "contracts_total": 2,
+    "contracts_passed": 2,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 19,
+    "patch_lines_covered": 11,
+    "patch_lines_uncovered": 8,
+    "patch_line_coverage_rate": 57.89
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "status": "passed",
+      "target_location": {
+        "file": "parser.c",
+        "new_lines": [
+          7261,
+          7295
+        ],
+        "symbol": "xmlParseReference"
+      },
+      "entries": [
+        {
+          "entry_id": "ENTRY-P019-001",
+          "status": "passed",
+          "artifact_path": "/tmp/test-pcat-p019.xml",
+          "run_command": "xmllint --noent --noout test-pcat-p019.xml",
+          "expected_signal": "Entity expansion succeeds, exit code 0",
+          "reachability_signal": "exit code 0"
+        },
+        {
+          "entry_id": "ENTRY-P019-002",
+          "status": "passed",
+          "artifact_path": "/tmp/test-pcat-p019.xml",
+          "run_command": "xmllint --sax test-pcat-p019.xml",
+          "expected_signal": "SAX callbacks fire for entity references",
+          "reachability_signal": "SAX.characters in output"
+        },
+        {
+          "entry_id": "ENTRY-P019-003",
+          "status": "passed",
+          "artifact_path": "/tmp/pca-libxml2/build/CMakeFiles/LibXml2.dir/parser.c.gcda",
+          "run_command": "gcov on parser.c",
+          "expected_signal": "gcov shows hits on changed lines",
+          "reachability_signal": "line 7264: 11857"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "C001",
+          "status": "passed",
+          "detail": "Entity expansion output identical: both BEFORE and AFTER produce entity one some text entity two"
+        },
+        {
+          "contract_id": "C002",
+          "status": "passed",
+          "detail": "Changed code path confirmed: ctxt->sax->characters(ctxt->userData, ...) executed 11857 times (parser.c:7264)"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 19,
+        "covered_lines": 11,
+        "uncovered_lines": [
+          "parser.c:7262",
+          "parser.c:7265",
+          "parser.c:7266",
+          "parser.c:7267",
+          "parser.c:7285",
+          "parser.c:7289",
+          "parser.c:7290",
+          "parser.c:7291"
+        ],
+        "rate": 57.89
+      },
+      "behavior_differences": [
+        {
+          "input_id": "ENTRY-P019-001",
+          "diff_type": "SIDE_EFFECT_CHANGE",
+          "before": "characters()/cdataBlock() receive ctxt (xmlParserCtxt*)",
+          "after": "characters()/cdataBlock() receive ctxt->userData (void*)",
+          "evidence": "gcov confirms 11857 hits on ctxt->sax->characters(ctxt->userData, ...) at parser.c:7264; git diff confirms ctxt->userData replaces ctxt"
+        }
+      ],
+      "notes": [
+        "8 uncovered lines are CDATA/NOCDATA paths (require CDATA section in XML input) - architecturally unreachable with current test inputs",
+        "22/22 CTest tests pass on both versions",
+        "xmllint output identical for entity expansion",
+        "The change is an intentional bug fix making characters/cdataBlock consistent with reference() callback"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "",
+    "test_entry_tasks": "",
+    "test_entries": "",
+    "test_inputs": "",
+    "execution_results": "",
+    "contract_summary": "",
+    "coverage_data": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/226b56/compatibility-testing/coverage/parser.c.gcov",
+    "report": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/226b56/compatibility-testing/COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": false,
+    "rationale": "Patch changes SAX characters/cdataBlock callback first argument from ctxt to ctxt->userData. This is a SIDE_EFFECT_CHANGE for SAX consumers with custom userData. Coverage gate not met (58% < 80%) due to CDATA/NOCDATA paths not exercised. All 22 CTest tests pass; entity expansion output is identical; gcov confirms main change site executed 11857 times.",
+    "recommended_actions": [
+      "Add CDATA section test input to cover cdataBlock paths",
+      "Notify downstream SAX users of the behavioral change",
+      "Verify SAX callback userData handling in dependent projects"
+    ]
+  }
+}

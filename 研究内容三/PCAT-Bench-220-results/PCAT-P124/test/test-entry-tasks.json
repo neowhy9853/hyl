@@ -1,0 +1,74 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P064/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repos/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P064/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P064",
+  "patch_id": "531750f7bfc475332b2046dd516bab582ba7decf",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "PERFORMANCE_RESOURCE_SEMANTIC_CHANGE",
+      "affected_api": {
+        "name": "grub_get_tsc",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "include/grub/i386/tsc.h",
+        "old_lines": [
+          47,
+          52
+        ],
+        "new_lines": [
+          47,
+          57
+        ],
+        "symbol": "grub_get_tsc"
+      },
+      "old_behavior": "grub_get_tsc() 在 rdtsc 指令前执行 cpuid 序列化以确保之前指令完成后再读取 TSC，但 rdtsc 之后无序列化，后续指令可能在 rdtsc 完成前开始执行。这可能导致时序计算出现异常大值或负值，使 grub_tsc_rate 变为零，进而导致 GRUB 菜单卡死。",
+      "new_behavior": "grub_get_tsc() 在 rdtsc 指令前后各执行一次 cpuid 序列化（cpuid; rdtsc; cpuid 标准模式），确保 rdtsc 在任何后续指令执行前完成。每次 TSC 读取额外增加一次 CPUID 指令开销（约 100-300 周期）。",
+      "compatibility_reason": "在公共头文件 include/grub/i386/tsc.h 中的 static inline 函数 grub_get_tsc() 内新增了一条 cpuid 序列化指令。CPUID 是昂贵的序列化操作（刷新流水线、强制内存排序），每次 TSC 读取的性能开销增加。虽然这是针对 RDTSC 非序列化导致 GRUB 菜单卡死 bug 的正确性修复，且采用 cpuid;rdtsc;cpuid 是 Intel 手册推荐的 RDTSC 标准序列化模式，但对于依赖 TSC 读取高频调用进行精确时序测量的代码路径，额外指令开销可能产生可观察的时序行为变化。",
+      "test_recommendation": "建议在开启 TSC 校准的 x86_64 平台上，测量修复前后 grub_tsc_init() 和 grub_tsc_get_time_ms() 的执行耗时对比，验证 CPUID 附加开销在可接受范围内。重点验证多 CPU 核心环境下 TSC 校准值的稳定性和 GRUB 菜单超时功能的正确性。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "timeout_retry_resource_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "performance_resource_semantics",
+        "comparison": "numeric_tolerance",
+        "required_observation": "JSON numeric measurements for timeout, retries, limits, ordering, and resource use",
+        "input_axes": [
+          "idle",
+          "nominal load",
+          "boundary limit",
+          "timeout",
+          "retry",
+          "contention"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P064/compatibility-testing"
+}

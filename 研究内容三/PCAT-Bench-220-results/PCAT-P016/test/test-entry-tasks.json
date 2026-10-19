@@ -1,0 +1,60 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P016/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/cpython",
+  "analysis_repo": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P016/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P016",
+  "patch_id": "1d4e965829eef4cdb089a984fda21ca465a1f534",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "affected_api": {
+        "name": "sys.lazy_modules",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Python/import.c",
+        "old_lines": [
+          273,
+          274
+        ],
+        "new_lines": [
+          275,
+          281
+        ],
+        "symbol": "_PyImport_InitLazyModules"
+      },
+      "old_behavior": "sys.lazy_modules was a dict mapping parent package names (str) to sets of submodule names (set[str]). Code could do dict operations: subscript access (sys.lazy_modules[\"pkg\"]), .items(), .keys(), .values(), isinstance(..., dict) checks.",
+      "new_behavior": "sys.lazy_modules is a flat set of fully-qualified lazy module name strings (set[str]). Only set operations work: \"pkg.sub\" in sys.lazy_modules, iteration, len(), clear(). Dict subscript and dict-specific methods will raise TypeError.",
+      "compatibility_reason": "Per PEP 810, sys.lazy_modules is a documented public Python API exposed via the sys module. Changing from dict to set breaks any code that uses dict methods on this attribute — including subscript access, .items(), .keys(), .values(), and isinstance(..., dict) checks (which the patch's own test suite updates explicitly). All test assertions in Lib/test/test_lazy_import/__init__.py were updated from dict-style access to set membership checks, confirming this is a breaking behavioral change requiring test migration. The NEWS fragment (Misc/NEWS.d/next/Core_and_Builtins/2026-05-18-18-36-28.gh-issue-148587.-RD3z5.rst) documents this as a user-visible change.",
+      "test_recommendation": "Run Lib/test/test_lazy_import/__init__.py in its entirety on both before and after builds to confirm all assertions pass. Specifically test: (1) isinstance(sys.lazy_modules, set) passes, (2) isinstance(sys.lazy_modules, dict) fails, (3) 'module.name' in sys.lazy_modules works, (4) sys.lazy_modules['name'] raises TypeError, (5) len(), iteration, clear() work on the set.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "api_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ]
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P016/compatibility-testing"
+}

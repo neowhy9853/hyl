@@ -1,0 +1,59 @@
+diff --git a/drivers/net/bonding/bond_main.c b/drivers/net/bonding/bond_main.c
+index f2904484b9..e044fc733b 100644
+--- a/drivers/net/bonding/bond_main.c
++++ b/drivers/net/bonding/bond_main.c
+@@ -322,7 +322,7 @@ static bool bond_sk_check(struct bonding *bond)
+ 	}
+ }
+ 
+-bool bond_xdp_check(struct bonding *bond, int mode)
++bool __bond_xdp_check(int mode, int xmit_policy)
+ {
+ 	switch (mode) {
+ 	case BOND_MODE_ROUNDROBIN:
+@@ -333,7 +333,7 @@ bool bond_xdp_check(struct bonding *bond, int mode)
+ 		/* vlan+srcmac is not supported with XDP as in most cases the 802.1q
+ 		 * payload is not in the packet due to hardware offload.
+ 		 */
+-		if (bond->params.xmit_policy != BOND_XMIT_POLICY_VLAN_SRCMAC)
++		if (xmit_policy != BOND_XMIT_POLICY_VLAN_SRCMAC)
+ 			return true;
+ 		fallthrough;
+ 	default:
+@@ -341,6 +341,11 @@ bool bond_xdp_check(struct bonding *bond, int mode)
+ 	}
+ }
+ 
++bool bond_xdp_check(struct bonding *bond, int mode)
++{
++	return __bond_xdp_check(mode, bond->params.xmit_policy);
++}
++
+ /*---------------------------------- VLAN -----------------------------------*/
+ 
+ /* In the following 2 functions, bond_vlan_rx_add_vid and bond_vlan_rx_kill_vid,
+diff --git a/drivers/net/bonding/bond_options.c b/drivers/net/bonding/bond_options.c
+index 43f2cb6dbc..e590c8dee8 100644
+--- a/drivers/net/bonding/bond_options.c
++++ b/drivers/net/bonding/bond_options.c
+@@ -1592,6 +1592,8 @@ static int bond_option_fail_over_mac_set(struct bonding *bond,
+ static int bond_option_xmit_hash_policy_set(struct bonding *bond,
+ 					    const struct bond_opt_value *newval)
+ {
++	if (bond->xdp_prog && !__bond_xdp_check(BOND_MODE(bond), newval->value))
++		return -EOPNOTSUPP;
+ 	netdev_dbg(bond->dev, "Setting xmit hash policy to %s (%llu)\n",
+ 		   newval->string, newval->value);
+ 	WRITE_ONCE(bond->params.xmit_policy, newval->value);
+diff --git a/include/net/bonding.h b/include/net/bonding.h
+index ca2be58081..2c54a36a84 100644
+--- a/include/net/bonding.h
++++ b/include/net/bonding.h
+@@ -697,6 +697,7 @@ void bond_debug_register(struct bonding *bond);
+ void bond_debug_unregister(struct bonding *bond);
+ void bond_debug_reregister(struct bonding *bond);
+ const char *bond_mode_name(int mode);
++bool __bond_xdp_check(int mode, int xmit_policy);
+ bool bond_xdp_check(struct bonding *bond, int mode);
+ void bond_setup(struct net_device *bond_dev);
+ unsigned int bond_get_num_tx_queues(void);

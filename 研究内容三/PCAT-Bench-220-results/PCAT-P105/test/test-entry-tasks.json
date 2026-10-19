@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P045/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux-stable",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P045/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P045",
+  "patch_id": "8a3cd890fd2a7d016a821a1c9dfd8a84d45ad320",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "__ksmbd_override_fsids",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "fs/smb/server/smb_common.c",
+        "old_lines": [
+          759,
+          766
+        ],
+        "new_lines": [
+          761,
+          778
+        ],
+        "symbol": "__ksmbd_override_fsids"
+      },
+      "old_behavior": "在执行 SMB 文件操作时，`__ksmbd_override_fsids()` 通过 `groups_alloc(0)` 设置空的辅助组列表，仅使用用户的主组（primary group）进行文件访问权限检查。这意味着即使用户属于某个辅助组且有文件访问权限，通过 SMB 访问仍会返回 NT_STATUS_ACCESS_DENIED。",
+      "new_behavior": "现在 `groups_alloc(user->ngroups)` 被调用，并通过 `user->sgid` 数组填充用户的辅助组 ID 到凭证中。当用户属于辅助组时，该组对文件的权限将被正确应用于 SMB 文件访问。辅助组列表通过 `groups_sort()` 排序后设置到进程凭证。",
+      "compatibility_reason": "此变更改变了 SMB 客户端可观察的文件访问行为：补丁前，用户即使通过辅助组有文件访问权限，通过 SMB 操作文件时也会被拒绝访问（NT_STATUS_ACCESS_DENIED）；补丁后，辅助组权限被正常识别，用户可以通过 SMB 访问原来无法访问的文件。这改变了文件服务器对外部客户端的安全行为语义——之前被拒绝的操作现在被允许。该行为变更对所有使用辅助组进行文件权限管理的部署具有广泛影响。",
+      "test_recommendation": "建议测试：1) 设置一个文件，其组权限仅授予某辅助组，验证通过 SMB 访问该文件时补丁前后行为差异；2) 验证旧 ksmbd-tools 与新内核的兼容性（KSMBD_USER_FLAG_EXTENSION 未设置时行为不变）；3) 验证 ngroups > NGROUPS_MAX 时的错误处理（返回 NULL 并打印 pr_err）；4) 验证 groups_alloc() 分配失败时的错误路径。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P045/compatibility-testing"
+}

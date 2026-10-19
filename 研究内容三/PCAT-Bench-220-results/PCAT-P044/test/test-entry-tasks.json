@@ -1,0 +1,134 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/glib/pca-results/5f3b17/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/glib",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/glib/pca-results/5f3b17/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/glib/pca-results/5f3b17",
+  "patch_id": "5f3b17",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "ABI_CHANGE",
+      "affected_api": {
+        "name": "GUserDirectory / G_USER_N_DIRECTORIES",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "glib/gutils.h",
+        "old_lines": [
+          248,
+          253
+        ],
+        "new_lines": [
+          248,
+          262
+        ],
+        "symbol": "G_USER_DIRECTORY_PROJECTS"
+      },
+      "old_behavior": "GUserDirectory enum has members DESKTOP through VIDEOS (8 members). G_USER_N_DIRECTORIES sentinel equals 8. Any code iterating i=0..G_USER_N_DIRECTORIES-1 processes 8 directories.",
+      "new_behavior": "GUserDirectory enum gains G_USER_DIRECTORY_PROJECTS after VIDEOS. G_USER_N_DIRECTORIES sentinel now equals 9. Code iterating i=0..G_USER_N_DIRECTORIES-1 processes 9 directories, including the new PROJECTS slot. Code that statically initializes arrays of size G_USER_N_DIRECTORIES will have one extra element.",
+      "compatibility_reason": "Adding a new enum value at the end of GUserDirectory changes the integer value of G_USER_N_DIRECTORIES from 8 to 9. This is an ABI change: any existing compiled code that uses G_USER_N_DIRECTORIES as an array bound or loop sentinel will have a mismatched size when linked against the new library. C code compiled with the old header that uses switch() without default will not handle the new value. The enum documentation explicitly states 'The #GUserDirectory enumeration can be extended at later date', so this is an expected additive change, but still a binary-incompatible sentinel shift for any code compiled against the old header and linked against the new library.",
+      "test_recommendation": "Write a regression test that iterates all GUserDirectory values from 0 to G_USER_N_DIRECTORIES-1 and calls g_get_user_special_dir() for each, verifying that the new PROJECTS slot returns a valid path (or NULL if not configured). Verify that g_icon_name lookups for the PROJECTS path return the expected icon. Recompile existing test suites against the new header to catch any array-size mismatch.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "abi_dump_and_consumer_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "binary_abi_compatibility",
+        "comparison": "success",
+        "required_observation": "symbol/version manifest plus size, alignment, offset, enum, and calling ABI",
+        "input_axes": [
+          "exported symbols",
+          "symbol versions",
+          "type layouts",
+          "old binary consumer"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "low",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "get_icon_name (internal) -> g_file_query_info (public)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "gio/glocalfileinfo.c",
+        "old_lines": [
+          1840,
+          1845
+        ],
+        "new_lines": [
+          1840,
+          1849
+        ],
+        "symbol": "get_icon_name"
+      },
+      "old_behavior": "When the path matches G_USER_DIRECTORY_PICTURES but not any earlier directory check, the if-else chain falls through to the else clause returning NULL. The projects directory path (if PROJECTS were resolvable by some other means) would result in no icon name match.",
+      "new_behavior": "When the path matches g_get_user_special_dir(G_USER_DIRECTORY_PROJECTS), the new else-if branch returns 'folder-projects-symbolic' or 'folder-projects' as the icon name instead of falling through to NULL. The observable effect is that g_file_query_info() on a path matching the projects directory now returns an icon instead of no icon.",
+      "compatibility_reason": "This is an additive behavioral change: a new code path is added for the new G_USER_DIRECTORY_PROJECTS enum value. Existing compiled code can only reach this new code path if it is recompiled with the new header (to access G_USER_DIRECTORY_PROJECTS) or if it iterates over all G_USER_N_DIRECTORIES values. The change is triggered by the new enum value being used as an argument to g_get_user_special_dir(). Since the icon is returned via g_file_info_set_icon() / g_file_info_set_symbolic_icon(), any application that queries file info and displays icons may now show a different icon for the projects directory.",
+      "test_recommendation": "Write a test that sets XDG_PROJECTS_DIR to a temporary directory, calls g_file_query_info() on that directory, and verifies that the returned icon name contains 'folder-projects'. Also verify that the icon is non-NULL and has a non-empty name.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/glib/pca-results/5f3b17/compatibility-testing"
+}

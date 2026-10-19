@@ -1,0 +1,503 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/4070a7/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/4070a7/patch.diff",
+  "profile": "dnsmasq",
+  "summary": {
+    "total_changed_files": 3,
+    "changed_files": [
+      "src/dnsmasq.h",
+      "src/crypto.c",
+      "src/dnssec.c"
+    ],
+    "total_hunks": 5,
+    "public_api_hunks": 3,
+    "patch_metrics": {
+      "patch_bytes": 2553,
+      "patch_lines": 79,
+      "diff_added_lines": 24,
+      "diff_deleted_lines": 2,
+      "diff_context_lines": 31,
+      "churn": 26,
+      "raw_hunks": 5,
+      "candidate_hunks": 5,
+      "skipped_doc_hunks": 0,
+      "changed_files": 3,
+      "candidate_context_bytes": 10324,
+      "public_candidate_hunks": 3,
+      "surface_counts": {
+        "dns_protocol": 3,
+        "public_headers": 1,
+        "user_visible_output": 1,
+        "protocol": 2,
+        "logging": 1,
+        "network_protocol": 2,
+        "persistence_state": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/crypto.c",
+      "old_start": 93,
+      "old_end": 99,
+      "new_start": 93,
+      "new_end": 107,
+      "context_hint": "static void null_hash_update(void *ctxv, size_t length, const uint8_t *src)",
+      "added_lines": [
+        "",
+        "/* The prototype changes in nettle 4.0 to omit the length argument */",
+        "#if MIN_VERSION(4, 0)",
+        "static void null_hash_digest(void *ctx, uint8_t *dst)",
+        "{",
+        "  ((struct null_hash_digest *)dst)->buff = null_hash_buff;",
+        "  ((struct null_hash_digest *)dst)->len = ((struct null_hash_ctx *)ctx)->len;",
+        "}",
+        "#else"
+      ],
+      "deleted_lines": [
+        " "
+      ],
+      "context_lines": [
+        "  memcpy(null_hash_buff + ctx->len, src, length);",
+        "  ctx->len += length;",
+        "}",
+        "static void null_hash_digest(void *ctx, size_t length, uint8_t *dst)",
+        "{",
+        "  (void)length;"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "null_hash_update",
+        "The",
+        "prototype",
+        "changes",
+        "in",
+        "nettle",
+        "null_hash_digest",
+        "memcpy"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "null_hash_update",
+        "snippet_start_line": 64,
+        "snippet_end_line": 137,
+        "snippet": "\nstatic void null_hash_init(void *ctx)\n{\n  ((struct null_hash_ctx *)ctx)->len = 0;\n}\n\nstatic void null_hash_update(void *ctxv, size_t length, const uint8_t *src)\n{\n  struct null_hash_ctx *ctx = ctxv;\n  size_t new_len = ctx->len + length;\n  \n  if (new_len > null_hash_buff_sz)\n    {\n      uint8_t *new;\n      \n      if (!(new = whine_malloc(new_len + BUFF_INCR)))\n\treturn;\n\n      if (null_hash_buff)\n\t{\n\t  if (ctx->len != 0)\n\t    memcpy(new, null_hash_buff, ctx->len);\n\t  free(null_hash_buff);\n\t}\n      \n      null_hash_buff_sz = new_len + BUFF_INCR;\n      null_hash_buff = new;\n    }\n\n  memcpy(null_hash_buff + ctx->len, src, length);\n  ctx->len += length;\n}\n\n/* The prototype changes in nettle 4.0 to omit the length argument */\n#if MIN_VERSION(4, 0)\nstatic void null_hash_digest(void *ctx, uint8_t *dst)\n{\n  ((struct null_hash_digest *)dst)->buff = null_hash_buff;\n  ((struct null_hash_digest *)dst)->len = ((struct null_hash_ctx *)ctx)->len;\n}\n#else\nstatic void null_hash_digest(void *ctx, size_t length, uint8_t *dst)\n{\n  (void)length;\n  \n  ((struct null_hash_digest *)dst)->buff = null_hash_buff;\n  ((struct null_hash_digest *)dst)->len = ((struct null_hash_ctx *)ctx)->len;\n}\n#endif\n\nstatic struct nettle_hash null_hash = {\n  \"null_hash\",\n  sizeof(struct null_hash_ctx),\n  sizeof(struct null_hash_digest),\n  0,\n  (nettle_hash_init_func *) null_hash_init,\n  (nettle_hash_update_func *) null_hash_update,\n  (nettle_hash_digest_func *) null_hash_digest\n};\n\n#endif /* MIN_VERSION(3, 1) */\n\n/* expand ctx and digest memory allocations if necessary and init hash function */\nint hash_init(const struct nettle_hash *hash, void **ctxp, unsigned char **digestp)\n{\n  static void *ctx = NULL;\n  static unsigned char *digest = NULL;\n  static unsigned int ctx_sz = 0;\n  static unsigned int digest_sz = 0;\n\n  void *new;\n\n  if (ctx_sz < hash->context_size)\n    {\n"
+      }
+    },
+    {
+      "file": "src/crypto.c",
+      "old_start": 101,
+      "old_end": 106,
+      "new_start": 109,
+      "new_end": 115,
+      "context_hint": "static void null_hash_digest(void *ctx, size_t length, uint8_t *dst)",
+      "added_lines": [
+        "#endif"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "  ((struct null_hash_digest *)dst)->buff = null_hash_buff;",
+        "  ((struct null_hash_digest *)dst)->len = ((struct null_hash_ctx *)ctx)->len;",
+        "}",
+        "",
+        "static struct nettle_hash null_hash = {",
+        "  \"null_hash\","
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "null_hash_digest",
+        "endif"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "null_hash_digest",
+        "snippet_start_line": 72,
+        "snippet_end_line": 145,
+        "snippet": "  struct null_hash_ctx *ctx = ctxv;\n  size_t new_len = ctx->len + length;\n  \n  if (new_len > null_hash_buff_sz)\n    {\n      uint8_t *new;\n      \n      if (!(new = whine_malloc(new_len + BUFF_INCR)))\n\treturn;\n\n      if (null_hash_buff)\n\t{\n\t  if (ctx->len != 0)\n\t    memcpy(new, null_hash_buff, ctx->len);\n\t  free(null_hash_buff);\n\t}\n      \n      null_hash_buff_sz = new_len + BUFF_INCR;\n      null_hash_buff = new;\n    }\n\n  memcpy(null_hash_buff + ctx->len, src, length);\n  ctx->len += length;\n}\n\n/* The prototype changes in nettle 4.0 to omit the length argument */\n#if MIN_VERSION(4, 0)\nstatic void null_hash_digest(void *ctx, uint8_t *dst)\n{\n  ((struct null_hash_digest *)dst)->buff = null_hash_buff;\n  ((struct null_hash_digest *)dst)->len = ((struct null_hash_ctx *)ctx)->len;\n}\n#else\nstatic void null_hash_digest(void *ctx, size_t length, uint8_t *dst)\n{\n  (void)length;\n  \n  ((struct null_hash_digest *)dst)->buff = null_hash_buff;\n  ((struct null_hash_digest *)dst)->len = ((struct null_hash_ctx *)ctx)->len;\n}\n#endif\n\nstatic struct nettle_hash null_hash = {\n  \"null_hash\",\n  sizeof(struct null_hash_ctx),\n  sizeof(struct null_hash_digest),\n  0,\n  (nettle_hash_init_func *) null_hash_init,\n  (nettle_hash_update_func *) null_hash_update,\n  (nettle_hash_digest_func *) null_hash_digest\n};\n\n#endif /* MIN_VERSION(3, 1) */\n\n/* expand ctx and digest memory allocations if necessary and init hash function */\nint hash_init(const struct nettle_hash *hash, void **ctxp, unsigned char **digestp)\n{\n  static void *ctx = NULL;\n  static unsigned char *digest = NULL;\n  static unsigned int ctx_sz = 0;\n  static unsigned int digest_sz = 0;\n\n  void *new;\n\n  if (ctx_sz < hash->context_size)\n    {\n      if (!(new = whine_realloc(ctx, hash->context_size)))\n\treturn 0;\n      \n      ctx = new;\n      ctx_sz = hash->context_size;\n    }\n  \n  if (digest_sz < hash->digest_size)\n"
+      }
+    },
+    {
+      "file": "src/crypto.c",
+      "old_start": 501,
+      "old_end": 504,
+      "new_start": 510,
+      "new_end": 525,
+      "context_hint": "const struct nettle_hash *hash_find(char *name)",
+      "added_lines": [
+        "/* The prototype changes in nettle 4.0 to omit the length argument */",
+        "void nettle_digest_wrapper(const struct nettle_hash *hash, void *ctx, size_t length, uint8_t *dst)",
+        "{",
+        "#if MIN_VERSION(4, 0)",
+        "  (void)length;",
+        "  hash->digest(ctx, dst);",
+        "#else",
+        "  hash->digest(ctx, length, dst);",
+        "#endif",
+        "}",
+        "",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "#endif",
+        "}",
+        "",
+        "#endif /* defined(HAVE_DNSSEC) */"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "nettle_hash",
+        "The",
+        "prototype",
+        "changes",
+        "in",
+        "nettle",
+        "nettle_digest_wrapper",
+        "nettle_lookup_hash"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "dns_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "DNS query, response, cache, and DNSSEC semantics"
+          }
+        ],
+        "surface_reasons": [
+          "dns_protocol"
+        ],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "nettle_hash",
+        "snippet_start_line": 472,
+        "snippet_end_line": 525,
+        "snippet": "  \n/* http://www.iana.org/assignments/dnssec-nsec3-parameters/dnssec-nsec3-parameters.xhtml */\nchar *nsec3_digest_name(int digest)\n{\n  switch (digest)\n    {\n    case 1: return \"sha1\";\n    default: return NULL;\n    }\n}\n\n/* Find pointer to correct hash function in nettle library */\nconst struct nettle_hash *hash_find(char *name)\n{\n  if (!name)\n    return NULL;\n  \n#if MIN_VERSION(3,1) && defined(HAVE_DNSSEC)\n  /* We provide a \"null\" hash which returns the input data as digest. */\n  if (strcmp(null_hash.name, name) == 0)\n    return &null_hash;\n#endif\n  \n  /* libnettle >= 3.4 provides nettle_lookup_hash() which avoids nasty ABI\n     incompatibilities if sizeof(nettle_hashes) changes between library\n     versions. */\n#if MIN_VERSION(3, 4)\n  return nettle_lookup_hash(name);\n#else\n  {\n    int i;\n\n    for (i = 0; nettle_hashes[i]; i++)\n      if (strcmp(nettle_hashes[i]->name, name) == 0)\n\treturn nettle_hashes[i];\n  }\n  \n  return NULL;\n#endif\n}\n\n/* The prototype changes in nettle 4.0 to omit the length argument */\nvoid nettle_digest_wrapper(const struct nettle_hash *hash, void *ctx, size_t length, uint8_t *dst)\n{\n#if MIN_VERSION(4, 0)\n  (void)length;\n  hash->digest(ctx, dst);\n#else\n  hash->digest(ctx, length, dst);\n#endif\n}\n\n\n#endif /* defined(HAVE_DNSSEC) */\n"
+      }
+    },
+    {
+      "file": "src/dnsmasq.h",
+      "old_start": 1489,
+      "old_end": 1494,
+      "new_start": 1489,
+      "new_end": 1495,
+      "context_hint": "int verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig,",
+      "added_lines": [
+        "void nettle_digest_wrapper(const struct nettle_hash *hash, void *ctx, size_t length, uint8_t *dst);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "char *ds_digest_name(int digest);",
+        "char *algo_digest_name(int algo);",
+        "char *nsec3_digest_name(int digest);",
+        "",
+        "/* util.c */",
+        "void rand_init(void);"
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "blockdata",
+        "nettle_digest_wrapper",
+        "nettle_hash",
+        "hash",
+        "ctx",
+        "size_t",
+        "verify"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers"
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Network protocol behavior"
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "dns_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "DNS query, response, cache, and DNSSEC semantics"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "user_visible_output",
+          "protocol",
+          "logging",
+          "network_protocol",
+          "dns_protocol"
+        ],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "blockdata",
+        "snippet_start_line": 1460,
+        "snippet_end_line": 1525,
+        "snippet": "#define EXTR_NAME_FLIP      4\n\n/* auth.c */\n#ifdef HAVE_AUTH\nsize_t answer_auth(struct dns_header *header, char *limit, size_t qlen, \n\t\t   time_t now, union mysockaddr *peer_addr, int local_query);\nint in_zone(struct auth_zone *zone, char *name, char **cut);\n#endif\n\n/* dnssec.c */\n#ifdef HAVE_DNSSEC\nsize_t dnssec_generate_query(struct dns_header *header, unsigned char *end, char *name, int class, int id, int type);\nint dnssec_validate_by_ds(time_t now, struct dns_header *header, size_t plen, char *name,\n\t\t\t  char *keyname, int class, int *validate_count);\nint dnssec_validate_ds(time_t now, struct dns_header *header, size_t plen, char *name,\n\t\t       char *keyname, int class, int *validate_count);\nint dnssec_validate_reply(time_t now, struct dns_header *header, size_t plen, char *name, char *keyname, int *class,\n\t\t\t  int check_unsigned, int *neganswer, int *prim_ok, int *nons, int *nsec_ttl, int *validate_count);\nint dnskey_keytag(int alg, int flags, unsigned char *key, int keylen);\nsize_t filter_rrsigs(struct dns_header *header, size_t plen);\nint setup_timestamp(void);\nint errflags_to_ede(int status);\n#endif\n\n/* crypto.c */\nconst struct nettle_hash *hash_find(char *name);\nint hash_init(const struct nettle_hash *hash, void **ctxp, unsigned char **digestp);\nint verify(struct blockdata *key_data, unsigned int key_len, unsigned char *sig, size_t sig_len,\n\t   unsigned char *digest, size_t digest_len, int algo);\nchar *ds_digest_name(int digest);\nchar *algo_digest_name(int algo);\nchar *nsec3_digest_name(int digest);\nvoid nettle_digest_wrapper(const struct nettle_hash *hash, void *ctx, size_t length, uint8_t *dst);\n\n/* util.c */\nvoid rand_init(void);\nunsigned short rand16(void);\nu32 rand32(void);\nu64 rand64(void);\nint rr_on_list(struct rrlist *list, unsigned short rr);\nint legal_hostname(char *name);\nchar *canonicalise(char *in, int *nomem);\nunsigned char *do_rfc1035_name(unsigned char *p, char *sval, char *limit);\nvoid *safe_malloc(size_t size);\nvoid safe_strncpy(char *dest, const char *src, size_t size);\nvoid safe_pipe(int *fd, int read_noblock);\n#define malloc_log(x, y) malloc_log_real(__func__, __LINE__, (x), (y))\n#define whine_malloc(x) whine_malloc_real(__func__, __LINE__, (x))\n#define whine_realloc(x, y) whine_realloc_real(NULL, __func__, __LINE__, (x), (y))\n#define expand_buf(x, y) expand_buf_real(__func__, __LINE__, (x), (y))\n#define expand_workspace(x, y, z) expand_workspace_real(__func__, __LINE__, (x), (y), (z))\n#define free(x) free_real(__func__, __LINE__, (x))\nvoid malloc_log_real(const char *func, unsigned int line, void *mem, size_t size);\nvoid free_real(const char *func, unsigned int line, void *ptr);\nvoid *whine_malloc_real(const char *func, unsigned int line, size_t size);\nvoid *whine_realloc_real(const char *wrapper, const char *func, unsigned int line, void *ptr, size_t size);\nint expand_buf_real(const char *func, unsigned int line, struct iovec *iov, size_t size);\nint expand_workspace_real(const char *func, unsigned int line, unsigned char ***wkspc, int *szp, int new);\nint sa_len(union mysockaddr *addr);\nint sockaddr_isequal(const union mysockaddr *s1, const union mysockaddr *s2);\nint sockaddr_isnull(const union mysockaddr *s);\nint hostname_order(const char *a, const char *b);\nint hostname_isequal(const char *a, const char *b);\nint hostname_issubdomain(char *a, char *b);\ntime_t dnsmasq_time(void);\nu32 dnsmasq_milliseconds(void);\n"
+      }
+    },
+    {
+      "file": "src/dnssec.c",
+      "old_start": 656,
+      "old_end": 662,
+      "new_start": 656,
+      "new_end": 662,
+      "context_hint": "static int validate_rrset(time_t now, struct dns_header *header, size_t plen, in",
+      "added_lines": [
+        "      nettle_digest_wrapper(hash, ctx, hash->digest_size, digest);"
+      ],
+      "deleted_lines": [
+        "      hash->digest(ctx, hash->digest_size, digest);"
+      ],
+      "context_lines": [
+        "\t    }",
+        "\t}",
+        "     ",
+        "      ",
+        "      /* namebuff used for workspace above, restore to leave unchanged on exit */",
+        "      p = (unsigned char*)(rrset[0]);",
+        ""
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "dns_header",
+        "nettle_digest_wrapper",
+        "hash",
+        "ctx",
+        "digest_size",
+        "digest",
+        "GETSHORT"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Network protocol behavior"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "dns_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "DNS query, response, cache, and DNSSEC semantics"
+          }
+        ],
+        "surface_reasons": [
+          "protocol",
+          "network_protocol",
+          "persistence_state",
+          "dns_protocol"
+        ],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "dns_header",
+        "snippet_start_line": 627,
+        "snippet_end_line": 692,
+        "snippet": "\t\tif (j < RRBUFLEN)\n\t\t  rrbuf[j] = *state.op;\n\t      \n\t      len = htons((u16)j);\n\t      hash->update(ctx, 2, (unsigned char *)&len); \n\t      \n\t      /* If the RR is shorter than RRBUFLEN (most of them, in practice)\n\t\t then we can just digest it now. If it exceeds RRBUFLEN we have to\n\t\t go back to the start and do it in chunks. */\n\t      if (j >= RRBUFLEN)\n\t\t{\n\t\t  state.ip = p;\n\t\t  state.op = NULL;\n\t\t  state.desc = rr_desc;\n\t\t  \n\t\t  for (j = 0; get_rdata(header, plen, &state); j++)\n\t\t    {\n\t\t      rrbuf[j] = *state.op;\n\t\t      \n\t\t      if (j == RRBUFLEN - 1)\n\t\t\t{\n\t\t\t  hash->update(ctx, RRBUFLEN, rrbuf);\n\t\t\t  j = -1;\n\t\t\t}\n\t\t    }\n\t\t}\n\t      \n\t      if (j != 0)\n\t\thash->update(ctx, j, rrbuf);\n\t    }\n\t}\n     \n      nettle_digest_wrapper(hash, ctx, hash->digest_size, digest);\n      \n      /* namebuff used for workspace above, restore to leave unchanged on exit */\n      p = (unsigned char*)(rrset[0]);\n      if (!extract_name(header, plen, &p, name, EXTR_NAME_EXTRACT, 0))\n\treturn STAT_BOGUS;\n\n      if (key)\n\t{\n\t  if (algo_in == algo && keytag_in == key_tag)\n\t    {\n\t      if (dec_counter(validate_counter, NULL))\n\t\treturn STAT_ABANDONED;\n\t     \t      \n\t      if (verify(key, keylen, sig, sig_len, digest, hash->digest_size, algo))\n\t\treturn STAT_SECURE;\n\t    }\n\t}\n      else\n\t{\n\t  /* iterate through all possible keys 4035 5.3.1 */\n\t  for (; crecp; crecp = cache_find_by_name(crecp, keyname, now, F_DNSKEY))\n\t    if (crecp->addr.key.algo == algo && \n\t\tcrecp->addr.key.keytag == key_tag &&\n\t\tcrecp->uid == (unsigned int)class)\n\t      {\n\t\tif (dec_counter(validate_counter, NULL))\n\t\t  return STAT_ABANDONED;\n\t\t\n\t\tif (verify(crecp->addr.key.keydata, crecp->addr.key.keylen, sig, sig_len, digest, hash->digest_size, algo))\n\t\t  return STAT_SECURE;\n\t\t\n\t\t/* An attacker can waste a lot of our CPU by setting up a giant DNSKEY RRSET full of failing\n\t\t   keys, all of which we have to try. Since many failing keys is not likely for\n"
+      }
+    }
+  ]
+}

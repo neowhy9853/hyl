@@ -1,0 +1,89 @@
+[
+  {
+    "task_id": "PCA-TE-0001",
+    "finding_id": "PCA-0001",
+    "compatibility_type": "ABI_CHANGE",
+    "artifact_path": "test-entry-work/PCA-0001/test_struct_abi.c",
+    "run_command": "./test-entry-work/PCA-0001/runs/test_struct_abi",
+    "execution": {
+      "cwd": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P022/compatibility-testing",
+      "ld_library_path": "/data2/wanghy/conda_dir/lib"
+    },
+    "expected_signal": "Exits 0 with 'RESULT: PASS'",
+    "reachability_signal": "sizeof(PyCriticalSection) = 16, sizeof(PyCriticalSection2) = 24",
+    "input_strategy": "compile with Py_LIMITED_API=0x030f0000, verify struct size, alignment, and member offsets",
+    "contract_probe": {
+      "type": "binary_abi_compatibility",
+      "before_cmd": "gcc -DPy_LIMITED_API=0x030f0000 -I include_before test_struct_abi.c -lpython3.13 -o test_before",
+      "after_cmd": "gcc -DPy_LIMITED_API=0x030f0000 -I include test_struct_abi.c -lpython3.13 -o test_after",
+      "before_result": "COMPILE_FAILED - PyCriticalSection/PyCriticalSection2 not available in Limited API",
+      "after_result": "COMPILE_OK + EXECUTION_PASS",
+      "comparison": "ADDITIVE_CHANGE - types now available in Limited API"
+    },
+    "prerequisites": [
+      "gcc",
+      "python3.13-dev",
+      "patched headers in include/"
+    ],
+    "limitations": "Cannot verify ABI stability across multiple CPython releases without additional versions",
+    "status": "verified"
+  },
+  {
+    "task_id": "PCA-TE-0002",
+    "finding_id": "PCA-0002",
+    "compatibility_type": "API_SIGNATURE_CHANGE",
+    "artifact_path": "test-entry-work/PCA-0002/test_function_api.c",
+    "run_command": "./test-entry-work/PCA-0002/runs/test_function_api",
+    "execution": {
+      "cwd": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P022/compatibility-testing",
+      "ld_library_path": "/data2/wanghy/conda_dir/lib"
+    },
+    "expected_signal": "Exits 0 with 'RESULT: PASS', all function pointers non-NULL",
+    "reachability_signal": "PyCriticalSection_Begin=0x..., PyCriticalSection_End=0x..., PyCriticalSection2_Begin=0x..., PyCriticalSection2_End=0x...",
+    "input_strategy": "compile with Py_LIMITED_API=0x030f0000, declare function pointers to verify signatures and link resolution",
+    "contract_probe": {
+      "type": "api_signature_compatibility",
+      "before_cmd": "gcc -DPy_LIMITED_API=0x030f0000 -I include_before test_function_api.c -lpython3.13 -o test_before",
+      "after_cmd": "gcc -DPy_LIMITED_API=0x030f0000 -I include test_function_api.c -lpython3.13 -o test_after",
+      "before_result": "COMPILE_FAILED - PyCriticalSection/PyCriticalSection2 types and functions not in Limited API",
+      "after_result": "COMPILE_OK + EXECUTION_PASS - functions resolved via dlsym/ld",
+      "comparison": "ADDITIVE_CHANGE - 4 new functions added to Limited API"
+    },
+    "prerequisites": [
+      "gcc",
+      "python3.13-dev",
+      "patched headers in include/"
+    ],
+    "limitations": "Non-free-threaded build only; free-threaded build behavior not tested",
+    "status": "verified"
+  },
+  {
+    "task_id": "PCA-TE-0003",
+    "finding_id": "PCA-0003",
+    "compatibility_type": "API_SIGNATURE_CHANGE",
+    "artifact_path": "test-entry-work/PCA-0003/test_macro_api.c",
+    "run_command": "./test-entry-work/PCA-0003/runs/test_macro_api",
+    "execution": {
+      "cwd": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P022/compatibility-testing",
+      "ld_library_path": "/data2/wanghy/conda_dir/lib"
+    },
+    "expected_signal": "Exits 0 with 'RESULT: PASS', all 4 macros defined",
+    "reachability_signal": "Py_BEGIN_CRITICAL_SECTION macro defined: PASS, Py_END_CRITICAL_SECTION macro defined: PASS, ...",
+    "input_strategy": "compile with Py_LIMITED_API=0x030f0000, verify preprocessor macros available",
+    "contract_probe": {
+      "type": "api_signature_compatibility",
+      "before_cmd": "echo '#define Py_LIMITED_API 0x030f0000\n#include <Python.h>\n#include <critical_section.h>\n#ifdef Py_BEGIN_CRITICAL_SECTION\nexists\n#endif' | gcc -E -I include_before -",
+      "after_cmd": "echo '#define Py_LIMITED_API 0x030f0000\n#include <Python.h>\n#include <critical_section.h>\n#ifdef Py_BEGIN_CRITICAL_SECTION\nexists\n#endif' | gcc -E -I include -",
+      "before_result": "MACRO_NOT_DEFINED - Py_BEGIN_CRITICAL_SECTION not in Limited API",
+      "after_result": "COMPILE_OK + EXECUTION_PASS - all 4 macros available and defined",
+      "comparison": "ADDITIVE_CHANGE - 4 macros added to Limited API"
+    },
+    "prerequisites": [
+      "gcc",
+      "python3.13-dev",
+      "patched headers in include/"
+    ],
+    "limitations": "Macro expansion contents extracted via gcc -E not yet verified for correctness",
+    "status": "verified"
+  }
+]

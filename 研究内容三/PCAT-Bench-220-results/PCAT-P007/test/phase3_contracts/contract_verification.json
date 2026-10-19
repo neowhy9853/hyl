@@ -1,0 +1,78 @@
+{
+  "summary": {
+    "total": 6,
+    "passed": 0,
+    "breached": 6,
+    "not_tested": 0
+  },
+  "breaches": [
+    {
+      "finding_id": "PCA-0001",
+      "contract": "backward_input_acceptance",
+      "input": "I1 - git gui blame <path> <rev>",
+      "old_valid": true,
+      "new_valid": false,
+      "before": "exit 124 (timeout - opened blame GUI, accepted input)",
+      "after": "exit 1 - 'fatal: test-file.txt is not a valid rev'",
+      "severity": "MEDIUM",
+      "evidence": "Path-before-rev argument ordering accepted in old parser, rejected in new parser. The old heuristic checked file existence in worktree to determine if an argument was a path. New parser uses strict positional parsing."
+    },
+    {
+      "finding_id": "PCA-0001",
+      "contract": "backward_input_acceptance",
+      "input": "I2 - git gui blame <path> <extra_arg>",
+      "old_valid": true,
+      "new_valid": false,
+      "before": "exit 124 (timeout - accepted extra argument silently)",
+      "after": "exit 1 - error or usage message",
+      "severity": "MEDIUM",
+      "evidence": "Old parser accepted extra arguments (beyond expected count). New parser enforces arg count validation via nargs vs maxargs check."
+    },
+    {
+      "finding_id": "PCA-0001",
+      "contract": "backward_input_acceptance",
+      "input": "I3 - git gui blame <rev> --line=<num> <path>",
+      "old_valid": true,
+      "new_valid": false,
+      "before": "exit 124 (timeout - accepted --line as non-first arg)",
+      "after": "exit 1 - usage message",
+      "severity": "LOW",
+      "evidence": "--line=<num> position enforced strictly in new parser. Old parser had loose --line placement rules."
+    },
+    {
+      "finding_id": "PCA-0001",
+      "contract": "rev_path_validation",
+      "input": "I4 - git gui blame <rev> <non-existent-path>",
+      "old_valid": false,
+      "new_valid": false,
+      "before": "exit 124 (timeout - no path validation, opened blank/blames window)",
+      "after": "exit 1 - '<path> is not a filename in rev <rev>'",
+      "severity": "LOW",
+      "evidence": "Old parser did not validate path existence in target rev. New parser uses git ls-tree to verify path existence before opening GUI."
+    },
+    {
+      "finding_id": "PCA-0001",
+      "contract": "rev_validation",
+      "input": "I5 - git gui blame <invalid-rev> <path>",
+      "old_valid": true,
+      "new_valid": false,
+      "before": "exit 124 (timeout - no rev validation for non-hex strings)",
+      "after": "exit 1 - 'fatal: <rev> is not a valid rev'",
+      "severity": "LOW",
+      "evidence": "Old parser only validated hex-looking revs with git rev-parse. New parser validates ALL user-supplied revs with git rev-parse --verify."
+    },
+    {
+      "finding_id": "PCA-0002",
+      "contract": "error_output_format",
+      "input": "I6 - git gui browser <non-existent-path>",
+      "old_behavior": "Blank browser window (exit 124 timeout) - no error message",
+      "new_behavior": "Exit 1 with clear error message on stderr: '<path> is not a directory in rev master'",
+      "before": "exit 124 (timeout - blank browser window, no error feedback)",
+      "after": "exit 1 - '<path> is not a directory in rev <rev>'",
+      "severity": "LOW",
+      "evidence": "Error handling changed from silent failure (blank window) to explicit error message via show_parse_err. Observable by users and any automation."
+    }
+  ],
+  "methodology": "Before/after comparison: ran git-gui.sh directly with same arguments against baseline commit (7c7c7ba4c) and patched commit (3fbef193c) worktrees. Used xvfb-run for virtual display. Invalid arguments that previously opened GUI (exit 124 timeout) now exit 1 with error message.",
+  "environment": "Linux x86_64, Xvfb virtual display, Tcl/Tk via wish, git 2.49+"
+}

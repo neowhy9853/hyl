@@ -1,0 +1,780 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P052/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P052/patch.diff",
+  "profile": "libsoup",
+  "summary": {
+    "total_changed_files": 3,
+    "changed_files": [
+      "libsoup/soup-session.c",
+      "libsoup/soup-uri.c",
+      "tests/redirect-test.c"
+    ],
+    "total_hunks": 6,
+    "public_api_hunks": 3,
+    "patch_metrics": {
+      "patch_bytes": 5980,
+      "patch_lines": 198,
+      "diff_added_lines": 48,
+      "diff_deleted_lines": 27,
+      "diff_context_lines": 94,
+      "churn": 75,
+      "raw_hunks": 6,
+      "candidate_hunks": 6,
+      "skipped_doc_hunks": 0,
+      "changed_files": 3,
+      "candidate_context_bytes": 12435,
+      "public_candidate_hunks": 3,
+      "surface_counts": {
+        "network_protocol": 4,
+        "http_semantics": 6,
+        "tests": 3,
+        "config_keys": 1,
+        "user_visible_output": 3,
+        "callbacks": 2,
+        "plugin_api": 2
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "libsoup/soup-session.c",
+      "old_start": 887,
+      "old_end": 893,
+      "new_start": 887,
+      "new_end": 893,
+      "context_hint": "redirect_handler (SoupMessage *msg, gpointer user_data)",
+      "added_lines": [
+        "\tif (!new_uri || !new_uri->host) {"
+      ],
+      "deleted_lines": [
+        "\tif (!new_uri) {"
+      ],
+      "context_lines": [
+        "\t * are lame, so we use soup_uri_new_with_base().",
+        "\t */",
+        "\tnew_uri = soup_uri_new_with_base (soup_message_get_uri (msg), new_loc);",
+        "\t\tsoup_message_set_status_full (msg,",
+        "\t\t\t\t\t      SOUP_STATUS_MALFORMED,",
+        "\t\t\t\t\t      \"Invalid Redirect URL\");"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "redirect_handler",
+        "new_uri",
+        "host",
+        "soup_message_headers_set_encoding"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "network_protocol",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "redirect_handler",
+        "snippet_start_line": 858,
+        "snippet_end_line": 923,
+        "snippet": "\t\t\t\t\t\t   SOUP_ENCODING_NONE);\n\t} else if (msg->status_code == SOUP_STATUS_MOVED_PERMANENTLY ||\n\t\t   msg->status_code == SOUP_STATUS_TEMPORARY_REDIRECT ||\n\t\t   msg->status_code == SOUP_STATUS_FOUND) {\n\t\t/* Don't redirect non-safe methods */\n\t\tif (!SOUP_METHOD_IS_SAFE (msg->method))\n\t\t\treturn;\n\t} else {\n\t\t/* Three possibilities:\n\t\t *\n\t\t *   1) This was a non-3xx response that happened to\n\t\t *      have a \"Location\" header\n\t\t *   2) It's a non-redirecty 3xx response (300, 304,\n\t\t *      305, 306)\n\t\t *   3) It's some newly-defined 3xx response (308+)\n\t\t *\n\t\t * We ignore all of these cases. In the first two,\n\t\t * redirecting would be explicitly wrong, and in the\n\t\t * last case, we have no clue if the 3xx response is\n\t\t * supposed to be redirecty or non-redirecty. Plus,\n\t\t * 2616 says unrecognized status codes should be\n\t\t * treated as the equivalent to the x00 code, and we\n\t\t * don't redirect on 300, so therefore we shouldn't\n\t\t * redirect on 308+ either.\n\t\t */\n\t\treturn;\n\t}\n\n\t/* Location is supposed to be an absolute URI, but some sites\n\t * are lame, so we use soup_uri_new_with_base().\n\t */\n\tnew_uri = soup_uri_new_with_base (soup_message_get_uri (msg), new_loc);\n\tif (!new_uri || !new_uri->host) {\n\t\tsoup_message_set_status_full (msg,\n\t\t\t\t\t      SOUP_STATUS_MALFORMED,\n\t\t\t\t\t      \"Invalid Redirect URL\");\n\t\treturn;\n\t}\n\n\tsoup_message_set_uri (msg, new_uri);\n\tsoup_uri_free (new_uri);\n\n\tsoup_session_requeue_message (session, msg);\n}\n\nvoid\nsoup_session_send_queue_item (SoupSession *session,\n\t\t\t      SoupMessageQueueItem *item,\n\t\t\t      SoupConnection *conn)\n{\n\tSoupSessionPrivate *priv = SOUP_SESSION_GET_PRIVATE (session);\n\n\tif (item->conn) {\n\t\tif (item->conn != conn) {\n\t\t\tg_object_unref (item->conn);\n\t\t\titem->conn = g_object_ref (conn);\n\t\t}\n\t} else\n\t\titem->conn = g_object_ref (conn);\n\n\tif (priv->user_agent) {\n\t\tsoup_message_headers_replace (item->msg->request_headers,\n\t\t\t\t\t      \"User-Agent\", priv->user_agent);\n\t}\n\n\tg_signal_emit (session, signals[REQUEST_STARTED], 0,\n"
+      }
+    },
+    {
+      "file": "libsoup/soup-uri.c",
+      "old_start": 965,
+      "old_end": 970,
+      "new_start": 965,
+      "new_end": 972,
+      "context_hint": "soup_uri_host_hash (gconstpointer key)",
+      "added_lines": [
+        "\tg_return_val_if_fail (uri != NULL && uri->host != NULL, 0);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "{",
+        "\tconst SoupURI *uri = key;",
+        "",
+        "\treturn GPOINTER_TO_UINT (uri->scheme) + uri->port +",
+        "\t\tsoup_str_case_hash (uri->host);",
+        "}"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "soup_uri_host_hash",
+        "g_return_val_if_fail",
+        "uri",
+        "NULL",
+        "host"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "soup_uri_host_hash",
+        "snippet_start_line": 936,
+        "snippet_end_line": 1002,
+        "snippet": "soup_uri_copy_host (SoupURI *uri)\n{\n\tSoupURI *dup;\n\n\tg_return_val_if_fail (uri != NULL, NULL);\n\n\tdup = soup_uri_new (NULL);\n\tdup->scheme = uri->scheme;\n\tdup->host   = g_strdup (uri->host);\n\tdup->port   = uri->port;\n\tif (dup->scheme == SOUP_URI_SCHEME_HTTP ||\n\t    dup->scheme == SOUP_URI_SCHEME_HTTPS)\n\t\tdup->path = g_strdup (\"\");\n\n\treturn dup;\n}\n\n/**\n * soup_uri_host_hash:\n * @key: a #SoupURI\n *\n * Hashes @key, considering only the scheme, host, and port.\n *\n * Return value: a hash\n *\n * Since: 2.26.3\n **/\nguint\nsoup_uri_host_hash (gconstpointer key)\n{\n\tconst SoupURI *uri = key;\n\n\tg_return_val_if_fail (uri != NULL && uri->host != NULL, 0);\n\n\treturn GPOINTER_TO_UINT (uri->scheme) + uri->port +\n\t\tsoup_str_case_hash (uri->host);\n}\n\n/**\n * soup_uri_host_equal:\n * @v1: a #SoupURI\n * @v2: a #SoupURI\n *\n * Compares @v1 and @v2, considering only the scheme, host, and port.\n *\n * Return value: whether or not the URIs are equal in scheme, host,\n * and port.\n *\n * Since: 2.26.3\n **/\ngboolean\nsoup_uri_host_equal (gconstpointer v1, gconstpointer v2)\n{\n\tconst SoupURI *one = v1;\n\tconst SoupURI *two = v2;\n\n\tg_return_val_if_fail (one != NULL && two != NULL, one == two);\n\tg_return_val_if_fail (one->host != NULL && two->host != NULL, one->host == two->host);\n\n\tif (one->scheme != two->scheme)\n\t\treturn FALSE;\n\tif (one->port != two->port)\n\t\treturn FALSE;\n\n\treturn g_ascii_strcasecmp (one->host, two->host) == 0;\n}\n\n"
+      }
+    },
+    {
+      "file": "libsoup/soup-uri.c",
+      "old_start": 987,
+      "old_end": 992,
+      "new_start": 989,
+      "new_end": 997,
+      "context_hint": "soup_uri_host_equal (gconstpointer v1, gconstpointer v2)",
+      "added_lines": [
+        "\tg_return_val_if_fail (one != NULL && two != NULL, one == two);",
+        "\tg_return_val_if_fail (one->host != NULL && two->host != NULL, one->host == two->host);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\tconst SoupURI *one = v1;",
+        "\tconst SoupURI *two = v2;",
+        "",
+        "\tif (one->scheme != two->scheme)",
+        "\t\treturn FALSE;",
+        "\tif (one->port != two->port)"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "soup_uri_host_equal",
+        "g_return_val_if_fail",
+        "one",
+        "NULL",
+        "two",
+        "host"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "soup_uri_host_equal",
+        "snippet_start_line": 958,
+        "snippet_end_line": 1017,
+        "snippet": " *\n * Return value: a hash\n *\n * Since: 2.26.3\n **/\nguint\nsoup_uri_host_hash (gconstpointer key)\n{\n\tconst SoupURI *uri = key;\n\n\tg_return_val_if_fail (uri != NULL && uri->host != NULL, 0);\n\n\treturn GPOINTER_TO_UINT (uri->scheme) + uri->port +\n\t\tsoup_str_case_hash (uri->host);\n}\n\n/**\n * soup_uri_host_equal:\n * @v1: a #SoupURI\n * @v2: a #SoupURI\n *\n * Compares @v1 and @v2, considering only the scheme, host, and port.\n *\n * Return value: whether or not the URIs are equal in scheme, host,\n * and port.\n *\n * Since: 2.26.3\n **/\ngboolean\nsoup_uri_host_equal (gconstpointer v1, gconstpointer v2)\n{\n\tconst SoupURI *one = v1;\n\tconst SoupURI *two = v2;\n\n\tg_return_val_if_fail (one != NULL && two != NULL, one == two);\n\tg_return_val_if_fail (one->host != NULL && two->host != NULL, one->host == two->host);\n\n\tif (one->scheme != two->scheme)\n\t\treturn FALSE;\n\tif (one->port != two->port)\n\t\treturn FALSE;\n\n\treturn g_ascii_strcasecmp (one->host, two->host) == 0;\n}\n\n\nGType\nsoup_uri_get_type (void)\n{\n\tstatic volatile gsize type_volatile = 0;\n\n\tif (g_once_init_enter (&type_volatile)) {\n\t\tGType type = g_boxed_type_register_static (\n\t\t\tg_intern_static_string (\"SoupURI\"),\n\t\t\t(GBoxedCopyFunc) soup_uri_copy,\n\t\t\t(GBoxedFreeFunc) soup_uri_free);\n\t\tg_once_init_leave (&type_volatile, type);\n\t}\n\treturn type_volatile;\n}\n"
+      }
+    },
+    {
+      "file": "tests/redirect-test.c",
+      "old_start": 22,
+      "old_end": 106,
+      "new_start": 22,
+      "new_end": 110,
+      "context_hint": "typedef struct {",
+      "added_lines": [
+        "\tguint final_status;",
+        "\t    { NULL } }, 200 },",
+        "\t    { NULL } }, 200 },",
+        "\t    { NULL } }, 200 },",
+        "\t    { NULL } }, 200 },",
+        "\t    { NULL } }, 200 },",
+        "\t    { NULL } }, 200 },",
+        "\t    { NULL } }, 200 },",
+        "\t    { NULL } }, 300 },",
+        "\t    { NULL } }, 304 },",
+        "\t    { NULL } }, 305 },",
+        "\t    { NULL } }, 306 },",
+        "\t    { NULL } }, 308 },",
+        "\t    { NULL } }, 300 },",
+        "\t    { NULL } }, 304 },",
+        "\t    { NULL } }, 305 },",
+        "\t    { NULL } }, 306 },",
+        "\t    { NULL } }, 308 },",
+        "\t    { \"GET\", \"/\", 200 } }, 200 },",
+        "\t    { \"HEAD\", \"/\", 200 } }, 200 },",
+        "\t    { NULL } }, 200 },",
+        "\t    { NULL } }, 200 },",
+        "\t    { NULL } }, 200 },",
+        "\t    { NULL } }, 307 },",
+        "\t/* Test behavior with recoverably-bad Location header */",
+        "\t    { NULL } }, 200 },",
+        "",
+        "\t/* Test behavior with irrecoverably-bad Location header */",
+        "\t{ { { \"GET\", \"/bad-no-host\", 302 },",
+        "\t    { NULL } }, SOUP_STATUS_MALFORMED }"
+      ],
+      "deleted_lines": [
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { \"GET\", \"/\", 200 } } },",
+        "\t    { \"HEAD\", \"/\", 200 } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t    { NULL } } },",
+        "\t/* Test behavior with recoverably-bad Location header",
+        "\t */",
+        "\t    { NULL } } }"
+      ],
+      "context_lines": [
+        "",
+        "static struct {",
+        "\tTestRequest requests[3];",
+        "} tests[] = {",
+        "\t/* A redirecty response to a GET or HEAD should cause a redirect */",
+        "",
+        "\t{ { { \"GET\", \"/301\", 301 },",
+        "\t    { \"GET\", \"/\", 200 },",
+        "\t{ { { \"GET\", \"/302\", 302 },",
+        "\t    { \"GET\", \"/\", 200 },",
+        "\t{ { { \"GET\", \"/303\", 303 },",
+        "\t    { \"GET\", \"/\", 200 },",
+        "\t{ { { \"GET\", \"/307\", 307 },",
+        "\t    { \"GET\", \"/\", 200 },",
+        "\t{ { { \"HEAD\", \"/301\", 301 },",
+        "\t    { \"HEAD\", \"/\", 200 },",
+        "\t{ { { \"HEAD\", \"/302\", 302 },",
+        "\t    { \"HEAD\", \"/\", 200 },",
+        "\t/* 303 is a nonsensical response to HEAD, so we don't care",
+        "\t * what happens there.",
+        "\t */",
+        "\t{ { { \"HEAD\", \"/307\", 307 },",
+        "\t    { \"HEAD\", \"/\", 200 },",
+        "",
+        "\t/* A non-redirecty response to a GET or HEAD should not */",
+        "",
+        "\t{ { { \"GET\", \"/300\", 300 },",
+        "\t{ { { \"GET\", \"/304\", 304 },",
+        "\t{ { { \"GET\", \"/305\", 305 },",
+        "\t{ { { \"GET\", \"/306\", 306 },",
+        "\t{ { { \"GET\", \"/308\", 308 },",
+        "\t{ { { \"HEAD\", \"/300\", 300 },",
+        "\t{ { { \"HEAD\", \"/304\", 304 },",
+        "\t{ { { \"HEAD\", \"/305\", 305 },",
+        "\t{ { { \"HEAD\", \"/306\", 306 },",
+        "\t{ { { \"HEAD\", \"/308\", 308 },",
+        "\t",
+        "\t/* Test double-redirect */",
+        "",
+        "\t{ { { \"GET\", \"/301/302\", 301 },",
+        "\t    { \"GET\", \"/302\", 302 },",
+        "\t{ { { \"HEAD\", \"/301/302\", 301 },",
+        "\t    { \"HEAD\", \"/302\", 302 },",
+        "",
+        "\t/* POST should only automatically redirect on 301, 302 and 303 */",
+        "",
+        "\t{ { { \"POST\", \"/301\", 301 },",
+        "\t    { \"GET\", \"/\", 200 },",
+        "\t{ { { \"POST\", \"/302\", 302 },",
+        "\t    { \"GET\", \"/\", 200 },",
+        "\t{ { { \"POST\", \"/303\", 303 },",
+        "\t    { \"GET\", \"/\", 200 },",
+        "\t{ { { \"POST\", \"/307\", 307 },",
+        "",
+        "\t{ { { \"GET\", \"/bad\", 302 },",
+        "\t    { \"GET\", \"/bad%20with%20spaces\", 200 },",
+        "};",
+        "static const int n_tests = G_N_ELEMENTS (tests);",
+        ""
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "guint",
+        "final_status",
+        "NULL",
+        "GET",
+        "HEAD",
+        "Test",
+        "Copyright"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "config_keys",
+          "user_visible_output",
+          "network_protocol",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "Copyright",
+        "snippet_start_line": 1,
+        "snippet_end_line": 140,
+        "snippet": "/* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */\n/*\n * Copyright (C) 2008 Red Hat, Inc.\n */\n\n#include \"config.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n#include <glib.h>\n#include <libsoup/soup.h>\n\n#include \"test-utils.h\"\n\ntypedef struct {\n\tconst char *method;\n\tconst char *path;\n\tguint status_code;\n} TestRequest;\n\nstatic struct {\n\tTestRequest requests[3];\n\tguint final_status;\n} tests[] = {\n\t/* A redirecty response to a GET or HEAD should cause a redirect */\n\n\t{ { { \"GET\", \"/301\", 301 },\n\t    { \"GET\", \"/\", 200 },\n\t    { NULL } }, 200 },\n\t{ { { \"GET\", \"/302\", 302 },\n\t    { \"GET\", \"/\", 200 },\n\t    { NULL } }, 200 },\n\t{ { { \"GET\", \"/303\", 303 },\n\t    { \"GET\", \"/\", 200 },\n\t    { NULL } }, 200 },\n\t{ { { \"GET\", \"/307\", 307 },\n\t    { \"GET\", \"/\", 200 },\n\t    { NULL } }, 200 },\n\t{ { { \"HEAD\", \"/301\", 301 },\n\t    { \"HEAD\", \"/\", 200 },\n\t    { NULL } }, 200 },\n\t{ { { \"HEAD\", \"/302\", 302 },\n\t    { \"HEAD\", \"/\", 200 },\n\t    { NULL } }, 200 },\n\t/* 303 is a nonsensical response to HEAD, so we don't care\n\t * what happens there.\n\t */\n\t{ { { \"HEAD\", \"/307\", 307 },\n\t    { \"HEAD\", \"/\", 200 },\n\t    { NULL } }, 200 },\n\n\t/* A non-redirecty response to a GET or HEAD should not */\n\n\t{ { { \"GET\", \"/300\", 300 },\n\t    { NULL } }, 300 },\n\t{ { { \"GET\", \"/304\", 304 },\n\t    { NULL } }, 304 },\n\t{ { { \"GET\", \"/305\", 305 },\n\t    { NULL } }, 305 },\n\t{ { { \"GET\", \"/306\", 306 },\n\t    { NULL } }, 306 },\n\t{ { { \"GET\", \"/308\", 308 },\n\t    { NULL } }, 308 },\n\t{ { { \"HEAD\", \"/300\", 300 },\n\t    { NULL } }, 300 },\n\t{ { { \"HEAD\", \"/304\", 304 },\n\t    { NULL } }, 304 },\n\t{ { { \"HEAD\", \"/305\", 305 },\n\t    { NULL } }, 305 },\n\t{ { { \"HEAD\", \"/306\", 306 },\n\t    { NULL } }, 306 },\n\t{ { { \"HEAD\", \"/308\", 308 },\n\t    { NULL } }, 308 },\n\t\n\t/* Test double-redirect */\n\n\t{ { { \"GET\", \"/301/302\", 301 },\n\t    { \"GET\", \"/302\", 302 },\n\t    { \"GET\", \"/\", 200 } }, 200 },\n\t{ { { \"HEAD\", \"/301/302\", 301 },\n\t    { \"HEAD\", \"/302\", 302 },\n\t    { \"HEAD\", \"/\", 200 } }, 200 },\n\n\t/* POST should only automatically redirect on 301, 302 and 303 */\n\n\t{ { { \"POST\", \"/301\", 301 },\n\t    { \"GET\", \"/\", 200 },\n\t    { NULL } }, 200 },\n\t{ { { \"POST\", \"/302\", 302 },\n\t    { \"GET\", \"/\", 200 },\n\t    { NULL } }, 200 },\n\t{ { { \"POST\", \"/303\", 303 },\n\t    { \"GET\", \"/\", 200 },\n\t    { NULL } }, 200 },\n\t{ { { \"POST\", \"/307\", 307 },\n\t    { NULL } }, 307 },\n\n\t/* Test behavior with recoverably-bad Location header */\n\t{ { { \"GET\", \"/bad\", 302 },\n\t    { \"GET\", \"/bad%20with%20spaces\", 200 },\n\t    { NULL } }, 200 },\n\n\t/* Test behavior with irrecoverably-bad Location header */\n\t{ { { \"GET\", \"/bad-no-host\", 302 },\n\t    { NULL } }, SOUP_STATUS_MALFORMED }\n};\nstatic const int n_tests = G_N_ELEMENTS (tests);\n\nstatic void\ngot_headers (SoupMessage *msg, gpointer user_data)\n{\n\tTestRequest **req = user_data;\n\tconst char *location;\n\n\tdebug_printf (2, \"    -> %d %s\\n\", msg->status_code,\n\t\t      msg->reason_phrase);\n\tlocation = soup_message_headers_get_one (msg->response_headers,\n\t\t\t\t\t\t \"Location\");\n\tif (location)\n\t\tdebug_printf (2, \"       Location: %s\\n\", location);\n\n\tif (!(*req)->method)\n\t\treturn;\n\n\tif (msg->status_code != (*req)->status_code) {\n\t\tdebug_printf (1, \"    - Expected %d !\\n\",\n\t\t\t      (*req)->status_code);\n\t\terrors++;\n\t}\n}\n\nstatic void\nrestarted (SoupMessage *msg, gpointer user_data)\n{\n\tTestRequest **req = user_data;\n\tSoupURI *uri = soup_message_get_uri (msg);\n\n\tdebug_printf (2, \"    %s %s\\n\", msg->method, uri->path);\n"
+      }
+    },
+    {
+      "file": "tests/redirect-test.c",
+      "old_start": 183,
+      "old_end": 188,
+      "new_start": 187,
+      "new_end": 199,
+      "context_hint": "do_test (SoupSession *session, SoupURI *base_uri, int n)",
+      "added_lines": [
+        "",
+        "\tif (msg->status_code != tests[n].final_status) {",
+        "\t\tdebug_printf (1, \"    - Expected final status of %d, got %d !\\n\",",
+        "\t\t\t      tests[n].final_status, msg->status_code);",
+        "\t\terrors++;",
+        "\t}",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\t\t  G_CALLBACK (restarted), &req);",
+        "",
+        "\tsoup_session_send_message (session, msg);",
+        "\tg_object_unref (msg);",
+        "\tdebug_printf (2, \"\\n\");",
+        "}"
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "do_test",
+        "msg",
+        "status_code",
+        "tests",
+        "n",
+        "final_status",
+        "debug_printf",
+        "G_CALLBACK"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Library callback function type changes"
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "callbacks",
+          "user_visible_output",
+          "plugin_api",
+          "network_protocol",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "do_test",
+        "snippet_start_line": 154,
+        "snippet_end_line": 229,
+        "snippet": "\t}\n\tif (strcmp (uri->path, (*req)->path) != 0) {\n\t\tdebug_printf (1, \"    - Expected %s !\\n\", (*req)->path);\n\t\terrors++;\n\t}\n}\n\nstatic void\ndo_test (SoupSession *session, SoupURI *base_uri, int n)\n{\n\tSoupURI *uri;\n\tSoupMessage *msg;\n\tTestRequest *req;\n\n\tdebug_printf (1, \"%2d. %s %s\\n\", n + 1,\n\t\t      tests[n].requests[0].method,\n\t\t      tests[n].requests[0].path);\n\n\turi = soup_uri_new_with_base (base_uri, tests[n].requests[0].path);\n\tmsg = soup_message_new_from_uri (tests[n].requests[0].method, uri);\n\tsoup_uri_free (uri);\n\n\tif (msg->method == SOUP_METHOD_POST) {\n\t\tsoup_message_set_request (msg, \"text/plain\",\n\t\t\t\t\t  SOUP_MEMORY_STATIC,\n\t\t\t\t\t  \"post body\",\n\t\t\t\t\t  strlen (\"post body\"));\n\t}\n\n\treq = &tests[n].requests[0];\n\tg_signal_connect (msg, \"got_headers\",\n\t\t\t  G_CALLBACK (got_headers), &req);\n\tg_signal_connect (msg, \"restarted\",\n\t\t\t  G_CALLBACK (restarted), &req);\n\n\tsoup_session_send_message (session, msg);\n\n\tif (msg->status_code != tests[n].final_status) {\n\t\tdebug_printf (1, \"    - Expected final status of %d, got %d !\\n\",\n\t\t\t      tests[n].final_status, msg->status_code);\n\t\terrors++;\n\t}\n\n\tg_object_unref (msg);\n\tdebug_printf (2, \"\\n\");\n}\n\nstatic void\ndo_redirect_tests (SoupURI *base_uri)\n{\n\tSoupSession *session;\n\tint n;\n\n\tsession = soup_test_session_new (SOUP_TYPE_SESSION_ASYNC, NULL);\n\tdebug_printf (1, \"Async session\\n\");\n\tfor (n = 0; n < n_tests; n++)\n\t\tdo_test (session, base_uri, n);\n\tsoup_test_session_abort_unref (session);\n\n\tsession = soup_test_session_new (SOUP_TYPE_SESSION_SYNC, NULL);\n\tdebug_printf (1, \"Sync session\\n\");\n\tfor (n = 0; n < n_tests; n++)\n\t\tdo_test (session, base_uri, n);\n\tsoup_test_session_abort_unref (session);\n}\n\nstatic void\nserver_callback (SoupServer *server, SoupMessage *msg,\n\t\t const char *path, GHashTable *query,\n\t\t SoupClientContext *context, gpointer data)\n{\n\tchar *remainder;\n\tguint status_code;\n\n\tif (g_str_has_prefix (path, \"/bad\")) {\n\t\tif (!strcmp (path, \"/bad\")) {\n"
+      }
+    },
+    {
+      "file": "tests/redirect-test.c",
+      "old_start": 220,
+      "old_end": 225,
+      "new_start": 231,
+      "new_end": 241,
+      "context_hint": "server_callback (SoupServer *server, SoupMessage *msg,",
+      "added_lines": [
+        "\t\t} else if (!strcmp (path, \"/bad-no-host\")) {",
+        "\t\t\tsoup_message_set_status (msg, SOUP_STATUS_FOUND);",
+        "\t\t\tsoup_message_headers_replace (msg->response_headers,",
+        "\t\t\t\t\t\t      \"Location\",",
+        "\t\t\t\t\t\t      \"about:blank\");"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\t\tsoup_message_headers_replace (msg->response_headers,",
+        "\t\t\t\t\t\t      \"Location\",",
+        "\t\t\t\t\t\t      \"/bad with spaces\");",
+        "\t\t} else if (!strcmp (path, \"/bad with spaces\"))",
+        "\t\t\tsoup_message_set_status (msg, SOUP_STATUS_OK);",
+        "\t\telse",
+        ""
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "server_callback",
+        "strcmp",
+        "path",
+        "bad",
+        "no",
+        "host",
+        "soup_message_set_status",
+        "soup_message_headers_replace"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Library callback function type changes"
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "callbacks",
+          "user_visible_output",
+          "plugin_api",
+          "network_protocol",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "server_callback",
+        "snippet_start_line": 191,
+        "snippet_end_line": 271,
+        "snippet": "\tif (msg->status_code != tests[n].final_status) {\n\t\tdebug_printf (1, \"    - Expected final status of %d, got %d !\\n\",\n\t\t\t      tests[n].final_status, msg->status_code);\n\t\terrors++;\n\t}\n\n\tg_object_unref (msg);\n\tdebug_printf (2, \"\\n\");\n}\n\nstatic void\ndo_redirect_tests (SoupURI *base_uri)\n{\n\tSoupSession *session;\n\tint n;\n\n\tsession = soup_test_session_new (SOUP_TYPE_SESSION_ASYNC, NULL);\n\tdebug_printf (1, \"Async session\\n\");\n\tfor (n = 0; n < n_tests; n++)\n\t\tdo_test (session, base_uri, n);\n\tsoup_test_session_abort_unref (session);\n\n\tsession = soup_test_session_new (SOUP_TYPE_SESSION_SYNC, NULL);\n\tdebug_printf (1, \"Sync session\\n\");\n\tfor (n = 0; n < n_tests; n++)\n\t\tdo_test (session, base_uri, n);\n\tsoup_test_session_abort_unref (session);\n}\n\nstatic void\nserver_callback (SoupServer *server, SoupMessage *msg,\n\t\t const char *path, GHashTable *query,\n\t\t SoupClientContext *context, gpointer data)\n{\n\tchar *remainder;\n\tguint status_code;\n\n\tif (g_str_has_prefix (path, \"/bad\")) {\n\t\tif (!strcmp (path, \"/bad\")) {\n\t\t\tsoup_message_set_status (msg, SOUP_STATUS_FOUND);\n\t\t\tsoup_message_headers_replace (msg->response_headers,\n\t\t\t\t\t\t      \"Location\",\n\t\t\t\t\t\t      \"/bad with spaces\");\n\t\t} else if (!strcmp (path, \"/bad-no-host\")) {\n\t\t\tsoup_message_set_status (msg, SOUP_STATUS_FOUND);\n\t\t\tsoup_message_headers_replace (msg->response_headers,\n\t\t\t\t\t\t      \"Location\",\n\t\t\t\t\t\t      \"about:blank\");\n\t\t} else if (!strcmp (path, \"/bad with spaces\"))\n\t\t\tsoup_message_set_status (msg, SOUP_STATUS_OK);\n\t\telse\n\t\t\tsoup_message_set_status (msg, SOUP_STATUS_NOT_FOUND);\n\t\treturn;\n\t}\n\n\tif (!strcmp (path, \"/\")) {\n\t\tif (msg->method != SOUP_METHOD_GET &&\n\t\t    msg->method != SOUP_METHOD_HEAD) {\n\t\t\tsoup_message_set_status (msg, SOUP_STATUS_METHOD_NOT_ALLOWED);\n\t\t\treturn;\n\t\t}\n\n\t\t/* Make sure that redirecting a POST clears the body */\n\t\tif (msg->request_body->length) {\n\t\t\tsoup_message_set_status (msg, SOUP_STATUS_BAD_REQUEST);\n\t\t\treturn;\n\t\t}\n\n\t\t/* Make sure that a HTTP/1.0 redirect doesn't cause an\n\t\t * HTTP/1.0 re-request. (#521848)\n\t\t */\n\t\tif (soup_message_get_http_version (msg) == SOUP_HTTP_1_0) {\n\t\t\tsoup_message_set_status (msg, SOUP_STATUS_BAD_REQUEST);\n\t\t\treturn;\n\t\t}\n\n\t\tsoup_message_set_status (msg, SOUP_STATUS_OK);\n\n\t\t/* FIXME: this is wrong, though it doesn't matter for\n\t\t * the purposes of this test, and to do the right\n\t\t * thing currently we'd have to set Content-Length by\n"
+      }
+    }
+  ]
+}

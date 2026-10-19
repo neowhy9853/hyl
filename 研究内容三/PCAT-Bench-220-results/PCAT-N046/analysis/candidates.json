@@ -1,0 +1,133 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/pca-dn/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/pca-dn/patch.diff",
+  "profile": "dnsmasq",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "src/dnssec.c"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 465,
+      "patch_lines": 13,
+      "diff_added_lines": 1,
+      "diff_deleted_lines": 1,
+      "diff_context_lines": 6,
+      "churn": 2,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 1884,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "protocol": 1,
+        "network_protocol": 1,
+        "dns_protocol": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/dnssec.c",
+      "old_start": 1556,
+      "old_end": 1562,
+      "new_start": 1556,
+      "new_end": 1562,
+      "context_hint": "static int prove_non_existence_nsec3(struct dns_header *header, size_t plen, uns",
+      "added_lines": [
+        "  struct nettle_hash const *hash = NULL;"
+      ],
+      "deleted_lines": [
+        "  struct nettle_hash const *hash;"
+      ],
+      "context_lines": [
+        "{",
+        "  unsigned char *salt, *p, *digest;",
+        "  int digest_len, i, iterations, salt_len, base32_len, algo = 0;",
+        "  char *closest_encloser, *next_closest, *wildcard;",
+        "  ",
+        "  if (nons)",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "dns_header",
+        "nettle_hash",
+        "hash",
+        "NULL",
+        "prove_non_existence_nsec3"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Network protocol behavior"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "dns_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "DNS query, response, cache, and DNSSEC semantics"
+          }
+        ],
+        "surface_reasons": [
+          "protocol",
+          "network_protocol",
+          "dns_protocol"
+        ],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "dns_header",
+        "snippet_start_line": 1527,
+        "snippet_end_line": 1592,
+        "snippet": "\t\t   wrap around case, name-hash falls between NSEC3 name-hash and end */\n\t\tif (memcmp(p, digest, digest_len) >= 0 || memcmp(workspace2, p, digest_len) >= 0)\n\t\t  {\n\t\t    if ((flags & 0x01) && nons) /* opt out */\n\t\t      *nons = 0;\n\n\t\t    return 1;\n\t\t  }\n\t      }\n\t    else \n\t      {\n\t\t/* wrap around case, name falls between start and next domain name */\n\t\tif (memcmp(workspace2, p, digest_len) >= 0 && memcmp(p, digest, digest_len) >= 0)\n\t\t  {\n\t\t    if ((flags & 0x01) && nons) /* opt out */\n\t\t      *nons = 0;\n\n\t\t    return 1;\n\t\t  }\n\t      }\n\t  }\n      }\n\n  return 0;\n}\n\n/* returns 0 on success, or DNSSEC_FAIL_* value on failure. */\nstatic int prove_non_existence_nsec3(struct dns_header *header, size_t plen, unsigned char **nsecs, int nsec_count, char *workspace1,\n\t\t\t\t     char *workspace2, char *name, int type, int wild_offset, int *nons, int *validate_counter)\n{\n  unsigned char *salt, *p, *digest;\n  int digest_len, i, iterations, salt_len, base32_len, algo = 0;\n  struct nettle_hash const *hash = NULL;\n  char *closest_encloser, *next_closest, *wildcard;\n  \n  if (nons)\n    *nons = 1;\n  \n  /* Look though the NSEC3 records to find the first one with \n     an algorithm we support.\n\n     Take the algo, iterations, and salt of that record\n     as the ones we're going to use, and prune any \n     that don't match. */\n  \n  for (i = 0; i < nsec_count; i++)\n    {\n      if (!(p = skip_name(nsecs[i], header, plen, 15)))\n\treturn DNSSEC_FAIL_BADPACKET; /* bad packet */\n      \n      p += 10; /* type, class, TTL, rdlen */\n      algo = *p++;\n      \n      if ((hash = hash_find(nsec3_digest_name(algo))))\n\tbreak; /* known algo */\n    }\n\n  /* No usable NSEC3s */\n  if (i == nsec_count)\n    return DNSSEC_FAIL_NONSEC;\n\n  p++; /* flags */\n\n  GETSHORT (iterations, p);\n  /* Upper-bound iterations, to avoid DoS. RFC 9276 refers. */\n  if (iterations > daemon->limit[LIMIT_NSEC3_ITERS])\n"
+      }
+    }
+  ]
+}

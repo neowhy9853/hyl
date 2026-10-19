@@ -1,0 +1,34 @@
+From 98b1fd4ff9a719f34131fa04cbd93f92c0c362f7 Mon Sep 17 00:00:00 2001
+From: Olivier Houchard <ohouchard@haproxy.com>
+Date: Fri, 12 Jun 2026 13:39:07 +0200
+Subject: [PATCH] BUG/MEDIUM: h3: Properly handle PUSH_PROMISE on backend
+ connections
+
+When we receive a PUSH_PROMISE frame while we don't expect it, flag it
+as a connection error, do not just set ret to H3_ERR_ID_ERROR, as it
+would just be considered the number of bytes we read, and could lead to
+random corruption. This should only happen with backend connections.
+This should be backported whenever commit 4a8bb2fe5 is backported.
+---
+ src/h3.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/h3.c b/src/h3.c
+index 071206b..f3c18bf 100644
+--- a/src/h3.c
++++ b/src/h3.c
+@@ -2074,8 +2074,9 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
+ 			 * receipt of a PUSH_PROMISE frame that contains a larger push ID than
+ 			 * the client has advertised as a connection error of H3_ID_ERROR.
+ 			 */
+-			ret = H3_ERR_ID_ERROR;
+-			break;
++			TRACE_ERROR("Received unexpected PUSH_PROMISE frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
++			qcc_set_error(qcs->qcc, H3_ERR_ID_ERROR, 1, muxc_tevt_type_proto_err);
++			goto err;
+ 		case H3_FT_MAX_PUSH_ID:
+ 			/* h3_check_frame_valid() must reject on client side. */
+ 			BUG_ON(conn_is_back(qcs->qcc->conn));
+-- 
+2.43.0
+

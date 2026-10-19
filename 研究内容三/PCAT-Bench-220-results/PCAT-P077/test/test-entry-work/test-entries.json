@@ -1,0 +1,36 @@
+{
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "config_reproducer",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0001/run_config_test.sh",
+      "build_command": "Already built with --coverage at respective worktree. Before: /tmp/pca-openldap-before, After: analysis_repo (patched)",
+      "run_command": "bash test-entry-work/PCA-0001/run_config_test.sh",
+      "target_location": {
+        "file": "servers/lloadd/lload.h",
+        "new_lines": [187, 190],
+        "symbol": "LLOAD_FEATURES_DEFAULT"
+      },
+      "reachability_signal": "lloadd process starts, parses config, the config_feature() function is invoked (coverage gap on the new lload_features = LLOAD_FEATURES_DEFAULT init line confirms reachability)",
+      "expected_signal": "Default config (no feature keyword): before binary has NO proxyauthz; after binary HAS proxyauthz enabled by default. Explicit 'disable proxyauthz' overrides default in after binary.",
+      "execution": {
+        "cwd": "/home/soong/pca_benchmark/_repos/openldap/pca-results/f6ae8e/compatibility-testing",
+        "timeout_seconds": 120,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Three config scenarios tested against both before and after binaries: (1) minimal config with no feature keyword, (2) config with 'enable proxyauthz', (3) config with 'disable proxyauthz'. Since the daemon cannot bind to IPv4 sockets (EPERM in sandbox), we use strace to capture the feature-setting LDAP option calls, and gcov to confirm the feature code was reached.",
+      "contract_probe": {
+        "probe_id": "proxyauthz_default_side_effect",
+        "command": "ulimit -c 0; {VERSION_DIR}/servers/lloadd/lloadd -d -1 -f {{CONFIG}} 2>&1 || true; find {VERSION_DIR}/servers/lloadd -name '*.gcda' -newer /tmp/pca-start 2>/dev/null",
+        "before_command": "touch /tmp/pca-start; /tmp/pca-openldap-before/servers/lloadd/lloadd -d -1 -f {{CONFIG}} 2>&1 || true",
+        "after_command": "touch /tmp/pca-start; {ANALYSIS_REPO}/servers/lloadd/lloadd -d -1 -f {{CONFIG}} 2>&1 || true",
+        "comparison": "exact",
+        "cwd": "/tmp",
+        "timeout_seconds": 30
+      },
+      "limitations": "Daemon cannot bind to IPv4 sockets in this sandbox (EPERM). Tests are limited to config parsing and program startup. Runtime LDAP traffic testing (verifying actual proxy authz control on the wire) requires a socket-capable container/VM. The gcov coverage confirms code paths were exercised but may not capture output if lloadd crashes on socket bind."
+    }
+  ]
+}

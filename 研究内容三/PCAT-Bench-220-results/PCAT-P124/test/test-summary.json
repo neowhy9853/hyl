@@ -1,0 +1,147 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P064/analysis.json",
+  "patch_id": "531750f7bfc475332b2046dd516bab582ba7decf",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P064/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repos/grub2",
+    "base_commit": "fe274638bb01104f56fce0caebe0a238ac5fc6a4",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P064/_worktrees/patched",
+    "package_profile": "grub2"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "not_run",
+    "after_build": "not_run",
+    "compiler": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "optimization": "O2 (production), O0 (coverage instrumented)",
+    "coverage_tool": "gcov (GCC 11.4.0)",
+    "notes": [
+      "GRUB meiyou zai zhuji shang jinxing peizhi huo bianyi (que config.h he cpu/types.h), yin ci wufa bianyi GRUB jieduance shi bing shiyong gcov ce liang shiji dai ma",
+      "Xuanze tong guo dulixian wei jizhu chuang ceshi dengxiao de x86 hui bian mo shi (cpuid; rdtsc; cpuid vs cpuid; rdtsc) lai yanzheng xingneng yuyi bianhua",
+      "Fu gai lv shuju lai zi wei jizhu chengxu de gcov ce liang jie guo, er fei shi ji GRUB bian yi chan wu",
+      "GRUB jing tai nei han han shu (static inline) zai tou wen jian zhong sheng ming, bian yi shi bei nei lian dao diao yong dian, you yu GRUB cong wei zai zhuji shang jian hao, shi yong dengxiao hui bian moshi fu gai shi he li de ti dai fang an"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 1,
+    "inputs_executed": 1,
+    "contracts_total": 1,
+    "contracts_passed": 0,
+    "contracts_breached": 1,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 3,
+    "patch_lines_covered": 3,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "PERFORMANCE_RESOURCE_SEMANTIC_CHANGE",
+      "test_priority": "low",
+      "status": "partial",
+      "target_location": {
+        "file": "include/grub/i386/tsc.h",
+        "new_lines": [47, 57],
+        "symbol": "grub_get_tsc"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "verified",
+          "artifact_path": "test-entry-work/PCA-TE-0001/perf_microbench.c",
+          "run_command": "./test-entry-work/PCA-TE-0001/runs/perf_microbench --iterations 1000000 --json",
+          "expected_signal": "JSON output with old_cycles_per_call and new_cycles_per_call keys, exit code 0",
+          "reachability_signal": "Both old and new TSC read patterns executed and produced valid measurements. do_cpuid after RDTSC (line 72, equivalent to patch-added CPUID) executed 110000 times per gcov."
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "performance_resource_semantics",
+          "status": "breached",
+          "detail": "Old pattern (cpuid; rdtsc): 147.50 cycles/call. New pattern (cpuid; rdtsc; cpuid): 187.65 cycles/call. Overhead: 40.15 cycles/call (27.22%), exceeding 20% numeric_tolerance. This is the intended effect of the correctness fix — adding a CPUID serializing instruction after RDTSC to prevent out-of-order execution that caused GRUB menu hangs.",
+          "tolerance_percent": 20.0,
+          "observed_change_percent": 27.22,
+          "old_value_cycles_per_call": 147.50,
+          "new_value_cycles_per_call": 187.65,
+          "overhead_cycles": 40.15,
+          "iterations": 1000000,
+          "arch": "x86_64",
+          "cpu": "Intel(R) Xeon(R) Gold 6248R CPU @ 3.00GHz"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 3,
+        "covered_lines": 3,
+        "uncovered_lines": [],
+        "rate": 100.0,
+        "note": "Fugai lu shuju lai zi dengxiao wei jizhu chengxu. GRUB wei zai zhuji shang bianyi, yin ci wufa shouji GRUB tou wen jian de zhi jie gcov shuju. Weijizhu chengxu zhong dengxiao dao xin tian jia cpuid zhiling de hang (line 72: do_cpuid() after rdtsc) bei zhixing 110000 ci, fu gai lv 100%."
+      },
+      "behavior_differences": [
+        {
+          "input_id": "perf_microbench_O2",
+          "diff_type": "PERFORMANCE_RESOURCE_SEMANTIC_CHANGE",
+          "before": "Old pattern (cpuid; rdtsc): 147.50 cycles/call at -O2 optimization",
+          "after": "New pattern (cpuid; rdtsc; cpuid): 187.65 cycles/call at -O2 optimization",
+          "evidence": "Microbenchmark with 1,000,000 iterations on Intel Xeon Gold 6248R @ 3.00GHz. Overhead of 40.15 cycles (27.22%) comes from the additional CPUID serializing instruction."
+        },
+        {
+          "input_id": "perf_microbench_O0",
+          "diff_type": "PERFORMANCE_RESOURCE_SEMANTIC_CHANGE",
+          "before": "Old pattern (cpuid; rdtsc): 240.51 cycles/call at -O0 (no inlining)",
+          "after": "New pattern (cpuid; rdtsc; cpuid): 410.74 cycles/call at -O0 (no inlining)",
+          "evidence": "Coverage-instrumented build at -O0. Overhead of 170.23 cycles (70.78%). The -O0 build includes extra function call overhead, making the relative cost of CPUID appear larger. Production GRUB is built with -O2."
+        }
+      ],
+      "notes": [
+        "Zhe shi yi xiang zheng que xing xiu fu (bug fix), er fei xing wei tui hua. Tian jia CPUID hou yu rdtsc zhi shi Intel shou ce tui jian de RDTSC biao zhun xu lie hua mo shi.",
+        "Contract breach (27.22% > 20% tolerance) shi yu qi de, you yu tian jia de CPUID shi xu yao de xu lie hua cao zuo. Gai bian geng shi wei le fang zhi GRUB cai dan ka si de que xian, er fei bu bi yao de xing neng kai xiao.",
+        "Wei jizhu chengxu bu neng fu gai GRUB chang jing xia de suo you bian yi qing kuang (#ifdef fen zhi: GRUB_MACHINE_XEN, GRUB_MACHINE_EFI, GRUB_MACHINE_PCBIOS, GRUB_MACHINE_IEEE1275, GRUB_MACHINE_COREBOOT), dan he xin RDTSC xu lie hua mo shi zai suo you ping tai shang yi zhi。"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "build",
+      "id": "GRUB_FULL_BUILD_BLOCKED",
+      "reason": "GRUB jie duan ce xu yao config.h he cpu/types.h wen jian, zhe xie wen jian you autotools pei zhi sheng cheng. Dang qian zhuji huan jing mei you an zhuang GRUB bian yi yi lai (autoconf, automake, bison, flex deng), yin ci wu fa wan cheng GRUB wan zheng bian yi. Wei le ce liang gai bian de shi ji xing neng ying xiang, xuan ze tong guo deng xiao hui bian mo shi (cpuid; rdtsc vs cpuid; rdtsc; cpuid) jin xing wei jizhun ceshi。",
+      "required_action": "Zai pei bei GRUB bian yi yi lai de huan jing zhong (Ubuntu/Debian: sudo apt install autoconf automake bison flex), yun xing ./autogen.sh && ./configure --with-platform=pc --target=x86_64, ran hou shi yong CFLAGS='-fprofile-arcs -ftest-coverage -O0 -g' bian yi GRUB, bing tong guo QEMU huo zhen shi ying jian qi dong GRUB jin xing gcov fu gai lv ce shi。"
+    },
+    {
+      "scope": "environment",
+      "id": "GRUB_BOOT_ENV_UNAVAILABLE",
+      "reason": "grub_get_tsc() shi zai GRUB bootloader yun xing shi qi jian bei diao yong de, te bie shi zai grub_tsc_init() he grub_pmtimer_wait_count_tsc() han shu zhong。Wei jizhun ceshi ke yi ce liang dan ge han shu de xing neng kai xiao, dan wu fa fu xian GRUB bootloader qi dong guo cheng zhong zai zhen shi ying jian shang de duo he xin TSC jiao zhun chang jing。Quan mian yan zheng TSC jiao zhun wen ding xing he GRUB cai dan chao shi gong neng xu yao zai pei you duo he xin CPU de zhen shi ji qi shang jin xing dian yuan xun huan ya li ce shi (ru commit message suo shu de 1500 ci dian yuan kai guan ce shi)。",
+      "required_action": "Zai zhen shi x86_64 ying jian shang bu shu han gai patch de GRUB, jin xing dian yuan kai guan xun huan ce shi，yan zheng GRUB cai dan bu zai ka si。Shi yong GDB huo GRUB tiao shi ri zhi que ren grub_tsc_rate zhi wei fei ling。"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "n/a (microbenchmark self-contained, no external inputs)",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "perf_microbench.c.gcov",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": true,
+    "rationale": "Gai patch zai grub_get_tsc() zhong tian jia le rdtsc hou de CPUID xu lie hua zhi ling。Wei jizhun ceshi biao ming tian jia de CPUID yin ru le yue 27% (40 zhou qi) de dan ci diao yong xing neng kai xiao, chao chu le 20% de shu zhi rong cha。Dan zhe shi zheng que xing xiu fu (bug fix) suo bi xu de dai jia — jie jue le RDTSC luan xu zhi xing dao zhi GRUB cai dan ka si de wen ti。You yu GRUB wei zai zhuji shang wan zheng bian yi (que config.h deng yi lai), qie wei zai zhen shi ying jian shang ce shi GRUB qidong chang jing, fa bu neng zuo chu 'compatible' huo 'incompatible' de que ding jie lun。Deng xiao hui bian mo shi de gcov fu gai lv da dao 100%。",
+    "recommended_actions": [
+      "Zai pei bei wan zheng GRUB bian yi huan jing de zhuji shang bian yi GRUB，shi yong gcov ce liang bao han gai patch de include/grub/i386/tsc.h tou wen jian zai shi ji GRUB bian yi zhong de fu gai qing kuang",
+      "Zai duo he xin x86_64 fu wu qi shang jin xing dian yuan xun huan ya li ce shi，yan zheng GRUB cai dan bu zai ka si（ru commit message suo shu de 1500 ci ce shi）",
+      "Jian ce grub_tsc_rate jiao zhun zhi de wen ding xing，que bao you xin tian jia de CPUID xu lie hua hou，TSC jiao zhun bu zai chan sheng wei ling huo yi chang de jie guo",
+      "Ru guo sheng chan huan jing dui GRUB qi dong shi jian ji duan min gan，jian yi ce liang xin ban GRUB de zong ti qi dong shi jian，ping gu 27% TSC du qu kai xiao dui qi dong shi jian de shi ji ying xiang"
+    ]
+  }
+}

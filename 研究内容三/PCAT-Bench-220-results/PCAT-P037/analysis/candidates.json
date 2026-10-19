@@ -1,0 +1,1542 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/ruby/pca-results/0d7e50/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/ruby/pca-results/0d7e50/patch.diff",
+  "profile": "ruby",
+  "summary": {
+    "total_changed_files": 4,
+    "changed_files": [
+      "eval.c",
+      "eval_error.c",
+      "test/ruby/test_exception.rb",
+      "eval_jump.c"
+    ],
+    "total_hunks": 12,
+    "public_api_hunks": 11,
+    "patch_metrics": {
+      "patch_bytes": 8720,
+      "patch_lines": 250,
+      "diff_added_lines": 95,
+      "diff_deleted_lines": 13,
+      "diff_context_lines": 99,
+      "churn": 108,
+      "raw_hunks": 12,
+      "candidate_hunks": 12,
+      "skipped_doc_hunks": 0,
+      "changed_files": 4,
+      "candidate_context_bytes": 27884,
+      "public_candidate_hunks": 11,
+      "surface_counts": {
+        "ruby_c_extension_api": 11,
+        "user_visible_output": 12,
+        "c_ext_api": 11,
+        "ruby_exceptions": 9,
+        "exceptions": 9,
+        "tests": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "eval.c",
+      "old_start": 147,
+      "old_end": 161,
+      "new_start": 147,
+      "new_end": 172,
+      "context_hint": "rb_ec_fiber_scheduler_finalize(rb_execution_context_t *ec)",
+      "added_lines": [
+        "    enum ruby_tag_type state = TAG_NONE;",
+        "    volatile VALUE trap_errinfo = Qnil;",
+        "",
+        "    if ((state = EC_EXEC_TAG()) == TAG_NONE) {",
+        "    else {",
+        "        trap_errinfo = ec->errinfo;",
+        "        ec->errinfo = Qnil;",
+        "    }",
+        "    if (!NIL_P(trap_errinfo)) {",
+        "        error_handle(ec, trap_errinfo, state);",
+        "        ec->errinfo = trap_errinfo;",
+        "    }"
+      ],
+      "deleted_lines": [
+        "    if (EC_EXEC_TAG() == TAG_NONE) {"
+      ],
+      "context_lines": [
+        "static void",
+        "rb_ec_teardown(rb_execution_context_t *ec)",
+        "{",
+        "    // If the user code defined a scheduler for the top level thread, run it:",
+        "    rb_ec_fiber_scheduler_finalize(ec);",
+        "",
+        "    EC_PUSH_TAG(ec);",
+        "        rb_vm_trap_exit(rb_ec_vm_ptr(ec));",
+        "    }",
+        "    EC_POP_TAG();",
+        "    rb_ec_exec_end_proc(ec);",
+        "    rb_ec_clear_all_trace_func(ec);",
+        "}",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "rb_ec_fiber_scheduler_finalize",
+        "ruby_tag_type",
+        "state",
+        "TAG_NONE",
+        "VALUE",
+        "trap_errinfo",
+        "error_handle",
+        "rb_ec_teardown"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "user_visible_output",
+          "c_ext_api"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "rb_ec_fiber_scheduler_finalize",
+        "snippet_start_line": 118,
+        "snippet_end_line": 202,
+        "snippet": "    EC_PUSH_TAG(ec);\n    if ((state = EC_EXEC_TAG()) == TAG_NONE) {\n        iseq = ruby_process_options(argc, argv);\n    }\n    else {\n        rb_ec_clear_current_thread_trace_func(ec);\n        int exitcode = error_handle(ec, ec->errinfo, state);\n        ec->errinfo = Qnil; /* just been handled */\n        iseq = (void *)INT2FIX(exitcode);\n    }\n    EC_POP_TAG();\n    return iseq;\n}\n\nstatic void\nrb_ec_fiber_scheduler_finalize(rb_execution_context_t *ec)\n{\n    enum ruby_tag_type state;\n\n    EC_PUSH_TAG(ec);\n    if ((state = EC_EXEC_TAG()) == TAG_NONE) {\n        rb_fiber_scheduler_set(Qnil);\n    }\n    else {\n        state = error_handle(ec, ec->errinfo, state);\n    }\n    EC_POP_TAG();\n}\n\nstatic void\nrb_ec_teardown(rb_execution_context_t *ec)\n{\n    enum ruby_tag_type state = TAG_NONE;\n    volatile VALUE trap_errinfo = Qnil;\n\n    // If the user code defined a scheduler for the top level thread, run it:\n    rb_ec_fiber_scheduler_finalize(ec);\n\n    EC_PUSH_TAG(ec);\n    if ((state = EC_EXEC_TAG()) == TAG_NONE) {\n        rb_vm_trap_exit(rb_ec_vm_ptr(ec));\n    }\n    else {\n        trap_errinfo = ec->errinfo;\n        ec->errinfo = Qnil;\n    }\n    EC_POP_TAG();\n    rb_ec_exec_end_proc(ec);\n    if (!NIL_P(trap_errinfo)) {\n        error_handle(ec, trap_errinfo, state);\n        ec->errinfo = trap_errinfo;\n    }\n    rb_ec_clear_all_trace_func(ec);\n}\n\nstatic void\nrb_ec_finalize(rb_execution_context_t *ec)\n{\n    ruby_sig_finalize();\n    ec->errinfo = Qnil;\n    rb_objspace_call_finalizer();\n}\n\nvoid\nruby_finalize(void)\n{\n    rb_execution_context_t *ec = GET_EC();\n    rb_ec_teardown(ec);\n    rb_ec_finalize(ec);\n}\n\nint\nruby_cleanup(int ex)\n{\n    return rb_ec_cleanup(GET_EC(), (enum ruby_tag_type)ex);\n}\n\nstatic int\nrb_ec_cleanup(rb_execution_context_t *ec, enum ruby_tag_type ex)\n{\n    int state;\n    volatile VALUE save_error = Qundef;\n    volatile int sysex = EXIT_SUCCESS;\n    volatile int signaled = 0;\n    rb_thread_t *th = rb_ec_thread_ptr(ec);\n"
+      }
+    },
+    {
+      "file": "eval_error.c",
+      "old_start": 276,
+      "old_end": 281,
+      "new_start": 276,
+      "new_end": 291,
+      "context_hint": "shown_cause_p(VALUE cause, VALUE *shown_causes)",
+      "added_lines": [
+        "static void",
+        "add_shown_cause(VALUE cause, VALUE *shown_causes)",
+        "{",
+        "    if (!NIL_OR_UNDEF_P(cause) &&",
+        "        !THROW_DATA_P(cause) &&",
+        "        rb_obj_is_kind_of(cause, rb_eException)) {",
+        "        shown_cause_p(cause, shown_causes);",
+        "    }",
+        "}",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    return FALSE;",
+        "}",
+        "",
+        "static void",
+        "show_cause(VALUE errinfo, VALUE str, VALUE opt, VALUE highlight, VALUE reverse, long backtrace_limit, VALUE *shown_causes)",
+        "{"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "shown_cause_p",
+        "add_shown_cause",
+        "VALUE",
+        "cause",
+        "shown_causes",
+        "NIL_OR_UNDEF_P",
+        "rb_obj_is_kind_of",
+        "rb_hash_aset"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "ruby_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract"
+            ],
+            "description": "Exception hierarchy, type, message, and failure behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and hierarchy changes"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "ruby_exceptions",
+          "user_visible_output",
+          "c_ext_api",
+          "exceptions"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "shown_cause_p",
+        "snippet_start_line": 247,
+        "snippet_end_line": 321,
+        "snippet": "        }\n\n        for (i = 1; i < len; i++) {\n            if (i == skip_start) {\n                write_warn_str(str, rb_sprintf(\"\\t ... %ld levels...\\n\", skip_len));\n                i += skip_len;\n                if (i >= len) break;\n            }\n            VALUE line = RARRAY_AREF(errat, reverse ? len - i : i);\n            if (RB_TYPE_P(line, T_STRING)) {\n                VALUE bt = rb_str_new_cstr(\"\\t\");\n                if (reverse) rb_str_catf(bt, \"%*ld: \", width, len - i);\n                write_warn_str(str, rb_str_catf(bt, \"from %\"PRIsVALUE\"\\n\", line));\n            }\n        }\n    }\n}\n\nVALUE rb_get_detailed_message(VALUE exc, VALUE opt);\n\nstatic int\nshown_cause_p(VALUE cause, VALUE *shown_causes)\n{\n    VALUE shown = *shown_causes;\n    if (!shown) {\n        *shown_causes = shown = rb_obj_hide(rb_ident_hash_new());\n    }\n    if (rb_hash_has_key(shown, cause)) return TRUE;\n    rb_hash_aset(shown, cause, Qtrue);\n    return FALSE;\n}\n\nstatic void\nadd_shown_cause(VALUE cause, VALUE *shown_causes)\n{\n    if (!NIL_OR_UNDEF_P(cause) &&\n        !THROW_DATA_P(cause) &&\n        rb_obj_is_kind_of(cause, rb_eException)) {\n        shown_cause_p(cause, shown_causes);\n    }\n}\n\nstatic void\nshow_cause(VALUE errinfo, VALUE str, VALUE opt, VALUE highlight, VALUE reverse, long backtrace_limit, VALUE *shown_causes)\n{\n    VALUE cause = rb_attr_get(errinfo, id_cause);\n    if (!NIL_P(cause) && rb_obj_is_kind_of(cause, rb_eException) &&\n        !shown_cause_p(cause, shown_causes)) {\n        volatile VALUE eclass = CLASS_OF(cause);\n        VALUE errat = rb_get_backtrace(cause);\n        VALUE emesg = rb_get_detailed_message(cause, opt);\n        if (reverse) {\n            show_cause(cause, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n            print_backtrace(eclass, errat, str, TRUE, backtrace_limit);\n            print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n        }\n        else {\n            print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n            print_backtrace(eclass, errat, str, FALSE, backtrace_limit);\n            show_cause(cause, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n        }\n    }\n}\n\nvoid\nrb_exc_check_circular_cause(VALUE exc)\n{\n    VALUE cause = exc, shown_causes = 0;\n    do {\n        if (shown_cause_p(cause, &shown_causes)) {\n            rb_raise(rb_eArgError, \"circular causes\");\n        }\n    } while (!NIL_P(cause = rb_attr_get(cause, id_cause)));\n}\n\n"
+      }
+    },
+    {
+      "file": "eval_error.c",
+      "old_start": 309,
+      "old_end": 323,
+      "new_start": 319,
+      "new_end": 336,
+      "context_hint": "rb_exc_check_circular_cause(VALUE exc)",
+      "added_lines": [
+        "static void",
+        "rb_error_write0(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse, VALUE *shown_causes)",
+        "    VALUE local_shown_causes = 0;",
+        "    if (!shown_causes) {",
+        "        shown_causes = &local_shown_causes;",
+        "    }"
+      ],
+      "deleted_lines": [
+        "void",
+        "rb_error_write(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse)",
+        "    VALUE shown_causes = 0;"
+      ],
+      "context_lines": [
+        "    } while (!NIL_P(cause = rb_attr_get(cause, id_cause)));",
+        "}",
+        "",
+        "{",
+        "    volatile VALUE eclass;",
+        "    long backtrace_limit = rb_backtrace_length_limit;",
+        "",
+        "    if (NIL_P(errinfo))",
+        "        return;",
+        "",
+        "    if (UNDEF_P(errat)) {",
+        "        errat = Qnil;"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "rb_exc_check_circular_cause",
+        "rb_error_write0",
+        "VALUE",
+        "errinfo",
+        "emesg",
+        "errat",
+        "rb_error_write",
+        "rb_raise"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "ruby_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract"
+            ],
+            "description": "Exception hierarchy, type, message, and failure behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and hierarchy changes"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "ruby_exceptions",
+          "user_visible_output",
+          "c_ext_api",
+          "exceptions"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "rb_exc_check_circular_cause",
+        "snippet_start_line": 280,
+        "snippet_end_line": 366,
+        "snippet": "add_shown_cause(VALUE cause, VALUE *shown_causes)\n{\n    if (!NIL_OR_UNDEF_P(cause) &&\n        !THROW_DATA_P(cause) &&\n        rb_obj_is_kind_of(cause, rb_eException)) {\n        shown_cause_p(cause, shown_causes);\n    }\n}\n\nstatic void\nshow_cause(VALUE errinfo, VALUE str, VALUE opt, VALUE highlight, VALUE reverse, long backtrace_limit, VALUE *shown_causes)\n{\n    VALUE cause = rb_attr_get(errinfo, id_cause);\n    if (!NIL_P(cause) && rb_obj_is_kind_of(cause, rb_eException) &&\n        !shown_cause_p(cause, shown_causes)) {\n        volatile VALUE eclass = CLASS_OF(cause);\n        VALUE errat = rb_get_backtrace(cause);\n        VALUE emesg = rb_get_detailed_message(cause, opt);\n        if (reverse) {\n            show_cause(cause, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n            print_backtrace(eclass, errat, str, TRUE, backtrace_limit);\n            print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n        }\n        else {\n            print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n            print_backtrace(eclass, errat, str, FALSE, backtrace_limit);\n            show_cause(cause, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n        }\n    }\n}\n\nvoid\nrb_exc_check_circular_cause(VALUE exc)\n{\n    VALUE cause = exc, shown_causes = 0;\n    do {\n        if (shown_cause_p(cause, &shown_causes)) {\n            rb_raise(rb_eArgError, \"circular causes\");\n        }\n    } while (!NIL_P(cause = rb_attr_get(cause, id_cause)));\n}\n\nstatic void\nrb_error_write0(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse, VALUE *shown_causes)\n{\n    volatile VALUE eclass;\n    VALUE local_shown_causes = 0;\n    long backtrace_limit = rb_backtrace_length_limit;\n\n    if (NIL_P(errinfo))\n        return;\n    if (!shown_causes) {\n        shown_causes = &local_shown_causes;\n    }\n\n    if (UNDEF_P(errat)) {\n        errat = Qnil;\n    }\n    eclass = CLASS_OF(errinfo);\n    if (reverse) {\n        static const char traceback[] = \"Traceback \"\n            \"(most recent call last):\\n\";\n        const int bold_part = rb_strlen_lit(\"Traceback\");\n        char buff[sizeof(traceback)+sizeof(bold)+sizeof(reset)-2], *p = buff;\n        const char *msg = traceback;\n        long len = sizeof(traceback) - 1;\n        if (RTEST(highlight)) {\n#define APPEND(s, l) (memcpy(p, s, l), p += (l))\n            APPEND(bold, sizeof(bold)-1);\n            APPEND(traceback, bold_part);\n            APPEND(reset, sizeof(reset)-1);\n            APPEND(traceback + bold_part, sizeof(traceback)-bold_part-1);\n#undef APPEND\n            len = p - (msg = buff);\n        }\n        write_warn2(str, msg, len);\n        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n        print_backtrace(eclass, errat, str, TRUE, backtrace_limit);\n        print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n    }\n    else {\n        print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n        print_backtrace(eclass, errat, str, FALSE, backtrace_limit);\n        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n    }\n}\n\n"
+      }
+    },
+    {
+      "file": "eval_error.c",
+      "old_start": 340,
+      "old_end": 358,
+      "new_start": 353,
+      "new_end": 377,
+      "context_hint": "rb_error_write(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VA",
+      "added_lines": [
+        "        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);",
+        "        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);",
+        "void",
+        "rb_error_write(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse)",
+        "{",
+        "    rb_error_write0(errinfo, emesg, errat, str, opt, highlight, reverse, NULL);",
+        "}",
+        "",
+        "rb_ec_error_print_detailed0(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0, VALUE *shown_causes)"
+      ],
+      "deleted_lines": [
+        "        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, &shown_causes);",
+        "        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, &shown_causes);",
+        "rb_ec_error_print_detailed(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0)"
+      ],
+      "context_lines": [
+        "            len = p - (msg = buff);",
+        "        }",
+        "        write_warn2(str, msg, len);",
+        "        print_backtrace(eclass, errat, str, TRUE, backtrace_limit);",
+        "        print_errinfo(eclass, errat, emesg, str, RTEST(highlight));",
+        "    }",
+        "    else {",
+        "        print_errinfo(eclass, errat, emesg, str, RTEST(highlight));",
+        "        print_backtrace(eclass, errat, str, FALSE, backtrace_limit);",
+        "    }",
+        "}",
+        "",
+        "static void",
+        "{",
+        "    volatile uint8_t raised_flag = ec->raised_flag;",
+        "    volatile VALUE errat = Qundef;"
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "rb_error_write",
+        "show_cause",
+        "errinfo",
+        "str",
+        "opt",
+        "highlight",
+        "APPEND"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "ruby_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract"
+            ],
+            "description": "Exception hierarchy, type, message, and failure behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and hierarchy changes"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "ruby_exceptions",
+          "user_visible_output",
+          "c_ext_api",
+          "exceptions"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "rb_error_write",
+        "snippet_start_line": 311,
+        "snippet_end_line": 407,
+        "snippet": "void\nrb_exc_check_circular_cause(VALUE exc)\n{\n    VALUE cause = exc, shown_causes = 0;\n    do {\n        if (shown_cause_p(cause, &shown_causes)) {\n            rb_raise(rb_eArgError, \"circular causes\");\n        }\n    } while (!NIL_P(cause = rb_attr_get(cause, id_cause)));\n}\n\nstatic void\nrb_error_write0(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse, VALUE *shown_causes)\n{\n    volatile VALUE eclass;\n    VALUE local_shown_causes = 0;\n    long backtrace_limit = rb_backtrace_length_limit;\n\n    if (NIL_P(errinfo))\n        return;\n    if (!shown_causes) {\n        shown_causes = &local_shown_causes;\n    }\n\n    if (UNDEF_P(errat)) {\n        errat = Qnil;\n    }\n    eclass = CLASS_OF(errinfo);\n    if (reverse) {\n        static const char traceback[] = \"Traceback \"\n            \"(most recent call last):\\n\";\n        const int bold_part = rb_strlen_lit(\"Traceback\");\n        char buff[sizeof(traceback)+sizeof(bold)+sizeof(reset)-2], *p = buff;\n        const char *msg = traceback;\n        long len = sizeof(traceback) - 1;\n        if (RTEST(highlight)) {\n#define APPEND(s, l) (memcpy(p, s, l), p += (l))\n            APPEND(bold, sizeof(bold)-1);\n            APPEND(traceback, bold_part);\n            APPEND(reset, sizeof(reset)-1);\n            APPEND(traceback + bold_part, sizeof(traceback)-bold_part-1);\n#undef APPEND\n            len = p - (msg = buff);\n        }\n        write_warn2(str, msg, len);\n        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n        print_backtrace(eclass, errat, str, TRUE, backtrace_limit);\n        print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n    }\n    else {\n        print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n        print_backtrace(eclass, errat, str, FALSE, backtrace_limit);\n        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n    }\n}\n\nvoid\nrb_error_write(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse)\n{\n    rb_error_write0(errinfo, emesg, errat, str, opt, highlight, reverse, NULL);\n}\n\nstatic void\nrb_ec_error_print_detailed0(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0, VALUE *shown_causes)\n{\n    volatile uint8_t raised_flag = ec->raised_flag;\n    volatile VALUE errat = Qundef;\n    volatile bool written = false;\n    volatile VALUE emesg = emesg0;\n\n    VALUE opt = rb_hash_new();\n    VALUE highlight = rb_stderr_tty_p() ? Qtrue : Qfalse;\n    rb_hash_aset(opt, ID2SYM(rb_intern_const(\"highlight\")), highlight);\n\n    if (NIL_P(errinfo))\n        return;\n    rb_ec_raised_clear(ec);\n\n    EC_PUSH_TAG(ec);\n    if (EC_EXEC_TAG() == TAG_NONE) {\n        errat = rb_get_backtrace(errinfo);\n    }\n    if (UNDEF_P(emesg)) {\n        emesg = Qnil;\n        emesg = rb_get_detailed_message(errinfo, opt);\n    }\n\n    if (!written) {\n        written = true;\n        rb_error_write0(errinfo, emesg, errat, str, opt, highlight, Qfalse, shown_causes);\n    }\n\n    EC_POP_TAG();\n    ec->errinfo = errinfo;\n    rb_ec_raised_set(ec, raised_flag);\n}\n\n"
+      }
+    },
+    {
+      "file": "eval_error.c",
+      "old_start": 378,
+      "old_end": 384,
+      "new_start": 397,
+      "new_end": 403,
+      "context_hint": "rb_ec_error_print_detailed(rb_execution_context_t *const ec, const VALUE errinfo",
+      "added_lines": [
+        "        rb_error_write0(errinfo, emesg, errat, str, opt, highlight, Qfalse, shown_causes);"
+      ],
+      "deleted_lines": [
+        "        rb_error_write(errinfo, emesg, errat, str, opt, highlight, Qfalse);"
+      ],
+      "context_lines": [
+        "",
+        "    if (!written) {",
+        "        written = true;",
+        "    }",
+        "",
+        "    EC_POP_TAG();"
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "rb_ec_error_print_detailed",
+        "rb_error_write0",
+        "errinfo",
+        "emesg",
+        "errat",
+        "str",
+        "rb_error_write",
+        "EC_PUSH_TAG"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "ruby_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract"
+            ],
+            "description": "Exception hierarchy, type, message, and failure behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and hierarchy changes"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "ruby_exceptions",
+          "user_visible_output",
+          "c_ext_api",
+          "exceptions"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "rb_ec_error_print_detailed",
+        "snippet_start_line": 349,
+        "snippet_end_line": 433,
+        "snippet": "            APPEND(traceback, bold_part);\n            APPEND(reset, sizeof(reset)-1);\n            APPEND(traceback + bold_part, sizeof(traceback)-bold_part-1);\n#undef APPEND\n            len = p - (msg = buff);\n        }\n        write_warn2(str, msg, len);\n        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n        print_backtrace(eclass, errat, str, TRUE, backtrace_limit);\n        print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n    }\n    else {\n        print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n        print_backtrace(eclass, errat, str, FALSE, backtrace_limit);\n        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n    }\n}\n\nvoid\nrb_error_write(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse)\n{\n    rb_error_write0(errinfo, emesg, errat, str, opt, highlight, reverse, NULL);\n}\n\nstatic void\nrb_ec_error_print_detailed0(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0, VALUE *shown_causes)\n{\n    volatile uint8_t raised_flag = ec->raised_flag;\n    volatile VALUE errat = Qundef;\n    volatile bool written = false;\n    volatile VALUE emesg = emesg0;\n\n    VALUE opt = rb_hash_new();\n    VALUE highlight = rb_stderr_tty_p() ? Qtrue : Qfalse;\n    rb_hash_aset(opt, ID2SYM(rb_intern_const(\"highlight\")), highlight);\n\n    if (NIL_P(errinfo))\n        return;\n    rb_ec_raised_clear(ec);\n\n    EC_PUSH_TAG(ec);\n    if (EC_EXEC_TAG() == TAG_NONE) {\n        errat = rb_get_backtrace(errinfo);\n    }\n    if (UNDEF_P(emesg)) {\n        emesg = Qnil;\n        emesg = rb_get_detailed_message(errinfo, opt);\n    }\n\n    if (!written) {\n        written = true;\n        rb_error_write0(errinfo, emesg, errat, str, opt, highlight, Qfalse, shown_causes);\n    }\n\n    EC_POP_TAG();\n    ec->errinfo = errinfo;\n    rb_ec_raised_set(ec, raised_flag);\n}\n\nstatic void\nrb_ec_error_print_detailed(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0)\n{\n    rb_ec_error_print_detailed0(ec, errinfo, str, emesg0, NULL);\n}\n\nvoid\nrb_ec_error_print(rb_execution_context_t *volatile ec, volatile VALUE errinfo)\n{\n    rb_ec_error_print_detailed(ec, errinfo, Qnil, Qundef);\n}\n\n#define undef_mesg_for(v, k) rb_fstring_lit(\"undefined\"v\" method '%1$s' for \"k\" '%2$s'\")\n#define undef_mesg(v) ( \\\n        is_mod ? \\\n        undef_mesg_for(v, \"module\") : \\\n        undef_mesg_for(v, \"class\"))\n\nvoid\nrb_print_undef(VALUE klass, ID id, rb_method_visibility_t visi)\n{\n    const int is_mod = RB_TYPE_P(klass, T_MODULE);\n    VALUE mesg;\n    switch (visi & METHOD_VISI_MASK) {\n      case METHOD_VISI_UNDEF:\n      case METHOD_VISI_PUBLIC:    mesg = undef_mesg(\"\"); break;\n"
+      }
+    },
+    {
+      "file": "eval_error.c",
+      "old_start": 386,
+      "old_end": 391,
+      "new_start": 405,
+      "new_end": 416,
+      "context_hint": "rb_ec_error_print_detailed(rb_execution_context_t *const ec, const VALUE errinfo",
+      "added_lines": [
+        "static void",
+        "rb_ec_error_print_detailed(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0)",
+        "{",
+        "    rb_ec_error_print_detailed0(ec, errinfo, str, emesg0, NULL);",
+        "}",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    rb_ec_raised_set(ec, raised_flag);",
+        "}",
+        "",
+        "void",
+        "rb_ec_error_print(rb_execution_context_t *volatile ec, volatile VALUE errinfo)",
+        "{"
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "rb_ec_error_print_detailed",
+        "rb_execution_context_t",
+        "ec",
+        "VALUE",
+        "errinfo",
+        "str",
+        "rb_ec_error_print_detailed0",
+        "rb_ec_raised_set"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "ruby_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract"
+            ],
+            "description": "Exception hierarchy, type, message, and failure behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and hierarchy changes"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "ruby_exceptions",
+          "user_visible_output",
+          "c_ext_api",
+          "exceptions"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "rb_ec_error_print_detailed",
+        "snippet_start_line": 357,
+        "snippet_end_line": 446,
+        "snippet": "        print_backtrace(eclass, errat, str, TRUE, backtrace_limit);\n        print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n    }\n    else {\n        print_errinfo(eclass, errat, emesg, str, RTEST(highlight));\n        print_backtrace(eclass, errat, str, FALSE, backtrace_limit);\n        show_cause(errinfo, str, opt, highlight, reverse, backtrace_limit, shown_causes);\n    }\n}\n\nvoid\nrb_error_write(VALUE errinfo, VALUE emesg, VALUE errat, VALUE str, VALUE opt, VALUE highlight, VALUE reverse)\n{\n    rb_error_write0(errinfo, emesg, errat, str, opt, highlight, reverse, NULL);\n}\n\nstatic void\nrb_ec_error_print_detailed0(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0, VALUE *shown_causes)\n{\n    volatile uint8_t raised_flag = ec->raised_flag;\n    volatile VALUE errat = Qundef;\n    volatile bool written = false;\n    volatile VALUE emesg = emesg0;\n\n    VALUE opt = rb_hash_new();\n    VALUE highlight = rb_stderr_tty_p() ? Qtrue : Qfalse;\n    rb_hash_aset(opt, ID2SYM(rb_intern_const(\"highlight\")), highlight);\n\n    if (NIL_P(errinfo))\n        return;\n    rb_ec_raised_clear(ec);\n\n    EC_PUSH_TAG(ec);\n    if (EC_EXEC_TAG() == TAG_NONE) {\n        errat = rb_get_backtrace(errinfo);\n    }\n    if (UNDEF_P(emesg)) {\n        emesg = Qnil;\n        emesg = rb_get_detailed_message(errinfo, opt);\n    }\n\n    if (!written) {\n        written = true;\n        rb_error_write0(errinfo, emesg, errat, str, opt, highlight, Qfalse, shown_causes);\n    }\n\n    EC_POP_TAG();\n    ec->errinfo = errinfo;\n    rb_ec_raised_set(ec, raised_flag);\n}\n\nstatic void\nrb_ec_error_print_detailed(rb_execution_context_t *const ec, const VALUE errinfo, const VALUE str, VALUE emesg0)\n{\n    rb_ec_error_print_detailed0(ec, errinfo, str, emesg0, NULL);\n}\n\nvoid\nrb_ec_error_print(rb_execution_context_t *volatile ec, volatile VALUE errinfo)\n{\n    rb_ec_error_print_detailed(ec, errinfo, Qnil, Qundef);\n}\n\n#define undef_mesg_for(v, k) rb_fstring_lit(\"undefined\"v\" method '%1$s' for \"k\" '%2$s'\")\n#define undef_mesg(v) ( \\\n        is_mod ? \\\n        undef_mesg_for(v, \"module\") : \\\n        undef_mesg_for(v, \"class\"))\n\nvoid\nrb_print_undef(VALUE klass, ID id, rb_method_visibility_t visi)\n{\n    const int is_mod = RB_TYPE_P(klass, T_MODULE);\n    VALUE mesg;\n    switch (visi & METHOD_VISI_MASK) {\n      case METHOD_VISI_UNDEF:\n      case METHOD_VISI_PUBLIC:    mesg = undef_mesg(\"\"); break;\n      case METHOD_VISI_PRIVATE:   mesg = undef_mesg(\" private\"); break;\n      case METHOD_VISI_PROTECTED: mesg = undef_mesg(\" protected\"); break;\n      default: UNREACHABLE;\n    }\n    rb_name_err_raise_str(mesg, klass, ID2SYM(id));\n}\n\nvoid\nrb_print_undef_str(VALUE klass, VALUE name)\n{\n    const int is_mod = RB_TYPE_P(klass, T_MODULE);\n    rb_name_err_raise_str(undef_mesg(\"\"), klass, name);\n}\n"
+      }
+    },
+    {
+      "file": "eval_error.c",
+      "old_start": 504,
+      "old_end": 510,
+      "new_start": 529,
+      "new_end": 535,
+      "context_hint": "exiting_split(VALUE errinfo, volatile int *exitcode, volatile int *sigstatus)",
+      "added_lines": [
+        "error_handle_with_shown_causes(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex, VALUE *shown_causes)"
+      ],
+      "deleted_lines": [
+        "error_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)"
+      ],
+      "context_lines": [
+        "    rb_bug(\"Unknown longjmp status %d\", status)",
+        "",
+        "static int",
+        "{",
+        "    int status = EXIT_FAILURE;",
+        ""
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "exiting_split",
+        "error_handle_with_shown_causes",
+        "rb_execution_context_t",
+        "ec",
+        "VALUE",
+        "errinfo",
+        "error_handle",
+        "rb_bug"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "ruby_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract"
+            ],
+            "description": "Exception hierarchy, type, message, and failure behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and hierarchy changes"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "ruby_exceptions",
+          "user_visible_output",
+          "c_ext_api",
+          "exceptions"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "exiting_split",
+        "snippet_start_line": 475,
+        "snippet_end_line": 565,
+        "snippet": "\nenum {\n    EXITING_WITH_MESSAGE = 1,\n    EXITING_WITH_STATUS = 2,\n    EXITING_WITH_SIGNAL = 4\n};\nstatic int\nexiting_split(VALUE errinfo, volatile int *exitcode, volatile int *sigstatus)\n{\n    int ex = EXIT_SUCCESS;\n    VALUE signo;\n    int sig = 0;\n    int result = 0;\n\n    if (NIL_P(errinfo)) return 0;\n\n    if (THROW_DATA_P(errinfo)) {\n        int throw_state = ((const struct vm_throw_data *)errinfo)->throw_state;\n        ex = throw_state & VM_THROW_STATE_MASK;\n        result |= EXITING_WITH_STATUS;\n    }\n    else if (rb_obj_is_kind_of(errinfo, rb_eSystemExit)) {\n        ex = sysexit_status(errinfo);\n        result |= EXITING_WITH_STATUS;\n    }\n    else if (rb_obj_is_kind_of(errinfo, rb_eSignal)) {\n        signo = rb_ivar_get(errinfo, id_signo);\n        sig = FIX2INT(signo);\n        result |= EXITING_WITH_SIGNAL;\n        /* no message when exiting by signal */\n        if (signo == INT2FIX(SIGSEGV) || !rb_obj_is_instance_of(errinfo, rb_eSignal))\n            /* except for SEGV and subclasses */\n            result |= EXITING_WITH_MESSAGE;\n    }\n    else if (rb_obj_is_kind_of(errinfo, rb_eSystemCallError) &&\n        FIXNUM_P(signo = rb_attr_get(errinfo, id_signo))) {\n        sig = FIX2INT(signo);\n        result |= EXITING_WITH_SIGNAL;\n        /* no message when exiting by error to be mapped to signal */\n    }\n    else {\n        ex = EXIT_FAILURE;\n        result |= EXITING_WITH_STATUS | EXITING_WITH_MESSAGE;\n    }\n\n    if (exitcode && (result & EXITING_WITH_STATUS))\n        *exitcode = ex;\n    if (sigstatus && (result & EXITING_WITH_SIGNAL))\n        *sigstatus = sig;\n\n    return result;\n}\n\n#define unknown_longjmp_status(status) \\\n    rb_bug(\"Unknown longjmp status %d\", status)\n\nstatic int\nerror_handle_with_shown_causes(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex, VALUE *shown_causes)\n{\n    int status = EXIT_FAILURE;\n\n    if (rb_ec_set_raised(ec))\n        return EXIT_FAILURE;\n    switch (ex & TAG_MASK) {\n      case 0:\n        status = EXIT_SUCCESS;\n        break;\n\n      case TAG_RETURN:\n        error_pos(Qnil);\n        warn_print(\"unexpected return\\n\");\n        break;\n      case TAG_NEXT:\n        error_pos(Qnil);\n        warn_print(\"unexpected next\\n\");\n        break;\n      case TAG_BREAK:\n        error_pos(Qnil);\n        warn_print(\"unexpected break\\n\");\n        break;\n      case TAG_REDO:\n        error_pos(Qnil);\n        warn_print(\"unexpected redo\\n\");\n        break;\n      case TAG_RETRY:\n        error_pos(Qnil);\n        warn_print(\"retry outside of rescue clause\\n\");\n        break;\n      case TAG_THROW:\n        /* TODO: fix me */\n        error_pos(Qnil);\n"
+      }
+    },
+    {
+      "file": "eval_error.c",
+      "old_start": 546,
+      "old_end": 552,
+      "new_start": 571,
+      "new_end": 577,
+      "context_hint": "error_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)",
+      "added_lines": [
+        "        rb_ec_error_print_detailed0(ec, errinfo, Qnil, Qundef, shown_causes);"
+      ],
+      "deleted_lines": [
+        "        rb_ec_error_print(ec, errinfo);"
+      ],
+      "context_lines": [
+        "        }",
+        "        /* fallthrough */",
+        "      case TAG_FATAL:",
+        "        break;",
+        "      default:",
+        "        unknown_longjmp_status(ex);"
+      ],
+      "hunk_id": "HUNK-0008",
+      "changed_symbols": [
+        "ruby_tag_type",
+        "rb_ec_error_print_detailed0",
+        "ec",
+        "errinfo",
+        "Qnil",
+        "Qundef",
+        "rb_ec_error_print",
+        "warn_print"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "ruby_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract"
+            ],
+            "description": "Exception hierarchy, type, message, and failure behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and hierarchy changes"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "ruby_exceptions",
+          "user_visible_output",
+          "c_ext_api",
+          "exceptions"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ruby_tag_type",
+        "snippet_start_line": 517,
+        "snippet_end_line": 588,
+        "snippet": "        result |= EXITING_WITH_STATUS | EXITING_WITH_MESSAGE;\n    }\n\n    if (exitcode && (result & EXITING_WITH_STATUS))\n        *exitcode = ex;\n    if (sigstatus && (result & EXITING_WITH_SIGNAL))\n        *sigstatus = sig;\n\n    return result;\n}\n\n#define unknown_longjmp_status(status) \\\n    rb_bug(\"Unknown longjmp status %d\", status)\n\nstatic int\nerror_handle_with_shown_causes(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex, VALUE *shown_causes)\n{\n    int status = EXIT_FAILURE;\n\n    if (rb_ec_set_raised(ec))\n        return EXIT_FAILURE;\n    switch (ex & TAG_MASK) {\n      case 0:\n        status = EXIT_SUCCESS;\n        break;\n\n      case TAG_RETURN:\n        error_pos(Qnil);\n        warn_print(\"unexpected return\\n\");\n        break;\n      case TAG_NEXT:\n        error_pos(Qnil);\n        warn_print(\"unexpected next\\n\");\n        break;\n      case TAG_BREAK:\n        error_pos(Qnil);\n        warn_print(\"unexpected break\\n\");\n        break;\n      case TAG_REDO:\n        error_pos(Qnil);\n        warn_print(\"unexpected redo\\n\");\n        break;\n      case TAG_RETRY:\n        error_pos(Qnil);\n        warn_print(\"retry outside of rescue clause\\n\");\n        break;\n      case TAG_THROW:\n        /* TODO: fix me */\n        error_pos(Qnil);\n        warn_print(\"unexpected throw\\n\");\n        break;\n      case TAG_RAISE:\n        if (!(exiting_split(errinfo, &status, NULL) & EXITING_WITH_MESSAGE)) {\n            break;\n        }\n        /* fallthrough */\n      case TAG_FATAL:\n        rb_ec_error_print_detailed0(ec, errinfo, Qnil, Qundef, shown_causes);\n        break;\n      default:\n        unknown_longjmp_status(ex);\n        break;\n    }\n    rb_ec_reset_raised(ec);\n    return status;\n}\n\nstatic int\nerror_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)\n{\n    return error_handle_with_shown_causes(ec, errinfo, ex, NULL);\n}\n"
+      }
+    },
+    {
+      "file": "eval_error.c",
+      "old_start": 555,
+      "old_end": 557,
+      "new_start": 580,
+      "new_end": 588,
+      "context_hint": "error_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)",
+      "added_lines": [
+        "",
+        "static int",
+        "error_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)",
+        "{",
+        "    return error_handle_with_shown_causes(ec, errinfo, ex, NULL);",
+        "}"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    rb_ec_reset_raised(ec);",
+        "    return status;",
+        "}"
+      ],
+      "hunk_id": "HUNK-0009",
+      "changed_symbols": [
+        "ruby_tag_type",
+        "error_handle",
+        "rb_execution_context_t",
+        "ec",
+        "VALUE",
+        "errinfo",
+        "error_handle_with_shown_causes",
+        "rb_ec_reset_raised"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "ruby_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract"
+            ],
+            "description": "Exception hierarchy, type, message, and failure behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and hierarchy changes"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "ruby_exceptions",
+          "user_visible_output",
+          "c_ext_api",
+          "exceptions"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ruby_tag_type",
+        "snippet_start_line": 526,
+        "snippet_end_line": 588,
+        "snippet": "}\n\n#define unknown_longjmp_status(status) \\\n    rb_bug(\"Unknown longjmp status %d\", status)\n\nstatic int\nerror_handle_with_shown_causes(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex, VALUE *shown_causes)\n{\n    int status = EXIT_FAILURE;\n\n    if (rb_ec_set_raised(ec))\n        return EXIT_FAILURE;\n    switch (ex & TAG_MASK) {\n      case 0:\n        status = EXIT_SUCCESS;\n        break;\n\n      case TAG_RETURN:\n        error_pos(Qnil);\n        warn_print(\"unexpected return\\n\");\n        break;\n      case TAG_NEXT:\n        error_pos(Qnil);\n        warn_print(\"unexpected next\\n\");\n        break;\n      case TAG_BREAK:\n        error_pos(Qnil);\n        warn_print(\"unexpected break\\n\");\n        break;\n      case TAG_REDO:\n        error_pos(Qnil);\n        warn_print(\"unexpected redo\\n\");\n        break;\n      case TAG_RETRY:\n        error_pos(Qnil);\n        warn_print(\"retry outside of rescue clause\\n\");\n        break;\n      case TAG_THROW:\n        /* TODO: fix me */\n        error_pos(Qnil);\n        warn_print(\"unexpected throw\\n\");\n        break;\n      case TAG_RAISE:\n        if (!(exiting_split(errinfo, &status, NULL) & EXITING_WITH_MESSAGE)) {\n            break;\n        }\n        /* fallthrough */\n      case TAG_FATAL:\n        rb_ec_error_print_detailed0(ec, errinfo, Qnil, Qundef, shown_causes);\n        break;\n      default:\n        unknown_longjmp_status(ex);\n        break;\n    }\n    rb_ec_reset_raised(ec);\n    return status;\n}\n\nstatic int\nerror_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)\n{\n    return error_handle_with_shown_causes(ec, errinfo, ex, NULL);\n}\n"
+      }
+    },
+    {
+      "file": "eval_jump.c",
+      "old_start": 114,
+      "old_end": 119,
+      "new_start": 114,
+      "new_end": 121,
+      "context_hint": "rb_ec_exec_end_proc(rb_execution_context_t * ec)",
+      "added_lines": [
+        "    /* Share only among END/at_exit handlers to avoid repeated causes. */",
+        "    VALUE shown_causes = 0;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "{",
+        "    enum ruby_tag_type state;",
+        "    volatile VALUE errinfo = ec->errinfo;",
+        "    volatile bool finished = false;",
+        "",
+        "    while (!finished) {"
+      ],
+      "hunk_id": "HUNK-0010",
+      "changed_symbols": [
+        "rb_ec_exec_end_proc",
+        "Share",
+        "only",
+        "among",
+        "END",
+        "at_exit"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "user_visible_output",
+          "c_ext_api"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "rb_ec_exec_end_proc",
+        "snippet_start_line": 85,
+        "snippet_end_line": 144,
+        "snippet": "    while (link) {\n        rb_gc_mark(link->data);\n        link = link->next;\n    }\n    link = ephemeral_end_procs;\n    while (link) {\n        rb_gc_mark(link->data);\n        link = link->next;\n    }\n}\n\nstatic void\nexec_end_procs_chain(struct end_proc_data *volatile *procs, VALUE *errp)\n{\n    struct end_proc_data volatile endproc;\n    struct end_proc_data *link;\n    VALUE errinfo = *errp;\n\n    while ((link = *procs) != 0) {\n        *procs = link->next;\n        endproc = *link;\n        SIZED_FREE(link);\n        (*endproc.func) (endproc.data);\n        *errp = errinfo;\n    }\n}\n\nstatic void\nrb_ec_exec_end_proc(rb_execution_context_t * ec)\n{\n    enum ruby_tag_type state;\n    volatile VALUE errinfo = ec->errinfo;\n    /* Share only among END/at_exit handlers to avoid repeated causes. */\n    VALUE shown_causes = 0;\n    volatile bool finished = false;\n\n    while (!finished) {\n        EC_PUSH_TAG(ec);\n        if ((state = EC_EXEC_TAG()) == TAG_NONE) {\n            exec_end_procs_chain(&ephemeral_end_procs, &ec->errinfo);\n            exec_end_procs_chain(&end_procs, &ec->errinfo);\n            finished = true;\n        }\n        EC_POP_TAG();\n        if (state != TAG_NONE) {\n            VALUE err = ec->errinfo;\n            add_shown_cause(errinfo, &shown_causes);\n            error_handle_with_shown_causes(ec, err, state, &shown_causes);\n            if (!NIL_P(err)) errinfo = err;\n        }\n    }\n\n    ec->errinfo = errinfo;\n}\n\nvoid\nInit_jump(void)\n{\n    rb_define_global_function(\"at_exit\", rb_f_at_exit, 0);\n}\n"
+      }
+    },
+    {
+      "file": "eval_jump.c",
+      "old_start": 125,
+      "old_end": 132,
+      "new_start": 127,
+      "new_end": 136,
+      "context_hint": "rb_ec_exec_end_proc(rb_execution_context_t * ec)",
+      "added_lines": [
+        "            VALUE err = ec->errinfo;",
+        "            add_shown_cause(errinfo, &shown_causes);",
+        "            error_handle_with_shown_causes(ec, err, state, &shown_causes);",
+        "            if (!NIL_P(err)) errinfo = err;"
+      ],
+      "deleted_lines": [
+        "            error_handle(ec, ec->errinfo, state);",
+        "            if (!NIL_P(ec->errinfo)) errinfo = ec->errinfo;"
+      ],
+      "context_lines": [
+        "        }",
+        "        EC_POP_TAG();",
+        "        if (state != TAG_NONE) {",
+        "        }",
+        "    }",
+        ""
+      ],
+      "hunk_id": "HUNK-0011",
+      "changed_symbols": [
+        "rb_ec_exec_end_proc",
+        "VALUE",
+        "err",
+        "ec",
+        "errinfo",
+        "add_shown_cause",
+        "error_handle_with_shown_causes",
+        "exec_end_procs_chain"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ruby_c_extension_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "resource_lifetime"
+            ],
+            "description": "Ruby C extension API and ABI."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_ext_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ruby C extension API"
+          }
+        ],
+        "surface_reasons": [
+          "ruby_c_extension_api",
+          "user_visible_output",
+          "c_ext_api"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "rb_ec_exec_end_proc",
+        "snippet_start_line": 96,
+        "snippet_end_line": 144,
+        "snippet": "static void\nexec_end_procs_chain(struct end_proc_data *volatile *procs, VALUE *errp)\n{\n    struct end_proc_data volatile endproc;\n    struct end_proc_data *link;\n    VALUE errinfo = *errp;\n\n    while ((link = *procs) != 0) {\n        *procs = link->next;\n        endproc = *link;\n        SIZED_FREE(link);\n        (*endproc.func) (endproc.data);\n        *errp = errinfo;\n    }\n}\n\nstatic void\nrb_ec_exec_end_proc(rb_execution_context_t * ec)\n{\n    enum ruby_tag_type state;\n    volatile VALUE errinfo = ec->errinfo;\n    /* Share only among END/at_exit handlers to avoid repeated causes. */\n    VALUE shown_causes = 0;\n    volatile bool finished = false;\n\n    while (!finished) {\n        EC_PUSH_TAG(ec);\n        if ((state = EC_EXEC_TAG()) == TAG_NONE) {\n            exec_end_procs_chain(&ephemeral_end_procs, &ec->errinfo);\n            exec_end_procs_chain(&end_procs, &ec->errinfo);\n            finished = true;\n        }\n        EC_POP_TAG();\n        if (state != TAG_NONE) {\n            VALUE err = ec->errinfo;\n            add_shown_cause(errinfo, &shown_causes);\n            error_handle_with_shown_causes(ec, err, state, &shown_causes);\n            if (!NIL_P(err)) errinfo = err;\n        }\n    }\n\n    ec->errinfo = errinfo;\n}\n\nvoid\nInit_jump(void)\n{\n    rb_define_global_function(\"at_exit\", rb_f_at_exit, 0);\n}\n"
+      }
+    },
+    {
+      "file": "test/ruby/test_exception.rb",
+      "old_start": 826,
+      "old_end": 831,
+      "new_start": 826,
+      "new_end": 868,
+      "context_hint": "def test_cause_at_end",
+      "added_lines": [
+        "  def test_multiple_error_handle",
+        "    errs = [",
+        "      /.*END3 \\(RuntimeError\\).*\\n/,",
+        "      /.*END2 \\(RuntimeError\\).*\\n/,",
+        "      /.*END1 \\(RuntimeError\\).*\\n/,",
+        "      /.*EXIT \\(RuntimeError\\).*\\n/,",
+        "    ]",
+        "    assert_in_out_err([], <<-'end;', [], errs, success: false)",
+        "      Signal.trap(:EXIT) {raise \"EXIT\"}",
+        "      END{raise \"END1\"};",
+        "      END{raise \"END2\"};",
+        "      END{raise \"END3\"};",
+        "    end;",
+        "  end",
+        "",
+        "  def test_cause_in_exit_handler",
+        "    errs = [",
+        "      /.*outer \\(RuntimeError\\).*\\n/,",
+        "      /.*inner \\(RuntimeError\\).*\\n/,",
+        "    ]",
+        "    assert_in_out_err([], <<-'end;', [], errs, success: false)",
+        "      END{begin; raise \"inner\"; rescue; raise \"outer\"; end}",
+        "    end;",
+        "    assert_in_out_err([], <<-'end;', [], errs, success: false)",
+        "      Signal.trap(:EXIT) {begin; raise \"inner\"; rescue; raise \"outer\"; end}",
+        "    end;",
+        "    errs = [",
+        "      /.*previous \\(RuntimeError\\).*\\n/,",
+        "      /.*outer \\(RuntimeError\\).*\\n/,",
+        "      /.*middle \\(RuntimeError\\).*\\n/,",
+        "    ]",
+        "    assert_in_out_err([], <<-'end;', [], errs, success: false)",
+        "      END{begin; raise \"middle\"; rescue => e; raise \"outer\", cause: e; end}",
+        "      END{raise \"previous\"}",
+        "    end;",
+        "  end",
+        ""
+      ],
+      "deleted_lines": [
+        "- "
+      ],
+      "context_lines": [
+        "    end;",
+        "  end",
+        "",
+        "  def test_raise_with_cause",
+        "    msg = \"[Feature #8257]\"",
+        "    cause = ArgumentError.new(\"foobar\")",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0012",
+      "changed_symbols": [
+        "def",
+        "test_multiple_error_handle",
+        "errs",
+        "END3",
+        "RuntimeError",
+        "n",
+        "test_cause_at_end"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "ruby_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract"
+            ],
+            "description": "Exception hierarchy, type, message, and failure behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and hierarchy changes"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "ruby_exceptions",
+          "user_visible_output",
+          "exceptions"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "assert_in_out_err",
+        "snippet_start_line": 797,
+        "snippet_end_line": 898,
+        "snippet": "    assert_same(a, e.cause, 'cause should not be overwritten by reraise')\n  end\n\n  def test_cause_at_raised\n    a = nil\n    e = assert_raise_with_message(RuntimeError, 'b') {\n      begin\n        raise 'a'\n      rescue => a\n        b = RuntimeError.new('b')\n        assert_nil(b.cause)\n        begin\n          raise 'c'\n        rescue\n          raise b\n        end\n      end\n    }\n    assert_equal('c', e.cause.message, 'cause should be the exception at raised')\n    assert_same(a, e.cause.cause)\n  end\n\n  def test_cause_at_end\n    errs = [\n      /-: unexpected return\\n/,\n      /.*undefined local variable or method 'n'.*\\n/,\n    ]\n    assert_in_out_err([], <<-'end;', [], errs)\n      END{n}; END{return}\n    end;\n  end\n\n  def test_multiple_error_handle\n    errs = [\n      /.*END3 \\(RuntimeError\\).*\\n/,\n      /.*END2 \\(RuntimeError\\).*\\n/,\n      /.*END1 \\(RuntimeError\\).*\\n/,\n      /.*EXIT \\(RuntimeError\\).*\\n/,\n    ]\n    assert_in_out_err([], <<-'end;', [], errs, success: false)\n      Signal.trap(:EXIT) {raise \"EXIT\"}\n      END{raise \"END1\"};\n      END{raise \"END2\"};\n      END{raise \"END3\"};\n    end;\n  end\n\n  def test_cause_in_exit_handler\n    errs = [\n      /.*outer \\(RuntimeError\\).*\\n/,\n      /.*inner \\(RuntimeError\\).*\\n/,\n    ]\n    assert_in_out_err([], <<-'end;', [], errs, success: false)\n      END{begin; raise \"inner\"; rescue; raise \"outer\"; end}\n    end;\n    assert_in_out_err([], <<-'end;', [], errs, success: false)\n      Signal.trap(:EXIT) {begin; raise \"inner\"; rescue; raise \"outer\"; end}\n    end;\n    errs = [\n      /.*previous \\(RuntimeError\\).*\\n/,\n      /.*outer \\(RuntimeError\\).*\\n/,\n      /.*middle \\(RuntimeError\\).*\\n/,\n    ]\n    assert_in_out_err([], <<-'end;', [], errs, success: false)\n      END{begin; raise \"middle\"; rescue => e; raise \"outer\", cause: e; end}\n      END{raise \"previous\"}\n    end;\n  end\n\n  def test_raise_with_cause\n    msg = \"[Feature #8257]\"\n    cause = ArgumentError.new(\"foobar\")\n    e = assert_raise(RuntimeError) {raise msg, cause: cause}\n    assert_same(cause, e.cause)\n    assert_raise(TypeError) {raise msg, {cause: cause}}\n  end\n\n  def test_cause_with_no_arguments\n    cause = ArgumentError.new(\"foobar\")\n    assert_raise_with_message(ArgumentError, /with no arguments/) do\n      raise cause: cause\n    end\n  end\n\n  def test_raise_with_cause_in_rescue\n    e = assert_raise_with_message(RuntimeError, 'b') {\n      begin\n        raise 'a'\n      rescue => a\n        begin\n          raise 'b'\n        rescue => b\n          assert_same(a, b.cause)\n          begin\n            raise 'c'\n          rescue\n            raise b, cause: ArgumentError.new('d')\n          end\n        end\n      end\n    }\n    assert_equal('d', e.cause.message, 'cause option should be honored always')\n"
+      }
+    }
+  ]
+}

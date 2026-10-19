@@ -1,0 +1,380 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067",
+  "patch_id": "8b68438b2e0b38909b5b2f76e22ceccd2fa48278",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "H2HeaderStrictness",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "modules/http2/h2_config.c",
+        "old_lines": [
+          964,
+          971
+        ],
+        "new_lines": [
+          937,
+          942
+        ],
+        "symbol": "h2_cmds"
+      },
+      "old_behavior": "The H2HeaderStrictness directive accepted values highest/rfc7540/rfc9113 to control HTTP/2 header validation strictness. Administrators could configure per-server or per-virtual-host whether to enforce RFC 9113 header whitespace rules (rejecting/rejecting streams with leading/trailing whitespace in field values).",
+      "new_behavior": "The H2HeaderStrictness directive is completely removed: the command_rec registration, handler function h2_conf_set_header_strictness, struct field header_strictness, default value 7540, config create/merge/set/get code paths, and the H2_CONF_HEADER_STRICTNESS enum value are all deleted. Existing httpd.conf files using this directive will cause Apache to fail to start with an 'unknown directive' error.",
+      "compatibility_reason": "Removal of a public, user-facing Apache configuration directive is a breaking change. Any existing Apache httpd deployment that uses H2HeaderStrictness in its configuration will fail to start after this patch, requiring manual configuration cleanup. The H2_CONF_HEADER_STRICTNESS enum removal from the public h2_config.h header also breaks ABI compatibility for any module compiled against the old header (subsequent enum values shift numerically).",
+      "test_recommendation": "Place H2HeaderStrictness in an httpd.conf and verify Apache httpd fails to start with 'unknown directive H2HeaderStrictness' error. Remove the directive and verify httpd starts normally. Compile an external module against the old header with H2_CONF_HEADER_STRICTNESS reference and confirm compilation failure against the new header.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "h2_session_create",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "modules/http2/h2_session.c",
+        "old_lines": [
+          957,
+          968
+        ],
+        "new_lines": [
+          957,
+          966
+        ],
+        "symbol": "h2_session_create"
+      },
+      "old_behavior": "nghttp2's RFC 9113 leading/trailing whitespace validation was conditionally enabled based on the H2HeaderStrictness config value: when header_strictness >= 9113, nghttp2 would RST_STREAM any HTTP/2 stream carrying header/trailer field values with leading/trailing whitespace, rejecting the stream.",
+      "new_behavior": "nghttp2's RFC 9113 whitespace validation is always disabled (no_rfc9113_leading_and_trailing_ws_validation is always set to 1). All HTTP/2 streams with field value whitespace are accepted; the server strips the whitespace internally via strip_field_value_ws() instead of rejecting.",
+      "compatibility_reason": "HTTP/2 clients sending field values with leading/trailing whitespace will observe a behavior change: previously they would receive RST_STREAM (stream error) under strict configurations; now they will always see the request processed normally with whitespace silently stripped. This changes the error-handling contract and may mask client bugs or protocol compliance issues that were previously surfaced by the server.",
+      "test_recommendation": "Construct HTTP/2 requests with headers containing leading/trailing spaces/tabs. Verify the server returns 200 (not RST_STREAM) and the header value is correctly whitespace-stripped in the application-visible request.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0003",
+      "finding_id": "PCA-0003",
+      "test_priority": "high",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "add_header",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "modules/http2/h2_util.c",
+        "old_lines": [
+          1455,
+          1467
+        ],
+        "new_lines": [
+          1456,
+          1469
+        ],
+        "symbol": "add_header"
+      },
+      "old_behavior": "HTTP/1.1 request headers converted to HTTP/2 nghttp2_nv format were stored with their field values verbatim. Any leading/trailing whitespace present in the incoming header value was preserved and transmitted to downstream HTTP/2 clients.",
+      "new_behavior": "strip_field_value_ws(nv) is called after constructing nghttp2_nv in add_header(), removing leading and trailing spaces and tabs from field values. This stripping also applies in the new req_add_header wrapper used by h2_req_add_header, which delegates to the internal req_add_header that also calls strip_field_value_ws().",
+      "compatibility_reason": "Any downstream consumer of HTTP/2 header values (modules, CGI scripts, logging, proxied backends) that previously received values with leading/trailing whitespace will now receive trimmed values. This is a normative output format change across all HTTP/2 response headers. While RFC 7230/9113 discourages leading/trailing whitespace in field values, existing configurations or modules that intentionally or accidentally included such whitespace will see different output.",
+      "test_recommendation": "Set response headers with leading/trailing whitespace via 'Header add' directive; verify the HTTP/2 client receives whitespace-trimmed values. Verify structured header fields like Set-Cookie are not corrupted by the stripping.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0004",
+      "finding_id": "PCA-0004",
+      "test_priority": "high",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "affected_api": {
+        "name": "h2_util_ignore_header",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "modules/http2/h2_util.h",
+        "old_lines": [
+          375,
+          399
+        ],
+        "new_lines": [
+          374,
+          380
+        ],
+        "symbol": "h2_util_ignore_header"
+      },
+      "old_behavior": "h2_util_ignore_header(const char *name) was a public, non-static function that returned true for hop-by-hop headers (connection, proxy-connection, upgrade, keep-alive, transfer-encoding) per RFC 7540 Section 8.1.2.2. External modules could call this function to determine whether a header should be excluded from HTTP/2 frames.",
+      "new_behavior": "h2_util_ignore_header() is removed. A new public function h2_util_ignore_resp_header(const char *name) replaces it, scoped specifically to the response header ignore list (IgnoredResponseHeaders: upgrade, connection, keep-alive, transfer-encoding). The function signature is identical but the name and internal filtering logic differ from the old generic header ignore.",
+      "compatibility_reason": "Public API function renamed/removed. Any external httpd module that links against h2_util_ignore_header will get an undefined symbol linker error. The replacement function is explicitly response-scoped, suggesting the old function's request-header filtering was split to a different implementation or made internal.",
+      "test_recommendation": "Compile a test module linking against h2_util_ignore_header -- must fail with undefined symbol. Compile using h2_util_ignore_resp_header -- must succeed. Verify that response header filtering behavior is preserved for the hop-by-hop headers.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "downstream_compile_link_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "api_signature_compatibility",
+        "comparison": "success",
+        "required_observation": "old downstream source compiles and links against both versions",
+        "input_axes": [
+          "old declarations",
+          "language modes",
+          "compiler flags",
+          "link modes"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0005",
+      "finding_id": "PCA-0005",
+      "test_priority": "high",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "affected_api": {
+        "name": "h2_req_ignore_header",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "modules/http2/h2_util.h",
+        "old_lines": [
+          342,
+          350
+        ],
+        "new_lines": [
+          342,
+          349
+        ],
+        "symbol": "h2_req_ignore_header"
+      },
+      "old_behavior": "h2_req_ignore_header(const char *name, size_t len) was a public function for checking whether a request header should be excluded from HTTP/2 processing. It matched against IgnoredRequestHeaders (hop-by-hop headers per RFC 7540).",
+      "new_behavior": "h2_req_ignore_header is removed from the public header. The function implementation is made static (internal) with a changed signature accepting nghttp2_nv* instead of (const char*, size_t). External modules can no longer call this function.",
+      "compatibility_reason": "Public API function removed from installed header. Any external module calling h2_req_ignore_header will fail to link (undefined symbol). No replacement function is provided at the public API level for request header ignore checking.",
+      "test_recommendation": "Compile a test module with h2_req_ignore_header call -- must fail. Check build of all bundled httpd modules to ensure link time success.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "downstream_compile_link_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "api_signature_compatibility",
+        "comparison": "success",
+        "required_observation": "old downstream source compiles and links against both versions",
+        "input_axes": [
+          "old declarations",
+          "language modes",
+          "compiler flags",
+          "link modes"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0007",
+      "finding_id": "PCA-0007",
+      "test_priority": "high",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "affected_api": {
+        "name": "h2_res_ignore_trailer",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "modules/http2/h2_util.h",
+        "old_lines": [
+          342,
+          350
+        ],
+        "new_lines": [
+          342,
+          349
+        ],
+        "symbol": "h2_res_ignore_trailer"
+      },
+      "old_behavior": "h2_res_ignore_trailer(const char *name, size_t len) was public; it checked response trailers against only IgnoredResponseTrailers (age, date, vary, cookie, expires, warning, location, retry-after, cache-control, www-authenticate, proxy-authenticate).",
+      "new_behavior": "Renamed to h2_ignore_resp_trailer(const char *name, size_t len). Now also checks against IgnoredResponseHeaders (upgrade, connection, keep-alive, transfer-encoding) in addition to IgnoredResponseTrailers. The `len` parameter is also ignored (uses strlen).",
+      "compatibility_reason": "Function rename breaks API and ABI for external callers. The behavioral expansion (also filtering hop-by-hop response headers from trailers) means trailers named 'upgrade', 'connection', 'keep-alive', or 'transfer-encoding' that were previously passed through are now silently dropped -- a network protocol behavior change.",
+      "test_recommendation": "Send HTTP/2 response with trailers named 'upgrade', 'connection', 'keep-alive', 'transfer-encoding'; verify they are silently dropped in the new code. Verify other trailers (age, date, etc.) are still filtered as before.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "downstream_compile_link_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "api_signature_compatibility",
+        "comparison": "success",
+        "required_observation": "old downstream source compiles and links against both versions",
+        "input_axes": [
+          "old declarations",
+          "language modes",
+          "compiler flags",
+          "link modes"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing"
+}

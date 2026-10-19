@@ -1,0 +1,685 @@
+{
+  "shard_id": "SHARD-0008",
+  "surface": "persistence_state",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    23,
+    18,
+    15,
+    37,
+    38,
+    36
+  ],
+  "hunk_ids": [
+    "HUNK-0028",
+    "HUNK-0023",
+    "HUNK-0020",
+    "HUNK-0042",
+    "HUNK-0043",
+    "HUNK-0041"
+  ],
+  "files": [
+    "runtime/ratelimit.c",
+    "runtime/rsconf.c"
+  ],
+  "symbols": [
+    "CHKiRet",
+    "file_policy",
+    "has_output_mode",
+    "has_scope",
+    "output_mode",
+    "ratelimitAddConfig",
+    "scope",
+    "ratelimitReloadPolicyFile",
+    "ratelimit_output_mode_t",
+    "ratelimit_scope_t",
+    "pthread_rwlock_destroy",
+    "ratelimit_ps_policy_s",
+    "sbool",
+    "CHKmalloc",
+    "cnfobj",
+    "has_inline_policy_params",
+    "has_legacy_per_source_params",
+    "initFunc_ratelimit"
+  ],
+  "metrics": {
+    "hunks": 6,
+    "context_bytes": 25494
+  },
+  "candidates": [
+    {
+      "file": "runtime/ratelimit.c",
+      "old_start": 1520,
+      "old_end": 1525,
+      "new_start": 1636,
+      "new_end": 1643,
+      "context_hint": "rsRetVal ratelimitAddConfig(rsconf_t *conf,",
+      "added_lines": [
+        "        if (file_policy.has_scope) scope = file_policy.scope;",
+        "        if (file_policy.has_output_mode) output_mode = file_policy.output_mode;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "    if (policy_file != NULL) {",
+        "        CHKiRet(parsePolicyFile(policy_file, &file_policy));",
+        "        if (file_policy.has_interval) interval = file_policy.interval;",
+        "        if (file_policy.has_burst) burst = file_policy.burst;",
+        "        if (file_policy.has_severity) severity = file_policy.severity;"
+      ],
+      "hunk_id": "HUNK-0028",
+      "changed_symbols": [
+        "ratelimitAddConfig",
+        "file_policy",
+        "has_scope",
+        "scope",
+        "has_output_mode",
+        "output_mode",
+        "CHKiRet"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "persistence_state",
+          "module_api",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ratelimitAddConfig",
+        "snippet_start_line": 1491,
+        "snippet_end_line": 1673,
+        "snippet": "    if (iRet != RS_RET_OK && shared != NULL && shared->per_source_policy_file != NULL) {\n        LogError(0, iRet, \"ratelimit: %s failed to reload per-source policy '%s' from file '%s', keeping old values\",\n                 trigger, shared->name, shared->per_source_policy_file);\n    }\n    RETiRet;\n}\n\nstatic rsRetVal ratelimitPerSourceCheck(ratelimit_t *ratelimit, const char *key, size_t key_len, time_t tt) {\n    ratelimit_shared_t *shared;\n    ratelimit_ps_state_t *state;\n    ratelimit_ps_override_t *override;\n    unsigned int max;\n    unsigned int window;\n    sbool must_drop = 0;\n    DEFiRet;\n\n    if (ratelimit == NULL || ratelimit->pShared == NULL || key == NULL || key_len == 0) {\n        FINALIZE;\n    }\n    shared = ratelimit->pShared;\n    if (!shared->per_source_enabled) FINALIZE;\n\n    if (tt == 0) tt = time(NULL);\n\n    pthread_mutex_lock(&shared->per_source_mut);\n    state = (ratelimit_ps_state_t *)hashtable_search(shared->per_source_states, (void *)key);\n    if (state == NULL) {\n        if (shared->per_source_max_states > 0 &&\n            hashtable_count(shared->per_source_states) >= shared->per_source_max_states) {\n            ratelimit_ps_state_t *evict = shared->per_source_lru_head;\n            if (evict != NULL) {\n                shared->per_source_lru_head = evict->lru_next;\n                if (shared->per_source_lru_head != NULL) shared->per_source_lru_head->lru_prev = NULL;\n                if (shared->per_source_lru_tail == evict) shared->per_source_lru_tail = NULL;\n                ratelimit_ps_state_t *evicted =\n                    (ratelimit_ps_state_t *)hashtable_remove(shared->per_source_states, (void *)evict->key);\n                ratelimitFreePerSourceState(evicted);\n            }\n        }\n        state = calloc(1, sizeof(*state));\n        if (state != NULL) {\n            state->key = strdup(key);\n            state->window_start = tt;\n            state->last_seen = tt;\n            if (state->key != NULL && hashtable_insert(shared->per_source_states, state->key, state) == 0) {\n                free(state->key);\n                free(state);\n                state = NULL;\n            } else {\n                state->lru_prev = shared->per_source_lru_tail;\n                if (shared->per_source_lru_tail != NULL) shared->per_source_lru_tail->lru_next = state;\n                shared->per_source_lru_tail = state;\n                if (shared->per_source_lru_head == NULL) shared->per_source_lru_head = state;\n            }\n        }\n    } else {\n        if (shared->per_source_lru_tail != state) {\n            if (state->lru_prev != NULL) state->lru_prev->lru_next = state->lru_next;\n            if (state->lru_next != NULL) state->lru_next->lru_prev = state->lru_prev;\n            if (shared->per_source_lru_head == state) shared->per_source_lru_head = state->lru_next;\n            /* if (shared->per_source_lru_tail == state) - handled by outer if */\n\n            state->lru_prev = shared->per_source_lru_tail;\n            state->lru_next = NULL;\n            if (shared->per_source_lru_tail != NULL) shared->per_source_lru_tail->lru_next = state;\n            shared->per_source_lru_tail = state;\n            if (shared->per_source_lru_head == NULL) shared->per_source_lru_head = state;\n        }\n    }\n\n    if (state == NULL) {\n        pthread_mutex_unlock(&shared->per_source_mut);\n        ABORT_FINALIZE(RS_RET_OUT_OF_MEMORY);\n    }\n\n    override = (ratelimit_ps_override_t *)hashtable_search(shared->per_source_overrides, (void *)key);\n    max = (override != NULL && override->has_max) ? override->max : shared->per_source_default_max;\n    window = (override != NULL && override->has_window) ? override->window : shared->per_source_default_window;\n\n    if (max == 0 || window == 0) {\n        state->allowed++;\n    } else {\n        if (state->window_start == 0 || (tt - state->window_start) >= (time_t)window || tt < state->window_start) {\n            state->window_start = tt;\n            state->count = 0;\n        }\n        if (state->count < max) {\n            state->count++;\n            state->allowed++;\n        } else {\n            state->dropped++;\n            must_drop = 1;\n        }\n    }\n    state->last_seen = tt;\n    if (must_drop) {\n        STATSCOUNTER_INC(shared->ctrPerSourceDropped, shared->mutCtrPerSourceDropped);\n    } else {\n        STATSCOUNTER_INC(shared->ctrPerSourceAllowed, shared->mutCtrPerSourceAllowed);\n    }\n    pthread_mutex_unlock(&shared->per_source_mut);\n\n    if (must_drop) {\n        ABORT_FINALIZE(RS_RET_DISCARDMSG);\n    }\n\nfinalize_it:\n    RETiRet;\n}\n\nrsRetVal ratelimitAddConfig(rsconf_t *conf,\n                            const char *name,\n                            unsigned int interval,\n                            unsigned int burst,\n                            int severity,\n                            const char *policy_file,\n                            sbool policy_watch,\n                            const char *policy_watch_debounce,\n                            sbool per_source_enabled,\n                            const char *per_source_policy_file,\n                            const char *per_source_key_tpl_name,\n                            unsigned int per_source_max_states,\n                            unsigned int per_source_topn,\n                            sbool has_inline_policy_params,\n                            sbool has_legacy_per_source_params) {\n    DEFiRet;\n    ratelimit_shared_t *shared = NULL;\n    ratelimit_shared_t *existing_shared = NULL;\n    char *key = NULL;\n    ratelimit_ps_policy_t *per_source_policy = NULL;\n    ratelimit_policy_file_t file_policy = {0};\n    unsigned int debounce_ms = RATELIMIT_POLICY_WATCH_DEBOUNCE_DFLT_MS;\n    sbool per_source_from_policy_file = 0;\n    sbool bLocked = 0;\n    ratelimit_scope_t scope = RATELIMIT_SCOPE_INPUT;\n    ratelimit_output_mode_t output_mode = RATELIMIT_OUTPUT_MODE_DROP;\n\n\n    if (name == NULL) {\n        ABORT_FINALIZE(RS_RET_PARAM_ERROR);\n    }\n\n    if (policy_watch_debounce != NULL) {\n        CHKiRet(parseDurationMillis(policy_watch_debounce, &debounce_ms));\n    }\n\n    if (policy_file != NULL) {\n        CHKiRet(parsePolicyFile(policy_file, &file_policy));\n        if (file_policy.has_scope) scope = file_policy.scope;\n        if (file_policy.has_output_mode) output_mode = file_policy.output_mode;\n        if (file_policy.has_interval) interval = file_policy.interval;\n        if (file_policy.has_burst) burst = file_policy.burst;\n        if (file_policy.has_severity) severity = file_policy.severity;\n        if (file_policy.has_per_source) {\n            if (per_source_enabled || per_source_policy_file != NULL || per_source_key_tpl_name != NULL ||\n                per_source_max_states != 0 || per_source_topn != 0) {\n                LogError(0, RS_RET_CONFIG_ERROR,\n                         \"ratelimit: policy file '%s' contains perSource for '%s'; do not mix it with legacy \"\n                         \"perSource/perSourcePolicy/perSourceKeyTpl/maxStates/topN parameters\",\n                         policy_file, name);\n                ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n            }\n            per_source_from_policy_file = 1;\n            per_source_enabled = file_policy.per_source_enabled;\n            if (per_source_enabled) {\n                per_source_policy = file_policy.per_source_policy;\n                file_policy.per_source_policy = NULL;\n                per_source_policy_file = policy_file;\n                per_source_key_tpl_name = file_policy.per_source_key_tpl_name;\n                file_policy.per_source_key_tpl_name = NULL;\n                per_source_max_states = file_policy.per_source_max_states;\n                per_source_topn = file_policy.per_source_topn;\n            }\n        }\n    }\n\n    if (scope == RATELIMIT_SCOPE_OUTPUT) {\n        if (policy_file == NULL) {\n            LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: output policy '%s' must use a YAML policy file\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (has_inline_policy_params || has_legacy_per_source_params) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n"
+      }
+    },
+    {
+      "file": "runtime/ratelimit.c",
+      "old_start": 1311,
+      "old_end": 1316,
+      "new_start": 1361,
+      "new_end": 1368,
+      "context_hint": "static rsRetVal ratelimitReloadPolicyFile(ratelimit_shared_t *shared, const char",
+      "added_lines": [
+        "    ratelimit_scope_t scope;",
+        "    ratelimit_output_mode_t output_mode;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    unsigned int interval;",
+        "    unsigned int burst;",
+        "    int severity;",
+        "    ratelimit_policy_file_t policy = {0};",
+        "    DEFiRet;",
+        ""
+      ],
+      "hunk_id": "HUNK-0023",
+      "changed_symbols": [
+        "ratelimitReloadPolicyFile",
+        "ratelimit_scope_t",
+        "scope",
+        "ratelimit_output_mode_t",
+        "output_mode"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "output_format",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log template, property, and output formatting behavior"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "persistence_state",
+          "module_api",
+          "output_format",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ratelimitReloadPolicyFile",
+        "snippet_start_line": 1282,
+        "snippet_end_line": 1398,
+        "snippet": "    shared->per_source_top_ctrs = NULL;\n    shared->per_source_top_values = NULL;\n    shared->per_source_top_keys = NULL;\n    pthread_mutex_unlock(&shared->per_source_mut);\n\n    for (unsigned int i = 0; i < topn; ++i) {\n        if (top_ctrs[i] != NULL && shared->per_source_stats != NULL) {\n            statsobj.DestructCounter(shared->per_source_stats, top_ctrs[i]);\n        }\n        free(top_keys[i]);\n    }\n    free(top_ctrs);\n    free(top_values);\n    free(top_keys);\n}\n\nstatic rsRetVal ratelimitApplyPolicyPerSource(ratelimit_shared_t *shared,\n                                              ratelimit_policy_file_t *policy,\n                                              rsconf_t *conf,\n                                              const char *policy_file) {\n    struct template *key_tpl = NULL;\n    sbool key_tpl_default = 0;\n    char *key_tpl_name = NULL;\n    unsigned int effective_topn;\n    DEFiRet;\n\n    if (shared == NULL || policy == NULL || !policy->has_per_source) FINALIZE;\n\n    if (!policy->per_source_enabled) {\n        shared->per_source_enabled = 0;\n        shared->per_source_policy_from_policy_file = 1;\n        FINALIZE;\n    }\n\n    CHKiRet(ratelimitLookupPerSourceTemplate(conf, policy->per_source_key_tpl_name, &key_tpl, &key_tpl_default));\n    if (policy->per_source_key_tpl_name != NULL) {\n        CHKmalloc(key_tpl_name = strdup(policy->per_source_key_tpl_name));\n    }\n\n    if (shared->per_source_states == NULL) {\n        CHKiRet(ratelimitInitPerSourceShared(shared, policy->per_source_policy, policy_file,\n                                             policy->per_source_max_states, policy->per_source_topn));\n        policy->per_source_policy->overrides = NULL;\n    } else {\n        shared->per_source_enabled = 1;\n        ratelimitSwapPerSourcePolicy(shared, policy->per_source_policy);\n        policy->per_source_policy->overrides = NULL;\n    }\n\n    shared->per_source_policy_from_policy_file = 1;\n    if (shared->per_source_policy_file == NULL && policy_file != NULL) {\n        CHKmalloc(shared->per_source_policy_file = strdup(policy_file));\n    }\n    free(shared->per_source_key_tpl_name);\n    shared->per_source_key_tpl_name = key_tpl_name;\n    key_tpl_name = NULL;\n    shared->per_source_key_tpl = key_tpl;\n    shared->per_source_key_tpl_default = key_tpl_default;\n    shared->per_source_key_mode = perSourceKeyModeFromTemplate(shared->per_source_key_tpl);\n    shared->per_source_key_needs_parsing = (shared->per_source_key_mode == RL_PS_KEY_TPL);\n\n    pthread_mutex_lock(&shared->per_source_mut);\n    shared->per_source_max_states =\n        (policy->per_source_max_states == 0) ? RATELIMIT_PERSOURCE_DEFAULT_MAX_STATES : policy->per_source_max_states;\n    effective_topn = (policy->per_source_topn == 0) ? RATELIMIT_PERSOURCE_DEFAULT_TOPN : policy->per_source_topn;\n    if (shared->per_source_topn != effective_topn) {\n        pthread_mutex_unlock(&shared->per_source_mut);\n        ratelimitResetPerSourceTopN(shared);\n        pthread_mutex_lock(&shared->per_source_mut);\n        shared->per_source_topn = effective_topn;\n    }\n    pthread_mutex_unlock(&shared->per_source_mut);\n\nfinalize_it:\n    free(key_tpl_name);\n    RETiRet;\n}\n\nstatic rsRetVal ratelimitReloadPolicyFile(ratelimit_shared_t *shared, const char *trigger) {\n    unsigned int interval;\n    unsigned int burst;\n    int severity;\n    ratelimit_scope_t scope;\n    ratelimit_output_mode_t output_mode;\n    ratelimit_policy_file_t policy = {0};\n    DEFiRet;\n\n    if (shared == NULL || shared->policy_file == NULL) {\n        FINALIZE;\n    }\n\n    interval = ratelimitSharedLoadUInt(&shared->interval, &shared->mut);\n    burst = ratelimitSharedLoadUInt(&shared->burst, &shared->mut);\n    severity = ratelimitSharedLoadSeverity(&shared->severity, &shared->mut);\n    pthread_mutex_lock(&shared->mut);\n    output_mode = shared->output_mode;\n    pthread_mutex_unlock(&shared->mut);\n\n    CHKiRet(parsePolicyFile(shared->policy_file, &policy));\n    scope = policy.has_scope ? policy.scope : RATELIMIT_SCOPE_INPUT;\n    if (scope != shared->scope) {\n        LogError(0, RS_RET_CONFIG_ERROR,\n                 \"ratelimit: %s reload of policy '%s' from file '%s' rejected because scope changed\", trigger,\n                 shared->name, shared->policy_file);\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n    if (shared->scope == RATELIMIT_SCOPE_OUTPUT) {\n        if (!policy.has_output_mode) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n                     \"ratelimit: %s reload of output policy '%s' from file '%s' rejected because mode is missing\",\n                     trigger, shared->name, shared->policy_file);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (!policy.has_interval || !policy.has_burst) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n                     \"ratelimit: %s reload of output policy '%s' from file '%s' rejected because interval or burst \"\n                     \"is missing\",\n"
+      }
+    },
+    {
+      "file": "runtime/ratelimit.c",
+      "old_start": 266,
+      "old_end": 274,
+      "new_start": 266,
+      "new_end": 278,
+      "context_hint": "struct ratelimit_ps_policy_s {",
+      "added_lines": [
+        "    sbool has_scope;",
+        "    sbool has_output_mode;",
+        "    ratelimit_scope_t scope;",
+        "    ratelimit_output_mode_t output_mode;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "typedef struct ratelimit_ps_policy_s ratelimit_ps_policy_t;",
+        "",
+        "typedef struct ratelimit_policy_file_s {",
+        "    sbool has_interval;",
+        "    sbool has_burst;",
+        "    sbool has_severity;",
+        "    unsigned int interval;",
+        "    unsigned int burst;",
+        "    int severity;"
+      ],
+      "hunk_id": "HUNK-0020",
+      "changed_symbols": [
+        "ratelimit_ps_policy_s",
+        "sbool",
+        "has_scope",
+        "has_output_mode",
+        "ratelimit_scope_t",
+        "scope",
+        "pthread_rwlock_destroy"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "persistence_state",
+          "module_api",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ratelimit_ps_policy_s",
+        "snippet_start_line": 237,
+        "snippet_end_line": 308,
+        "snippet": "struct ratelimit_ps_override_s {\n    char *key;\n    unsigned int max;\n    unsigned int window;\n    sbool has_max;\n    sbool has_window;\n};\n\ntypedef struct ratelimit_ps_override_s ratelimit_ps_override_t;\n\nstruct ratelimit_ps_state_s {\n    char *key;\n    unsigned int count;\n    time_t window_start;\n    uint64_t allowed;\n    uint64_t dropped;\n    time_t last_seen;\n    struct ratelimit_ps_state_s *lru_prev;\n    struct ratelimit_ps_state_s *lru_next;\n};\n\ntypedef struct ratelimit_ps_state_s ratelimit_ps_state_t;\n\nstruct ratelimit_ps_policy_s {\n    unsigned int default_max;\n    unsigned int default_window;\n    struct hashtable *overrides;\n};\n\ntypedef struct ratelimit_ps_policy_s ratelimit_ps_policy_t;\n\ntypedef struct ratelimit_policy_file_s {\n    sbool has_scope;\n    sbool has_output_mode;\n    sbool has_interval;\n    sbool has_burst;\n    sbool has_severity;\n    ratelimit_scope_t scope;\n    ratelimit_output_mode_t output_mode;\n    unsigned int interval;\n    unsigned int burst;\n    int severity;\n    sbool has_per_source;\n    sbool per_source_enabled;\n    char *per_source_key_tpl_name;\n    unsigned int per_source_max_states;\n    unsigned int per_source_topn;\n    ratelimit_ps_policy_t *per_source_policy;\n} ratelimit_policy_file_t;\n\nenum ratelimit_watch_kind { RATELIMIT_WATCH_GLOBAL = 0, RATELIMIT_WATCH_PERSOURCE };\n\nstatic rsRetVal parseDurationMillis(const char *value, unsigned int *out);\n#ifdef HAVE_LIBYAML\nstatic rsRetVal parseUnsignedInt(const char *value, unsigned int *out);\nstatic rsRetVal parseDurationSeconds(const char *value, unsigned int *out);\nstatic void ratelimitFreePerSourceOverrideValue(void *ptr);\nstatic void ratelimitFreePerSourceOverrideDirect(void *ptr);\n#endif\nstatic rsRetVal ratelimitReloadPolicyFile(ratelimit_shared_t *shared, const char *trigger);\nstatic rsRetVal ratelimitReloadPerSourcePolicyFile(ratelimit_shared_t *shared, const char *trigger);\nstatic rsRetVal ratelimitRegisterWatchTargets(ratelimit_shared_t *shared);\n\nstatic rsRetVal parseDurationMillis(const char *value, unsigned int *out) {\n    char *end = NULL;\n    unsigned long val;\n    unsigned long long multiplier = 1000ULL;\n    unsigned long long total;\n    DEFiRet;\n\n    if (value == NULL || out == NULL) ABORT_FINALIZE(RS_RET_PARAM_ERROR);\n    while (isspace((unsigned char)*value)) value++;\n"
+      }
+    },
+    {
+      "file": "runtime/rsconf.c",
+      "old_start": 537,
+      "old_end": 546,
+      "new_start": 539,
+      "new_end": 551,
+      "context_hint": "static rsRetVal initFunc_ratelimit(struct cnfobj *o) {",
+      "added_lines": [
+        "            has_inline_policy_params = 1;",
+        "            has_inline_policy_params = 1;",
+        "            has_inline_policy_params = 1;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "            CHKmalloc(name = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));",
+        "        } else if (!strcmp(ratelimitpblk.descr[i].name, \"interval\")) {",
+        "            interval = (int)pvals[i].val.d.n;",
+        "        } else if (!strcmp(ratelimitpblk.descr[i].name, \"burst\")) {",
+        "            burst = (int)pvals[i].val.d.n;",
+        "        } else if (!strcmp(ratelimitpblk.descr[i].name, \"severity\")) {",
+        "            severity = (int)pvals[i].val.d.n;",
+        "        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policy\")) {",
+        "            CHKmalloc(policy = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));",
+        "        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policyWatch\")) {"
+      ],
+      "hunk_id": "HUNK-0042",
+      "changed_symbols": [
+        "cnfobj",
+        "has_inline_policy_params",
+        "CHKmalloc"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "persistence_state",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "cnfobj",
+        "snippet_start_line": 508,
+        "snippet_end_line": 581,
+        "snippet": "    RETiRet;\n}\n\n/* Process ratelimit() objects */\nstatic rsRetVal initFunc_ratelimit(struct cnfobj *o) {\n    struct cnfparamvals *pvals;\n    int i;\n    uchar *name = NULL;\n    int interval = 0;\n    int burst = 10000;\n    int severity = -1; /* -1 means not set/all */\n    uchar *policy = NULL;\n    int policy_watch = 0;\n    uchar *policy_watch_debounce = NULL;\n    int per_source_enabled = 0;\n    uchar *per_source_policy = NULL;\n    uchar *per_source_key_tpl = NULL;\n    int per_source_max_states = 0;\n    int per_source_topn = 0;\n    sbool has_inline_policy_params = 0;\n    sbool has_legacy_per_source_params = 0;\n    DEFiRet;\n\n    pvals = nvlstGetParams(o->nvlst, &ratelimitpblk, NULL);\n    if (pvals == NULL) {\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n\n    for (i = 0; i < ratelimitpblk.nParams; ++i) {\n        if (!pvals[i].bUsed) continue;\n        if (!strcmp(ratelimitpblk.descr[i].name, \"name\")) {\n            CHKmalloc(name = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"interval\")) {\n            interval = (int)pvals[i].val.d.n;\n            has_inline_policy_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"burst\")) {\n            burst = (int)pvals[i].val.d.n;\n            has_inline_policy_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"severity\")) {\n            severity = (int)pvals[i].val.d.n;\n            has_inline_policy_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policy\")) {\n            CHKmalloc(policy = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policyWatch\")) {\n            policy_watch = (int)pvals[i].val.d.n;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policyWatchDebounce\")) {\n            CHKmalloc(policy_watch_debounce = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSource\")) {\n            per_source_enabled = (int)pvals[i].val.d.n;\n            has_legacy_per_source_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourcePolicy\")) {\n            CHKmalloc(per_source_policy = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n            has_legacy_per_source_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourceKeyTpl\")) {\n            CHKmalloc(per_source_key_tpl = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n            has_legacy_per_source_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourceMaxStates\")) {\n            per_source_max_states = (int)pvals[i].val.d.n;\n            has_legacy_per_source_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourceTopN\")) {\n            per_source_topn = (int)pvals[i].val.d.n;\n            has_legacy_per_source_params = 1;\n        }\n    }\n\n    if (per_source_policy != NULL && !per_source_enabled) {\n        per_source_enabled = 1;\n    }\n    if (per_source_max_states < 0 || per_source_topn < 0) {\n        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: perSourceMaxStates/perSourceTopN must be >= 0 for '%s'\", name);\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n\n    if (interval < 0) {\n"
+      }
+    },
+    {
+      "file": "runtime/rsconf.c",
+      "old_start": 549,
+      "old_end": 562,
+      "new_start": 554,
+      "new_end": 572,
+      "context_hint": "static rsRetVal initFunc_ratelimit(struct cnfobj *o) {",
+      "added_lines": [
+        "            has_legacy_per_source_params = 1;",
+        "            has_legacy_per_source_params = 1;",
+        "            has_legacy_per_source_params = 1;",
+        "            has_legacy_per_source_params = 1;",
+        "            has_legacy_per_source_params = 1;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "            CHKmalloc(policy_watch_debounce = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));",
+        "        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSource\")) {",
+        "            per_source_enabled = (int)pvals[i].val.d.n;",
+        "        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourcePolicy\")) {",
+        "            CHKmalloc(per_source_policy = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));",
+        "        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourceKeyTpl\")) {",
+        "            CHKmalloc(per_source_key_tpl = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));",
+        "        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourceMaxStates\")) {",
+        "            per_source_max_states = (int)pvals[i].val.d.n;",
+        "        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourceTopN\")) {",
+        "            per_source_topn = (int)pvals[i].val.d.n;",
+        "        }",
+        "    }",
+        ""
+      ],
+      "hunk_id": "HUNK-0043",
+      "changed_symbols": [
+        "cnfobj",
+        "has_legacy_per_source_params",
+        "CHKmalloc"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "persistence_state",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "cnfobj",
+        "snippet_start_line": 520,
+        "snippet_end_line": 602,
+        "snippet": "    int policy_watch = 0;\n    uchar *policy_watch_debounce = NULL;\n    int per_source_enabled = 0;\n    uchar *per_source_policy = NULL;\n    uchar *per_source_key_tpl = NULL;\n    int per_source_max_states = 0;\n    int per_source_topn = 0;\n    sbool has_inline_policy_params = 0;\n    sbool has_legacy_per_source_params = 0;\n    DEFiRet;\n\n    pvals = nvlstGetParams(o->nvlst, &ratelimitpblk, NULL);\n    if (pvals == NULL) {\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n\n    for (i = 0; i < ratelimitpblk.nParams; ++i) {\n        if (!pvals[i].bUsed) continue;\n        if (!strcmp(ratelimitpblk.descr[i].name, \"name\")) {\n            CHKmalloc(name = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"interval\")) {\n            interval = (int)pvals[i].val.d.n;\n            has_inline_policy_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"burst\")) {\n            burst = (int)pvals[i].val.d.n;\n            has_inline_policy_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"severity\")) {\n            severity = (int)pvals[i].val.d.n;\n            has_inline_policy_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policy\")) {\n            CHKmalloc(policy = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policyWatch\")) {\n            policy_watch = (int)pvals[i].val.d.n;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policyWatchDebounce\")) {\n            CHKmalloc(policy_watch_debounce = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSource\")) {\n            per_source_enabled = (int)pvals[i].val.d.n;\n            has_legacy_per_source_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourcePolicy\")) {\n            CHKmalloc(per_source_policy = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n            has_legacy_per_source_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourceKeyTpl\")) {\n            CHKmalloc(per_source_key_tpl = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n            has_legacy_per_source_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourceMaxStates\")) {\n            per_source_max_states = (int)pvals[i].val.d.n;\n            has_legacy_per_source_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourceTopN\")) {\n            per_source_topn = (int)pvals[i].val.d.n;\n            has_legacy_per_source_params = 1;\n        }\n    }\n\n    if (per_source_policy != NULL && !per_source_enabled) {\n        per_source_enabled = 1;\n    }\n    if (per_source_max_states < 0 || per_source_topn < 0) {\n        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: perSourceMaxStates/perSourceTopN must be >= 0 for '%s'\", name);\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n\n    if (interval < 0) {\n        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: interval must be >= 0 for '%s'\", name);\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n    if (burst < 0) {\n        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: burst must be >= 0 for '%s'\", name);\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n\n    CHKiRet(ratelimitAddConfig(loadConf, (char *)name, (unsigned)interval, (unsigned)burst, severity, (char *)policy,\n                               policy_watch, (char *)policy_watch_debounce, per_source_enabled,\n                               (char *)per_source_policy, (char *)per_source_key_tpl, (unsigned)per_source_max_states,\n                               (unsigned)per_source_topn, has_inline_policy_params, has_legacy_per_source_params));\n\nfinalize_it:\n    free(name);\n    free(policy);\n    free(policy_watch_debounce);\n    free(per_source_policy);\n    free(per_source_key_tpl);\n    cnfparamvalsDestruct(pvals, &ratelimitpblk);\n    RETiRet;\n"
+      }
+    },
+    {
+      "file": "runtime/rsconf.c",
+      "old_start": 524,
+      "old_end": 529,
+      "new_start": 524,
+      "new_end": 531,
+      "context_hint": "static rsRetVal initFunc_ratelimit(struct cnfobj *o) {",
+      "added_lines": [
+        "    sbool has_inline_policy_params = 0;",
+        "    sbool has_legacy_per_source_params = 0;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    uchar *per_source_key_tpl = NULL;",
+        "    int per_source_max_states = 0;",
+        "    int per_source_topn = 0;",
+        "    DEFiRet;",
+        "",
+        "    pvals = nvlstGetParams(o->nvlst, &ratelimitpblk, NULL);"
+      ],
+      "hunk_id": "HUNK-0041",
+      "changed_symbols": [
+        "cnfobj",
+        "sbool",
+        "has_inline_policy_params",
+        "has_legacy_per_source_params",
+        "initFunc_ratelimit"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "persistence_state",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "cnfobj",
+        "snippet_start_line": 495,
+        "snippet_end_line": 561,
+        "snippet": "    cnfModName = (uchar *)es_str2cstr(pvals[typeIdx].val.d.estr, NULL);\n    if ((pMod = module.FindWithCnfName(loadConf, cnfModName, eMOD_IN)) == NULL) {\n        LogError(0, RS_RET_MOD_UNKNOWN, \"input module name '%s' is unknown\", cnfModName);\n        ABORT_FINALIZE(RS_RET_MOD_UNKNOWN);\n    }\n    if (pMod->mod.im.newInpInst == NULL) {\n        LogError(0, RS_RET_MOD_NO_INPUT_STMT, \"input module '%s' does not support input() statement\", cnfModName);\n        ABORT_FINALIZE(RS_RET_MOD_NO_INPUT_STMT);\n    }\n    iRet = pMod->mod.im.newInpInst(o->nvlst);\nfinalize_it:\n    free(cnfModName);\n    cnfparamvalsDestruct(pvals, &inppblk);\n    RETiRet;\n}\n\n/* Process ratelimit() objects */\nstatic rsRetVal initFunc_ratelimit(struct cnfobj *o) {\n    struct cnfparamvals *pvals;\n    int i;\n    uchar *name = NULL;\n    int interval = 0;\n    int burst = 10000;\n    int severity = -1; /* -1 means not set/all */\n    uchar *policy = NULL;\n    int policy_watch = 0;\n    uchar *policy_watch_debounce = NULL;\n    int per_source_enabled = 0;\n    uchar *per_source_policy = NULL;\n    uchar *per_source_key_tpl = NULL;\n    int per_source_max_states = 0;\n    int per_source_topn = 0;\n    sbool has_inline_policy_params = 0;\n    sbool has_legacy_per_source_params = 0;\n    DEFiRet;\n\n    pvals = nvlstGetParams(o->nvlst, &ratelimitpblk, NULL);\n    if (pvals == NULL) {\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n\n    for (i = 0; i < ratelimitpblk.nParams; ++i) {\n        if (!pvals[i].bUsed) continue;\n        if (!strcmp(ratelimitpblk.descr[i].name, \"name\")) {\n            CHKmalloc(name = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"interval\")) {\n            interval = (int)pvals[i].val.d.n;\n            has_inline_policy_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"burst\")) {\n            burst = (int)pvals[i].val.d.n;\n            has_inline_policy_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"severity\")) {\n            severity = (int)pvals[i].val.d.n;\n            has_inline_policy_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policy\")) {\n            CHKmalloc(policy = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policyWatch\")) {\n            policy_watch = (int)pvals[i].val.d.n;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"policyWatchDebounce\")) {\n            CHKmalloc(policy_watch_debounce = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSource\")) {\n            per_source_enabled = (int)pvals[i].val.d.n;\n            has_legacy_per_source_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourcePolicy\")) {\n            CHKmalloc(per_source_policy = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n            has_legacy_per_source_params = 1;\n        } else if (!strcmp(ratelimitpblk.descr[i].name, \"perSourceKeyTpl\")) {\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

@@ -1,0 +1,31 @@
+{
+  "source": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P064/analysis.json",
+  "patch_id": "531750f7bfc475332b2046dd516bab582ba7decf",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repos/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P064/_worktrees/patched",
+  "base_commit": "fe274638bb01104f56fce0caebe0a238ac5fc6a4",
+  "findings_count": 1,
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "PERFORMANCE_RESOURCE_SEMANTIC_CHANGE",
+      "test_priority": "low",
+      "file": "include/grub/i386/tsc.h",
+      "new_lines": [
+        47,
+        57
+      ],
+      "symbol": "grub_get_tsc",
+      "test_recommendation": "建议在开启 TSC 校准的 x86_64 平台上，测量修复前后 grub_tsc_init() 和 grub_tsc_get_time_ms() 的执行耗时对比，验证 CPUID 附加开销在可接受范围内。重点验证多 CPU 核心环境下 TSC 校准值的稳定性和 GRUB 菜单超时功能的正确性。",
+      "static_call_chains": [],
+      "affected_api": {
+        "name": "grub_get_tsc",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "affected_surface": "public_headers: include/grub/i386/tsc.h 中定义的 static inline 函数 grub_get_tsc()",
+      "old_behavior": "grub_get_tsc() 在 rdtsc 指令前执行 cpuid 序列化以确保之前指令完成后再读取 TSC，但 rdtsc 之后无序列化，后续指令可能在 rdtsc 完成前开始执行。这可能导致时序计算出现异常大值或负值，使 grub_tsc_rate 变为零，进而导致 GRUB 菜单卡死。",
+      "new_behavior": "grub_get_tsc() 在 rdtsc 指令前后各执行一次 cpuid 序列化（cpuid; rdtsc; cpuid 标准模式），确保 rdtsc 在任何后续指令执行前完成。每次 TSC 读取额外增加一次 CPUID 指令开销（约 100-300 周期）。"
+    }
+  ]
+}

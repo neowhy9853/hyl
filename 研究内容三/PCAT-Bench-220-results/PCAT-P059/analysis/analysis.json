@@ -1,0 +1,302 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/f603a4f9/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/f603a4f9",
+  "base_ref": "c090f1d",
+  "base_commit": "c090f1d17b280c98630914334d341a2fa3318117",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "f603a4f920e6953b11667d424956fd47373870e9",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/f603a4f9/patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "dnsmasq",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 10151,
+    "patch_lines": 215,
+    "diff_added_lines": 36,
+    "diff_deleted_lines": 28,
+    "diff_context_lines": 116,
+    "churn": 64,
+    "raw_hunks": 18,
+    "candidate_hunks": 17,
+    "skipped_doc_hunks": 1,
+    "changed_files": 2,
+    "candidate_context_bytes": 37150,
+    "public_candidate_hunks": 17,
+    "surface_counts": {
+      "public_headers": 1,
+      "user_visible_output": 3,
+      "protocol": 17,
+      "logging": 3,
+      "network_protocol": 17,
+      "dns_protocol": 17,
+      "dhcp_protocol": 1,
+      "persistence_state": 7,
+      "daemon_control": 1,
+      "daemon_interfaces": 1,
+      "config_keys": 2
+    },
+    "candidates_json_bytes": 99501
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 17,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.75,
+      "package_profile": "dnsmasq",
+      "affected_surface": "DNSSEC validation behavior for wildcard queries",
+      "affected_api": {
+        "name": "dnssec_validate_reply",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/dnssec.c",
+        "old_lines": [
+          2238,
+          2280
+        ],
+        "new_lines": [
+          2237,
+          2279
+        ],
+        "symbol": "dnssec_validate_reply"
+      },
+      "old_behavior": "When querying for the wildcard name itself (e.g. *.example.com) and a wildcard record matches, validate_rrset() returns STAT_SECURE_WILDCARD, which triggers prove_non_existence() to check that there is no explicit record for the expanded name. This non-existence check is incorrectly performed for the wildcard name itself, potentially causing DNSSEC validation failure (BOGUS -> SERVFAIL) for legitimate wildcard queries.",
+      "new_behavior": "validate_rrset() now returns STAT_SECURE directly (STAT_SECURE_WILDCARD removed). The wildcard expansion status is communicated via wild_offset (int) instead of wildcard_out (char**). A new guard in validate_rrset() checks if the name is already the wildcard pattern (name_labels - labels == 1 && name_start[0] == '*' && name_start[1] == '.') and skips wildcard expansion processing. Then in dnssec_validate_reply(), when wild_offset == 0 (no wildcard expansion needed), the non-existence check via prove_non_existence() is correctly skipped, fixing the DNSSEC validation for *.example.com queries.",
+      "compatibility_reason": "The DNSSEC validation result for queries to the wildcard name itself (e.g. *.example.com) changes: previously could return BOGUS/SERVFAIL due to incorrect non-existence check, now correctly validates as SECURE. DNS clients and recursive resolvers behind dnsmasq may observe different responses for this specific corner case. The STAT_SECURE_WILDCARD return code has also been removed from src/dnsmasq.h, which is an internal header.",
+      "evidence": [
+        {
+          "file": "src/dnsmasq.h",
+          "lines": [
+            761,
+            769
+          ],
+          "snippet": "#define STAT_OK                 0x70000\n#define STAT_ABANDONED          0x80000\n#define STAT_ASYNC              0x90000"
+        },
+        {
+          "file": "src/dnssec.c",
+          "lines": [
+            574,
+            593
+          ],
+          "snippet": "/* If the name is already the wildcard, we are not going to change it. */\nif (labels < name_labels &&\n    !(name_labels - labels == 1 && name_start[0] == '*' && name_start[1] == '.'))"
+        },
+        {
+          "file": "src/dnssec.c",
+          "lines": [
+            687,
+            693
+          ],
+          "snippet": "if (verify(...))\n  return STAT_SECURE;  /* was: (labels < name_labels) ? STAT_SECURE_WILDCARD : STAT_SECURE */"
+        },
+        {
+          "file": "src/dnssec.c",
+          "lines": [
+            2272,
+            2279
+          ],
+          "snippet": "if (wild_offset != 0 &&\n    ((rc_nsec = prove_non_existence(header, plen, keyname, name, type1, class1, wild_offset, NULL, NULL, validate_counter))) != 0)\n  return (rc_nsec & DNSSEC_FAIL_WORK) ? STAT_ABANDONED : (STAT_BOGUS | rc_nsec);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The change affects DNSSEC validation behavior observable by DNS clients querying through dnsmasq. A query for *.example.com that previously failed with SERVFAIL may now succeed with a valid answer, changing the DNS protocol response observable by external clients.",
+      "uncertainty": "The exact triggering conditions depend on DNSSEC zone configuration and whether the NSEC/NSEC3 chain happens to fail for the specific wildcard name query. This is a corner case that only affects queries for the exact wildcard name when DNSSEC validation is enabled.",
+      "manual_review_required": false,
+      "recommended_review": "Verify the fix correctly handles: (1) wildcard queries for *.example.com with a covering wildcard record; (2) wildcard queries for a.example.com where a.example.com exists; (3) wildcard queries for non-existent a.example.com with a *.example.com wildcard. All three cases should produce correct DNSSEC validation results per RFC 4035.",
+      "test_recommendation": "Build dnsmasq with DNSSEC support (-DHAVE_DNSSEC). Set up a test zone with a wildcard record *.example.com. Query for *.example.com with DNSSEC validation enabled. Before the patch: may return SERVFAIL. After the patch: returns NOERROR with the wildcard answer. Also test a.example.com (exists and does not exist) to verify no regression.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 3 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 3,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0017",
+            "file": "src/dnssec.c",
+            "old_lines": [
+              2273,
+              2280
+            ],
+            "new_lines": [
+              2272,
+              2279
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "protocol",
+              "network_protocol",
+              "dns_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol behavior"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "dns_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "DNS query, response, cache, and DNSSEC semantics"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0015",
+            "file": "src/dnssec.c",
+            "old_lines": [
+              2238,
+              2244
+            ],
+            "new_lines": [
+              2237,
+              2243
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "protocol",
+              "network_protocol",
+              "dns_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol behavior"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "dns_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "DNS query, response, cache, and DNSSEC semantics"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0016",
+            "file": "src/dnssec.c",
+            "old_lines": [
+              2247,
+              2253
+            ],
+            "new_lines": [
+              2246,
+              2252
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "protocol",
+              "network_protocol",
+              "dns_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol behavior"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "dns_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "DNS query, response, cache, and DNSSEC semantics"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 3 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

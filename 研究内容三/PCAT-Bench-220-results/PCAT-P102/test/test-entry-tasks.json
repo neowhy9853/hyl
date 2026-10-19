@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P042/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P042/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P042",
+  "patch_id": "1e927a468500df5b39462c1c39c73e1f20b4fdb9",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "affected_api": {
+        "name": "parse_probe_vars",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "kernel/trace/trace_probe.c",
+        "old_lines": [
+          933,
+          940
+        ],
+        "new_lines": [
+          933,
+          938
+        ],
+        "symbol": "parse_probe_vars"
+      },
+      "old_behavior": "当 eprobe 参数指定了不存在的事件字段且非 comm/COMM 时，parse_probe_vars 在进行错误报告前会执行 ctx->offset = 0（\"backward compatibility\"），导致错误位置始终指向参数串起始位置（offset 0），无法指出具体哪个变量无效。",
+      "new_behavior": "移除了 ctx->offset = 0 的重置逻辑。错误位置保留 parse_trace_event_arg 或其他解析步骤已经设置的 ctx->offset 值，正确指向实际的无效参数位置。",
+      "compatibility_reason": "该变更改变了 tracefs error_log 中 eprobe 参数解析错误的错误位置输出。之前错误位置总是 0（参数起始位置），现在错误位置指向实际的错误变量处。编写到 dynamic_events 的用户和解析 error_log 的工具会观察到不同的错误位置数字。由于 error_log 是诊断接口而非稳定 ABI，且旧行为（始终 offset=0）本身是错误的，兼容性影响范围较小。对应的测试用例也已更新验证正确位置。",
+      "test_recommendation": "通过 tracefs dynamic_events 接口写入无效参数验证 error_log 中错误位置能正确指向无效变量，并核对已有的 eprobes_syntax_errors.tc 测试通过。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "error_or_exception_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "error_exception_stability",
+        "comparison": "error",
+        "required_observation": "errno/error code, exception type, message, and failure mode",
+        "input_axes": [
+          "each error path",
+          "invalid input",
+          "missing resource",
+          "permission",
+          "fault injection"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P042/compatibility-testing"
+}

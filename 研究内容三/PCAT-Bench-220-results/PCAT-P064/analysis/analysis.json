@@ -1,0 +1,216 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/haproxy",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4",
+  "base_ref": "9bc37232f40b3c672d660e3f5f684621b2ed0e12",
+  "base_commit": "9bc37232f40b3c672d660e3f5f684621b2ed0e12",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "fb38e40",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/fb38e40.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "haproxy",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1087,
+    "patch_lines": 30,
+    "diff_added_lines": 3,
+    "diff_deleted_lines": 1,
+    "diff_context_lines": 19,
+    "churn": 4,
+    "raw_hunks": 3,
+    "candidate_hunks": 3,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 7604,
+    "public_candidate_hunks": 3,
+    "surface_counts": {
+      "network_protocol": 3,
+      "protocol_behavior": 3
+    },
+    "candidates_json_bytes": 16595
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 3,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "haproxy",
+      "affected_surface": "network_protocol",
+      "affected_api": {
+        "name": "qc_do_build_pkt",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/quic_tx.c",
+        "old_lines": [
+          2038,
+          2043
+        ],
+        "new_lines": [
+          2038,
+          2044
+        ],
+        "symbol": "qc_do_build_pkt"
+      },
+      "old_behavior": "在 QUIC Initial 包需要填充（padding）到 QUIC_INITIAL_PACKET_MINLEN 且包类型为非 Short 时，若长度字段编码大小因 padding 而改变（len_sz_diff != 0），函数未对 len 变量做相应减少。导致后续 quic_enc_int() 编码的包长度字段比实际 PN+payload+AEAD tag 长度大 len_sz_diff 字节，发送了 wire format 不正确的 Initial 包。",
+      "new_behavior": "新增 `len -= len_sz_diff;`，在 len_sz_diff != 0 时同步减少 len 变量，使后续编码的包长度字段正确反映 PN+payload+AEAD tag 的实际长度。Initial 包的 wire format 现在符合 QUIC 规范。",
+      "compatibility_reason": "这是一个 BUG/MINOR 修复，修正了 QUIC Initial 包构建时长度字段编码值可能偏大的问题。修复前发送的包长度字段不正确（偏大），修复后长度字段正确。对于严格校验 QUIC 包长度字段的对端，旧行为可能导致连接失败（但实践中大部分 QUIC 实现对此容忍）。修复后包格式符合 RFC 9000/9001。由于这是 bug fix（使行为符合协议规范），且旧行为本身就是不合规的，实际用户/对端依赖旧行为的可能性极低。兼容性影响为低风险。",
+      "evidence": [
+        {
+          "file": "src/quic_tx.c",
+          "lines": [
+            2032,
+            2041
+          ],
+          "snippet": "len += padding_len;\n\t\t/* Update size of packet length field with new PADDING data. */\n\t\tif (pkt->type != QUIC_PACKET_TYPE_SHORT) {\n\t\t\tsize_t len_sz_diff = quic_int_getsize(len) - len_sz;\n\t\t\tif (len_sz_diff) {\n\t\t\t\tpadding_len -= len_sz_diff;\n\t\t\t\tlen_sz += len_sz_diff;\n\t\t\t\tdglen += len_sz_diff;\n\t\t\t\tlen -= len_sz_diff;\n\t\t\t}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "qc_do_build_pkt 是 QUIC 包构建的核心路径，直接影响 haproxy 发出的 QUIC Initial 包 wire format。network_protocol 表面标记为 stable/public，包格式变化可被 QUIC 对端和网络监控工具观察到。",
+      "uncertainty": "不确定是否已有消费者依赖了旧的不正确长度值（理论上极不可能）。实际 wire format 差异取决于具体包填充场景，仅当 Initial 包需要 padding 且 len_sz_diff != 0 时触发。",
+      "manual_review_required": false,
+      "recommended_review": "验证此 fix 在所有 QUIC 包构建路径上的正确性：Short 包不受影响（已由条件守卫），仅检查 Initial 包 + padding + len_sz_diff != 0 的路径。",
+      "test_recommendation": "低优先级：验证已构建 QUIC 包的 wire format 正确性，可使用 tcpdump/wireshark 或 QUIC 协议单元测试验证长度字段。建议在启用 QUIC 的构建中运行 haproxy reg-tests 中与 QUIC 相关的测试集。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [
+          "narrow_surface",
+          "no_external_observable_break"
+        ],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "src/quic_tx.c",
+            "old_lines": [
+              2038,
+              2043
+            ],
+            "new_lines": [
+              2038,
+              2044
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "network_protocol",
+              "protocol_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "Proxy protocol, HTTP/TCP/TLS/QUIC behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/quic_tx.c",
+            "old_lines": [
+              2029,
+              2036
+            ],
+            "new_lines": [
+              2029,
+              2036
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "network_protocol",
+              "protocol_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "Proxy protocol, HTTP/TCP/TLS/QUIC behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

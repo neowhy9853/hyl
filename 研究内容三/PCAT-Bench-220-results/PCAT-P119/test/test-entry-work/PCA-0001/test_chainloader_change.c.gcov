@@ -1,0 +1,114 @@
+        -:    0:Source:/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P059/compatibility-testing/test-entry-work/PCA-0001/test_chainloader_change.c
+        -:    0:Graph:test_chainloader_change.gcno
+        -:    0:Data:test_chainloader_change.gcda
+        -:    0:Runs:1
+        -:    1:#include "mock_grub.h"
+        -:    2:#include <stdarg.h>
+        -:    3:
+        -:    4:/* The mock secureboot mode for testing */
+        -:    5:mock_sb_mode g_mock_secureboot_mode = GRUB_EFI_SECUREBOOT_MODE_DISABLED;
+        -:    6:
+        -:    7:/* Minimal stub functions needed for the extracted code */
+    #####:    8:static int grub_strlen(const char *s) { return s ? strlen(s) : 0; }
+    #####:    9:static void *grub_utf16_to_utf8(void *dst, const void *src, int len) { 
+    #####:   10:  if (dst) *(char*)dst = 0; 
+    #####:   11:  return dst; 
+        -:   12:}
+    #####:   13:static void efi_call_3(void *a, void *b, void *c, void *d) { (void)a; (void)b; (void)c; (void)d; }
+        -:   14:
+        -:   15:/* EXTRACTED: The key changed code region.
+        -:   16:   This is a simplified version showing the control flow change.
+        -:   17:   BEFORE patch: uses grub_linuxefi_secure_validate() + rc-based branches
+        -:   18:   AFTER patch: uses grub_efi_get_secureboot() with two-way branch
+        -:   19:*/
+        -:   20:
+        -:   21:/* Simulated grub_linuxefi_secure_validate (BEFORE behavior) */
+        2:   22:static int grub_linuxefi_secure_validate(void *data, grub_uint32_t size) {
+        -:   23:  (void)data; (void)size;
+        -:   24:  /* Returns: >0 on secure validation success, 0 on no validation, <0 on error */
+        2:   25:  if (g_mock_secureboot_mode == GRUB_EFI_SECUREBOOT_MODE_ENABLED)
+        1:   26:    return 1;   /* SecureBoot ON -> validation passes */
+        -:   27:  else
+        1:   28:    return 0;   /* SecureBoot OFF -> no validation */
+        -:   29:}
+        -:   30:
+        -:   31:/* OLD behavior (BEFORE patch) */
+        2:   32:static int chainloader_before_patch(void) {
+        -:   33:  int rc;
+        -:   34:  
+        2:   35:  printf("=== BEFORE PATCH (old behavior) ===\n");
+        2:   36:  printf("SecureBoot mode: %d\n", g_mock_secureboot_mode);
+        -:   37:  
+        2:   38:  rc = grub_linuxefi_secure_validate((void*)(unsigned long)1, 1024);
+        2:   39:  grub_dprintf("chain", "linuxefi_secure_validate: %d\n", rc);
+        -:   40:  
+        2:   41:  if (rc > 0) {
+        -:   42:    /* COVERAGE TARGET: old line ~1085 */
+        1:   43:    printf("  -> Branch: rc > 0 (secureboot path via grub_secureboot_chainloader_boot)\n");
+        1:   44:    printf("  -> TPM PCR extended TWICE (verifier + this explicit call)\n");
+        1:   45:    return 1;
+        1:   46:  } else if (rc == 0) {
+        -:   47:    /* COVERAGE TARGET: old line ~1092 */
+        1:   48:    printf("  -> Branch: rc == 0 (regular path via grub_chainloader_boot)\n");
+        1:   49:    printf("  -> TPM PCR extended ONCE (verifier only)\n");
+        1:   50:    return 0;
+        -:   51:  }
+        -:   52:  /* COVERAGE TARGET: old line ~1101 - fall-through to fail */
+    #####:   53:  printf("  -> Branch: rc < 0 (FAIL path)\n");
+    #####:   54:  return -1;
+        -:   55:}
+        -:   56:
+        -:   57:/* NEW behavior (AFTER patch) */
+        2:   58:static int chainloader_after_patch(void) {
+        2:   59:  printf("=== AFTER PATCH (new behavior) ===\n");
+        2:   60:  printf("SecureBoot mode: %d\n", g_mock_secureboot_mode);
+        -:   61:  
+        2:   62:  if (grub_efi_get_secureboot() == GRUB_EFI_SECUREBOOT_MODE_ENABLED) {
+        -:   63:    /* COVERAGE TARGET: new line ~1084 */
+        1:   64:    printf("  -> Branch: SecureBoot ON (secureboot path via grub_secureboot_chainloader_boot)\n");
+        1:   65:    printf("  -> TPM PCR extended ONCE (verifier only - no duplicate call)\n");
+        1:   66:    return 1;
+        -:   67:  } else {
+        -:   68:    /* COVERAGE TARGET: new line ~1092 */
+        1:   69:    printf("  -> Branch: SecureBoot OFF (regular path via grub_chainloader_boot)\n");
+        1:   70:    printf("  -> TPM PCR extended ONCE (verifier only)\n");
+        1:   71:    return 0;
+        -:   72:  }
+        -:   73:  /* NOTE: No fall-through fail path anymore */
+        -:   74:}
+        -:   75:
+        1:   76:int main(void) {
+        -:   77:  int old_result, new_result;
+        -:   78:  
+        1:   79:  printf("========================================\n");
+        1:   80:  printf("TEST 1: SecureBoot ENABLED\n");
+        1:   81:  printf("========================================\n");
+        1:   82:  g_mock_secureboot_mode = GRUB_EFI_SECUREBOOT_MODE_ENABLED;
+        1:   83:  old_result = chainloader_before_patch();
+        1:   84:  new_result = chainloader_after_patch();
+        1:   85:  printf("Before result: %d, After result: %d\n", old_result, new_result);
+        1:   86:  printf("PCR check: Before had EXPLICIT validate call + dprintf; After does not\n");
+        -:   87:  
+        1:   88:  printf("\n========================================\n");
+        1:   89:  printf("TEST 2: SecureBoot DISABLED\n");
+        1:   90:  printf("========================================\n");
+        1:   91:  g_mock_secureboot_mode = GRUB_EFI_SECUREBOOT_MODE_DISABLED;
+        1:   92:  old_result = chainloader_before_patch();
+        1:   93:  new_result = chainloader_after_patch();
+        1:   94:  printf("Before result: %d, After result: %d\n", old_result, new_result);
+        1:   95:  printf("Path check: Both use regular path, but Before called grub_linuxefi_secure_validate first\n");
+        -:   96:  
+        1:   97:  printf("\n========================================\n");
+        1:   98:  printf("SUMMARY\n");
+        1:   99:  printf("========================================\n");
+        1:  100:  printf("Key change 1: grub_linuxefi_secure_validate() call REMOVED\n");
+        1:  101:  printf("  -> TPM PCR extended once instead of twice (SIDE_EFFECT_CHANGE)\n");
+        1:  102:  printf("Key change 2: Condition changed from rc-based to SecureBoot-state-based\n");
+        1:  103:  printf("  -> When SB=OFF+shim present, boot path may differ (SIDE_EFFECT_CHANGE)\n");
+        1:  104:  printf("Key change 3: grub_dprintf debug output REMOVED\n");
+        1:  105:  printf("  -> 'linuxefi_secure_validate: %%d' no longer printed (OUTPUT_FORMAT_CHANGE)\n");
+        1:  106:  printf("Key change 4: Fall-through fail path REMOVED\n");
+        1:  107:  printf("  -> No more explicit error path for validation failure (ERROR_EXCEPTION_CHANGE)\n");
+        -:  108:  
+        1:  109:  return 0;
+        -:  110:}

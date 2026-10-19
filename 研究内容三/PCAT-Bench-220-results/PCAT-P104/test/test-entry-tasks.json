@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P044/analysis.json",
+  "repo": "/data7/wanghy/tmp/linux",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P044/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P044",
+  "patch_id": "36c41e9724c9a7a7cda37f5a4e9d94f25c8031c4",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "NCM gadget net_device lifecycle (sysfs topology + uevents)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "drivers/usb/gadget/function/u_ether.c",
+        "old_lines": [
+          896,
+          901
+        ],
+        "new_lines": [
+          896,
+          923
+        ],
+        "symbol": "gether_attach_gadget"
+      },
+      "old_behavior": "NCM gadget的net_device在首次bind时注册, 并通过SET_NETDEV_DEV将parent永久设为gadget设备。gadget断开后net_device保留对已释放gadget设备的dangling parent引用, 造成sysfs悬空链接。net_device在instance释放时销毁, 重新连接时需重新注册, 网络接口可能被DHCP服务器视为新设备。",
+      "new_behavior": "新增gether_attach_gadget()/gether_detach_gadget()导出函数使用device_move()动态管理net_device的sysfs父设备关系。首次bind调用gether_register_netdev()注册net_device, 后续bind通过device_move将net_device迁移到gadget设备下, unbind时通过device_move迁回/sys/devices/virtual/。net_device在bind/unbind间持久存在, 接口名称和属性保持不变。",
+      "compatibility_reason": "net_device的sysfs层级结构在bind/unbind期间动态变化, 从/sys/devices/virtual/net/<iface>与gadget设备之间迁移。这改变了udev事件类型(KOBJ_MOVE替代KOBJ_REGISTER/UNREGISTER)和设备层次结构, 可能影响依赖sysfs路径或netlink device事件监控的用户空间工具(如udev规则、网络管理器、监控脚本)。同时net_device持久化意味着DHCP客户端/服务器可以保留租约绑定, 这是预期改进但仍属于行为变更。",
+      "test_recommendation": "测试NCM gadget的bind/unbind循环: 通过configfs创建gadget配置, 反复绑定/解绑NCM function, 监控/sys/class/net/<iface>/device路径和udev事件, 确认net_device在整个过程中不丢失且DHCP客户端可以持续工作。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P044/compatibility-testing"
+}

@@ -1,0 +1,594 @@
+{
+  "shard_id": "SHARD-0009",
+  "surface": "ioctl_netlink_consumers",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    35,
+    32,
+    34,
+    33
+  ],
+  "hunk_ids": [
+    "HUNK-0051",
+    "HUNK-0048",
+    "HUNK-0050",
+    "HUNK-0049"
+  ],
+  "files": [
+    "plugins/imudp/imudp.c"
+  ],
+  "symbols": [
+    "DBGPRINTF",
+    "NULL",
+    "lstnPrev",
+    "wrkrInfo_s",
+    "rcvMainLoop",
+    "ATTR_NONNULL",
+    "lstn_s",
+    "currEvt",
+    "data",
+    "i",
+    "pWrkr",
+    "processSocket"
+  ],
+  "metrics": {
+    "hunks": 4,
+    "context_bytes": 12756
+  },
+  "candidates": [
+    {
+      "file": "plugins/imudp/imudp.c",
+      "old_start": 947,
+      "old_end": 952,
+      "new_start": 981,
+      "new_end": 987,
+      "context_hint": "static rsRetVal ATTR_NONNULL() rcvMainLoop(struct wrkrInfo_s *const __restrict__",
+      "added_lines": [
+        "    lstnPrev = NULL;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    /* start \"name caching\" algo by making sure the previous system indicator",
+        "     * is invalidated. */",
+        "    bIsPermitted = 0;",
+        "    memset(&frominetPrev, 0, sizeof(frominetPrev));",
+        "",
+        "    /* setup poll() subsystem */"
+      ],
+      "hunk_id": "HUNK-0051",
+      "changed_symbols": [
+        "wrkrInfo_s",
+        "lstnPrev",
+        "NULL",
+        "DBGPRINTF"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "ioctl_netlink",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "ioctl command, netlink attribute, and kernel ABI consumers"
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "ioctl_netlink_consumers",
+          "user_visible_output",
+          "ioctl_netlink",
+          "plugin_api",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "wrkrInfo_s",
+        "snippet_start_line": 918,
+        "snippet_end_line": 1017,
+        "snippet": "    CHKmalloc(udpEPollEvt = calloc(nLstn, sizeof(struct epoll_event)));\n\n    #if defined(EPOLL_CLOEXEC) && defined(HAVE_EPOLL_CREATE1)\n    DBGPRINTF(\"imudp uses epoll_create1()\\n\");\n    efd = epoll_create1(EPOLL_CLOEXEC);\n    if (efd < 0 && errno == ENOSYS)\n    #endif\n    {\n        DBGPRINTF(\"imudp uses epoll_create()\\n\");\n        efd = epoll_create(NUM_EPOLL_EVENTS);\n    }\n\n    if (efd < 0) {\n        DBGPRINTF(\"epoll_create1() could not create fd\\n\");\n        ABORT_FINALIZE(RS_RET_IO_ERROR);\n    }\n\n    /* fill the epoll set - we need to do this only once, as the set\n     * can not change dyamically.\n     */\n    i = 0;\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) {\n        if (lstn->sock != -1) {\n            udpEPollEvt[i].events = EPOLLIN | EPOLLET;\n            udpEPollEvt[i].data.ptr = lstn;\n            if (epoll_ctl(efd, EPOLL_CTL_ADD, lstn->sock, &(udpEPollEvt[i])) < 0) {\n                rs_strerror_r(errno, errStr, sizeof(errStr));\n                LogError(errno, NO_ERRCODE, \"epoll_ctrl failed on fd %d with %s\\n\", lstn->sock, errStr);\n            }\n        }\n        i++;\n    }\n\n    while (1) {\n        /* wait for io to become ready */\n        nfds = epoll_wait(efd, currEvt, NUM_EPOLL_EVENTS, -1);\n        DBGPRINTF(\"imudp: epoll_wait() returned with %d fds\\n\", nfds);\n\n        if (thrdGetShallStop(pWrkr->pThrd) == RSTRUE) break; /* terminate input! */\n\n        for (i = 0; i < nfds; ++i) {\n            processSocket(pWrkr, currEvt[i].data.ptr, &frominetPrev, &lstnPrev, &bIsPermitted);\n        }\n        if (thrdGetShallStop(pWrkr->pThrd) == RSTRUE) break; /* terminate input! */\n    }\n\nfinalize_it:\n    if (udpEPollEvt != NULL) free(udpEPollEvt);\n\n    RETiRet;\n}\n#else /* #if HAVE_EPOLL_CREATE1 */\n/* this is the code for the select() interface */\nstatic rsRetVal ATTR_NONNULL() rcvMainLoop(struct wrkrInfo_s *const __restrict__ pWrkr) {\n    DEFiRet;\n    int nfds;\n    struct sockaddr_storage frominetPrev;\n    struct lstn_s *lstnPrev;\n    int bIsPermitted;\n    int i = 0;\n    struct lstn_s *lstn;\n\n    DBGPRINTF(\"imudp uses poll() [ex-select]\\n\");\n    /* start \"name caching\" algo by making sure the previous system indicator\n     * is invalidated. */\n    bIsPermitted = 0;\n    lstnPrev = NULL;\n    memset(&frominetPrev, 0, sizeof(frominetPrev));\n\n    /* setup poll() subsystem */\n    int nfd = 0;\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) {\n        if (lstn->sock != -1) {\n            if (Debug) {\n                net.debugListenInfo(lstn->sock, (char *)\"UDP\");\n            }\n            ++nfd;\n        }\n    }\n    struct pollfd *const pollfds = calloc(nfd, sizeof(struct pollfd));\n    CHKmalloc(pollfds);\n\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) {\n        assert(i < nfd);\n        if (lstn->sock != -1) {\n            pollfds[i].fd = lstn->sock;\n            pollfds[i].events = POLLIN;\n            ++i;\n        }\n    }\n\n    while (1) {\n        DBGPRINTF(\"--------imudp calling poll() on %d fds\\n\", nfd);\n        nfds = poll(pollfds, nfd, -1);\n        if (glbl.GetGlobalInputTermState() == 1) break; /* terminate input! */\n\n        if (nfds < 0) {\n            if (errno == EINTR) {\n                DBGPRINTF(\"imudp: EINTR occurred\\n\");\n            } else {\n"
+      }
+    },
+    {
+      "file": "plugins/imudp/imudp.c",
+      "old_start": 870,
+      "old_end": 875,
+      "new_start": 902,
+      "new_end": 908,
+      "context_hint": "static rsRetVal rcvMainLoop(struct wrkrInfo_s *const __restrict__ pWrkr) {",
+      "added_lines": [
+        "    lstnPrev = NULL;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "     * is invalidated.",
+        "     */",
+        "    bIsPermitted = 0;",
+        "    memset(&frominetPrev, 0, sizeof(frominetPrev));",
+        "",
+        "    /* count num listeners -- do it here in order to avoid inconsistency */"
+      ],
+      "hunk_id": "HUNK-0048",
+      "changed_symbols": [
+        "wrkrInfo_s",
+        "lstnPrev",
+        "NULL",
+        "rcvMainLoop"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "ioctl_netlink",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "ioctl command, netlink attribute, and kernel ABI consumers"
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "ioctl_netlink_consumers",
+          "config_keys",
+          "user_visible_output",
+          "ioctl_netlink",
+          "plugin_api",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "wrkrInfo_s",
+        "snippet_start_line": 841,
+        "snippet_end_line": 938,
+        "snippet": "        modConf->iSchedPrio = SCHED_PRIO_UNSET; /* prevents doing the activation call */\n    }\n#ifndef HAVE_PTHREAD_SETSCHEDPARAM\n    LogError(0, NO_ERRCODE,\n             \"imudp: cannot set thread scheduling policy, \"\n             \"pthread_setschedparam() not available\");\n    ABORT_FINALIZE(RS_RET_ERR_SCHED_PARAMS);\n#endif\n\nfinalize_it:\n    if (iRet != RS_RET_OK) modConf->iSchedPrio = SCHED_PRIO_UNSET; /* prevents doing the activation call */\n\n    RETiRet;\n}\n\n/* set the configured scheduling policy (if possible) */\nstatic rsRetVal setSchedParams(modConfData_t *modConf) {\n    DEFiRet;\n\n#ifdef HAVE_PTHREAD_SETSCHEDPARAM\n    int err;\n    struct sched_param sparam;\n\n    if (modConf->iSchedPrio == SCHED_PRIO_UNSET) FINALIZE;\n\n    memset(&sparam, 0, sizeof sparam);\n    sparam.sched_priority = modConf->iSchedPrio;\n    dbgprintf(\"imudp trying to set sched policy to '%s', prio %d\\n\", modConf->pszSchedPolicy, modConf->iSchedPrio);\n    err = pthread_setschedparam(pthread_self(), modConf->iSchedPolicy, &sparam);\n    if (err != 0) {\n        LogError(err, NO_ERRCODE, \"imudp: pthread_setschedparam() failed - ignoring\");\n    }\nfinalize_it:\n#endif\n\n    RETiRet;\n}\n\n\n/* This function implements the main reception loop. Depending on the environment,\n * we either use the traditional (but slower) select() or the Linux-specific epoll()\n * interface. ./configure settings control which one is used.\n * rgerhards, 2009-09-09\n */\n#if defined(HAVE_EPOLL_CREATE1) || defined(HAVE_EPOLL_CREATE)\n    #define NUM_EPOLL_EVENTS 10\nstatic rsRetVal rcvMainLoop(struct wrkrInfo_s *const __restrict__ pWrkr) {\n    DEFiRet;\n    int nfds;\n    int efd;\n    int i;\n    struct sockaddr_storage frominetPrev;\n    struct lstn_s *lstnPrev;\n    int bIsPermitted;\n    struct epoll_event *udpEPollEvt = NULL;\n    struct epoll_event currEvt[NUM_EPOLL_EVENTS];\n    char errStr[1024];\n    struct lstn_s *lstn;\n    int nLstn;\n\n    /* start \"name caching\" algo by making sure the previous system indicator\n     * is invalidated.\n     */\n    bIsPermitted = 0;\n    lstnPrev = NULL;\n    memset(&frominetPrev, 0, sizeof(frominetPrev));\n\n    /* count num listeners -- do it here in order to avoid inconsistency */\n    nLstn = 0;\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) ++nLstn;\n\n    if (nLstn == 0) {\n        LogError(errno, RS_RET_ERR,\n                 \"imudp error: we have 0 listeners, terminating\"\n                 \"worker thread\");\n        ABORT_FINALIZE(RS_RET_ERR);\n    }\n    CHKmalloc(udpEPollEvt = calloc(nLstn, sizeof(struct epoll_event)));\n\n    #if defined(EPOLL_CLOEXEC) && defined(HAVE_EPOLL_CREATE1)\n    DBGPRINTF(\"imudp uses epoll_create1()\\n\");\n    efd = epoll_create1(EPOLL_CLOEXEC);\n    if (efd < 0 && errno == ENOSYS)\n    #endif\n    {\n        DBGPRINTF(\"imudp uses epoll_create()\\n\");\n        efd = epoll_create(NUM_EPOLL_EVENTS);\n    }\n\n    if (efd < 0) {\n        DBGPRINTF(\"epoll_create1() could not create fd\\n\");\n        ABORT_FINALIZE(RS_RET_IO_ERROR);\n    }\n\n    /* fill the epoll set - we need to do this only once, as the set\n     * can not change dyamically.\n     */\n    i = 0;\n"
+      }
+    },
+    {
+      "file": "plugins/imudp/imudp.c",
+      "old_start": 939,
+      "old_end": 944,
+      "new_start": 972,
+      "new_end": 978,
+      "context_hint": "static rsRetVal ATTR_NONNULL() rcvMainLoop(struct wrkrInfo_s *const __restrict__",
+      "added_lines": [
+        "    struct lstn_s *lstnPrev;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    DEFiRet;",
+        "    int nfds;",
+        "    struct sockaddr_storage frominetPrev;",
+        "    int bIsPermitted;",
+        "    int i = 0;",
+        "    struct lstn_s *lstn;"
+      ],
+      "hunk_id": "HUNK-0050",
+      "changed_symbols": [
+        "wrkrInfo_s",
+        "lstn_s",
+        "lstnPrev",
+        "ATTR_NONNULL"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "ioctl_netlink",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "ioctl command, netlink attribute, and kernel ABI consumers"
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "ioctl_netlink_consumers",
+          "user_visible_output",
+          "ioctl_netlink",
+          "plugin_api",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "wrkrInfo_s",
+        "snippet_start_line": 910,
+        "snippet_end_line": 1008,
+        "snippet": "    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) ++nLstn;\n\n    if (nLstn == 0) {\n        LogError(errno, RS_RET_ERR,\n                 \"imudp error: we have 0 listeners, terminating\"\n                 \"worker thread\");\n        ABORT_FINALIZE(RS_RET_ERR);\n    }\n    CHKmalloc(udpEPollEvt = calloc(nLstn, sizeof(struct epoll_event)));\n\n    #if defined(EPOLL_CLOEXEC) && defined(HAVE_EPOLL_CREATE1)\n    DBGPRINTF(\"imudp uses epoll_create1()\\n\");\n    efd = epoll_create1(EPOLL_CLOEXEC);\n    if (efd < 0 && errno == ENOSYS)\n    #endif\n    {\n        DBGPRINTF(\"imudp uses epoll_create()\\n\");\n        efd = epoll_create(NUM_EPOLL_EVENTS);\n    }\n\n    if (efd < 0) {\n        DBGPRINTF(\"epoll_create1() could not create fd\\n\");\n        ABORT_FINALIZE(RS_RET_IO_ERROR);\n    }\n\n    /* fill the epoll set - we need to do this only once, as the set\n     * can not change dyamically.\n     */\n    i = 0;\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) {\n        if (lstn->sock != -1) {\n            udpEPollEvt[i].events = EPOLLIN | EPOLLET;\n            udpEPollEvt[i].data.ptr = lstn;\n            if (epoll_ctl(efd, EPOLL_CTL_ADD, lstn->sock, &(udpEPollEvt[i])) < 0) {\n                rs_strerror_r(errno, errStr, sizeof(errStr));\n                LogError(errno, NO_ERRCODE, \"epoll_ctrl failed on fd %d with %s\\n\", lstn->sock, errStr);\n            }\n        }\n        i++;\n    }\n\n    while (1) {\n        /* wait for io to become ready */\n        nfds = epoll_wait(efd, currEvt, NUM_EPOLL_EVENTS, -1);\n        DBGPRINTF(\"imudp: epoll_wait() returned with %d fds\\n\", nfds);\n\n        if (thrdGetShallStop(pWrkr->pThrd) == RSTRUE) break; /* terminate input! */\n\n        for (i = 0; i < nfds; ++i) {\n            processSocket(pWrkr, currEvt[i].data.ptr, &frominetPrev, &lstnPrev, &bIsPermitted);\n        }\n        if (thrdGetShallStop(pWrkr->pThrd) == RSTRUE) break; /* terminate input! */\n    }\n\nfinalize_it:\n    if (udpEPollEvt != NULL) free(udpEPollEvt);\n\n    RETiRet;\n}\n#else /* #if HAVE_EPOLL_CREATE1 */\n/* this is the code for the select() interface */\nstatic rsRetVal ATTR_NONNULL() rcvMainLoop(struct wrkrInfo_s *const __restrict__ pWrkr) {\n    DEFiRet;\n    int nfds;\n    struct sockaddr_storage frominetPrev;\n    struct lstn_s *lstnPrev;\n    int bIsPermitted;\n    int i = 0;\n    struct lstn_s *lstn;\n\n    DBGPRINTF(\"imudp uses poll() [ex-select]\\n\");\n    /* start \"name caching\" algo by making sure the previous system indicator\n     * is invalidated. */\n    bIsPermitted = 0;\n    lstnPrev = NULL;\n    memset(&frominetPrev, 0, sizeof(frominetPrev));\n\n    /* setup poll() subsystem */\n    int nfd = 0;\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) {\n        if (lstn->sock != -1) {\n            if (Debug) {\n                net.debugListenInfo(lstn->sock, (char *)\"UDP\");\n            }\n            ++nfd;\n        }\n    }\n    struct pollfd *const pollfds = calloc(nfd, sizeof(struct pollfd));\n    CHKmalloc(pollfds);\n\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) {\n        assert(i < nfd);\n        if (lstn->sock != -1) {\n            pollfds[i].fd = lstn->sock;\n            pollfds[i].events = POLLIN;\n            ++i;\n        }\n    }\n\n"
+      }
+    },
+    {
+      "file": "plugins/imudp/imudp.c",
+      "old_start": 923,
+      "old_end": 929,
+      "new_start": 956,
+      "new_end": 962,
+      "context_hint": "static rsRetVal rcvMainLoop(struct wrkrInfo_s *const __restrict__ pWrkr) {",
+      "added_lines": [
+        "            processSocket(pWrkr, currEvt[i].data.ptr, &frominetPrev, &lstnPrev, &bIsPermitted);"
+      ],
+      "deleted_lines": [
+        "            processSocket(pWrkr, currEvt[i].data.ptr, &frominetPrev, &bIsPermitted);"
+      ],
+      "context_lines": [
+        "        if (thrdGetShallStop(pWrkr->pThrd) == RSTRUE) break; /* terminate input! */",
+        "",
+        "        for (i = 0; i < nfds; ++i) {",
+        "        }",
+        "        if (thrdGetShallStop(pWrkr->pThrd) == RSTRUE) break; /* terminate input! */",
+        "    }"
+      ],
+      "hunk_id": "HUNK-0049",
+      "changed_symbols": [
+        "wrkrInfo_s",
+        "processSocket",
+        "pWrkr",
+        "currEvt",
+        "i",
+        "data",
+        "DBGPRINTF"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "ioctl_netlink",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "ioctl command, netlink attribute, and kernel ABI consumers"
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "ioctl_netlink_consumers",
+          "user_visible_output",
+          "ioctl_netlink",
+          "plugin_api",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "wrkrInfo_s",
+        "snippet_start_line": 894,
+        "snippet_end_line": 992,
+        "snippet": "    int bIsPermitted;\n    struct epoll_event *udpEPollEvt = NULL;\n    struct epoll_event currEvt[NUM_EPOLL_EVENTS];\n    char errStr[1024];\n    struct lstn_s *lstn;\n    int nLstn;\n\n    /* start \"name caching\" algo by making sure the previous system indicator\n     * is invalidated.\n     */\n    bIsPermitted = 0;\n    lstnPrev = NULL;\n    memset(&frominetPrev, 0, sizeof(frominetPrev));\n\n    /* count num listeners -- do it here in order to avoid inconsistency */\n    nLstn = 0;\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) ++nLstn;\n\n    if (nLstn == 0) {\n        LogError(errno, RS_RET_ERR,\n                 \"imudp error: we have 0 listeners, terminating\"\n                 \"worker thread\");\n        ABORT_FINALIZE(RS_RET_ERR);\n    }\n    CHKmalloc(udpEPollEvt = calloc(nLstn, sizeof(struct epoll_event)));\n\n    #if defined(EPOLL_CLOEXEC) && defined(HAVE_EPOLL_CREATE1)\n    DBGPRINTF(\"imudp uses epoll_create1()\\n\");\n    efd = epoll_create1(EPOLL_CLOEXEC);\n    if (efd < 0 && errno == ENOSYS)\n    #endif\n    {\n        DBGPRINTF(\"imudp uses epoll_create()\\n\");\n        efd = epoll_create(NUM_EPOLL_EVENTS);\n    }\n\n    if (efd < 0) {\n        DBGPRINTF(\"epoll_create1() could not create fd\\n\");\n        ABORT_FINALIZE(RS_RET_IO_ERROR);\n    }\n\n    /* fill the epoll set - we need to do this only once, as the set\n     * can not change dyamically.\n     */\n    i = 0;\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) {\n        if (lstn->sock != -1) {\n            udpEPollEvt[i].events = EPOLLIN | EPOLLET;\n            udpEPollEvt[i].data.ptr = lstn;\n            if (epoll_ctl(efd, EPOLL_CTL_ADD, lstn->sock, &(udpEPollEvt[i])) < 0) {\n                rs_strerror_r(errno, errStr, sizeof(errStr));\n                LogError(errno, NO_ERRCODE, \"epoll_ctrl failed on fd %d with %s\\n\", lstn->sock, errStr);\n            }\n        }\n        i++;\n    }\n\n    while (1) {\n        /* wait for io to become ready */\n        nfds = epoll_wait(efd, currEvt, NUM_EPOLL_EVENTS, -1);\n        DBGPRINTF(\"imudp: epoll_wait() returned with %d fds\\n\", nfds);\n\n        if (thrdGetShallStop(pWrkr->pThrd) == RSTRUE) break; /* terminate input! */\n\n        for (i = 0; i < nfds; ++i) {\n            processSocket(pWrkr, currEvt[i].data.ptr, &frominetPrev, &lstnPrev, &bIsPermitted);\n        }\n        if (thrdGetShallStop(pWrkr->pThrd) == RSTRUE) break; /* terminate input! */\n    }\n\nfinalize_it:\n    if (udpEPollEvt != NULL) free(udpEPollEvt);\n\n    RETiRet;\n}\n#else /* #if HAVE_EPOLL_CREATE1 */\n/* this is the code for the select() interface */\nstatic rsRetVal ATTR_NONNULL() rcvMainLoop(struct wrkrInfo_s *const __restrict__ pWrkr) {\n    DEFiRet;\n    int nfds;\n    struct sockaddr_storage frominetPrev;\n    struct lstn_s *lstnPrev;\n    int bIsPermitted;\n    int i = 0;\n    struct lstn_s *lstn;\n\n    DBGPRINTF(\"imudp uses poll() [ex-select]\\n\");\n    /* start \"name caching\" algo by making sure the previous system indicator\n     * is invalidated. */\n    bIsPermitted = 0;\n    lstnPrev = NULL;\n    memset(&frominetPrev, 0, sizeof(frominetPrev));\n\n    /* setup poll() subsystem */\n    int nfd = 0;\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) {\n        if (lstn->sock != -1) {\n            if (Debug) {\n                net.debugListenInfo(lstn->sock, (char *)\"UDP\");\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

@@ -1,0 +1,270 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P043/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P043/patch.diff",
+  "profile": "kernel_6_6",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "fs/btrfs/disk-io.c"
+    ],
+    "total_hunks": 3,
+    "public_api_hunks": 3,
+    "patch_metrics": {
+      "patch_bytes": 2145,
+      "patch_lines": 55,
+      "diff_added_lines": 3,
+      "diff_deleted_lines": 3,
+      "diff_context_lines": 21,
+      "churn": 6,
+      "raw_hunks": 3,
+      "candidate_hunks": 3,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 6774,
+      "public_candidate_hunks": 3,
+      "surface_counts": {
+        "syscall": 3
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "fs/btrfs/disk-io.c",
+      "old_start": 3094,
+      "old_end": 3100,
+      "new_start": 3094,
+      "new_end": 3100,
+      "context_hint": "int btrfs_check_features(struct btrfs_fs_info *fs_info, bool is_rw_mount)",
+      "added_lines": [
+        "\t\t    incompat & ~BTRFS_FEATURE_INCOMPAT_SUPP);"
+      ],
+      "deleted_lines": [
+        "\t\t    incompat);"
+      ],
+      "context_lines": [
+        "\tif (incompat & ~BTRFS_FEATURE_INCOMPAT_SUPP) {",
+        "\t\tbtrfs_err(fs_info,",
+        "\t\t\"cannot mount because of unknown incompat features (0x%llx)\",",
+        "\t\treturn -EINVAL;",
+        "\t}",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "btrfs_fs_info",
+        "incompat",
+        "BTRFS_FEATURE_INCOMPAT_SUPP",
+        "btrfs_check_features"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "btrfs_fs_info",
+        "snippet_start_line": 3065,
+        "snippet_end_line": 3130,
+        "snippet": "\t\t}\n\t}\n\nout:\n\treturn ret;\n}\n\n/*\n * Do various sanity and dependency checks of different features.\n *\n * @is_rw_mount:\tIf the mount is read-write.\n *\n * This is the place for less strict checks (like for subpage or artificial\n * feature dependencies).\n *\n * For strict checks or possible corruption detection, see\n * btrfs_validate_super().\n *\n * This should be called after btrfs_parse_options(), as some mount options\n * (space cache related) can modify on-disk format like free space tree and\n * screw up certain feature dependencies.\n */\nint btrfs_check_features(struct btrfs_fs_info *fs_info, bool is_rw_mount)\n{\n\tstruct btrfs_super_block *disk_super = fs_info->super_copy;\n\tu64 incompat = btrfs_super_incompat_flags(disk_super);\n\tconst u64 compat_ro = btrfs_super_compat_ro_flags(disk_super);\n\tconst u64 compat_ro_unsupp = (compat_ro & ~BTRFS_FEATURE_COMPAT_RO_SUPP);\n\n\tif (incompat & ~BTRFS_FEATURE_INCOMPAT_SUPP) {\n\t\tbtrfs_err(fs_info,\n\t\t\"cannot mount because of unknown incompat features (0x%llx)\",\n\t\t    incompat & ~BTRFS_FEATURE_INCOMPAT_SUPP);\n\t\treturn -EINVAL;\n\t}\n\n\t/* Runtime limitation for mixed block groups. */\n\tif ((incompat & BTRFS_FEATURE_INCOMPAT_MIXED_GROUPS) &&\n\t    (fs_info->sectorsize != fs_info->nodesize)) {\n\t\tbtrfs_err(fs_info,\n\"unequal nodesize/sectorsize (%u != %u) are not allowed for mixed block groups\",\n\t\t\tfs_info->nodesize, fs_info->sectorsize);\n\t\treturn -EINVAL;\n\t}\n\n\t/* Mixed backref is an always-enabled feature. */\n\tincompat |= BTRFS_FEATURE_INCOMPAT_MIXED_BACKREF;\n\n\t/* Set compression related flags just in case. */\n\tif (fs_info->compress_type == BTRFS_COMPRESS_LZO)\n\t\tincompat |= BTRFS_FEATURE_INCOMPAT_COMPRESS_LZO;\n\telse if (fs_info->compress_type == BTRFS_COMPRESS_ZSTD)\n\t\tincompat |= BTRFS_FEATURE_INCOMPAT_COMPRESS_ZSTD;\n\n\t/*\n\t * An ancient flag, which should really be marked deprecated.\n\t * Such runtime limitation doesn't really need a incompat flag.\n\t */\n\tif (btrfs_super_nodesize(disk_super) > PAGE_SIZE)\n\t\tincompat |= BTRFS_FEATURE_INCOMPAT_BIG_METADATA;\n\n\tif (compat_ro_unsupp && is_rw_mount) {\n\t\tbtrfs_err(fs_info,\n\t\"cannot mount read-write because of unknown compat_ro features (0x%llx)\",\n\t\t       compat_ro_unsupp);\n\t\treturn -EINVAL;\n"
+      }
+    },
+    {
+      "file": "fs/btrfs/disk-io.c",
+      "old_start": 3126,
+      "old_end": 3132,
+      "new_start": 3126,
+      "new_end": 3132,
+      "context_hint": "int btrfs_check_features(struct btrfs_fs_info *fs_info, bool is_rw_mount)",
+      "added_lines": [
+        "\t\t       compat_ro_unsupp);"
+      ],
+      "deleted_lines": [
+        "\t\t       compat_ro);"
+      ],
+      "context_lines": [
+        "\tif (compat_ro_unsupp && is_rw_mount) {",
+        "\t\tbtrfs_err(fs_info,",
+        "\t\"cannot mount read-write because of unknown compat_ro features (0x%llx)\",",
+        "\t\treturn -EINVAL;",
+        "\t}",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "btrfs_fs_info",
+        "compat_ro_unsupp",
+        "compat_ro",
+        "btrfs_err"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "btrfs_fs_info",
+        "snippet_start_line": 3097,
+        "snippet_end_line": 3162,
+        "snippet": "\t\t    incompat & ~BTRFS_FEATURE_INCOMPAT_SUPP);\n\t\treturn -EINVAL;\n\t}\n\n\t/* Runtime limitation for mixed block groups. */\n\tif ((incompat & BTRFS_FEATURE_INCOMPAT_MIXED_GROUPS) &&\n\t    (fs_info->sectorsize != fs_info->nodesize)) {\n\t\tbtrfs_err(fs_info,\n\"unequal nodesize/sectorsize (%u != %u) are not allowed for mixed block groups\",\n\t\t\tfs_info->nodesize, fs_info->sectorsize);\n\t\treturn -EINVAL;\n\t}\n\n\t/* Mixed backref is an always-enabled feature. */\n\tincompat |= BTRFS_FEATURE_INCOMPAT_MIXED_BACKREF;\n\n\t/* Set compression related flags just in case. */\n\tif (fs_info->compress_type == BTRFS_COMPRESS_LZO)\n\t\tincompat |= BTRFS_FEATURE_INCOMPAT_COMPRESS_LZO;\n\telse if (fs_info->compress_type == BTRFS_COMPRESS_ZSTD)\n\t\tincompat |= BTRFS_FEATURE_INCOMPAT_COMPRESS_ZSTD;\n\n\t/*\n\t * An ancient flag, which should really be marked deprecated.\n\t * Such runtime limitation doesn't really need a incompat flag.\n\t */\n\tif (btrfs_super_nodesize(disk_super) > PAGE_SIZE)\n\t\tincompat |= BTRFS_FEATURE_INCOMPAT_BIG_METADATA;\n\n\tif (compat_ro_unsupp && is_rw_mount) {\n\t\tbtrfs_err(fs_info,\n\t\"cannot mount read-write because of unknown compat_ro features (0x%llx)\",\n\t\t       compat_ro_unsupp);\n\t\treturn -EINVAL;\n\t}\n\n\t/*\n\t * We have unsupported RO compat features, although RO mounted, we\n\t * should not cause any metadata writes, including log replay.\n\t * Or we could screw up whatever the new feature requires.\n\t */\n\tif (compat_ro_unsupp && btrfs_super_log_root(disk_super) &&\n\t    !btrfs_test_opt(fs_info, NOLOGREPLAY)) {\n\t\tbtrfs_err(fs_info,\n\"cannot replay dirty log with unsupported compat_ro features (0x%llx), try rescue=nologreplay\",\n\t\t\t  compat_ro_unsupp);\n\t\treturn -EINVAL;\n\t}\n\n\t/*\n\t * Artificial limitations for block group tree, to force\n\t * block-group-tree to rely on no-holes and free-space-tree.\n\t */\n\tif (btrfs_fs_compat_ro(fs_info, BLOCK_GROUP_TREE) &&\n\t    (!btrfs_fs_incompat(fs_info, NO_HOLES) ||\n\t     !btrfs_test_opt(fs_info, FREE_SPACE_TREE))) {\n\t\tbtrfs_err(fs_info,\n\"block-group-tree feature requires no-holes and free-space-tree features\");\n\t\treturn -EINVAL;\n\t}\n\n\t/*\n\t * Subpage runtime limitation on v1 cache.\n\t *\n\t * V1 space cache still has some hard codeed PAGE_SIZE usage, while\n\t * we're already defaulting to v2 cache, no need to bother v1 as it's\n"
+      }
+    },
+    {
+      "file": "fs/btrfs/disk-io.c",
+      "old_start": 3139,
+      "old_end": 3145,
+      "new_start": 3139,
+      "new_end": 3145,
+      "context_hint": "int btrfs_check_features(struct btrfs_fs_info *fs_info, bool is_rw_mount)",
+      "added_lines": [
+        "\t\t\t  compat_ro_unsupp);"
+      ],
+      "deleted_lines": [
+        "\t\t\t  compat_ro);"
+      ],
+      "context_lines": [
+        "\t    !btrfs_test_opt(fs_info, NOLOGREPLAY)) {",
+        "\t\tbtrfs_err(fs_info,",
+        "\"cannot replay dirty log with unsupported compat_ro features (0x%llx), try rescue=nologreplay\",",
+        "\t\treturn -EINVAL;",
+        "\t}",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "btrfs_fs_info",
+        "compat_ro_unsupp",
+        "compat_ro",
+        "btrfs_err"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "btrfs_fs_info",
+        "snippet_start_line": 3110,
+        "snippet_end_line": 3175,
+        "snippet": "\t/* Mixed backref is an always-enabled feature. */\n\tincompat |= BTRFS_FEATURE_INCOMPAT_MIXED_BACKREF;\n\n\t/* Set compression related flags just in case. */\n\tif (fs_info->compress_type == BTRFS_COMPRESS_LZO)\n\t\tincompat |= BTRFS_FEATURE_INCOMPAT_COMPRESS_LZO;\n\telse if (fs_info->compress_type == BTRFS_COMPRESS_ZSTD)\n\t\tincompat |= BTRFS_FEATURE_INCOMPAT_COMPRESS_ZSTD;\n\n\t/*\n\t * An ancient flag, which should really be marked deprecated.\n\t * Such runtime limitation doesn't really need a incompat flag.\n\t */\n\tif (btrfs_super_nodesize(disk_super) > PAGE_SIZE)\n\t\tincompat |= BTRFS_FEATURE_INCOMPAT_BIG_METADATA;\n\n\tif (compat_ro_unsupp && is_rw_mount) {\n\t\tbtrfs_err(fs_info,\n\t\"cannot mount read-write because of unknown compat_ro features (0x%llx)\",\n\t\t       compat_ro_unsupp);\n\t\treturn -EINVAL;\n\t}\n\n\t/*\n\t * We have unsupported RO compat features, although RO mounted, we\n\t * should not cause any metadata writes, including log replay.\n\t * Or we could screw up whatever the new feature requires.\n\t */\n\tif (compat_ro_unsupp && btrfs_super_log_root(disk_super) &&\n\t    !btrfs_test_opt(fs_info, NOLOGREPLAY)) {\n\t\tbtrfs_err(fs_info,\n\"cannot replay dirty log with unsupported compat_ro features (0x%llx), try rescue=nologreplay\",\n\t\t\t  compat_ro_unsupp);\n\t\treturn -EINVAL;\n\t}\n\n\t/*\n\t * Artificial limitations for block group tree, to force\n\t * block-group-tree to rely on no-holes and free-space-tree.\n\t */\n\tif (btrfs_fs_compat_ro(fs_info, BLOCK_GROUP_TREE) &&\n\t    (!btrfs_fs_incompat(fs_info, NO_HOLES) ||\n\t     !btrfs_test_opt(fs_info, FREE_SPACE_TREE))) {\n\t\tbtrfs_err(fs_info,\n\"block-group-tree feature requires no-holes and free-space-tree features\");\n\t\treturn -EINVAL;\n\t}\n\n\t/*\n\t * Subpage runtime limitation on v1 cache.\n\t *\n\t * V1 space cache still has some hard codeed PAGE_SIZE usage, while\n\t * we're already defaulting to v2 cache, no need to bother v1 as it's\n\t * going to be deprecated anyway.\n\t */\n\tif (fs_info->sectorsize < PAGE_SIZE && btrfs_test_opt(fs_info, SPACE_CACHE)) {\n\t\tbtrfs_warn(fs_info,\n\t\"v1 space cache is not supported for page size %lu with sectorsize %u\",\n\t\t\t   PAGE_SIZE, fs_info->sectorsize);\n\t\treturn -EINVAL;\n\t}\n\n\t/* This can be called by remount, we need to protect the super block. */\n\tspin_lock(&fs_info->super_lock);\n\tbtrfs_set_super_incompat_flags(disk_super, incompat);\n\tspin_unlock(&fs_info->super_lock);\n"
+      }
+    }
+  ]
+}

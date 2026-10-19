@@ -1,0 +1,135 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/openldap/pca-results/fbf682/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/openldap",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/openldap/pca-results/fbf682/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/fbf682",
+  "patch_id": "fbf682a6c684db5e0b6928b511f8fc57d6c8eb7c",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "slapd.conf / cn=config ACL syntax",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "servers/slapd/aclparse.c",
+        "old_lines": [
+          1691,
+          1696
+        ],
+        "new_lines": [
+          1691,
+          1741
+        ],
+        "symbol": "parse_acl"
+      },
+      "old_behavior": "The ACL configuration parser only accepted 'dn', 'filter', and 'attrs' tokens in the 'to' clause. Any other token after these produced a syntax error.",
+      "new_behavior": "The parser now accepts two new tokens in 'to' clauses: 'op=<operation>|<oid>' to restrict an ACL rule to a specific LDAP operation or extended operation, and 'control=<oid>' to restrict the rule to requests carrying a specific control. Invalid OIDs or unknown controls produce specific error messages (backward-compatible error paths).",
+      "compatibility_reason": "Configuration files using 'op=' or 'control=' in ACL 'to' clauses will be rejected by older slapd versions as syntax errors. Tools that generate or modify slapd ACL configurations need to handle the new keywords. Old configurations without the new keywords remain fully compatible.",
+      "test_recommendation": "Test parsing of valid and invalid 'op=' and 'control=' values. Verify that old configs without these keywords parse identically. Run 'test006-acls' which exercises the new ACL keywords.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0004",
+      "finding_id": "PCA-0004",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "slap_acl_get ACL evaluation",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "servers/slapd/acl.c",
+        "old_lines": [
+          545,
+          550
+        ],
+        "new_lines": [
+          545,
+          564
+        ],
+        "symbol": "slap_acl_get"
+      },
+      "old_behavior": "The ACL evaluation loop iterated through all matching ACL entries and checked dn/filter/attrs only. All ACL entries were evaluated regardless of the operation type or controls present on the request.",
+      "new_behavior": "Before checking dn/filter/attrs, the loop now checks if the ACL entry has op= or control= restrictions. If acl_op is set, the entry is skipped when the request operation type doesn't match (bitwise mask check). For extended operations, the OID must also match. If acl_control is set, the entry is skipped when the specified control is absent or has level <= SLAP_CONTROL_IGNORED.",
+      "compatibility_reason": "ACL evaluation semantics change for entries using the new keywords: an ACL rule with 'op=search' will only match search operations, potentially granting or denying access differently than before. For entries without op/control restrictions, behavior is unchanged.",
+      "test_recommendation": "Run test006-acls which exercises the op=search and control=manageDSAiT ACL rules. Test that ACLs with 'op=search' do not match add/delete/modify operations. Test that 'control=' correctly restricts to requests carrying the specified control.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/fbf682/compatibility-testing"
+}

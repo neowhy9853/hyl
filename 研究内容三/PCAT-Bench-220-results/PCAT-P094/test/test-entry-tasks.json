@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P034/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P034/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P034",
+  "patch_id": "06bb174f89c5db340f0913337e2f5c6f8744b191",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "ResponseWriter.WriteHeader",
+        "kind": "public_method",
+        "language": "go"
+      },
+      "target_location": {
+        "file": "src/net/http/server.go",
+        "old_lines": [
+          1185,
+          1194
+        ],
+        "new_lines": [
+          1209,
+          1220
+        ],
+        "symbol": "WriteHeader"
+      },
+      "old_behavior": "When a handler responds to an Expect: 100-continue request with a non-1xx status code (code >= 200), the server called disableWriteContinue() which only disabled the automatic 100 Continue response. The server would then attempt to drain the request body, but since the client never sent it (waiting for 100 Continue), the server goroutine would hang indefinitely.",
+      "new_behavior": "When code >= 200, WriteHeader now calls disableWriteContinue(code >= 200) with skipDrain=true. This sets closeAfterReply=true (preventing connection reuse) and marks the request body as closed (preventing draining attempts). The server no longer hangs on this condition. Additionally, the disableWriteContinue function now guards with a type assertion on w.reqBody.(*expectContinueReader) and a Load-check on canWriteContinue before modifying state.",
+      "compatibility_reason": "The change affects HTTP connection lifecycle: after responding to an Expect: 100-continue request with a final (non-1xx) status code, the connection will be closed rather than returned to the keep-alive pool. This is observable by HTTP clients as a loss of persistent connection reuse, which may affect performance-sensitive applications relying on connection pooling. However, this is a bug fix for issue #75933 -- before this patch the server would hang indefinitely in this scenario, making the old behavior unusable.",
+      "test_recommendation": "Build Go toolchain before and after the patch. Send an HTTP/1.1 POST request with 'Expect: 100-continue' header to a server handler that calls w.WriteHeader(200) without reading the body. Verify: (1) before patch - server hangs; (2) after patch - server returns 200, connection is closed (Connection: close header present), no hang. The bundled test TestServerExpect100ContinueUnreadBody in serve_test.go already covers this scenario.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P034/compatibility-testing"
+}

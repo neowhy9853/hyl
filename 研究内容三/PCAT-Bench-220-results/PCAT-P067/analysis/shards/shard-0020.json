@@ -1,0 +1,300 @@
+{
+  "shard_id": "SHARD-0020",
+  "surface": "user_visible_output",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    42,
+    45
+  ],
+  "hunk_ids": [
+    "HUNK-0058",
+    "HUNK-0061"
+  ],
+  "files": [
+    "runtime/net.c"
+  ],
+  "symbols": [
+    "AllowedSenders",
+    "DestructAllowedSenders",
+    "assert",
+    "clearAllowedSenders",
+    "pCurr",
+    "pPrev",
+    "ppRoot",
+    "reinitAllowRoot",
+    "isAllowedSender2",
+    "pFrom",
+    "pszFromHost",
+    "pszType",
+    "setAllowRoot",
+    "sockaddr",
+    "uchar"
+  ],
+  "metrics": {
+    "hunks": 2,
+    "context_bytes": 8150
+  },
+  "candidates": [
+    {
+      "file": "runtime/net.c",
+      "old_start": 570,
+      "old_end": 575,
+      "new_start": 570,
+      "new_end": 596,
+      "context_hint": "static void clearAllowedSenders(uchar *pszType) {",
+      "added_lines": [
+        "static void DestructAllowedSenders(struct AllowedSenders **ppRoot) {",
+        "    struct AllowedSenders *pPrev;",
+        "    struct AllowedSenders *pCurr;",
+        "",
+        "    assert(ppRoot != NULL);",
+        "",
+        "    pCurr = *ppRoot;",
+        "    while (pCurr != NULL) {",
+        "        pPrev = pCurr;",
+        "        pCurr = pCurr->pNext;",
+        "        if (F_ISSET(pPrev->allowedSender.flags, ADDR_NAME))",
+        "            free(pPrev->allowedSender.addr.HostWildcard);",
+        "        else",
+        "            free(pPrev->allowedSender.addr.NetAddr);",
+        "        free(pPrev);",
+        "    }",
+        "",
+        "    *ppRoot = NULL;",
+        "}",
+        "",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "}",
+        "",
+        "",
+        "/* function to add an allowed sender to the allowed sender list. The",
+        " * root of the list is caller-provided, so it can be used for all",
+        " * supported lists. The caller must provide a pointer to the root,"
+      ],
+      "hunk_id": "HUNK-0058",
+      "changed_symbols": [
+        "clearAllowedSenders",
+        "DestructAllowedSenders",
+        "AllowedSenders",
+        "ppRoot",
+        "pPrev",
+        "pCurr",
+        "assert",
+        "reinitAllowRoot"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "module_api",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "clearAllowedSenders",
+        "snippet_start_line": 541,
+        "snippet_end_line": 626,
+        "snippet": "    return RS_RET_OK;\n}\n\n/* function to clear the allowed sender structure in cases where\n * it must be freed (occurs most often when HUPed).\n * rgerhards, 2008-12-02: revamped this code when we fixed the interface\n * definition. Now an iterative algorithm is used.\n */\nstatic void clearAllowedSenders(uchar *pszType) {\n    struct AllowedSenders *pPrev;\n    struct AllowedSenders *pCurr = NULL;\n\n    if (setAllowRoot(&pCurr, pszType) != RS_RET_OK) return; /* if something went wrong, so let's leave */\n\n    while (pCurr != NULL) {\n        pPrev = pCurr;\n        pCurr = pCurr->pNext;\n        /* now delete the entry we are right now processing */\n        if (F_ISSET(pPrev->allowedSender.flags, ADDR_NAME))\n            free(pPrev->allowedSender.addr.HostWildcard);\n        else\n            free(pPrev->allowedSender.addr.NetAddr);\n        free(pPrev);\n    }\n\n    /* indicate root pointer is de-init (was forgotten previously, resulting in\n     * all kinds of interesting things) -- rgerhards, 2009-01-12\n     */\n    reinitAllowRoot(pszType);\n}\n\n\nstatic void DestructAllowedSenders(struct AllowedSenders **ppRoot) {\n    struct AllowedSenders *pPrev;\n    struct AllowedSenders *pCurr;\n\n    assert(ppRoot != NULL);\n\n    pCurr = *ppRoot;\n    while (pCurr != NULL) {\n        pPrev = pCurr;\n        pCurr = pCurr->pNext;\n        if (F_ISSET(pPrev->allowedSender.flags, ADDR_NAME))\n            free(pPrev->allowedSender.addr.HostWildcard);\n        else\n            free(pPrev->allowedSender.addr.NetAddr);\n        free(pPrev);\n    }\n\n    *ppRoot = NULL;\n}\n\n\n/* function to add an allowed sender to the allowed sender list. The\n * root of the list is caller-provided, so it can be used for all\n * supported lists. The caller must provide a pointer to the root,\n * as it eventually needs to be updated. Also, a pointer to the\n * pointer to the last element must be provided (to speed up adding\n * list elements).\n * rgerhards, 2005-09-26\n * If a hostname is given there are possible multiple entries\n * added (all addresses from that host).\n */\nstatic rsRetVal AddAllowedSender(struct AllowedSenders **ppRoot,\n                                 struct AllowedSenders **ppLast,\n                                 struct NetAddr *iAllow,\n                                 uint8_t iSignificantBits) {\n    struct addrinfo *restmp = NULL;\n    DEFiRet;\n\n    assert(ppRoot != NULL);\n    assert(ppLast != NULL);\n    assert(iAllow != NULL);\n\n    if (!F_ISSET(iAllow->flags, ADDR_NAME)) {\n        if (iSignificantBits == 0)\n            /* we handle this seperatly just to provide a better\n             * error message.\n             */\n            LogError(0, NO_ERRCODE,\n                     \"You can not specify 0 bits of the netmask, this would \"\n                     \"match ALL systems. If you really intend to do that, \"\n                     \"remove all $AllowedSender directives.\");\n\n        switch (iAllow->addr.NetAddr->sa_family) {\n            case AF_INET:\n"
+      }
+    },
+    {
+      "file": "runtime/net.c",
+      "old_start": 992,
+      "old_end": 997,
+      "new_start": 1043,
+      "new_end": 1060,
+      "context_hint": "static int isAllowedSender2(uchar *pszType, struct sockaddr *pFrom, const char *",
+      "added_lines": [
+        "static int isAllowedSender2(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS) {",
+        "    struct AllowedSenders *pAllowRoot = NULL;",
+        "",
+        "    assert(pFrom != NULL);",
+        "",
+        "    if (setAllowRoot(&pAllowRoot, pszType) != RS_RET_OK)",
+        "        return 0; /* if something went wrong, we deny access - that's the better choice... */",
+        "",
+        "    return isAllowedSenderList(pAllowRoot, pFrom, pszFromHost, bChkDNS);",
+        "}",
+        "",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "}",
+        "",
+        "",
+        "/* legacy API, not to be used any longer */",
+        "static int isAllowedSender(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost) {",
+        "    return isAllowedSender2(pszType, pFrom, pszFromHost, 1);"
+      ],
+      "hunk_id": "HUNK-0061",
+      "changed_symbols": [
+        "sockaddr",
+        "isAllowedSender2",
+        "uchar",
+        "pszType",
+        "pFrom",
+        "pszFromHost",
+        "assert",
+        "setAllowRoot"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "output_format",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log template, property, and output formatting behavior"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "logging",
+          "persistence_state",
+          "module_api",
+          "output_format",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "sockaddr",
+        "snippet_start_line": 963,
+        "snippet_end_line": 1090,
+        "snippet": "            case AF_INET6:\n                switch (pAllow->addr.NetAddr->sa_family) {\n                    case AF_INET6: {\n                        struct in6_addr ip, net;\n                        register uint8_t i;\n\n                        memcpy(&ip, &(SIN6(pFrom))->sin6_addr, sizeof(struct in6_addr));\n                        memcpy(&net, &(SIN6(pAllow->addr.NetAddr))->sin6_addr, sizeof(struct in6_addr));\n\n                        i = bits / 32;\n                        if (bits % 32) ip.s6_addr32[i++] &= htonl(0xffffffff << (32 - (bits % 32)));\n                        for (; i < (sizeof ip.s6_addr32) / 4; i++) ip.s6_addr32[i] = 0;\n\n                        return (memcmp(ip.s6_addr, net.s6_addr, sizeof ip.s6_addr) == 0 &&\n                                (SIN6(pAllow->addr.NetAddr)->sin6_scope_id != 0\n                                     ? SIN6(pFrom)->sin6_scope_id == SIN6(pAllow->addr.NetAddr)->sin6_scope_id\n                                     : 1));\n                    }\n                    case AF_INET: {\n                        struct in6_addr *ip6 = &(SIN6(pFrom))->sin6_addr;\n                        struct in_addr *net = &(SIN(pAllow->addr.NetAddr))->sin_addr;\n\n                        if ((ip6->s6_addr32[3] & (u_int32_t)htonl((0xffffffff << (32 - bits)))) == net->s_addr &&\n#if BYTE_ORDER == LITTLE_ENDIAN\n                            (ip6->s6_addr32[2] == (u_int32_t)0xffff0000) &&\n#else\n                            (ip6->s6_addr32[2] == (u_int32_t)0x0000ffff) &&\n#endif\n                            (ip6->s6_addr32[1] == 0) && (ip6->s6_addr32[0] == 0))\n                            return 1;\n                        else\n                            return 0;\n                    }\n                    default:\n                        /* Unsupported AF */\n                        return 0;\n                }\n                /* fallthrough */\n            default:\n                /* Unsupported AF */\n                return 0;\n        }\n    }\n}\n\n\n/* check if a sender is allowed. The root of the the allowed sender.\n * list must be proveded by the caller. As such, this function can be\n * used to check both UDP and TCP allowed sender lists.\n * returns 1, if the sender is allowed, 0 if not and 2 if we could not\n * obtain a result because we would need a dns name, which we don't have\n * (2 was added rgerhards, 2009-11-16).\n * rgerhards, 2005-09-26\n */\nstatic int isAllowedSenderList(struct AllowedSenders *pAllowRoot,\n                               struct sockaddr *pFrom,\n                               const char *pszFromHost,\n                               int bChkDNS) {\n    struct AllowedSenders *pAllow;\n    int bNeededDNS = 0; /* partial check because we could not resolve DNS? */\n    int ret;\n\n    assert(pFrom != NULL);\n\n    if (pAllowRoot == NULL) return 1; /* checking disabled, everything is valid! */\n\n    /* now we loop through the list of allowed senders. As soon as\n     * we find a match, we return back (indicating allowed). We loop\n     * until we are out of allowed senders. If so, we fall through the\n     * loop and the function's terminal return statement will indicate\n     * that the sender is disallowed.\n     */\n    for (pAllow = pAllowRoot; pAllow != NULL; pAllow = pAllow->pNext) {\n        ret = MaskCmp(&(pAllow->allowedSender), pAllow->SignificantBits, pFrom, pszFromHost, bChkDNS);\n        if (ret == 1)\n            return 1;\n        else if (ret == 2)\n            bNeededDNS = 2;\n    }\n    return bNeededDNS;\n}\n\n\nstatic int isAllowedSender2(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS) {\n    struct AllowedSenders *pAllowRoot = NULL;\n\n    assert(pFrom != NULL);\n\n    if (setAllowRoot(&pAllowRoot, pszType) != RS_RET_OK)\n        return 0; /* if something went wrong, we deny access - that's the better choice... */\n\n    return isAllowedSenderList(pAllowRoot, pFrom, pszFromHost, bChkDNS);\n}\n\n\n/* legacy API, not to be used any longer */\nstatic int isAllowedSender(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost) {\n    return isAllowedSender2(pszType, pFrom, pszFromHost, 1);\n}\n\n\n/* The following #ifdef sequence is a small compatibility\n * layer. It tries to work around the different availality\n * levels of SO_BSDCOMPAT on linuxes...\n * I borrowed this code from\n *    http://www.erlang.org/ml-archive/erlang-questions/200307/msg00037.html\n * It still needs to be a bit better adapted to rsyslog.\n * rgerhards 2005-09-19\n */\n#include <sys/utsname.h>\nstatic int should_use_so_bsdcompat(void) {\n#ifndef OS_BSD\n    static int use_so_bsdcompat = -1;\n\n    /* we guard the init code just by an atomic fetch to local variable. This still\n     * is racy, but the worst that can happen is that we do the very same init twice.\n     * This does hurt less than locking a mutex.\n     */\n    const int local_use_so_bsdcompat = PREFER_FETCH_32BIT(use_so_bsdcompat);\n    if (local_use_so_bsdcompat == -1) {\n        struct utsname myutsname;\n        unsigned int version, patchlevel;\n\n        if (uname(&myutsname) < 0) {\n            char errStr[1024];\n            dbgprintf(\"uname: %s\\r\\n\", rs_strerror_r(errno, errStr, sizeof(errStr)));\n            PREFER_STORE_1_TO_INT(&use_so_bsdcompat);\n            FINALIZE;\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

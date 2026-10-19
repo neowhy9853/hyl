@@ -1,0 +1,183 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P056/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P056",
+  "base_ref": "ded935be3708f7df2c836046bd73b373a1dc40ac",
+  "base_commit": "ded935be3708f7df2c836046bd73b373a1dc40ac",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P056/patch.diff"
+  },
+  "patch_id": "7d5fbe7da380135a70ab7b7f3f117cc870207503",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "Patch applied cleanly to worktree based on parent commit ded935be",
+  "analysis_worktree_status": "cleaned",
+  "package_profile": "dnsmasq",
+  "summary": {
+    "total_changed_files": 4,
+    "total_candidates": 6,
+    "compatibility_changes": 1,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.85,
+      "package_profile": "dnsmasq",
+      "affected_surface": "DNS protocol EDNS0 response format for TCP queries",
+      "affected_api": {
+        "name": "add_edns0_config / add_mac / add_dns_client",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/edns0.c",
+        "old_lines": [
+          265,
+          270
+        ],
+        "new_lines": [
+          265,
+          279
+        ],
+        "symbol": "edns0_needs_mac"
+      },
+      "old_behavior": "在 TCP 模式下，当配置了 --add-mac / --add-mac-hex / --add-mac-b64 选项时，子进程处理 TCP 连接时无法读取内核 ARP 表（无 netlink socket），find_mac() 静默失败，DNS 响应中不包含客户端 MAC 地址的 EDNS0 选项。",
+      "new_behavior": "do_tcp_connection() 在 fork() 之前调用 edns0_needs_mac() 预填充 ARP 缓存；子进程继承父进程的 ARP 缓存后，find_mac() 可直接从缓存中查找客户端 MAC 地址，不再需要 netlink。DNS 响应中按配置正确包含客户端 MAC 地址的 EDNS0 选项。",
+      "compatibility_reason": "这是一个行为修复，但改变了 TCP 模式 DNS 响应的输出内容：此前即使配置了 MAC 地址选项，TCP 模式下的 DNS 响应不会携带 EDNS0 MAC 选项（静默失败）；补丁后这些选项会正确包含在响应中。客户端如果此前依赖了 TCP 模式下 MAC 选项始终缺失的行为（例如使用无 MAC 的响应进行解析），可能会观察到变化。指令明确要求不因 bug fix 而丢弃 finding。",
+      "evidence": [
+        {
+          "file": "src/dnsmasq.c",
+          "lines": [
+            2033,
+            2049
+          ],
+          "snippet": "if (!option_bool(OPT_DEBUG))\n    {\n      /* ... */\n      edns0_needs_mac(&tcp_addr, now);\n\n      if (pipe(pipefd) == -1)\n        goto closeconandreturn;\n      if ((p = fork()) == -1)"
+        },
+        {
+          "file": "src/edns0.c",
+          "lines": [
+            268,
+            275
+          ],
+          "snippet": "void edns0_needs_mac(union mysockaddr *addr, time_t now)\n{\n  if (option_bool(OPT_MAC_B64) || option_bool(OPT_MAC_HEX) || option_bool(OPT_ADD_MAC))\n    find_mac(addr, NULL, 0, now);\n}"
+        },
+        {
+          "file": "src/arp.c",
+          "lines": [
+            111,
+            119
+          ],
+          "snippet": "/* If the database is less then INTERVAL old, look in there.\n     If we're a child process, we always rely on the existing cache we\n     inherited from the parent, since we don't have a netlink socket.\n  */\n  if (difftime(now, last) < INTERVAL || daemon->pipe_to_parent != -1)"
+        },
+        {
+          "file": "src/arp.c",
+          "lines": [
+            145,
+            150
+          ],
+          "snippet": "/* Not in cache in child, no go. */\n  if (daemon->pipe_to_parent != -1)\n    return 0;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "该变更影响 DNS 协议面的 EDNS0 响应输出。--add-mac / --add-mac-hex / --add-mac-b64 是 dnsmasq 的公共 CLI 配置选项，且 DNS 响应内容是网络协议表面的一部分，直接暴露给 DNS 客户端。",
+      "uncertainty": "这是 bug fix，补丁意图是修复而非变更行为。但此前 TCP 模式下的静默失败行为使得 EDNS0 MAC 选项从未出现在 TCP 响应中，而补丁后出现在 TCP 响应中——从响应内容角度这是一个可观察的差异。不确定是否有客户端依赖该选项缺失的行为。",
+      "manual_review_required": false,
+      "recommended_review": "检查是否有自动化测试或客户端工具依赖 TCP 模式 DNS 响应中不包含 EDNS0 MAC 选项的行为。建议用 'dig +tcp' 对比 before/after 的 DNS 响应。",
+      "test_recommendation": "高优先级：使用 dig +tcp 测试 --add-mac / --add-mac-hex / --add-mac-b64 三种选项在 TCP 模式下各自的响应是否包含正确的 EDNS0 MAC 选项。对比 before/after 的输出变化。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "src/edns0.c",
+            "old_lines": [
+              265,
+              270
+            ],
+            "new_lines": [
+              265,
+              279
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "protocol",
+              "network_protocol",
+              "persistence_state",
+              "config_cli",
+              "dns_protocol",
+              "dhcp_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol behavior"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "config_cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line and dnsmasq.conf option behavior"
+              },
+              {
+                "name": "dns_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "DNS query, response, cache, and DNSSEC semantics"
+              },
+              {
+                "name": "dhcp_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "DHCPv4/v6 lease and option behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ]
+}

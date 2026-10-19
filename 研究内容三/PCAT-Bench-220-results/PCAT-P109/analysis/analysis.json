@@ -1,0 +1,924 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P049/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P049",
+  "base_ref": "ae786f44ace1712be2b3899806202591cf074905^",
+  "base_commit": "07279b0c7e1eb3c931c1ae201574a58609e0f6bc",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "ae786f44ace1712be2b3899806202591cf074905",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/GNOME/libsoup/commit/ae786f44ace1712be2b3899806202591cf074905",
+    "download_url": "https://github.com/GNOME/libsoup/commit/ae786f44ace1712be2b3899806202591cf074905.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P049/_patch-cache/ae786f44ace1.patch",
+    "commit": "ae786f44ace1712be2b3899806202591cf074905",
+    "base_ref_inferred": "ae786f44ace1712be2b3899806202591cf074905^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "c_project",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "hard threshold exceeded",
+    "patch_lines=1533 >= 1000",
+    "candidates_json_bytes=232251 >= 180000"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 43514,
+    "patch_lines": 1533,
+    "diff_added_lines": 1090,
+    "diff_deleted_lines": 70,
+    "diff_context_lines": 250,
+    "churn": 1160,
+    "raw_hunks": 36,
+    "candidate_hunks": 36,
+    "skipped_doc_hunks": 0,
+    "changed_files": 14,
+    "candidate_context_bytes": 106783,
+    "public_candidate_hunks": 22,
+    "surface_counts": {
+      "config_keys": 6,
+      "user_visible_output": 11,
+      "logging": 1,
+      "callbacks": 1,
+      "plugin_api": 1,
+      "public_headers": 9
+    },
+    "candidates_json_bytes": 232251
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 14
+  },
+  "summary": {
+    "total_changed_files": 14,
+    "total_candidates": 36,
+    "compatibility_changes": 8,
+    "high_priority": 3,
+    "medium_priority": 4,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "c_project",
+      "affected_surface": "SoupCookie GObject type registration and copy API",
+      "affected_api": {
+        "name": "soup_cookie_get_type / SOUP_TYPE_COOKIE / soup_cookie_copy",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-cookie.h",
+        "old_lines": [
+          20,
+          25
+        ],
+        "new_lines": [
+          20,
+          28
+        ],
+        "symbol": "soup_cookie_get_type"
+      },
+      "old_behavior": "SoupCookie was a plain C struct with no GType. No way to use SoupCookie in GValue/GObject property system or GList/GSList with type information.",
+      "new_behavior": "SoupCookie is registered as a GBoxed type via soup_cookie_get_type(). SOUP_TYPE_COOKIE macro and soup_cookie_copy() function are now public API. soup_cookie_copy() allocates a new SoupCookie with all fields deep-copied (name, value, domain, path, expires, secure, http_only). The 'type' is also imported into soup-cookie.c implementation with g_boxed_type_register_static().",
+      "compatibility_reason": "New public exported symbol 'soup_cookie_get_type' added to libsoup-2.4 shared library. soup_cookie_copy is a new public function. These are additive changes that do not break existing code. However, the first call to soup_cookie_get_type() triggers g_boxed_type_register_static() which has observable side effects (GType system state change). Existing code using SoupCookie as a plain struct continues to work, but any code accessing SoupCookie through GValue or using g_value_get_boxed() on it will now succeed where it previously failed.",
+      "evidence": [
+        {
+          "file": "libsoup/soup-cookie.h",
+          "lines": [
+            20,
+            28
+          ],
+          "snippet": "GType soup_cookie_get_type (void);\n#define SOUP_TYPE_COOKIE (soup_cookie_get_type())"
+        },
+        {
+          "file": "libsoup/soup-cookie.c",
+          "lines": [
+            122,
+            165
+          ],
+          "snippet": "GType\nsoup_cookie_get_type (void)\n{\n\tstatic volatile gsize type_volatile = 0;\n\n\tif (g_once_init_enter (&type_volatile)) {\n\t\tGType type = g_boxed_type_register_static (\n\t\t\tg_intern_static_string (\"SoupCookie\"),\n\t\t\t(GBoxedCopyFunc) soup_cookie_copy,\n\t\t\t(GBoxedFreeFunc) soup_cookie_free);\n\t\tg_once_init_leave (&type_volatile, type);\n\t}\n\treturn type_volatile;\n}\n\nSoupCookie *\nsoup_cookie_copy (SoupCookie *cookie)\n{\n\tSoupCookie *copy = g_slice_new0 (SoupCookie);\n\n\tcopy->name = g_strdup (cookie->name);\n\tcopy->value = g_strdup (cookie->value);\n\tcopy->domain = g_strdup (cookie->domain);\n\tcopy->path = g_strdup (cookie->path);\n\tif (cookie->expires)\n\t\tcopy->expires = soup_date_copy(cookie->expires);\n\tcopy->secure = cookie->secure;\n\tcopy->http_only = cookie->http_only;\n\n\treturn copy;\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "soup_cookie_get_type() and SOUP_TYPE_COOKIE are declared in public header libsoup/soup-cookie.h, which is included via libsoup/soup.h. These are exposed to all libsoup consumers through the installed header set.",
+      "uncertainty": "None. Type registration is standard GObject pattern.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that SoupCookie type registration succeeds without memory leaks. Check that soup_cookie_copy() handles NULL expires field correctly.",
+      "test_recommendation": "Verify SOUP_TYPE_COOKIE macro returns valid non-zero GType. Test soup_cookie_copy() creates independent copy where modifying original doesn't affect copy. Test GValue round-trip with SoupCookie via g_value_set_boxed/g_value_get_boxed.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0030",
+            "file": "libsoup/soup-cookie.h",
+            "old_lines": [
+              20,
+              25
+            ],
+            "new_lines": [
+              20,
+              28
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "c_project",
+      "affected_surface": "Cookie-to-URI matching logic for HTTP cookie selection",
+      "affected_api": {
+        "name": "soup_cookie_applies_to_uri",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-cookie.c",
+        "old_lines": [
+          883,
+          887
+        ],
+        "new_lines": [
+          923,
+          938
+        ],
+        "symbol": "soup_cookie_applies_to_uri"
+      },
+      "old_behavior": "After checking cookie->secure (requires HTTPS), cookie expiration, and path length constraints, the function unconditionally returned TRUE if no mismatch was detected: 'return TRUE;' This meant any cookie path that passed the length/separator checks would match any URI, regardless of actual path content.",
+      "new_behavior": "The function now properly compares the cookie path prefix against the URI path using strncmp: 'return !strncmp (cookie->path, uri->path, plen);' Only cookies whose path is a prefix of the URI path are considered matching. For example, a cookie with path='/foo' will match URI path='/foo/bar' but not URI path='/baz'.",
+      "compatibility_reason": "This is a BUG FIX that changes the return value of a public API function. Previously the function was overly permissive and returned TRUE for non-matching paths after basic checks passed. After the fix, the function correctly returns FALSE when path prefixes don't match. Applications relying on the old buggy behavior may see different cookie-stripping or cookie-sending behavior when making HTTP requests. This directly affects which cookies are sent with HTTP requests via soup_session_feature_request_started callback.",
+      "evidence": [
+        {
+          "file": "libsoup/soup-cookie.c",
+          "lines": [
+            910,
+            938
+          ],
+          "snippet": "plen = strlen (cookie->path);\nif (cookie->path[plen - 1] == '/')\n\tplen--;\nif (uri->path[plen] && uri->path[plen] != '/')\n\treturn FALSE;\n\nreturn !strncmp (cookie->path, uri->path, plen);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "soup_cookie_applies_to_uri is declared in the public header libsoup/soup-cookie.h (lines 57-60 after patch) and is called by the cookie jar's soup_cookie_jar_get_cookies() which is a public API. External consumers can also call it directly.",
+      "uncertainty": "Whether any downstream consumers depend on the old overly-permissive behavior. The old behavior was clearly a bug (path check was structurally present but semantically broken). However, the fix is a behavioral change.",
+      "manual_review_required": true,
+      "recommended_review": "Review whether any applications in the GNOME ecosystem depend on the old permissive cookie path matching behavior. The ChangeLog entry confirms this was a bug fix: '(soup_cookie_applies_to_uri): fix path checking'.",
+      "test_recommendation": "Test with cookies having path='/foo' against URI path='/bar' (should return FALSE after fix). Test with path='/foo' against URI path='/foo/bar' (should return TRUE). Verify cookie jar correctly strips/sends cookies based on path matching after the fix.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=low from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0029",
+            "file": "libsoup/soup-cookie.c",
+            "old_lines": [
+              883,
+              887
+            ],
+            "new_lines": [
+              923,
+              938
+            ],
+            "is_public": false,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [],
+            "surface_test_priority": "low",
+            "matched_surfaces": []
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=low from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "c_project",
+      "affected_surface": "Cookie domain matching for cookie acceptance",
+      "affected_api": {
+        "name": "domain_matches (static, affects soup_cookie_jar_set_cookie)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-cookie.c",
+        "old_lines": [
+          132,
+          137
+        ],
+        "new_lines": [
+          170,
+          177
+        ],
+        "symbol": "domain_matches"
+      },
+      "old_behavior": "The static domain_matches() function would check if a hostname matches a cookie domain with a leading dot (e.g., domain=.foo.com). However, when the domain and host were exactly the same (e.g., domain=.foo.com and host=foo.com), the function would skip past the leading dot and then search for the domain as a substring, which would fail because 'foo.com' without the dot doesn't match '.foo.com' as a suffix of 'foo.com'. This meant a server at 'foo.com' could not set cookies for 'domain=.foo.com'.",
+      "new_behavior": "Added an early check at the start of domain_matches(): 'if (!g_ascii_strcasecmp (domain + 1, host)) return TRUE;' — skipping the leading dot and comparing case-insensitively. Now 'foo.com' CAN set cookies for 'domain=.foo.com', which is the correct behavior per RFC 2965.",
+      "compatibility_reason": "Although domain_matches() is a static function (not directly callable from outside soup-cookie.c), it is called by cookie parsing logic within the same file that feeds into soup_cookie_jar_set_cookie() - a public API. The net effect is that servers can now set domain cookies that were previously rejected. This expands the set of cookies accepted by the cookie jar, which is a relaxation of the input contract. Existing applications may receive cookies from domains they previously didn't.",
+      "evidence": [
+        {
+          "file": "libsoup/soup-cookie.c",
+          "lines": [
+            170,
+            177
+          ],
+          "snippet": "static gboolean\ndomain_matches (const char *domain, const char *host)\n{\n\tchar *match;\n\tint dlen;\n\n\tif (!g_ascii_strcasecmp (domain + 1, host))\n\t\treturn TRUE;\n\tif (*domain != '.')\n\t\treturn FALSE;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Although domain_matches is static, its behavior is externally observable through soup_cookie_jar_set_cookie() and soup_cookie_parse(). Cookies that were previously rejected for domain matching reasons are now accepted. This changes the externally observable cookie acceptance behavior of the library.",
+      "uncertainty": "Limited. The ChangeLog confirms this was a bug fix: '(domain_matches): fix a bug here that meant \"foo.com\" couldn't set a cookie for domain=.foo.com'. The fix aligns with RFC behavior.",
+      "manual_review_required": false,
+      "recommended_review": "Verify the fix is correct for all edge cases of domain matching (subdomain matching still works, missing leading dot cases, etc.).",
+      "test_recommendation": "Create a cookie jar session. Have a server at 'foo.com' set a cookie with 'domain=.foo.com'. Verify the cookie is accepted after the fix. Test that 'bar.foo.com' can also set cookies for 'domain=.foo.com' (existing behavior should be preserved).",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=low from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0028",
+            "file": "libsoup/soup-cookie.c",
+            "old_lines": [
+              132,
+              137
+            ],
+            "new_lines": [
+              170,
+              177
+            ],
+            "is_public": false,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [],
+            "surface_test_priority": "low",
+            "matched_surfaces": []
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=low from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.8,
+      "package_profile": "c_project",
+      "affected_surface": "SoupCookieJarClass virtual table layout",
+      "affected_api": {
+        "name": "SoupCookieJarClass",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-cookie-jar.h",
+        "old_lines": [
+          25,
+          51
+        ],
+        "new_lines": [
+          25,
+          67
+        ],
+        "symbol": "SoupCookieJarClass"
+      },
+      "old_behavior": "SoupCookieJarClass had virtual method 'save' and 4 padding slots (_libsoup_reserved1 through _libsoup_reserved4). Total: 5 function pointer fields in the class struct after parent_class.",
+      "new_behavior": "SoupCookieJarClass now has 'save', 'changed' signal virtual method, and 3 padding slots (_libsoup_reserved1 through _libsoup_reserved3). Total: 5 function pointer fields. The struct size is preserved (sizeof unchanged). The 'changed' virtual method occupies the slot previously held by _libsoup_reserved4. Remaining reserved slots shifted down by one.",
+      "compatibility_reason": "The struct size is unchanged (5 func ptrs before and after), so existing binaries that only reference fields by offset won't break. However, any subclass that was overriding _libsoup_reserved4 (which was marked as 'Padding for future expansion') would break. The 'changed' signal is a new GObject signal that subclasses can connect to or override. Since reserved slots are documented as reserved for expansion, replacing one with an actual API is within the design contract.",
+      "evidence": [
+        {
+          "file": "libsoup/soup-cookie-jar.h",
+          "lines": [
+            25,
+            67
+          ],
+          "snippet": "typedef struct {\n\tGObjectClass parent_class;\n\n\tvoid (*save)    (SoupCookieJar *jar);\n\n\t/* signals */\n\tvoid (*changed) (SoupCookieJar *jar,\n\t\t\t SoupCookie    *old_cookie,\n\t\t\t SoupCookie    *new_cookie);\n\n\t/* Padding for future expansion */\n\tvoid (*_libsoup_reserved1) (void);\n\tvoid (*_libsoup_reserved2) (void);\n\tvoid (*_libsoup_reserved3) (void);\n} SoupCookieJarClass;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "SoupCookieJarClass is a public header type (libsoup/soup-cookie-jar.h). External subclasses and consumers can access its layout. The struct layout change affects ABI compatibility for any code that depends on specific field offsets or sizeof.",
+      "uncertainty": "Whether any external code was using the _libsoup_reserved4 slot. The reserved slots are explicitly documented as padding for future expansion, so this change is expected. The struct size remaining the same makes this very low risk.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that sizeof(SoupCookieJarClass) is identical before and after the change. Check that no public subclass overrides _libsoup_reserved4.",
+      "test_recommendation": "Compile a test program that accesses G_STRUCT_OFFSET(SoupCookieJarClass, changed) and verify it's at the expected offset. Verify signal connection to 'changed' works.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0026",
+            "file": "libsoup/soup-cookie-jar.h",
+            "old_lines": [
+              25,
+              51
+            ],
+            "new_lines": [
+              25,
+              67
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ABI_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0005",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "c_project",
+      "affected_surface": "New SoupCookieJar public methods and deprecated save",
+      "affected_api": {
+        "name": "soup_cookie_jar_add_cookie / soup_cookie_jar_delete_cookie / soup_cookie_jar_all_cookies / SOUP_COOKIE_JAR_READ_ONLY",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-cookie-jar.h",
+        "old_lines": [
+          25,
+          51
+        ],
+        "new_lines": [
+          25,
+          67
+        ],
+        "symbol": "SoupCookieJar"
+      },
+      "old_behavior": "SoupCookieJar public API was: soup_cookie_jar_get_type(), soup_cookie_jar_new(), soup_cookie_jar_save(), soup_cookie_jar_get_cookies(), soup_cookie_jar_set_cookie(). No direct way to add individual cookies, delete cookies, enumerate all cookies, or control read-only mode.",
+      "new_behavior": "New public functions: soup_cookie_jar_add_cookie() (adds a cookie with 'changed' signal emission), soup_cookie_jar_delete_cookie() (deletes cookie with 'changed' signal), soup_cookie_jar_all_cookies() (returns GSList of all cookies as copies). New property: SOUP_COOKIE_JAR_READ_ONLY (gboolean construct-only property). soup_cookie_jar_save() is now deprecated (wrapped with #ifndef LIBSOUP_DISABLE_DEPRECATED) and its implementation is a no-op.",
+      "compatibility_reason": "Additive API changes: all new functions are newly introduced, old functions preserved. soup_cookie_jar_save() is deprecated but not removed; existing code using it will still compile unless LIBSOUP_DISABLE_DEPRECATED is defined. The new SOUP_COOKIE_JAR_READ_ONLY property changes the default cookie jar behavior when constructed with this property set to TRUE.",
+      "evidence": [
+        {
+          "file": "libsoup/soup-cookie-jar.h",
+          "lines": [
+            40,
+            67
+          ],
+          "snippet": "#define SOUP_COOKIE_JAR_READ_ONLY \"read-only\"\n\nGType          soup_cookie_jar_get_type      (void);\n\nSoupCookieJar *soup_cookie_jar_new           (void);\n\n#ifndef LIBSOUP_DISABLE_DEPRECATED\nvoid           soup_cookie_jar_save          (SoupCookieJar *jar);\n#endif\n\nchar          *soup_cookie_jar_get_cookies   (SoupCookieJar *jar,\n\t\t\t\t\t      SoupURI       *uri,\n\t\t\t\t\t      gboolean       for_http);\nvoid           soup_cookie_jar_set_cookie    (SoupCookieJar *jar,\n\t\t\t\t\t      SoupURI       *uri,\n\t\t\t\t\t      const char    *cookie);\nvoid           soup_cookie_jar_add_cookie    (SoupCookieJar *jar,\n\t\t\t\t\t      SoupCookie    *cookie);\nvoid           soup_cookie_jar_delete_cookie (SoupCookieJar *jar,\n\t\t\t\t\t      SoupCookie    *cookie);\nGSList        *soup_cookie_jar_all_cookies   (SoupCookieJar *jar);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "All listed functions are declared in the public header libsoup/soup-cookie-jar.h and installed as part of the libsoup-2.4 development package. External consumers can call these new functions.",
+      "uncertainty": "None. Pure additive API additions are well-understood compatibility pattern.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that soup_cookie_jar_add_cookie() properly steals the cookie (caller should not free it after). Verify soup_cookie_jar_all_cookies() returns copies that caller must free.",
+      "test_recommendation": "Create a cookie jar. Call soup_cookie_jar_add_cookie(), then soup_cookie_jar_all_cookies() to verify the cookie was added. Call soup_cookie_jar_delete_cookie() and verify it's removed. Test read-only jar rejects add/delete operations.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0026",
+            "file": "libsoup/soup-cookie-jar.h",
+            "old_lines": [
+              25,
+              51
+            ],
+            "new_lines": [
+              25,
+              67
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0006",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "c_project",
+      "affected_surface": "Build system: configure now requires sqlite3 for --with-gnome builds",
+      "affected_api": {
+        "name": "configure --with-gnome / PKG_CHECK_MODULES(SQLITE, sqlite3)",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "configure.in",
+        "old_lines": [
+          199,
+          212
+        ],
+        "new_lines": [
+          199,
+          221
+        ],
+        "symbol": "PKG_CHECK_MODULES"
+      },
+      "old_behavior": "When building with --with-gnome (default on non-Win32 systems), configure checked for libproxy or GConf. No SQLite check was performed. Build scripts that worked before with --with-gnome but without sqlite3-dev would succeed.",
+      "new_behavior": "configure now requires sqlite3 development files when building with --with-gnome: PKG_CHECK_MODULES(SQLITE, sqlite3, :, [AC_MSG_ERROR(...)]). If sqlite3.pc is not found and --with-gnome is active, configure aborts with error. AC_SUBST(SQLITE_CFLAGS) and AC_SUBST(SQLITE_LIBS) are exported to Makefile. SQLITE_CFLAGS is added to libsoup/Makefile.am INCLUDES.",
+      "compatibility_reason": "This is a build-breaking change for any user who previously built libsoup with GNOME support but without sqlite3 installed. The configure script will abort with an error message. Users must either install sqlite3-devel or pass --without-gnome to configure. Distribution packaging scripts, CI/CD pipelines, and developer build scripts that previously succeeded may now fail.",
+      "evidence": [
+        {
+          "file": "configure.in",
+          "lines": [
+            203,
+            208
+          ],
+          "snippet": "PKG_CHECK_MODULES(SQLITE, sqlite3, :, [AC_MSG_ERROR(dnl\n[Could not find sqlite3 devel files:\n\n$SQLITE_PKG_ERRORS\n\nPass \"--without-gnome\" to configure if you want to build without GNOME support.])])"
+        },
+        {
+          "file": "configure.in",
+          "lines": [
+            217,
+            218
+          ],
+          "snippet": "AC_SUBST(SQLITE_CFLAGS)\nAC_SUBST(SQLITE_LIBS)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "configure.in changes affect all users who build libsoup from source. The new dependency is enforced at configure time and will cause build failures for downstream packagers who don't have sqlite3 dev packages installed.",
+      "uncertainty": "Whether --with-gnome builds were previously possible without sqlite3. The commit author clearly knew this was a new dependency as they provide a helpful error message with workaround.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that distribution packaging scripts for libsoup have been updated to include sqlite3-devel as a build dependency when building with GNOME support.",
+      "test_recommendation": "Run ./configure --with-gnome on a system without sqlite3-devel installed. Verify it fails with the expected error message. Run configure with --without-gnome to verify it succeeds without sqlite3. On a system with sqlite3-devel, verify the build succeeds.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "configure.in",
+            "old_lines": [
+              199,
+              204
+            ],
+            "new_lines": [
+              199,
+              211
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "configure.in",
+            "old_lines": [
+              207,
+              212
+            ],
+            "new_lines": [
+              214,
+              221
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0007",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.9,
+      "package_profile": "c_project",
+      "affected_surface": "Cookie jar auto-cleans expired cookies during get_cookies",
+      "affected_api": {
+        "name": "soup_cookie_jar_get_cookies",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-cookie-jar.c",
+        "old_lines": [
+          148,
+          174
+        ],
+        "new_lines": [
+          239,
+          275
+        ],
+        "symbol": "soup_cookie_jar_get_cookies"
+      },
+      "old_behavior": "soup_cookie_jar_get_cookies() iterated through domain cookies and collected valid ones into a list. Expired cookies were simply skipped (not returned), but they remained in the internal hash table. The function was read-only with respect to the cookie jar state.",
+      "new_behavior": "During iteration, expired cookies are now actively removed from the hash table in-place (g_hash_table_insert with g_slist_delete_link) and added to a cookies_to_remove list. After the iteration loop completes, each removed cookie triggers soup_cookie_jar_changed(jar, cookie, NULL) and soup_cookie_free(cookie). This means soup_cookie_jar_get_cookies() now has a side effect: it permanently removes expired cookies from the jar and emits the 'changed' signal.",
+      "compatibility_reason": "A previously read-only getter function now mutates internal state. Calling soup_cookie_jar_get_cookies() multiple times may produce different results (fewer cookies on second call if some were expired). The 'changed' signal emission is a new observable side effect. Any code that installs signal handlers on 'changed' will be invoked during what appears to be a simple cookie fetch operation, which is unexpected.",
+      "evidence": [
+        {
+          "file": "libsoup/soup-cookie-jar.c",
+          "lines": [
+            253,
+            275
+          ],
+          "snippet": "new_head = domain_cookies = g_hash_table_lookup (priv->domains, cur);\nwhile (domain_cookies) {\n\tGSList *next = domain_cookies->next;\n\tSoupCookie *cookie = domain_cookies->data;\n\n\tif (cookie->expires && soup_date_is_past (cookie->expires)) {\n\t\tcookies_to_remove = g_slist_append (cookies_to_remove, cookie);\n\t\tnew_head = g_slist_delete_link (new_head, domain_cookies);\n\t\tg_hash_table_insert (priv->domains,\n\t\t\t\t     g_strdup (cur),\n\t\t\t\t     new_head);\n\t} else if (soup_cookie_applies_to_uri (cookie, uri) &&\n\t\t   (for_http || !cookie->http_only))\n\t\tcookies = g_slist_append (cookies, cookie);\n\n\tdomain_cookies = next;\n}"
+        },
+        {
+          "file": "libsoup/soup-cookie-jar.c",
+          "lines": [
+            285,
+            291
+          ],
+          "snippet": "for (p = cookies_to_remove; p; p = p->next) {\n\tSoupCookie *cookie = p->data;\n\n\tsoup_cookie_jar_changed (jar, cookie, NULL);\n\tsoup_cookie_free (cookie);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "soup_cookie_jar_get_cookies is a public API function declared in soup-cookie-jar.h. Its side effect change is directly observable by any consumer that calls this function.",
+      "uncertainty": "Whether any applications depend on the old behavior of get_cookies not modifying the jar. The auto-cleanup is generally beneficial (prevents stale cookie accumulation) but could surprise callers who expect no mutations.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that repeated calls to soup_cookie_jar_get_cookies with expired cookies don't cause use-after-free or double-free. Check thread safety of the hash table modification during iteration.",
+      "test_recommendation": "Add a cookie with a past expiration time. Call soup_cookie_jar_get_cookies() and verify the expired cookie is not returned. Call it again and verify it's still not there. Check that the 'changed' signal fires with old_cookie set and new_cookie NULL when expired cookies are cleaned up.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "medium",
+        "deterministic_priority": "medium",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=medium from 3 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 3,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0020",
+            "file": "libsoup/soup-cookie-jar.c",
+            "old_lines": [
+              161,
+              174
+            ],
+            "new_lines": [
+              253,
+              275
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0019",
+            "file": "libsoup/soup-cookie-jar.c",
+            "old_lines": [
+              148,
+              153
+            ],
+            "new_lines": [
+              239,
+              245
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0021",
+            "file": "libsoup/soup-cookie-jar.c",
+            "old_lines": [
+              176,
+              181
+            ],
+            "new_lines": [
+              277,
+              290
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is medium: candidate_surface_priority=medium from 3 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0008",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "c_project",
+      "affected_surface": "Cookie jar emits 'changed' signal on internal cookie operations",
+      "affected_api": {
+        "name": "SoupCookieJar::changed signal",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-cookie-jar.c",
+        "old_lines": [
+          81,
+          87
+        ],
+        "new_lines": [
+          111,
+          139
+        ],
+        "symbol": "soup_cookie_jar_class_init"
+      },
+      "old_behavior": "SoupCookieJar had no 'changed' signal. Adding/deleting cookies via internal methods did not emit any signal. External consumers could not observe cookie jar mutations.",
+      "new_behavior": "A new GObject signal 'changed' is registered on SoupCookieJar with signature: void (*changed)(SoupCookieJar *jar, SoupCookie *old_cookie, SoupCookie *new_cookie). The signal uses marshal NONE:BOXED,BOXED. It is emitted from soup_cookie_jar_changed() whenever a cookie is added, replaced, or deleted. The signal emission is gated by read_only and constructed flags: if priv->read_only or !priv->constructed, the signal is suppressed.",
+      "compatibility_reason": "This is a new observable side effect. Any code that previously called soup_cookie_jar_set_cookie() or soup_cookie_jar_add_cookie() did not trigger signal emission. Now, any connected signal handler on 'changed' will be invoked. This is additive (no existing code has 'changed' handlers) but changes the runtime behavior profile of the cookie jar significantly. Subclasses that override the 'changed' class method can intercept every cookie modification.",
+      "evidence": [
+        {
+          "file": "libsoup/soup-cookie-jar.c",
+          "lines": [
+            134,
+            149
+          ],
+          "snippet": "signals[CHANGED] =\n\tg_signal_new (\"changed\",\n\t\t      G_OBJECT_CLASS_TYPE (object_class),\n\t\t      G_SIGNAL_RUN_FIRST,\n\t\t      G_STRUCT_OFFSET (SoupCookieJarClass, changed),\n\t\t      NULL, NULL,\n\t\t      soup_marshal_NONE__BOXED_BOXED,\n\t\t      G_TYPE_NONE, 2,\n\t\t      SOUP_TYPE_COOKIE | G_SIGNAL_TYPE_STATIC_SCOPE,\n\t\t      SOUP_TYPE_COOKIE | G_SIGNAL_TYPE_STATIC_SCOPE);"
+        },
+        {
+          "file": "libsoup/soup-cookie-jar.c",
+          "lines": [
+            193,
+            204
+          ],
+          "snippet": "static void\nsoup_cookie_jar_changed (SoupCookieJar *jar,\n\t\t\t SoupCookie *old, SoupCookie *new)\n{\n\tSoupCookieJarPrivate *priv = SOUP_COOKIE_JAR_GET_PRIVATE (jar);\n\n\tif (priv->read_only || !priv->constructed)\n\t\treturn;\n\n\tg_signal_emit (jar, signals[CHANGED], 0, old, new);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The 'changed' signal is a public GObject signal installed on SoupCookieJar. External consumers can connect to it with g_signal_connect(). The signal handler is invoked during all cookie modifications, including those triggered by HTTP responses (through soup_cookie_jar_add_cookie).",
+      "uncertainty": "Whether the constructed gate (priv->constructed must be TRUE for signal to fire) might suppress signal emission during object construction, which some consumers might expect. Also, the SOUP_TYPE_COOKIE type must be registered for the signal's argument types to work (see PCA-0001).",
+      "manual_review_required": false,
+      "recommended_review": "Verify that signal emissions don't cause re-entrancy issues when signal handlers modify the cookie jar. Check that the STATIC_SCOPE flag on signal arguments is correct.",
+      "test_recommendation": "Connect a handler to the 'changed' signal. Add a cookie via soup_cookie_jar_add_cookie() and verify the signal fires with old_cookie=NULL, new_cookie=the_added_cookie. Replace an existing cookie by adding one with the same name and verify old/new are correct. Delete a cookie and verify old_cookie is set, new_cookie is NULL.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "low",
+        "deterministic_priority": "low",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=low from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0016",
+            "file": "libsoup/soup-cookie-jar.c",
+            "old_lines": [
+              81,
+              87
+            ],
+            "new_lines": [
+              111,
+              139
+            ],
+            "is_public": false,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [],
+            "surface_test_priority": "low",
+            "matched_surfaces": []
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is low: candidate_surface_priority=low from 1 matched candidate hunk(s)"
+    }
+  ],
+  "analysis_summary": {
+    "notes": "This commit adds cookie persistence infrastructure to libsoup by introducing SoupCookieJar subclasses (text file and SQLite backends). It refactors the base SoupCookieJar class to support subclassing by adding virtual methods and signals. It also registers SoupCookie as a GBoxed type. The API changes are primarily additive (new functions, new types, new signals), with two behavior-changing bug fixes (soup_cookie_applies_to_uri path matching and domain_matches). The build system now requires sqlite3 when building with GNOME support, which is a breaking change for existing build configurations."
+  },
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

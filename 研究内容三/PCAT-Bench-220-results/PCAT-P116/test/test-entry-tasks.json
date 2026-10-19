@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P056/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P056/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P056",
+  "patch_id": "8e14f88e25192080ac237cb64be452c592c1e4fe",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "SoupSession message lifecycle (queue_message, message_finished, connection_started_request)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libsoup/soup-session.c",
+        "old_lines": [
+          984,
+          1009
+        ],
+        "new_lines": [
+          1065,
+          1094
+        ],
+        "symbol": "queue_message"
+      },
+      "old_behavior": "When a message was queued (via soup_session_queue_message or send_message), only SOUP_MESSAGE_IO_STATUS_QUEUED was set and the message was appended to the internal queue. When a message finished, signal handlers were disconnected but no REQUEST_UNQUEUED was emitted.",
+      "new_behavior": "queue_message now emits g_signal_emit(session, signals[REQUEST_QUEUED], 0, msg) after setting queued status. message_finished now emits g_signal_emit(session, signals[REQUEST_UNQUEUED], 0, msg) after removing the message from the queue. Additionally, connection_started_request emits REQUEST_QUEUED for CONNECT messages that bypass the normal queuing path.",
+      "compatibility_reason": "Any code that has connected to request-started or authenticate signals will now observe additional request-queued and request-unqueued signal emissions interspersed in the request lifecycle. This changes the observable side effects: (1) signal-connected handlers may now be called at new points in the lifecycle, (2) the auth manager, NTLM manager, and logger internally use these new signals for their own lifecycle management, meaning the exact timing of auth setup and log output may shift relative to the old code. The REQUEST_UNQUEUED signal in message_finished is emitted before disconnecting the redirect_handler, which changes when cleanup callbacks fire.",
+      "test_recommendation": "Test the complete message lifecycle with signal monitoring: verify request-queued is emitted exactly once per message, request-unqueued is emitted exactly once per message, request-started may be emitted multiple times (on requeue), and authenticate is not emitted multiple times for the same message (regression test for #522601). Verify CONNECT tunnel messages emit request-queued and request-unqueued properly.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P056/compatibility-testing"
+}

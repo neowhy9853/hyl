@@ -1,0 +1,365 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/ruby",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/ruby/pca-results/0d7e50/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/ruby/pca-results/0d7e50",
+  "base_ref": "3760fedbff",
+  "base_commit": "3760fedbffb87b29d554f3b270b7c92c9a660a50",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "0d7e50a1746bfa3db2a50478d3680cd7c36ea383",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca_patch_ruby_0d7e50.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "ruby",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 8720,
+    "patch_lines": 250,
+    "diff_added_lines": 95,
+    "diff_deleted_lines": 13,
+    "diff_context_lines": 99,
+    "churn": 108,
+    "raw_hunks": 12,
+    "candidate_hunks": 12,
+    "skipped_doc_hunks": 0,
+    "changed_files": 4,
+    "candidate_context_bytes": 27884,
+    "public_candidate_hunks": 11,
+    "surface_counts": {
+      "ruby_c_extension_api": 11,
+      "user_visible_output": 12,
+      "c_ext_api": 11,
+      "ruby_exceptions": 9,
+      "exceptions": 9,
+      "tests": 1
+    },
+    "candidates_json_bytes": 75051
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 4,
+    "total_candidates": 12,
+    "compatibility_changes": 2,
+    "high_priority": 2,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.92,
+      "package_profile": "ruby",
+      "affected_surface": "Error reporting side effects during Ruby process exit cleanup",
+      "affected_api": {
+        "name": "rb_ec_exec_end_proc / rb_ec_teardown / error_handle (via rb_error_write path)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "eval.c",
+        "old_lines": [
+          147,
+          161
+        ],
+        "new_lines": [
+          147,
+          172
+        ],
+        "symbol": "rb_ec_teardown"
+      },
+      "old_behavior": "During Ruby process exit (rb_ec_teardown), if rb_vm_trap_exit() raises an exception (TAG != NONE), the trap error was silently discarded. ec->errinfo was not preserved. After EC_POP_TAG, rb_ec_exec_end_proc would run, potentially overwriting errinfo with END handler errors. EXIT trap exceptions could be lost entirely.",
+      "new_behavior": "During Ruby process exit, if rb_vm_trap_exit() raises an exception, the trap error is saved in a local trap_errinfo variable. ec->errinfo is cleared to Qnil before END procs run. After END procs complete, the trap error is reported via error_handle() and ec->errinfo is restored to trap_errinfo. This ensures EXIT handler exceptions are preserved and reported after END block handlers, without loss.",
+      "compatibility_reason": "The side effect of error reporting during Ruby process exit cleanup changes observably. Any Ruby program that registers both Signal.trap(:EXIT) and END/at_exit blocks which raise exceptions will produce different error output after this patch. Previously, EXIT handler exceptions could be silently lost; now they are always reported. END handler error output may also differ because shown_causes are shared via add_shown_cause() in eval_jump.c to prevent duplicate cause chains. This affects the externally visible diagnostic output during crash/exit reporting.",
+      "evidence": [
+        {
+          "file": "eval.c",
+          "lines": [
+            147,
+            172
+          ],
+          "snippet": "static void\nrb_ec_teardown(rb_execution_context_t *ec)\n{\n    enum ruby_tag_type state = TAG_NONE;\n    volatile VALUE trap_errinfo = Qnil;\n\n    rb_ec_fiber_scheduler_finalize(ec);\n\n    EC_PUSH_TAG(ec);\n    if ((state = EC_EXEC_TAG()) == TAG_NONE) {\n        rb_vm_trap_exit(rb_ec_vm_ptr(ec));\n    }\n    else {\n        trap_errinfo = ec->errinfo;\n        ec->errinfo = Qnil;\n    }\n    EC_POP_TAG();\n    rb_ec_exec_end_proc(ec);\n    if (!NIL_P(trap_errinfo)) {\n        error_handle(ec, trap_errinfo, state);\n        ec->errinfo = trap_errinfo;\n    }\n    rb_ec_clear_all_trace_func(ec);\n}"
+        },
+        {
+          "file": "eval_jump.c",
+          "lines": [
+            114,
+            136
+          ],
+          "snippet": "static void\nrb_ec_exec_end_proc(rb_execution_context_t * ec)\n{\n    ...\n    VALUE shown_causes = 0;\n    ...\n    if (state != TAG_NONE) {\n        VALUE err = ec->errinfo;\n        add_shown_cause(errinfo, &shown_causes);\n        error_handle_with_shown_causes(ec, err, state, &shown_causes);\n        if (!NIL_P(err)) errinfo = err;\n    }\n    ...\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "rb_error_write and rb_ec_exec_end_proc are non-static functions. The error output change is visible to any Ruby program, script, or test that observes error output during process exit. The change in diagnostic output affects all users of the Ruby interpreter during abnormal exit.",
+      "uncertainty": "The exact before/after error output difference depends on specific exception types and ordering. For programs without both EXIT traps and END blocks that raise, behavior is identical.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that error output during process exit with EXIT traps and END blocks does not break downstream tooling that parses Ruby error output.",
+      "test_recommendation": "Create Ruby scripts with combinations of Signal.trap(:EXIT) raising exceptions and multiple END blocks raising exceptions. Compare before/after stderr output for correctness and completeness.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "eval.c",
+            "old_lines": [
+              147,
+              161
+            ],
+            "new_lines": [
+              147,
+              172
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "ruby_c_extension_api",
+              "user_visible_output",
+              "c_ext_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "ruby_c_extension_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ruby C extension API and ABI."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "c_ext_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ruby C extension API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.88,
+      "package_profile": "ruby",
+      "affected_surface": "Exception reporting during END handler + EXIT trap error handling",
+      "affected_api": {
+        "name": "rb_ec_exec_end_proc / error_handle / rb_error_write / rb_ec_error_print",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "eval_jump.c",
+        "lines": [
+          114,
+          136
+        ],
+        "new_lines": [
+          113,
+          136
+        ],
+        "symbol": "rb_ec_exec_end_proc",
+        "old_lines": [
+          114,
+          132
+        ]
+      },
+      "old_behavior": "When multiple END/at_exit handlers raised exceptions, each handler's error was independently reported via error_handle() without tracking already-shown causes. This could cause duplicate cause chain output in error messages. EXIT handler errors were processed by rb_ec_teardown before END handlers, potentially being lost when END handlers also failed.",
+      "new_behavior": "END handler errors now share a common shown_causes accumulator (add_shown_cause in eval_jump.c). When an END handler raises, its errinfo is recorded as a shown cause before the next handler runs, preventing duplicate cause reporting. EXIT handler errors are now processed AFTER END handlers in rb_ec_teardown, ensuring they are visible. The error_handle_with_shown_causes function in eval_error.c accepts an external shown_causes pointer to enable this sharing.",
+      "compatibility_reason": "Exception reporting during Ruby process cleanup changes observably. Programs with multiple END blocks that chain exceptions AND an EXIT trap will see different error messages: duplicate causes are eliminated, and EXIT trap exceptions now appear in output. Test suites that assert on specific exception messages or counts during exit will be affected. The error_handle function is now a thin wrapper around error_handle_with_shown_causes, preserving the public API signature but changing internal error routing.",
+      "evidence": [
+        {
+          "file": "eval_jump.c",
+          "lines": [
+            127,
+            136
+          ],
+          "snippet": "if (state != TAG_NONE) {\n    VALUE err = ec->errinfo;\n    add_shown_cause(errinfo, &shown_causes);\n    error_handle_with_shown_causes(ec, err, state, &shown_causes);\n    if (!NIL_P(err)) errinfo = err;\n}"
+        },
+        {
+          "file": "eval_error.c",
+          "lines": [
+            279,
+            288
+          ],
+          "snippet": "static void\nadd_shown_cause(VALUE cause, VALUE *shown_causes)\n{\n    if (!NIL_OR_UNDEF_P(cause) &&\n        !THROW_DATA_P(cause) &&\n        rb_obj_is_kind_of(cause, rb_eException)) {\n        shown_cause_p(cause, shown_causes);\n    }\n}"
+        },
+        {
+          "file": "eval_error.c",
+          "lines": [
+            580,
+            588
+          ],
+          "snippet": "static int\nerror_handle(rb_execution_context_t *ec, VALUE errinfo, enum ruby_tag_type ex)\n{\n    return error_handle_with_shown_causes(ec, errinfo, ex, NULL);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The rb_error_write function (public/non-static) and rb_ec_exec_end_proc (public) both participate in the error reporting path during Ruby process exit. The change in exception deduplication and reporting order is directly observable in process exit error output, which is the primary diagnostic mechanism for Ruby users.",
+      "uncertainty": "Whether a specific test suite breaks depends on exact error output assertions. Programs without both END blocks and EXIT traps are unaffected.",
+      "manual_review_required": false,
+      "recommended_review": "Review test cases in test/ruby/test_exception.rb that assert on exception output during END/EXIT handlers. Verify the new test_multiple_error_handle and test_cause_in_exit_handler tests match expected behavior.",
+      "test_recommendation": "Run the existing test/ruby/test_exception.rb test suite and verify the new tests pass. Also create standalone Ruby programs with various combinations of END blocks and EXIT traps to validate error output completeness.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0011",
+            "file": "eval_jump.c",
+            "old_lines": [
+              125,
+              132
+            ],
+            "new_lines": [
+              127,
+              136
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "ruby_c_extension_api",
+              "user_visible_output",
+              "c_ext_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "ruby_c_extension_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ruby C extension API and ABI."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "c_ext_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ruby C extension API"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0010",
+            "file": "eval_jump.c",
+            "old_lines": [
+              114,
+              119
+            ],
+            "new_lines": [
+              114,
+              121
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "ruby_c_extension_api",
+              "user_visible_output",
+              "c_ext_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "ruby_c_extension_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ruby C extension API and ABI."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "c_ext_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ruby C extension API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

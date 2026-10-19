@@ -1,0 +1,600 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P050/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P050",
+  "base_ref": "48f07d3fe9254520dc7371666fb517e7aa201aeb^",
+  "base_commit": "c4c2cd113c7fa06c3573e8945f186abecb8fd278",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "48f07d3fe9254520dc7371666fb517e7aa201aeb",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/GNOME/libsoup/commit/48f07d3fe9254520dc7371666fb517e7aa201aeb",
+    "download_url": "https://github.com/GNOME/libsoup/commit/48f07d3fe9254520dc7371666fb517e7aa201aeb.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P050/_patch-cache/48f07d3fe925.patch",
+    "commit": "48f07d3fe9254520dc7371666fb517e7aa201aeb",
+    "base_ref_inferred": "48f07d3fe9254520dc7371666fb517e7aa201aeb^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "libsoup",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 3975,
+    "patch_lines": 108,
+    "diff_added_lines": 17,
+    "diff_deleted_lines": 10,
+    "diff_context_lines": 52,
+    "churn": 27,
+    "raw_hunks": 8,
+    "candidate_hunks": 8,
+    "skipped_doc_hunks": 0,
+    "changed_files": 3,
+    "candidate_context_bytes": 15342,
+    "public_candidate_hunks": 8,
+    "surface_counts": {
+      "user_visible_output": 4,
+      "http_semantics": 8,
+      "persistence_state": 2,
+      "network_protocol": 1
+    },
+    "candidates_json_bytes": 37405
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 8,
+    "compatibility_changes": 5,
+    "high_priority": 3,
+    "medium_priority": 2,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "libsoup",
+      "affected_surface": "soup_cookie_parse public API — origin URI validation relaxed to allow non-HTTP URIs",
+      "affected_api": {
+        "name": "soup_cookie_parse",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/cookies/soup-cookie.c",
+        "old_lines": [
+          175,
+          179
+        ],
+        "new_lines": [
+          175,
+          177
+        ],
+        "symbol": "soup_cookie_parse"
+      },
+      "old_behavior": "soup_cookie_parse 通过其内部 static 函数 parse_one_cookie 中的 `g_return_val_if_fail (origin == NULL || SOUP_URI_IS_VALID (origin), NULL)` 检查，要求 origin 要么为 NULL，要么通过 SOUP_URI_IS_VALID 检查（即非 NULL 且 host 非 NULL 且 host[0] 非空）。传入空字符串 host 的 URI 会返回 NULL。另外，传入 NULL cookie 字符串会导致崩溃（无 NULL 检查）。",
+      "new_behavior": "parse_one_cookie 中移除了 SOUP_URI_IS_VALID 检查。在 soup_cookie_parse 入口新增两个 g_return_val_if_fail 检查：(1) cookie != NULL 返回 NULL，防止崩溃；(2) origin == NULL || g_uri_get_host(origin) != NULL，只要求 host 非 NULL，不再检查 host[0]。空字符串 host 的 URI 现在被接受。",
+      "compatibility_reason": "soup_cookie_parse 是公开导出的 API 函数，被 WebKit 等消费者广泛使用。变更前，传入含空字符串 host 的 URI（如 file:///path 或某些自定义 scheme URI）会被拒绝并返回 NULL；变更后此类 URI 被接受。这是输入合法性规则放宽（INPUT_CONTRACT_CHANGE），可能导致之前返回 NULL 的场景现在返回有效的 SoupCookie 对象。增加 cookie NULL 检查是防御性改进，将崩溃转变为安全的 NULL 返回。",
+      "evidence": [
+        {
+          "file": "libsoup/cookies/soup-cookie.c",
+          "lines": [
+            175,
+            180
+          ],
+          "snippet": "// OLD (parse_one_cookie):\n        g_return_val_if_fail (origin == NULL || SOUP_URI_IS_VALID (origin), NULL);\n// NEW (removed from parse_one_cookie, added to soup_cookie_parse):\n        g_return_val_if_fail (cookie != NULL, NULL);\n        g_return_val_if_fail (origin == NULL || g_uri_get_host (origin) != NULL, NULL);"
+        },
+        {
+          "file": "libsoup/soup-uri-utils-private.h",
+          "lines": [
+            31,
+            31
+          ],
+          "snippet": "#define SOUP_URI_IS_VALID(x) (x && g_uri_get_host(x) && g_uri_get_host(x)[0])"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "soup_cookie_parse 是 libsoup 公共 API 中通过 soup-cookie.h 头文件导出的公开函数，是 cookie 解析的主要入口，被 WebKit 等外部消费者直接调用。",
+      "uncertainty": "SOUP_URI_IS_VALID 宏在内部头文件 soup-uri-utils-private.h 中定义，需要确认该头文件仅在 libsoup 内部使用，移除其检查不影响外部 ABI。然而 soup_cookie_parse 的公共行为确实发生了变化。",
+      "manual_review_required": false,
+      "recommended_review": "确认 WebKit 等使用 soup_cookie_parse 的调用方是否已适配新的 origin 验证逻辑。",
+      "test_recommendation": "测试传入 file:///path 或 data:text/html,foo 等非 HTTP URI 作为 origin 调用 soup_cookie_parse，验证返回值不为 NULL 且 cookie 属性（domain、path）被正确默认填充。同时测试 origin 为 NULL 和 origin host 为 NULL 的情况确保仍然返回 NULL。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "libsoup/cookies/soup-cookie.c",
+            "old_lines": [
+              175,
+              183
+            ],
+            "new_lines": [
+              175,
+              181
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "libsoup",
+      "affected_surface": "soup_cookie_applies_to_uri public API — URI 验证放宽以接受非 HTTP URI",
+      "affected_api": {
+        "name": "soup_cookie_applies_to_uri",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/cookies/soup-cookie.c",
+        "old_lines": [
+          1061,
+          1067
+        ],
+        "new_lines": [
+          1062,
+          1069
+        ],
+        "symbol": "soup_cookie_applies_to_uri"
+      },
+      "old_behavior": "soup_cookie_applies_to_uri 通过 `g_return_val_if_fail (SOUP_URI_IS_VALID (uri), FALSE)` 检查，要求 uri 通过 SOUP_URI_IS_VALID（非 NULL 且 host 非 NULL 且 host[0] 非空）。不满足条件时返回 FALSE。无 cookie 参数 NULL 检查。",
+      "new_behavior": "新增 `g_return_val_if_fail (cookie != NULL, FALSE)` 和 `g_return_val_if_fail (uri != NULL, FALSE)`。只检查 cookie 和 uri 是否为 NULL，不再检查 uri 的 host 是否存在或非空。空字符串 host 或 NULL host 的 URI 现在通过检查，进入后续逻辑（secure check、path matching 等）。",
+      "compatibility_reason": "soup_cookie_applies_to_uri 是判断 cookie 是否适用于特定 URI 的核心公开 API。变更前，非 HTTP URI（host 为空或不存在）会直接返回 FALSE（不适用）；变更后此类 URI 进入完整的 cookie 匹配逻辑（secure check、path matching、expiry check 等）。这改变了 cookie 对非 HTTP URI 的适用范围语义，是输入契约放宽。",
+      "evidence": [
+        {
+          "file": "libsoup/cookies/soup-cookie.c",
+          "lines": [
+            1061,
+            1069
+          ],
+          "snippet": "// OLD:\n        g_return_val_if_fail (SOUP_URI_IS_VALID (uri), FALSE);\n// NEW:\n        g_return_val_if_fail (cookie != NULL, FALSE);\n        g_return_val_if_fail (uri != NULL, FALSE);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "soup_cookie_applies_to_uri 是公共头文件 soup-cookie.h 声明的公开导出函数，被 soup_cookie_jar 内部使用，也对外部消费者可见。",
+      "uncertainty": "添加 cookie NULL 检查是防御性改进，但可能会导致之前不会崩溃（因为 cookie 总被正确传递）的场景下出现不可预期行为。由于 uri 验证从 SOUP_URI_IS_VALID 降级为仅为 NULL 检查，调用方可能对非 HTTP URI 观察到不同的 cookie 行为。",
+      "manual_review_required": false,
+      "recommended_review": "验证 soup_cookie_applies_to_uri 调用链中是否有依赖旧 URI 验证返回 FALSE 的逻辑。",
+      "test_recommendation": "测试对含有效 path 和 domain 的 cookie 调用 soup_cookie_applies_to_uri(cookie, non_http_uri)，验证返回值变化。测试传入 file:///path 样式的 URI 和仅有 scheme 无 host 的 URI。测试 cookie 参数为 NULL 时返回 FALSE。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "libsoup/cookies/soup-cookie.c",
+            "old_lines": [
+              1061,
+              1067
+            ],
+            "new_lines": [
+              1062,
+              1069
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "libsoup",
+      "affected_surface": "soup_message_set_first_party public API — first_party URI 验证放宽",
+      "affected_api": {
+        "name": "soup_message_set_first_party",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-message.c",
+        "old_lines": [
+          1849,
+          1855
+        ],
+        "new_lines": [
+          1849,
+          1855
+        ],
+        "symbol": "soup_message_set_first_party"
+      },
+      "old_behavior": "soup_message_set_first_party 通过 `g_return_if_fail (SOUP_URI_IS_VALID (first_party))` 检查，要求 first_party 通过 SOUP_URI_IS_VALID（非 NULL 且 host 非 NULL 且 host[0] 非空）。不满足时触发 g_return_if_fail 警告并中止执行，first_party 不会被设置。",
+      "new_behavior": "改为 `g_return_if_fail (first_party != NULL)`，只检查 first_party 是否为 NULL。空字符串 host 或 NULL host 的 URI 现在通过检查并继续执行（后续 soup_uri_copy_with_normalized_flags 可能返回 NULL 导致提前 return）。",
+      "compatibility_reason": "soup_message_set_first_party 设置消息的第一方上下文，影响 cookie SameSite 策略判定。变更前，非 HTTP first_party URI 会被拒绝（函数 silently abort）；变更后此类 URI 被接受。这改变了 cookie 策略的输入面：之前依赖 SOUP_URI_IS_VALID 过滤的场景现在可能设置非 HTTP 的 first_party，进而影响 SameSite cookie 判定。",
+      "evidence": [
+        {
+          "file": "libsoup/soup-message.c",
+          "lines": [
+            1849,
+            1855
+          ],
+          "snippet": "// OLD:\n        g_return_if_fail (SOUP_URI_IS_VALID (first_party));\n// NEW:\n        g_return_if_fail (first_party != NULL);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "soup_message_set_first_party 是 soup-message.h 中声明的公开导出函数，被 WebKit 等消费者用于设置请求的 first party 上下文。",
+      "uncertainty": "First party 设为非 HTTP URI 后，后续 cookie 策略判定逻辑（如 SameSite 检查）是否能正确处理此类 URI 不确定，需要验证是否引入安全风险。",
+      "manual_review_required": true,
+      "recommended_review": "需要人工审查非 HTTP first_party URI 对 SameSite cookie 策略的影响，确认不会导致安全策略绕过。",
+      "test_recommendation": "测试调用 soup_message_set_first_party(msg, file_uri) 后检查 first_party 是否被正确设置。测试涉及 SameSite cookie 策略的场景，验证非 HTTP first_party 不会导致 SameSite 检查被绕过。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0007",
+            "file": "libsoup/soup-message.c",
+            "old_lines": [
+              1849,
+              1855
+            ],
+            "new_lines": [
+              1849,
+              1855
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "libsoup",
+      "affected_surface": "soup_message_set_site_for_cookies public API — site_for_cookies URI 验证完全移除",
+      "affected_api": {
+        "name": "soup_message_set_site_for_cookies",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-message.c",
+        "old_lines": [
+          1912,
+          1918
+        ],
+        "new_lines": [
+          1912,
+          1917
+        ],
+        "symbol": "soup_message_set_site_for_cookies"
+      },
+      "old_behavior": "soup_message_set_site_for_cookies 通过 `g_return_if_fail (site_for_cookies == NULL || SOUP_URI_IS_VALID (site_for_cookies))` 验证：site_for_cookies 为 NULL 时跳过，非 NULL 时必须通过 SOUP_URI_IS_VALID（非 NULL 且 host 非 NULL 且 host[0] 非空）。不满足时触发 g_return_if_fail 警告并中止。",
+      "new_behavior": "完全移除了 SOUP_URI_IS_VALID 检查，只保留 SOUP_IS_MESSAGE 检查。任何非 NULL 的 URI（无论 host 是否存在/为空）都被接受，仅当 soup_uri_copy_with_normalized_flags 返回 NULL 时才提前 return。",
+      "compatibility_reason": "soup_message_set_site_for_cookies 设置 SameSite cookie 判定所需的 site-for-cookies URL。移除 URI 有效性验证意味着非 HTTP URI（如空 host 的 URI）现在可作为 site_for_cookies 被设置。这与 SameSite 规范的预期行为（需要 registrable domain 匹配）存在潜在不一致，可能影响 cookie 样本策略的防御效果。",
+      "evidence": [
+        {
+          "file": "libsoup/soup-message.c",
+          "lines": [
+            1912,
+            1917
+          ],
+          "snippet": "// OLD (removed entirely):\n        g_return_if_fail (site_for_cookies == NULL || SOUP_URI_IS_VALID (site_for_cookies));\n// NEW: no validation beyond SOUP_IS_MESSAGE(msg)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "soup_message_set_site_for_cookies 是 soup-message.h 中声明的公开导出函数，被 WebKit 等消费者使用。",
+      "uncertainty": "site_for_cookies 的后续使用逻辑（如 soup_uri_copy_with_normalized_flags）可能对无效 URI 已有容错处理，但仍需验证非 HTTP URI 在此路径上不会导致崩溃或安全绕过。",
+      "manual_review_required": true,
+      "recommended_review": "确认非 HTTP site_for_cookies URI 在 SameSite cookie 策略比较中的行为正确，不会导致安全策略绕过。",
+      "test_recommendation": "测试调用 soup_message_set_site_for_cookies(msg, non_http_uri)，然后验证 site_for_cookies 的实际值。对涉及 SameSite 策略的完整场景进行集成测试。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0008",
+            "file": "libsoup/soup-message.c",
+            "old_lines": [
+              1912,
+              1918
+            ],
+            "new_lines": [
+              1912,
+              1917
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "network_protocol",
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0005",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.8,
+      "package_profile": "libsoup",
+      "affected_surface": "Cookie jar 内部 cookie 查询逻辑 — 空字符串 host 的 URI 现在进行 cookie 查询而非直接返回空",
+      "affected_api": {
+        "name": "get_cookies (internal, reached via soup_cookie_jar public APIs)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/cookies/soup-cookie-jar.c",
+        "old_lines": [
+          321,
+          337
+        ],
+        "new_lines": [
+          321,
+          343
+        ],
+        "symbol": "get_cookies"
+      },
+      "old_behavior": "get_cookies 中 `if (!host || !host[0])` 检查：host 为 NULL 或空字符串时立即返回 NULL（无 cookie）。对于空字符串 host，创建 `g_strdup_printf(\".%s\", host)` 即 `\".\"` 字符串，然后通过 dot-separated domain 迭代查找 cookie（通常不会匹配到任何 cookie）。",
+      "new_behavior": "`if (!host)` 检查：仅 host 为 NULL 时返回 NULL。空字符串 host 不会被提前拒绝。新增 `if (host[0])` 分支：host 非空时创建 `\".<host>\"` 格式的 domain 进行 cookie 查找；host 为空字符串时（else 分支）创建空字符串 domain 且设置 next_domain = NULL，使 do-while 循环仅执行一次查找空 domain 匹配的 cookie。",
+      "compatibility_reason": "虽然 get_cookies 是 static 内部函数，但其行为变化通过 public API（如 soup_cookie_jar_get_cookie_list、soup_cookie_jar_get_cookies 等）对外可见。变更前，含空字符串 host URI 的请求不会返回任何 cookie；变更后，可能匹配到 domain 为空字符串的 cookie（如果存在）。这改变了 cookie jar 在非 HTTP URI 场景下的 cookie 返回行为。",
+      "evidence": [
+        {
+          "file": "libsoup/cookies/soup-cookie-jar.c",
+          "lines": [
+            321,
+            343
+          ],
+          "snippet": "// OLD:\n        if (!host || !host[0])\n                return NULL;\n        ...\n        domain = cur = g_strdup_printf (\".%s\", host);\n        next_domain = domain + 1;\n// NEW:\n        if (!host)\n                return NULL;\n        ...\n        if (host[0]) {\n                domain = cur = g_strdup_printf (\".%s\", host);\n                next_domain = domain + 1;\n        } else {\n                domain = cur = g_strdup (host);\n                next_domain = NULL;\n        }"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "get_cookies 虽然是 static 函数，但被 public API 如 soup_cookie_jar_get_cookie_list 和 soup_cookie_jar_get_cookies 在 cookie jar 查询路径中调用，这些 public API 的外部行为因 get_cookies 内部变更而改变。",
+      "uncertainty": "实际匹配到空字符串 domain cookie 的场景极为罕见，但也不能完全排除。主要冲击在于行为一致性的变化。",
+      "manual_review_required": false,
+      "recommended_review": "确认 soup_cookie_jar 的 public API（get_cookie_list、get_cookies）对非 HTTP URI 的返回结果是否符合预期。",
+      "test_recommendation": "通过 soup_cookie_jar_get_cookie_list 对 file:// URI 查询 cookie，验证返回结果是否正确处理。对比变更前后的 cookie 列表差异。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "libsoup/cookies/soup-cookie-jar.c",
+            "old_lines": [
+              321,
+              327
+            ],
+            "new_lines": [
+              321,
+              327
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "libsoup/cookies/soup-cookie-jar.c",
+            "old_lines": [
+              330,
+              337
+            ],
+            "new_lines": [
+              330,
+              343
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "analysis_summary": {
+    "notes": "此补丁统一放宽了 libsoup cookie 子系统对非 HTTP URI 的限制。核心变更：将多处 `SOUP_URI_IS_VALID`（要求非 NULL、非空 host）检查替换为更宽松的 NULL-only 或 host-non-NULL 检查。这是为了 WebKit 兼容性（WebKit 需要非 HTTP URI 支持 cookie 操作）而做的契约变更。所有 5 个 findings 均为 INPUT_CONTRACT_CHANGE 类型——输入合法性范围被扩大到非 HTTP URI。HUNK-0004（文档注释添加 nullable 标注）仅为 GObject Introspection 元数据改进，不构成独立的兼容性变更。"
+  }
+}

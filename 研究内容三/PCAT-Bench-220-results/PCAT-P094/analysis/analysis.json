@@ -1,0 +1,232 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P034/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P034",
+  "base_ref": "06bb174f89c5db340f0913337e2f5c6f8744b191^",
+  "base_commit": "9a9246555f6cf7710141541200c31b83890019fb",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "06bb174f89c5db340f0913337e2f5c6f8744b191",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/golang/go/commit/06bb174f89c5db340f0913337e2f5c6f8744b191",
+    "download_url": "https://github.com/golang/go/commit/06bb174f89c5db340f0913337e2f5c6f8744b191.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P034/_patch-cache/06bb174f89c5.patch",
+    "commit": "06bb174f89c5db340f0913337e2f5c6f8744b191",
+    "base_ref_inferred": "06bb174f89c5db340f0913337e2f5c6f8744b191^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "golang",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 6769,
+    "patch_lines": 185,
+    "diff_added_lines": 73,
+    "diff_deleted_lines": 12,
+    "diff_context_lines": 59,
+    "churn": 85,
+    "raw_hunks": 9,
+    "candidate_hunks": 9,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 25445,
+    "public_candidate_hunks": 8,
+    "surface_counts": {
+      "tests": 1,
+      "go_errors": 9,
+      "user_visible_output": 9,
+      "stdlib": 9,
+      "errors": 9,
+      "go_exported_api": 8,
+      "go_commands": 1
+    },
+    "candidates_json_bytes": 64090
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 9,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.92,
+      "package_profile": "golang",
+      "affected_surface": "http.ResponseWriter.WriteHeader, http.ResponseWriter.Write — HTTP server connection lifecycle for Expect: 100-continue requests",
+      "affected_api": {
+        "name": "http.ResponseWriter.WriteHeader / http.ResponseWriter.Write (via internal response.WriteHeader / response.write)",
+        "kind": "exported_function",
+        "language": "go"
+      },
+      "location": {
+        "file": "src/net/http/server.go",
+        "old_lines": [
+          1185,
+          1194
+        ],
+        "new_lines": [
+          1209,
+          1220
+        ],
+        "symbol": "response.WriteHeader"
+      },
+      "old_behavior": "当HTTP handler接收到带有Expect: 100-continue的请求，并在未发送100 Continue的情况下直接返回200+最终响应时，服务器调用disableWriteContinue()仅禁用自动100 Continue发送，但之后仍会尝试排空请求体（body drain），导致服务器可能永久等待客户端发送一个永远不会到达的请求体，造成连接hang。",
+      "new_behavior": "当HTTP handler接收到带有Expect: 100-continue的请求，并在未发送100 Continue的情况下直接返回200+最终响应时，服务器调用disableWriteContinue(true)，不仅禁用自动100 Continue，还会设置closeAfterReply=true（响应中将包含Connection: close，连接不再复用），并标记expectContinueReader.closed=true（防止后续body drain）。服务器不再尝试排空请求体，连接在响应完成后关闭。",
+      "compatibility_reason": "此变更是对RFC 7230的正确实现：客户端在收到100 Continue之前不应发送请求体。旧行为导致服务器hang（bug），新行为修复了hang但引入了可观察的副作用：1) 服务器在响应头中添加或隐含Connection: close；2) TCP连接不再被复用；3) 连接在响应后关闭而非保持活跃等待后续请求。对于已依赖旧行为（连接复用）的场景，这是一个兼容性变更。另外，response.write()和response.finishRequest()中新增的disableWriteContinue(true)调用增强了此行为的覆盖范围。",
+      "evidence": [
+        {
+          "file": "src/net/http/server.go",
+          "lines": [
+            1209,
+            1220
+          ],
+          "snippet": "// Sending a 100 Continue or any non-1XX header disables the\n// automatically-sent 100 Continue from Request.Body.Read. If it is a final\n// response (200 or higher), we skip draining the request body, which the\n// client will never send.\nif code == 100 || code >= 200 {\n\tw.disableWriteContinue(code >= 200)\n}"
+        },
+        {
+          "file": "src/net/http/server.go",
+          "lines": [
+            573,
+            598
+          ],
+          "snippet": "func (w *response) disableWriteContinue(skipDrain bool) {\n\tecr, ok := w.reqBody.(*expectContinueReader)\n\tif !ok {\n\t\treturn\n\t}\n\tw.writeContinueMu.Lock()\n\tif w.canWriteContinue.Load() {\n\t\tw.canWriteContinue.Store(false)\n\t\tif skipDrain {\n\t\t\tw.closeAfterReply = true\n\t\t\tecr.closed.Store(true)\n\t\t}\n\t}\n\tw.writeContinueMu.Unlock()\n}"
+        },
+        {
+          "file": "src/net/http/server.go",
+          "lines": [
+            1689,
+            1695
+          ],
+          "snippet": "if w.canWriteContinue.Load() {\n\t// Body reader wants to write 100 Continue but hasn't yet. Tell it not to.\n\tw.disableWriteContinue(true)\n}"
+        },
+        {
+          "file": "src/net/http/server.go",
+          "lines": [
+            1727,
+            1736
+          ],
+          "snippet": "if w.canWriteContinue.Load() {\n\tw.disableWriteContinue(true)\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "尽管修改的函数（response.WriteHeader, response.write, response.finishRequest, disableWriteContinue）都在unexported类型response上，但它们实现了导出的http.ResponseWriter接口，任何HTTP handler通过该接口调用WriteHeader或Write时都会触发新的行为。可观察的外部效应包括：HTTP响应头（Connection: close添加或隐含）、TCP连接生命周期（不再复用，响应后关闭）、以及对客户端行为的影响（不再有body drain hang）。",
+      "uncertainty": "对于状态码101-199（除100外）的1xx informational响应，新旧行为一致：不支持body drain。影响面限于Expect: 100-continue场景，该场景相对不常见。不确定是否有外部代码显式依赖旧行为中连接在Expect: 100-continue未完成时的复用语义，但这种场景极罕见，因为旧行为本身会导致hang。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核。变更逻辑清晰明确：修复了一个已知bug（issue #75933），通过正确实现RFC 7230的Expect/Continue语义来防止服务器hang。",
+      "test_recommendation": "建议对以下场景进行回归测试：1) 客户端发送Expect: 100-continue，服务器直接返回200而不发送100 Continue → 验证服务器不hang且连接正确关闭；2) 客户端发送Expect: 100-continue，服务器先发送100 Continue再返回200 → 验证连接正常复用；3) 客户端发送Expect: 100-continue，服务器通过Hijack接管连接 → 验证disableWriteContinue(false)正确行为。补丁中已包含TestServerExpect100ContinueUnreadBody测试覆盖场景1。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0004",
+            "file": "src/net/http/server.go",
+            "old_lines": [
+              1185,
+              1194
+            ],
+            "new_lines": [
+              1209,
+              1220
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "go_exported_api",
+              "go_errors",
+              "user_visible_output",
+              "stdlib",
+              "errors"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "go_exported_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported Go functions, methods, types, interfaces, constants, and variables."
+              },
+              {
+                "name": "go_errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel value, wrapping, and comparison behavior."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "stdlib",
+                "test_priority": "high",
+                "public": true,
+                "description": "Go standard library"
+              },
+              {
+                "name": "errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel errors, error wrapping"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Findings adjudicated. Analysis complete. Validate with validate_analysis.py and proceed to testing if findings exist."
+}

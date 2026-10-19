@@ -1,0 +1,131 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup/pca-results/71ca70/analysis.json",
+  "patch_id": "71ca70a0f62cfc30dfacfd2ee0952a86e2e64055",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup/pca-results/71ca70/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+    "base_commit": "4e0fe0f16215b2f481356e879bc05661862ae4ad",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup/pca-results/71ca70/_worktrees/patched",
+    "package_profile": "libsoup"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc",
+    "optimization": "-O0",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Built libsoup 2.72.0 from source using meson on Ubuntu 22.04 host",
+      "libpsl dependency replaced with stub library for build compatibility",
+      "Both before (4e0fe0f1) and after (71ca70a0) builds completed successfully",
+      "Coverage instrumented build with -fprofile-arcs -ftest-coverage -O0"
+    ]
+  },
+  "summary": {
+    "findings_total": 2,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 2,
+    "inputs_executed": 2,
+    "contracts_total": 2,
+    "contracts_passed": 1,
+    "contracts_breached": 1,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 5,
+    "patch_lines_covered": 5,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "status": "passed",
+      "target_location": {
+        "file": "libsoup/soup-session.c",
+        "new_lines": [270, 288],
+        "symbol": "soup_session_constructor"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "verified",
+          "artifact_path": "test-entry-work/PCA-TE-0001/test_program.c",
+          "run_command": "LD_LIBRARY_PATH=<build>/libsoup ./test-before && ./test-after",
+          "expected_signal": "SoupSessionAsync: ssl-use-system-ca-file=FALSE before, TRUE after; tls-database=NULL before, SET after",
+          "reachability_signal": "Confirmed: both before and after test programs executed successfully, output shows SoupSessionAsync property changes as expected"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "side_effect_manifest_stability:SoupSessionAsync_defaults",
+          "status": "breached",
+          "detail": "SoupSessionAsync default construction: ssl-use-system-ca-file changed from FALSE to TRUE; tls-database changed from NULL to system-CA-database. Intentional breach documented by patch author for security hardening."
+        },
+        {
+          "contract_id": "side_effect_manifest_stability:plain_SoupSession_defaults",
+          "status": "passed",
+          "detail": "Plain SoupSession default construction: ssl-use-system-ca-file remains TRUE, tls-database remains system-CA-database. No change."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 5,
+        "covered_lines": 5,
+        "uncovered_lines": [],
+        "rate": 100.0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "SoupSessionAsync-default",
+          "diff_type": "SIDE_EFFECT_CHANGE",
+          "before": "ssl-use-system-ca-file=FALSE, tls-database=NULL",
+          "after": "ssl-use-system-ca-file=TRUE, tls-database=system-ca-database",
+          "evidence": "Test program output confirmed before/after property defaults differ; gcov confirmed changed lines (276,277,278,280,285 in patched soup-session.c) were executed 2x"
+        }
+      ],
+      "notes": [
+        "GObject property defaults for SoupSessionAsync changed: ssl-use-system-ca-file FALSE→TRUE, tls-database NULL→system-CA-database",
+        "Plain SoupSession behavior unchanged (already had system CA by default)",
+        "100% patch-line coverage achieved (5/5 executable lines covered)",
+        "This is an intentional incompatibility for security improvement"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "finding",
+      "id": "PCA-0002",
+      "reason": "Medium-priority finding not tested under --min-priority high. PCA-0002 covers notify::tls-database GObject signal emission behavior change, which requires more complex signal-connection test harness.",
+      "required_action": "Set --min-priority medium or all to include this finding in a further test pass"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "/tmp/soup-session.c.gcov",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "SoupSessionAsync and SoupSessionSync now default to system CA certificate validation (ssl-use-system-ca-file=TRUE, tls-database=system-CA-database) instead of no validation (FALSE/NULL). This is a deliberate security-hardening incompatibility acknowledged by the patch author. Plain SoupSession behavior is unchanged. Patch line coverage is 100% (5/5 executable lines covered).",
+    "recommended_actions": [
+      "Audit downstream applications using SoupSessionAsync/SoupSessionSync without explicit TLS configuration",
+      "For affected applications, either configure custom CA certificates via tls-database property or set ssl-use-system-ca-file=FALSE if self-signed certs are intentionally trusted",
+      "Consider migrating from deprecated SoupSessionAsync/SoupSessionSync to plain SoupSession",
+      "Run PCA-0002 (medium-priority notify::tls-database signal test) with lower min-priority threshold"
+    ]
+  }
+}

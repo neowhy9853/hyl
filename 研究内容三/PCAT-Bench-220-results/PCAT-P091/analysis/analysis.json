@@ -1,0 +1,216 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P031/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P031",
+  "base_ref": "efbecbbb465c99ed608b06d72fa1982122382d00^",
+  "base_commit": "5005a2068bc525f0d209cea43601a7d3f0a8cde5",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "efbecbbb465c99ed608b06d72fa1982122382d00",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/golang/go/commit/efbecbbb465c99ed608b06d72fa1982122382d00",
+    "download_url": "https://github.com/golang/go/commit/efbecbbb465c99ed608b06d72fa1982122382d00.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P031/_patch-cache/efbecbbb465c.patch",
+    "commit": "efbecbbb465c99ed608b06d72fa1982122382d00",
+    "base_ref_inferred": "efbecbbb465c99ed608b06d72fa1982122382d00^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "golang",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 9653,
+    "patch_lines": 260,
+    "diff_added_lines": 140,
+    "diff_deleted_lines": 0,
+    "diff_context_lines": 60,
+    "churn": 140,
+    "raw_hunks": 9,
+    "candidate_hunks": 9,
+    "skipped_doc_hunks": 0,
+    "changed_files": 8,
+    "candidate_context_bytes": 25290,
+    "public_candidate_hunks": 8,
+    "surface_counts": {
+      "go_errors": 9,
+      "user_visible_output": 9,
+      "errors": 9,
+      "go_exported_api": 7,
+      "stdlib": 8,
+      "config_keys": 5,
+      "tests": 1
+    },
+    "candidates_json_bytes": 66968
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 8,
+    "total_candidates": 9,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "golang",
+      "affected_surface": "go_exported_api, stdlib",
+      "affected_api": {
+        "name": "ConnectionState.LocalCertificate",
+        "kind": "struct_type",
+        "language": "go"
+      },
+      "location": {
+        "file": "src/crypto/tls/common.go",
+        "old_lines": [
+          325,
+          330
+        ],
+        "new_lines": [
+          325,
+          335
+        ],
+        "symbol": "ConnectionState"
+      },
+      "old_behavior": "ConnectionState 结构体不包含 LocalCertificate 字段。调用 Conn.ConnectionState() 后无法获知本端在 TLS 握手中向对端出示了哪个证书链。",
+      "new_behavior": "ConnectionState 新增导出字段 LocalCertificate [][]byte，TLS 握手期间会记录本端向对端出示的证书链（DER 编码）。该字段仅在非恢复连接（DidResume 为 false）时填充。",
+      "compatibility_reason": "crypto/tls.ConnectionState 是 Go 标准库公开导出结构体。新增字段 LocalCertificate 改变了结构体布局（ABI），并使得 TLS 握手产生新的外部可观察副作用：调用者现在可通过 Conn.ConnectionState().LocalCertificate 获取本端证书链信息。该 change 为纯增量变更，不影响既有字段语义或旧代码编译，但改变了公开 API surface。",
+      "evidence": [
+        {
+          "file": "src/crypto/tls/common.go",
+          "lines": [
+            325,
+            335
+          ],
+          "snippet": "\t// HelloRetryRequest indicates whether we sent a HelloRetryRequest if we\n\t// are a server, or if we received a HelloRetryRequest if we are a client.\n\tHelloRetryRequest bool\n\n\t// LocalCertificate is the certificate chain presented to the peer, if any,\n\t// during the handshake. This field is only populated for connections which\n\t// are not resumed (DidResume is false).\n\tLocalCertificate [][]byte\n\n\t// ekm is a closure exposed via ExportKeyingMaterial.\n\tekm func(label string, context []byte, length int) ([]byte, error)"
+        },
+        {
+          "file": "src/crypto/tls/conn.go",
+          "lines": [
+            1622,
+            1629
+          ],
+          "snippet": "\tstate.PeerCertificates = c.peerCertificates\n\tstate.LocalCertificate = c.localCertificate\n\tstate.VerifiedChains = c.verifiedChains\n\tstate.SignedCertificateTimestamps = c.scts\n\tstate.OCSPResponse = c.ocspResponse"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "LocalCertificate 是公开导出字段（首字母大写），位于 crypto/tls.ConnectionState 导出结构体中，是 Go 标准库公开 API surface 的一部分，任何调用 Conn.ConnectionState() 的代码均可访问。",
+      "uncertainty": "该字段为增量新增，不存在拆除风险。旧代码编译不受影响。需确认序列化/日志/调试工具是否因新增字段而输出变更。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核。纯增量 API 添加，与 Go 1 兼容性承诺一致。",
+      "test_recommendation": "验证 ConnectionState.LocalCertificate 在 TLS 1.0-1.3 各版本、client/server 两侧、callback/Certificates 两种方式下均正确填充；验证恢复连接（DidResume=true）时 LocalCertificate 为 nil。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=struct_type on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "src/crypto/tls/common.go",
+            "old_lines": [
+              325,
+              330
+            ],
+            "new_lines": [
+              325,
+              335
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "go_exported_api",
+              "go_errors",
+              "user_visible_output",
+              "stdlib",
+              "errors"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "go_exported_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported Go functions, methods, types, interfaces, constants, and variables."
+              },
+              {
+                "name": "go_errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel value, wrapping, and comparison behavior."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "stdlib",
+                "test_priority": "high",
+                "public": true,
+                "description": "Go standard library"
+              },
+              {
+                "name": "errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel errors, error wrapping"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=struct_type on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

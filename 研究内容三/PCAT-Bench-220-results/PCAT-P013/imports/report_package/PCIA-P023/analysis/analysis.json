@@ -1,0 +1,219 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P023/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P023",
+  "base_ref": "07ae6f133ad7a4e7ed506f6a511809b1fc3d1465^",
+  "base_commit": "71cf3130c6e5dd903837b6871af99156c799fd1e",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "07ae6f133ad7a4e7ed506f6a511809b1fc3d1465",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/python/cpython/commit/07ae6f133ad7a4e7ed506f6a511809b1fc3d1465",
+    "download_url": "https://github.com/python/cpython/commit/07ae6f133ad7a4e7ed506f6a511809b1fc3d1465.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P023/_patch-cache/07ae6f133ad7.patch",
+    "commit": "07ae6f133ad7a4e7ed506f6a511809b1fc3d1465",
+    "base_ref_inferred": "07ae6f133ad7a4e7ed506f6a511809b1fc3d1465^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "c_project",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 2801,
+    "patch_lines": 61,
+    "diff_added_lines": 11,
+    "diff_deleted_lines": 0,
+    "diff_context_lines": 24,
+    "churn": 11,
+    "raw_hunks": 4,
+    "candidate_hunks": 4,
+    "skipped_doc_hunks": 0,
+    "changed_files": 3,
+    "candidate_context_bytes": 7282,
+    "public_candidate_hunks": 3,
+    "surface_counts": {
+      "config_keys": 4,
+      "tests": 1
+    },
+    "candidates_json_bytes": 17909
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 4,
+    "compatibility_changes": 1,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "c_project",
+      "affected_surface": "Python stdlib sysconfig module public API: parse_config_h() and indirectly get_config_vars() / get_config_var()",
+      "affected_api": {
+        "name": "parse_config_h",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "location": {
+        "file": "Lib/sysconfig/__init__.py",
+        "old_lines": [
+          437,
+          450
+        ],
+        "new_lines": [
+          437,
+          453
+        ],
+        "symbol": "parse_config_h"
+      },
+      "old_behavior": "parse_config_h() 解析 config.h 文件时，对于被双引号包裹的字符串值（如 #define FOO \"bar\"），直接保留引号存入返回字典，例如 vars['FOO'] = '\"bar\"'。这些值通过 _sysconfigdata_* 模块最终暴露给 sysconfig.get_config_vars()，导致运行时 get_config_var() 返回带引号的字符串。",
+      "new_behavior": "parse_config_h() 新增 quoted_re 正则表达式，解析时先检查值是否被双引号包围，若是则剥离引号后存入字典。例如 #define FOO \"bar\" → vars['FOO'] = 'bar'（无引号）。同时新增测试 test_PY_BUILTIN_HASHLIB_HASHES_in_vars 验证 get_config_vars() 返回的 PY_BUILTIN_HASHLIB_HASHES 不以引号开头。",
+      "compatibility_reason": "parse_config_h() 是 sysconfig 模块 __all__ 中列出的公共 API，其返回值在 CPython 构建期间通过 Lib/sysconfig/__main__.py 写入 _sysconfigdata_* 模块，最终经 sysconfig.get_config_vars() 暴露给所有运行时消费者。任何依赖 get_config_var() 返回带引号字符串的代码（包括检查值以引号开头、或直接使用带引号的字符串进行比较/拼接的场景）在升级后将获得不带引号的值，可能导致断言失败、字符串匹配错误或下游逻辑异常。",
+      "evidence": [
+        {
+          "file": "Lib/sysconfig/__init__.py",
+          "lines": [
+            437,
+            440
+          ],
+          "snippet": "    import re\n    define_rx = re.compile(\"#define ([A-Z][A-Za-z0-9_]+) (.*)\\n\")\n    undef_rx = re.compile(\"/[*] #undef ([A-Z][A-Za-z0-9_]+) [*]/\\n\")\n+    quoted_re = re.compile('^\"(.*)\"$')"
+        },
+        {
+          "file": "Lib/sysconfig/__init__.py",
+          "lines": [
+            446,
+            450
+          ],
+          "snippet": "        if m:\n            n, v = m.group(1, 2)\n+            if mq := quoted_re.match(v):\n+                v = mq.group(1)\n            try:"
+        },
+        {
+          "file": "Lib/test/test_sysconfig.py",
+          "lines": [
+            579,
+            583
+          ],
+          "snippet": "+    @unittest.skipIf(sysconfig.get_config_var('PY_BUILTIN_HASHLIB_HASHES') is None,\n+                     'PY_BUILTIN_HASHLIB_HASHES required for this test')\n+    def test_PY_BUILTIN_HASHLIB_HASHES_in_vars(self):\n+        vars = sysconfig.get_config_vars()\n+        self.assertFalse(vars['PY_BUILTIN_HASHLIB_HASHES'].startswith('\"'))"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "parse_config_h 在 Lib/sysconfig/__init__.py 的 __all__ 中声明为公共 API（19行）。其在 Lib/sysconfig/__main__.py（166行）被调用以构建 _sysconfigdata_* 模块，该模块是 get_config_vars() 的数据源。因此该变更直接影响 sysconfig 模块所有公共 API 消费者的输出。",
+      "uncertainty": "在 CPython 自身生态中，受影响的 pyconfig.h 字符串值类型有限（如 PY_BUILTIN_HASHLIB_HASHES）。绝大多数消费者可能本就不依赖或未适配之前的引号行为，实际断裂面较小。但作为公共 API，任何外部项目直接调用 parse_config_h() 解析自定义 config.h 文件时都会受到输出变化的影响。",
+      "manual_review_required": false,
+      "recommended_review": "确认 _ALWAYS_STR 集合（Lib/sysconfig/__init__.py:23）中的所有 key 对应的值在变更后是否正确（原本带引号的字符串现在不带引号）。复核 CPython 生态中是否有其他工具（如 pip、setuptools）依赖 get_config_var() 返回带引号字符串。",
+      "test_recommendation": "1. 运行现有测试套件 Lib/test/test_sysconfig.py 确认新增 test_PY_BUILTIN_HASHLIB_HASHES_in_vars 通过；2. 对 parse_config_h() 构造包含引号字符串的 config.h 输入，验证返回值中引号已被剥离；3. 对 parse_config_h() 构造不带引号的数值输入（如 #define FOO 42），验证 int 转换行为未受影响；4. 对 parse_config_h() 传入包含 _ALWAYS_STR 成员的输入，验证字符串值正确且无引号残留。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=public_method on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "Lib/sysconfig/__init__.py",
+            "old_lines": [
+              437,
+              442
+            ],
+            "new_lines": [
+              437,
+              443
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "Lib/sysconfig/__init__.py",
+            "old_lines": [
+              445,
+              450
+            ],
+            "new_lines": [
+              446,
+              453
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=public_method on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "analysis complete; findings written and validated"
+}

@@ -1,0 +1,135 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P059/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P059/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P059",
+  "patch_id": "e2a1a337e21d28dcd1d9d7fe25aff62f4e3bdf98",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "grub_cmd_chainloader",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "grub-core/loader/efi/chainloader.c",
+        "old_lines": [
+          1082,
+          1090
+        ],
+        "new_lines": [
+          1081,
+          1087
+        ],
+        "symbol": "grub_cmd_chainloader"
+      },
+      "old_behavior": "调用 grub_linuxefi_secure_validate() 对已加载的 chainloader 镜像进行第二次 shim-lock verify 校验，导致 TPM PCR 被扩展两次（一次由 verifier 框架在 grub_file_open 时触发，一次由该显式调用触发）。",
+      "new_behavior": "完全移除 grub_linuxefi_secure_validate() 显式调用，chainloader 镜像的 shim-lock verify 仅由 verifier 框架在 grub_file_open() 时执行一次，TPM PCR 仅被扩展一次。",
+      "compatibility_reason": "PCR TPM 事件日志发生变化。依赖 TPM 远程证明（remote attestation）或测量启动（measured boot）的系统将对 chainloader 镜像观察到不同的 PCR 值，可能破坏既有的 PCR 策略和完整性校验逻辑。该变更为显式的双重测量问题修复，但对依赖 PCR 值的下游系统具有兼容性影响。",
+      "test_recommendation": "在启用 SecureBoot 的 QEMU/VM 环境中执行 chainloader 命令加载 EFI 镜像，捕获并对比修复前后的 TPM 事件日志（PCR 扩展记录），验证 PCR 值的变化符合预期（减少一次扩展）。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "grub_cmd_chainloader",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "grub-core/loader/efi/chainloader.c",
+        "old_lines": [
+          1082,
+          1098
+        ],
+        "new_lines": [
+          1081,
+          1095
+        ],
+        "symbol": "grub_cmd_chainloader"
+      },
+      "old_behavior": "启动路径选择依据 grub_linuxefi_secure_validate() 的返回值：rc > 0 时使用 grub_secureboot_chainloader_boot（调用 handle_image 进行 PE 校验和重定位，然后 start_image）；rc == 0 时使用 grub_chainloader_boot（先 LoadImage 再 start_image）。当 SecureBoot 关闭但 shim 存在时，shim 可能仍验证成功返回 rc > 0，导致使用 handle_image 路径。",
+      "new_behavior": "启动路径选择仅依据 SecureBoot 状态：SecureBoot 开启时使用 grub_secureboot_chainloader_boot，否则始终使用 grub_chainloader_boot。不再调用 grub_linuxefi_secure_validate()，shim 存在与否不再影响路径选择。",
+      "compatibility_reason": "当 SecureBoot 关闭但 shim 仍安装时，旧代码可能选择 grub_secureboot_chainloader_boot 路径（调用 handle_image + LoadImage + StartImage），新代码始终选择 grub_chainloader_boot 路径（直接 LoadImage + StartImage）。handle_image 额外进行 PE 头部校验、重定位等处理，其缺失可能影响某些非标准 EFI 镜像的启动行为。此外，grub_chainloader_boot 直接调用 start_image 而不调用 handle_image，改变了 EFI boot services 调用序列。",
+      "test_recommendation": "在 SecureBoot OFF + shim 安装环境中测试 chainloader 启动多种 EFI 镜像（包括非标准 PE 镜像），观察启动行为是否与修复前一致。同时对比 handle_image 和 LoadImage/StartImage 对相同镜像的处理差异。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P059/compatibility-testing"
+}

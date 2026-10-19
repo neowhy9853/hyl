@@ -1,0 +1,890 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/39b6be/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/39b6be/patch.diff",
+  "profile": "libsoup",
+  "summary": {
+    "total_changed_files": 7,
+    "changed_files": [
+      "tests/server-auth-test.c",
+      "tests/redirect-test.c",
+      "tests/ntlm-test.c",
+      "tests/multipart-test.c",
+      "examples/simple-proxy.c",
+      "tests/auth-test.c",
+      "libsoup/auth/soup-auth-negotiate.c"
+    ],
+    "total_hunks": 7,
+    "public_api_hunks": 2,
+    "patch_metrics": {
+      "patch_bytes": 4720,
+      "patch_lines": 117,
+      "diff_added_lines": 8,
+      "diff_deleted_lines": 9,
+      "diff_context_lines": 51,
+      "churn": 17,
+      "raw_hunks": 7,
+      "candidate_hunks": 7,
+      "skipped_doc_hunks": 0,
+      "changed_files": 7,
+      "candidate_context_bytes": 14196,
+      "public_candidate_hunks": 2,
+      "surface_counts": {
+        "callbacks": 4,
+        "plugin_api": 3,
+        "network_protocol": 7,
+        "http_semantics": 7,
+        "user_visible_output": 4,
+        "persistence_state": 2,
+        "tests": 5,
+        "config_keys": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "examples/simple-proxy.c",
+      "old_start": 352,
+      "old_end": 358,
+      "new_start": 352,
+      "new_end": 358,
+      "context_hint": "server_callback (SoupServer *server, SoupServerMessage *msg,",
+      "added_lines": [
+        "\tg_signal_connect (client_msg, \"got-headers\", G_CALLBACK (send_headers), msg);"
+      ],
+      "deleted_lines": [
+        "\tg_signal_connect (client_msg, \"got_headers\", G_CALLBACK (send_headers), msg);"
+      ],
+      "context_lines": [
+        "\tsoup_message_headers_set_encoding (soup_server_message_get_response_headers (msg),",
+        "\t\t\t\t\t   SOUP_ENCODING_CHUNKED);",
+        "",
+        "",
+        "        GCancellable *client_cancellable = g_cancellable_new ();",
+        "\tg_signal_connect (msg, \"finished\", G_CALLBACK (client_msg_failed), client_cancellable);"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "server_callback",
+        "g_signal_connect",
+        "client_msg",
+        "got",
+        "headers",
+        "G_CALLBACK",
+        "send_headers",
+        "g_bytes_unref"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Library callback function type changes"
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "callbacks",
+          "plugin_api",
+          "network_protocol",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "server_callback",
+        "snippet_start_line": 323,
+        "snippet_end_line": 388,
+        "snippet": "\turistr = g_uri_to_string (soup_server_message_get_uri (msg));\n\tg_print (\"[%p] %s %s HTTP/1.%d\\n\", msg,\n                 soup_server_message_get_method (msg), uristr,\n\t\t soup_server_message_get_http_version (msg));\n\n\tif (soup_server_message_get_method (msg) == SOUP_METHOD_CONNECT) {\n\t\ttry_tunnel (server, msg);\n                g_free (uristr);\n\t\treturn;\n\t}\n\n        // Copy the servers message to a new client message\n        client_msg = soup_message_new (soup_server_message_get_method (msg), uristr);\n        g_assert (client_msg && SOUP_IS_MESSAGE (client_msg));\n        SoupMessageHeaders *client_msg_headers = soup_message_get_request_headers (client_msg);\n        SoupMessageHeaders *server_msg_headers = soup_server_message_get_request_headers (msg);\n\tsoup_message_headers_foreach (server_msg_headers, copy_header, client_msg_headers);\n\tsoup_message_headers_remove (client_msg_headers, \"Host\");\n\tsoup_message_headers_remove (client_msg_headers, \"Connection\");\n\n        g_free (uristr);\n\n\tif (soup_server_message_get_request_body (msg)->length) {\n\t\tGBytes *request = soup_message_body_flatten (soup_server_message_get_request_body (msg));\n                const char *content_type = soup_message_headers_get_content_type (server_msg_headers, NULL);\n                g_print (\"[%p] Directly copying data of type %s\\n\", msg, content_type);\n\t\tsoup_message_set_request_body_from_bytes (client_msg, content_type, request);\n\t\tg_bytes_unref (request);\n\t}\n\tsoup_message_headers_set_encoding (soup_server_message_get_response_headers (msg),\n\t\t\t\t\t   SOUP_ENCODING_CHUNKED);\n\n\tg_signal_connect (client_msg, \"got-headers\", G_CALLBACK (send_headers), msg);\n\n        GCancellable *client_cancellable = g_cancellable_new ();\n\tg_signal_connect (msg, \"finished\", G_CALLBACK (client_msg_failed), client_cancellable);\n        g_object_set_data_full (G_OBJECT (msg), \"cancellable\", client_cancellable, g_object_unref);\n\n        soup_session_send_async (session, client_msg, G_PRIORITY_DEFAULT, client_cancellable,\n                                 client_message_sent, msg);\n\n        g_object_unref (client_msg);\n\n        // Keep the server message alive until the client one is finished\n\tg_object_ref (msg);\n\tsoup_server_message_pause (msg);\n}\n\nstatic gboolean\nauth_callback (SoupAuthDomain *auth_domain, SoupMessage *msg,\n\t       const char *username, const char *password, gpointer data)\n{\n\treturn !strcmp (username, \"user\") && !strcmp (password, \"password\");\n}\n\nstatic void\nquit (int sig)\n{\n\t/* Exit cleanly on ^C in case we're valgrinding. */\n\texit (0);\n}\n\nstatic int port;\nstatic gboolean require_auth;\n\nstatic GOptionEntry entries[] = {\n"
+      }
+    },
+    {
+      "file": "libsoup/auth/soup-auth-negotiate.c",
+      "old_start": 267,
+      "old_end": 273,
+      "new_start": 267,
+      "new_end": 273,
+      "context_hint": "soup_auth_negotiate_update_connection (SoupConnectionAuth *auth, SoupMessage *ms",
+      "added_lines": [
+        "\t\t\t\t\t\t       \"got-headers\","
+      ],
+      "deleted_lines": [
+        "\t\t\t\t\t\t       \"got_headers\","
+      ],
+      "context_lines": [
+        "\t\t\tif (!g_object_get_data (G_OBJECT (msg), \"negotiate-got-headers-connected\")) {",
+        "\t\t\t\t/* Wait for the 2xx response to verify server response */",
+        "\t\t\t\tg_signal_connect_data (msg,",
+        "\t\t\t\t\t\t       G_CALLBACK (check_server_response),",
+        "\t\t\t\t\t\t       g_object_ref (auth),",
+        "\t\t\t\t\t\t       (GClosureNotify) g_object_unref,"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "soup_auth_negotiate_update_connection",
+        "got",
+        "headers",
+        "got_headers",
+        "free_connection_state_data"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "network_protocol",
+          "persistence_state",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "soup_auth_negotiate_update_connection",
+        "snippet_start_line": 238,
+        "snippet_end_line": 303,
+        "snippet": "}\n#endif /* LIBSOUP_HAVE_GSSAPI */\n\nstatic gboolean\nsoup_auth_negotiate_update_connection (SoupConnectionAuth *auth, SoupMessage *msg,\n\t\t\t\t       const char *header, gpointer state)\n{\n#ifdef LIBSOUP_HAVE_GSSAPI\n\tgboolean success = TRUE;\n\tSoupNegotiateConnectionState *conn = state;\n\tchar *error_message = NULL;\n\n\tif (!check_auth_trusted_uri (auth, msg)) {\n\t\tconn->state = SOUP_NEGOTIATE_FAILED;\n\t\tgoto out;\n\t}\n\n\t/* Found negotiate header with no token, start negotiate */\n\tif (strcmp (header, \"Negotiate\") == 0) {\n\t\t/* If we were already negotiating and we get a 401\n\t\t * with no token, start again. */\n\t\tif (conn->state == SOUP_NEGOTIATE_SENT_RESPONSE) {\n\t\t\tfree_connection_state_data (conn);\n\t\t\tconn->initialized = FALSE;\n\t\t}\n\n\t\tconn->state = SOUP_NEGOTIATE_RECEIVED_CHALLENGE;\n\t\tif (soup_gss_build_response (conn, SOUP_AUTH (auth), &error_message)) {\n\t\t\t/* Connect the signal only once per message */\n\t\t\tif (!g_object_get_data (G_OBJECT (msg), \"negotiate-got-headers-connected\")) {\n\t\t\t\t/* Wait for the 2xx response to verify server response */\n\t\t\t\tg_signal_connect_data (msg,\n\t\t\t\t\t\t       \"got-headers\",\n\t\t\t\t\t\t       G_CALLBACK (check_server_response),\n\t\t\t\t\t\t       g_object_ref (auth),\n\t\t\t\t\t\t       (GClosureNotify) g_object_unref,\n\t\t\t\t\t\t       0);\n\t\t\t\t/* Mark that the signal was connected */\n\t\t\t\tg_object_set_data (G_OBJECT (msg),\n\t\t\t\t\t\t   \"negotiate-got-headers-connected\",\n\t\t\t\t\t\t   GINT_TO_POINTER (1));\n\t\t\t}\n\t\t\tgoto out;\n\t\t} else {\n                        g_assert (error_message); /* Silence scan-build */\n\t\t\t/* FIXME: report further upward via\n\t\t\t * soup_message_get_error_message  */\n\t\t\tif (conn->initialized)\n\t\t\t\tg_warning (\"gssapi step failed: %s\", error_message);\n\t\t\telse\n\t\t\t\tg_warning (\"gssapi init failed: %s\", error_message);\n\t\t\tsuccess = FALSE;\n\t\t}\n\t} else if (!strncmp (header, \"Negotiate \", 10)) {\n\t\tif (soup_gss_client_step (conn, header + 10, &error_message) == AUTH_GSS_CONTINUE) {\n\t\t\tconn->state = SOUP_NEGOTIATE_RECEIVED_CHALLENGE;\n\t\t\tgoto out;\n\t\t}\n\t}\n\n\tconn->state = SOUP_NEGOTIATE_FAILED;\n out:\n\tg_clear_pointer (&error_message, g_free);\n\treturn success;\n#else\n\treturn FALSE;\n"
+      }
+    },
+    {
+      "file": "tests/auth-test.c",
+      "old_start": 313,
+      "old_end": 319,
+      "new_start": 313,
+      "new_end": 319,
+      "context_hint": "do_pipelined_auth_test (void)",
+      "added_lines": [
+        "\t\tg_signal_connect (msg, \"wrote-headers\","
+      ],
+      "deleted_lines": [
+        "\t\tg_signal_connect (msg, \"wrote_headers\","
+      ],
+      "context_lines": [
+        "\t\tg_object_set_data (G_OBJECT (msg), \"#\", GINT_TO_POINTER (i + 1));",
+        "\t\tg_signal_connect (msg, \"authenticate\",",
+        "\t\t\t\t  G_CALLBACK (bug271540_authenticate), &authenticated);",
+        "\t\t\t\t  G_CALLBACK (bug271540_sent), &authenticated);",
+        "",
+        "\t\tg_signal_connect (msg, \"finished\","
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "do_pipelined_auth_test",
+        "g_signal_connect",
+        "msg",
+        "wrote",
+        "headers",
+        "wrote_headers",
+        "g_object_set_data"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "config_keys",
+          "user_visible_output",
+          "network_protocol",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "do_pipelined_auth_test",
+        "snippet_start_line": 284,
+        "snippet_end_line": 349,
+        "snippet": "{\n\tint *left = data;\n\n\tsoup_test_assert_message_status (msg, SOUP_STATUS_OK);\n\n\t(*left)--;\n\tif (!*left)\n\t\tg_main_loop_quit (loop);\n}\n\nstatic void\ndo_pipelined_auth_test (void)\n{\n\tSoupSession *session;\n\tSoupMessage *msg;\n\tgboolean authenticated;\n\tchar *uri;\n\tint i;\n\n\tg_test_bug (\"271540\");\n\n\tSOUP_TEST_SKIP_IF_NO_APACHE;\n\n\tsession = soup_test_session_new (NULL);\n\n\tauthenticated = FALSE;\n\turi = g_strconcat (base_uri, \"Basic/realm1/\", NULL);\n\tfor (i = 0; i < 10; i++) {\n\t\tmsg = soup_message_new (SOUP_METHOD_GET, uri);\n\t\tg_object_set_data (G_OBJECT (msg), \"#\", GINT_TO_POINTER (i + 1));\n\t\tg_signal_connect (msg, \"authenticate\",\n\t\t\t\t  G_CALLBACK (bug271540_authenticate), &authenticated);\n\t\tg_signal_connect (msg, \"wrote-headers\",\n\t\t\t\t  G_CALLBACK (bug271540_sent), &authenticated);\n\n\t\tg_signal_connect (msg, \"finished\",\n\t\t\t\t  G_CALLBACK (bug271540_finished), &i);\n\t\tsoup_session_send_async (session, msg, G_PRIORITY_DEFAULT, NULL, NULL, NULL);\n\t\tg_object_unref (msg);\n\t}\n\tg_free (uri);\n\n\tloop = g_main_loop_new (NULL, TRUE);\n\tg_main_loop_run (loop);\n\tg_main_loop_unref (loop);\n\n\tsoup_test_session_abort_unref (session);\n}\n\n/* We test two different things here:\n *\n *   1. If we get a 401 response with \"WWW-Authenticate: Digest\n *      stale=true...\", we should retry and succeed *without* the\n *      session asking for a password again.\n *\n *   2. If we get a successful response with \"Authentication-Info:\n *      nextnonce=...\", we should update the nonce automatically so as\n *      to avoid getting a stale nonce error on the next request.\n *\n * In our Apache config, /Digest/realm1 and /Digest/realm1/expire are\n * set up to use the same auth info, but only the latter has an\n * AuthDigestNonceLifetime (of 2 seconds). The way nonces work in\n * Apache, a nonce received from /Digest/realm1 will still expire in\n * /Digest/realm1/expire, but it won't issue a nextnonce for a request\n * in /Digest/realm1. This lets us test both behaviors.\n *\n"
+      }
+    },
+    {
+      "file": "tests/multipart-test.c",
+      "old_start": 433,
+      "old_end": 439,
+      "new_start": 433,
+      "new_end": 439,
+      "context_hint": "test_multipart (gconstpointer data)",
+      "added_lines": [
+        "\tg_signal_connect (msg, \"got-headers\","
+      ],
+      "deleted_lines": [
+        "\tg_signal_connect (msg, \"got_headers\","
+      ],
+      "context_lines": [
+        "\tsoup_message_headers_append (soup_message_get_request_headers (msg),",
+        "\t\t\t\t     \"Connection\", \"close\");",
+        "",
+        "\t\t\t  G_CALLBACK (got_headers), &headers_count);",
+        "",
+        "\tg_signal_connect (msg, \"content-sniffed\","
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "test_multipart",
+        "g_signal_connect",
+        "msg",
+        "got",
+        "headers",
+        "got_headers"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Library callback function type changes"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "callbacks",
+          "network_protocol",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "test_multipart",
+        "snippet_start_line": 404,
+        "snippet_end_line": 469,
+        "snippet": "\n\t\tpasses++;\n\t\tg_object_unref (in);\n\t}\n\n\tg_assert_cmpint (passes, ==, 4);\n\n\tg_main_loop_quit (loop);\n\tg_object_unref (multipart);\n}\n\nstatic void\ntest_multipart (gconstpointer data)\n{\n\tint headers_expected = 1, sniffed_expected = 1;\n\tMultipartMode multipart_mode = GPOINTER_TO_INT (data);\n\tSoupMessage *msg;\n\tint headers_count = 0;\n\tint sniffed_count = 0;\n\tGHashTable *params;\n\tconst char *content_type;\n\tgboolean message_is_multipart = FALSE;\n\n\tmsg = soup_message_new (\"GET\", base_uri_string);\n\n\t/* This is used to track the number of parts. */\n\tpasses = 0;\n\n\t/* Force the server to close the connection. */\n\tsoup_message_headers_append (soup_message_get_request_headers (msg),\n\t\t\t\t     \"Connection\", \"close\");\n\n\tg_signal_connect (msg, \"got-headers\",\n\t\t\t  G_CALLBACK (got_headers), &headers_count);\n\n\tg_signal_connect (msg, \"content-sniffed\",\n\t\t\t  G_CALLBACK (content_sniffed), &sniffed_count);\n\n\tloop = g_main_loop_new (NULL, TRUE);\n\n\tif (multipart_mode == ASYNC_MULTIPART)\n\t\tsoup_session_send_async (session, msg, 0, NULL, multipart_handling_cb, NULL);\n\telse if (multipart_mode == ASYNC_MULTIPART_SMALL_READS) {\n\t\tg_object_set_data (G_OBJECT (msg), \"multipart-small-reads\", GINT_TO_POINTER(1));\n\t\tsoup_session_send_async (session, msg, 0, NULL, multipart_handling_cb, NULL);\n\t} else if (multipart_mode == SYNC_MULTIPART)\n\t\tsoup_session_send_async (session, msg, 0, NULL, sync_multipart_handling_cb, NULL);\n\telse\n\t\tsoup_session_send_async (session, msg, 0, NULL, no_multipart_handling_cb, NULL);\n\n\tg_main_loop_run (loop);\n\n\tcontent_type = soup_message_headers_get_content_type (soup_message_get_response_headers (msg), &params);\n\n\tif (content_type &&\n\t    g_str_has_prefix (content_type, \"multipart/\") &&\n\t    g_hash_table_lookup (params, \"boundary\")) {\n\t\tmessage_is_multipart = TRUE;\n\t}\n\tg_clear_pointer (&params, g_hash_table_unref);\n\n\tg_assert_true (message_is_multipart);\n\tg_assert_cmpint (headers_count, ==, headers_expected);\n\tg_assert_cmpint (sniffed_count, ==, sniffed_expected);\n\n\tg_object_unref (msg);\n"
+      }
+    },
+    {
+      "file": "tests/ntlm-test.c",
+      "old_start": 341,
+      "old_end": 349,
+      "new_start": 341,
+      "new_end": 349,
+      "context_hint": "do_message (SoupSession *session,",
+      "added_lines": [
+        "\tg_signal_connect (msg, \"got-headers\",",
+        "\tg_signal_connect (msg, \"got-headers\","
+      ],
+      "deleted_lines": [
+        "\tg_signal_connect (msg, \"got_headers\",",
+        "\tg_signal_connect (msg, \"got_headers\","
+      ],
+      "context_lines": [
+        "\t\t\t\t  G_CALLBACK (authenticate),",
+        "\t\t\t\t  (gpointer)user);",
+        "\t}",
+        "\t\t\t  G_CALLBACK (prompt_check), &state);",
+        "\t\t\t  G_CALLBACK (challenge_check), &state);",
+        "\tg_signal_connect (msg, \"wrote-headers\",",
+        "\t\t\t  G_CALLBACK (request_check), &state);"
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "do_message",
+        "g_signal_connect",
+        "msg",
+        "got",
+        "headers",
+        "got_headers"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output",
+          "network_protocol",
+          "persistence_state",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "do_message",
+        "snippet_start_line": 312,
+        "snippet_end_line": 379,
+        "snippet": "\n\t\tg_free (ntlm_data);\n\t}\n\tif (header && !strncmp (header, \"Basic \", 6))\n\t\tstate->sent_basic_response = TRUE;\n}\n\nstatic void\ndo_message (SoupSession *session,\n\t    GUri        *base_uri,\n\t    const char  *path,\n\t    const char  *user,\n\t    gboolean     get_ntlm_prompt,\n\t    gboolean     do_ntlm,\n\t    gboolean     get_basic_prompt,\n\t    gboolean     do_basic,\n\t    guint        status_code)\n{\n\tGUri *uri;\n\tSoupMessage *msg;\n\tGBytes *body;\n\tNTLMState state = { FALSE, FALSE, FALSE, FALSE };\n\n\turi = g_uri_parse_relative (base_uri, path, SOUP_HTTP_URI_FLAGS, NULL);\n\tmsg = soup_message_new_from_uri (\"GET\", uri);\n\tg_uri_unref (uri);\n\n\tif (user) {\n\t\tg_signal_connect (msg, \"authenticate\",\n\t\t\t\t  G_CALLBACK (authenticate),\n\t\t\t\t  (gpointer)user);\n\t}\n\tg_signal_connect (msg, \"got-headers\",\n\t\t\t  G_CALLBACK (prompt_check), &state);\n\tg_signal_connect (msg, \"got-headers\",\n\t\t\t  G_CALLBACK (challenge_check), &state);\n\tg_signal_connect (msg, \"wrote-headers\",\n\t\t\t  G_CALLBACK (request_check), &state);\n\tg_signal_connect (msg, \"wrote-headers\",\n\t\t\t  G_CALLBACK (response_check), &state);\n\n\tbody = soup_session_send_and_read (session, msg, NULL, NULL);\n\tdebug_printf (1, \"  %-10s -> \", path);\n\n\tif (state.got_ntlm_prompt) {\n\t\tdebug_printf (1, \" NTLM_PROMPT\");\n\t\tif (!get_ntlm_prompt)\n\t\t\tdebug_printf (1, \"???\");\n\t} else if (get_ntlm_prompt)\n\t\tdebug_printf (1, \" no-ntlm-prompt???\");\n\n\tif (state.got_basic_prompt) {\n\t\tdebug_printf (1, \" BASIC_PROMPT\");\n\t\tif (!get_basic_prompt)\n\t\t\tdebug_printf (1, \"???\");\n\t} else if (get_basic_prompt)\n\t\tdebug_printf (1, \" no-basic-prompt???\");\n\n\tif (state.sent_ntlm_request) {\n\t\tdebug_printf (1, \" REQUEST\");\n\t\tif (!do_ntlm)\n\t\t\tdebug_printf (1, \"???\");\n\t} else if (do_ntlm)\n\t\tdebug_printf (1, \" no-request???\");\n\n\tif (state.got_ntlm_challenge) {\n\t\tdebug_printf (1, \" CHALLENGE\");\n\t\tif (!do_ntlm)\n"
+      }
+    },
+    {
+      "file": "tests/redirect-test.c",
+      "old_start": 186,
+      "old_end": 192,
+      "new_start": 186,
+      "new_end": 192,
+      "context_hint": "do_message_api_test (SoupSession *session, TestCase *test)",
+      "added_lines": [
+        "\tg_signal_connect (msg, \"got-headers\","
+      ],
+      "deleted_lines": [
+        "\tg_signal_connect (msg, \"got_headers\","
+      ],
+      "context_lines": [
+        "\t}",
+        "",
+        "\ttreq = &test->requests[0];",
+        "\t\t\t  G_CALLBACK (got_headers), &treq);",
+        "\tg_signal_connect (msg, \"restarted\",",
+        "\t\t\t  G_CALLBACK (restarted), &treq);"
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "do_message_api_test",
+        "g_signal_connect",
+        "msg",
+        "got",
+        "headers",
+        "got_headers",
+        "g_bytes_unref"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Library callback function type changes"
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "callbacks",
+          "user_visible_output",
+          "plugin_api",
+          "network_protocol",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "do_message_api_test",
+        "snippet_start_line": 157,
+        "snippet_end_line": 222,
+        "snippet": "\tsoup_test_assert ((*treq)->method,\n\t\t\t  \"Expected to be done\");\n\n\tg_assert_cmpstr (soup_message_get_method (msg), ==, (*treq)->method);\n\tg_assert_cmpstr (g_uri_get_path (uri), ==, (*treq)->path);\n}\n\nstatic void\ndo_message_api_test (SoupSession *session, TestCase *test)\n{\n\tGUri *uri;\n\tSoupMessage *msg;\n\tGBytes *body;\n\tTestRequest *treq;\n\tGError *error = NULL;\n\n\tif (test->bugref)\n\t\tg_test_bug (test->bugref);\n\n\turi = g_uri_parse_relative (base_uri, test->requests[0].path, SOUP_HTTP_URI_FLAGS | G_URI_FLAGS_PARSE_RELAXED, NULL);\n        msg = soup_message_new_from_uri (test->requests[0].method, uri);\n\tg_uri_unref (uri);\n\n\tif (soup_message_get_method (msg) == SOUP_METHOD_POST) {\n\t\tGBytes *request_body;\n\n\t\trequest_body = g_bytes_new_static (\"post body\", strlen (\"post body\"));\n\t\tsoup_message_set_request_body_from_bytes (msg, \"text/plain\", request_body);\n\t\tg_bytes_unref (request_body);\n\t}\n\n\ttreq = &test->requests[0];\n\tg_signal_connect (msg, \"got-headers\",\n\t\t\t  G_CALLBACK (got_headers), &treq);\n\tg_signal_connect (msg, \"restarted\",\n\t\t\t  G_CALLBACK (restarted), &treq);\n\n\tbody = soup_test_session_async_send (session, msg, NULL, &error);\n\n\tsoup_test_assert_message_status (msg, test->final_status);\n\tif (test->error_code)\n\t\tg_assert_error (error, SOUP_SESSION_ERROR, test->error_code);\n\telse\n\t\tg_assert_no_error (error);\n\n\tg_clear_error (&error);\n\tg_bytes_unref (body);\n\tg_object_unref (msg);\n}\n\nstatic void\ndo_async_msg_api_test (gconstpointer test)\n{\n\tdo_message_api_test (async_session, (TestCase *)test);\n}\n\nstatic void\nserver_callback (SoupServer        *server,\n\t\t SoupServerMessage *msg,\n\t\t const char        *path,\n\t\t GHashTable        *query,\n\t\t gpointer           data)\n{\n\tchar *remainder;\n\tguint status_code;\n\tSoupMessageHeaders *response_headers;\n"
+      }
+    },
+    {
+      "file": "tests/server-auth-test.c",
+      "old_start": 337,
+      "old_end": 343,
+      "new_start": 337,
+      "new_end": 343,
+      "context_hint": "main (int argc, char **argv)",
+      "added_lines": [
+        "\tg_signal_connect (server, \"request-started\","
+      ],
+      "deleted_lines": [
+        "\tg_signal_connect (server, \"request_started\",",
+        "- "
+      ],
+      "context_lines": [
+        "\ttest_init (argc, argv, no_test_entry);",
+        "",
+        "\tserver = soup_test_server_new (SOUP_TEST_SERVER_DEFAULT);",
+        "\t\t\t  G_CALLBACK (request_started_callback), NULL);",
+        "\tsoup_server_add_handler (server, NULL,",
+        "\t\t\t\t server_callback, NULL, NULL);",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "main",
+        "g_signal_connect",
+        "server",
+        "request",
+        "started",
+        "request_started",
+        "test_init"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Library callback function type changes"
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "http_semantics",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "HTTP request/response behavior and header/status handling"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "callbacks",
+          "plugin_api",
+          "network_protocol",
+          "http_semantics"
+        ],
+        "profile": "libsoup",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "main",
+        "snippet_start_line": 308,
+        "snippet_end_line": 373,
+        "snippet": "\nstatic void\nrequest_started_callback (SoupServer        *server,\n\t\t\t  SoupServerMessage *msg,\n\t\t\t  gpointer           data)\n{\n\tg_signal_connect (msg, \"got-headers\",\n\t\t\t  G_CALLBACK (got_headers_callback), NULL);\n\tg_signal_connect (msg, \"wrote-headers\",\n\t\t\t  G_CALLBACK (wrote_headers_callback), NULL);\n}\n\nstatic gboolean run_tests = TRUE;\n\nstatic GOptionEntry no_test_entry[] = {\n        { \"no-tests\", 'n', G_OPTION_FLAG_REVERSE,\n          G_OPTION_ARG_NONE, &run_tests,\n          \"Don't run tests, just run the test server\", NULL },\n        { NULL }\n};\n\nint\nmain (int argc, char **argv)\n{\n\tGMainLoop *loop;\n\tSoupServer *server;\n\tSoupAuthDomain *auth_domain;\n\tint ret;\n\n\ttest_init (argc, argv, no_test_entry);\n\n\tserver = soup_test_server_new (SOUP_TEST_SERVER_DEFAULT);\n\tg_signal_connect (server, \"request-started\",\n\t\t\t  G_CALLBACK (request_started_callback), NULL);\n\tsoup_server_add_handler (server, NULL,\n\t\t\t\t server_callback, NULL, NULL);\n\n\tauth_domain = soup_auth_domain_basic_new (\n\t\t\"realm\", \"server-auth-test\",\n\t\t\"auth-callback\", basic_auth_callback,\n\t\tNULL);\n        soup_auth_domain_add_path (auth_domain, \"/Basic\");\n        soup_auth_domain_add_path (auth_domain, \"/Any\");\n        soup_auth_domain_remove_path (auth_domain, \"/Any/Not\");\n\tsoup_server_add_auth_domain (server, auth_domain);\n\tg_object_unref (auth_domain);\n\n\tauth_domain = soup_auth_domain_digest_new (\n\t\t\"realm\", \"server-auth-test\",\n\t\t\"auth-callback\", digest_auth_callback,\n\t\tNULL);\n        soup_auth_domain_add_path (auth_domain, \"/Digest\");\n        soup_auth_domain_add_path (auth_domain, \"/Any\");\n        soup_auth_domain_remove_path (auth_domain, \"/Any/Not\");\n\tsoup_server_add_auth_domain (server, auth_domain);\n\tg_object_unref (auth_domain);\n\n\tloop = g_main_loop_new (NULL, TRUE);\n\n\tbase_uri = soup_test_server_get_uri (server, \"http\", NULL);\n\tif (run_tests) {\n\t\tint i;\n\n\t\tfor (i = 0; i < 16; i++) {\n\t\t\tchar *path;\n\t\t\tconst char *authtypes;\n"
+      }
+    }
+  ]
+}

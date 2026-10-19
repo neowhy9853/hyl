@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P035/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P035/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P035",
+  "patch_id": "10981ef1378830f88ff1efba68a98c56a1a33d6f",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "go test (package list mode, non-verbose, non-JSON output)",
+        "kind": "cli_command",
+        "language": "go"
+      },
+      "target_location": {
+        "file": "src/cmd/go/internal/test/test.go",
+        "old_lines": [
+          1736,
+          1741
+        ],
+        "new_lines": [
+          1736,
+          1742
+        ],
+        "symbol": "func (r *runTestActor) Act"
+      },
+      "old_behavior": "当 go test <packages> 以默认的非详细模式（无 -v）和非 JSON 模式（无 -json）运行通过测试时，若测试输出不以换行符结尾，会由于代码错误地检查了 discard 前的输出快照 out（而非 discard 后的 buf）而导致在 \"ok\" 总结行之前打印一个多余的空白行。",
+      "new_behavior": "修改后的代码检查 buf.Len() > 0 和 buf.Bytes()，即检查 discard 后实际待打印的缓冲区内容。当测试输出的内容因为非详细/非 JSON 模式被 buf.Reset() 丢弃后，buf 为空，不再追加多余的换行符，避免出现多余的空白行。",
+      "compatibility_reason": "go test 命令在默认非详细、非 JSON、package list 模式下的标准输出格式发生变化：原来会在 \"ok\" 总结行之前产生一条多余的空白行（bug），修复后不再输出该空白行。任何解析 go test 输出的脚本或工具（如 CI 系统、测试结果解析器）可能会受到输出行数变化的影响，尽管旧行为是 bug 而非设计意图。",
+      "test_recommendation": "建议回归测试覆盖以下场景：(1) go test <packages> 默认模式（无 -v，无 -json）下，测试输出不以换行结尾且测试通过时，'ok' 行前不应有空白行；(2) 相同条件但测试输出以换行结尾时，确保不丢失已有的换行；(3) 使用 -v 或 -json 模式时不产生回归。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P035/compatibility-testing"
+}

@@ -1,0 +1,49 @@
+From bc05a801bdca5f982f5712f1220e34a47a993f33 Mon Sep 17 00:00:00 2001
+From: Zdenek Kabelac <zkabelac@redhat.com>
+Date: Thu, 16 Apr 2026 12:07:26 +0200
+Subject: [PATCH] config: use strncpy for metadata name validation buffer
+
+Use strncpy instead of memcpy when copying metadata text into
+namebuf for VG name validation. memcpy always copies NAME_LEN
+bytes regardless of actual buffer size. Also improve the overflow
+error message to include sizes and device name.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+---
+ lib/config/config.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/lib/config/config.c b/lib/config/config.c
+index 9a4963c78..e68c820e9 100644
+--- a/lib/config/config.c
++++ b/lib/config/config.c
+@@ -512,13 +512,14 @@ int config_file_read_fd(struct dm_config_tree *cft, struct device *dev, dev_io_r
+ 	if (!(dev->flags & DEV_REGULAR) || size2)
+ 		use_plain_read = 0;
+ 
+-	/* Ensure there is extra '\0' after end of buffer since we pass
+-	 * buffer to functions like strtoll() */
+ 	if (size + size2 < size) {
+-		log_error("Metadata buffer size overflow.");
++		log_error("Metadata buffer size overflow %zu + %zu on %s.",
++			  size, size2, dev_name(dev));
+ 		return 0;
+ 	}
+ 
++	/* Ensure there is extra '\0' after end of buffer since we pass
++	 * buffer to functions like strtoll() */
+ 	if (!(buf = zalloc(size + size2 + 1))) {
+ 		log_error("Failed to allocate circular buffer.");
+ 		return 0;
+@@ -550,7 +551,7 @@ int config_file_read_fd(struct dm_config_tree *cft, struct device *dev, dev_io_r
+ 	fb = buf;
+ 
+ 	if (!(dev->flags & DEV_REGULAR)) {
+-		memcpy(namebuf, buf, NAME_LEN);
++		strncpy(namebuf, buf, sizeof(namebuf) - 1);
+ 
+ 		while (namebuf[namelen] && !isspace(namebuf[namelen]) && namebuf[namelen] != '{' && namelen < (NAME_LEN - 1))
+ 			namelen++;
+-- 
+2.43.0
+

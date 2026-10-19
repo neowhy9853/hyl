@@ -1,0 +1,100 @@
+{
+  "inputs": [
+    {
+      "input_id": "I1",
+      "finding_id": "PCA-0001",
+      "target_lines": ["servers/slapd/back-mdb/config.c:74-79"],
+      "branch_targeted": "default (no dbpagesize) - backward compat",
+      "input_type": "config_cli",
+      "command": "/tmp/pca-openldap/servers/slapd/slaptest -f /tmp/slapd-mdb-test.conf -u",
+      "expected_output": "config file testing succeeded",
+      "reachability_signal": "exit code 0",
+      "setup_required": "temporary config file with MDB backend, no dbpagesize",
+      "covered_lines": ["init.c:129 (mi_pagesize=0 path)"]
+    },
+    {
+      "input_id": "I2",
+      "finding_id": "PCA-0001",
+      "target_lines": ["servers/slapd/back-mdb/config.c:74-79"],
+      "branch_targeted": "valid pagesize (16384) - explicit setting accepted",
+      "input_type": "config_cli",
+      "command": "/tmp/pca-openldap/servers/slapd/slaptest -f /tmp/slapd-mdb-test-pagesize.conf -u",
+      "expected_output": "config file testing succeeded",
+      "reachability_signal": "exit code 0",
+      "setup_required": "temporary config file with dbpagesize 16384",
+      "covered_lines": []
+    },
+    {
+      "input_id": "I3",
+      "finding_id": "PCA-0001",
+      "target_lines": ["servers/slapd/back-mdb/config.c:74-79"],
+      "branch_targeted": "invalid pagesize (1000) - accepted at parse time",
+      "input_type": "config_cli",
+      "command": "/tmp/pca-openldap/servers/slapd/slaptest -f /tmp/slapd-mdb-test-invalid.conf -u",
+      "expected_output": "config file testing succeeded (parser doesn't validate semantics)",
+      "reachability_signal": "exit code 0",
+      "setup_required": "temporary config file with dbpagesize 1000",
+      "covered_lines": []
+    },
+    {
+      "input_id": "I4",
+      "finding_id": "PCA-0002",
+      "target_lines": ["servers/slapd/back-mdb/init.c:129-137"],
+      "branch_targeted": "mi_pagesize=0 (default, no pagesize config)",
+      "input_type": "runtime",
+      "command": "rm -rf /tmp/pca-openldap-test-db && mkdir -p /tmp/pca-openldap-test-db && /tmp/pca-openldap/servers/slapd/slapadd -f /tmp/slapd-mdb-test.conf -l /tmp/add.ldif",
+      "expected_output": "database created with default pagesize (4096)",
+      "reachability_signal": "data.mdb size = 61440 (15 * 4096)",
+      "setup_required": "config file, LDIF, temporary DB directory",
+      "covered_lines": ["init.c:129 (6 hits)"]
+    },
+    {
+      "input_id": "I5",
+      "finding_id": "PCA-0002",
+      "target_lines": ["servers/slapd/back-mdb/init.c:129-137"],
+      "branch_targeted": "mi_pagesize=16384 (valid, success path)",
+      "input_type": "runtime",
+      "command": "rm -rf /tmp/pca-openldap-test-db-pagesize && mkdir -p /tmp/pca-openldap-test-db-pagesize && /tmp/pca-openldap/servers/slapd/slapadd -f /tmp/slapd-mdb-test-pagesize.conf -l /tmp/add.ldif",
+      "expected_output": "database created with pagesize 16384",
+      "reachability_signal": "data.mdb size = 245760 (15 * 16384)",
+      "setup_required": "config file with dbpagesize 16384, LDIF, temp DB dir",
+      "covered_lines": ["init.c:129 (6 hits)", "init.c:130 (4 hits, success path)"]
+    },
+    {
+      "input_id": "I6",
+      "finding_id": "PCA-0002",
+      "target_lines": ["servers/slapd/back-mdb/init.c:131-136"],
+      "branch_targeted": "mi_pagesize=1000 (invalid, error path)",
+      "input_type": "runtime",
+      "command": "rm -rf /tmp/pca-openldap-test-db-invalid && mkdir -p /tmp/pca-openldap-test-db-invalid && /tmp/pca-openldap/servers/slapd/slapadd -f /tmp/slapd-mdb-test-invalid.conf -l /tmp/add.ldif",
+      "expected_output": "error: mdb_env_set_pagesize failed: Invalid argument (22)",
+      "reachability_signal": "exit code 1, error message printed",
+      "setup_required": "config file with dbpagesize 1000, LDIF, temp DB dir",
+      "covered_lines": ["init.c:131 (4 hits, 2 error)", "init.c:132 (2 hits)", "init.c:136 (2 hits)"]
+    },
+    {
+      "input_id": "I7",
+      "finding_id": "PCA-0002",
+      "target_lines": ["servers/slapd/back-mdb/init.c:131-136"],
+      "branch_targeted": "mi_pagesize=131072 (out of range, error path)",
+      "input_type": "runtime",
+      "command": "rm -rf /tmp/pca-openldap-test-db-toobig && mkdir -p /tmp/pca-openldap-test-db-toobig && /tmp/pca-openldap/servers/slapd/slapadd -f /tmp/slapd-mdb-test-toobig.conf -l /tmp/add.ldif",
+      "expected_output": "error: mdb_env_set_pagesize failed: Invalid argument (22)",
+      "reachability_signal": "exit code 1, error message printed",
+      "setup_required": "config file with dbpagesize 131072, LDIF, temp DB dir",
+      "covered_lines": ["init.c:131 (4 hits, 2 error)", "init.c:132 (2 hits)", "init.c:136 (2 hits)"]
+    },
+    {
+      "input_id": "I8",
+      "finding_id": "PCA-0002",
+      "target_lines": ["servers/slapd/back-mdb/init.c:129-137"],
+      "branch_targeted": "read existing DB with pagesize=16384 config (verify backward compat)",
+      "input_type": "runtime",
+      "command": "/tmp/pca-openldap/servers/slapd/slapcat -f /tmp/slapd-mdb-test-pagesize.conf",
+      "expected_output": "LDIF output of entries in the 16384-pagesize database",
+      "reachability_signal": "exit code 0, correct data returned",
+      "setup_required": "existing database created with pagesize=16384",
+      "covered_lines": ["init.c:129 (6 hits)", "init.c:130 (4 hits, reread path)"]
+    }
+  ]
+}

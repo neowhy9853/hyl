@@ -1,0 +1,125 @@
+        -:    0:Source:test_umem_rereg.c
+        -:    0:Graph:test_umem_rereg.gcno
+        -:    0:Data:test_umem_rereg.gcda
+        -:    0:Runs:1
+        -:    1:/* Test harness for ib_umem_check_rereg() compatibility contract verification.
+        -:    2: *
+        -:    3: * Compiles the exact patched ib_umem_check_rereg() function with mock headers.
+        -:    4: * Tests the INPUT_CONTRACT_CHANGE: RO umem + RW access request now returns -EACCES.
+        -:    5: */
+        -:    6:#include <stdio.h>
+        -:    7:#include <string.h>
+        -:    8:#include "ib_umem_mock.h"
+        -:    9:
+        -:   10:#define ERROR_MACRO(_err) (_err)
+        -:   11:
+        -:   12:int ib_umem_check_rereg(struct ib_umem *umem, int flags, int new_access_flags);
+        -:   13:
+        -:   14:/* ---- Exact copy of patched function from umem.c:330-344 ---- */
+        -:   15:#include "umem_patched.c.inc"
+        -:   16:
+        -:   17:static int tests_run = 0;
+        -:   18:static int tests_passed = 0;
+        -:   19:static int tests_failed = 0;
+        -:   20:
+        -:   21:#define TEST(name) do { tests_run++; printf("  TEST %s ... ", name); } while(0)
+        -:   22:#define PASS() do { tests_passed++; printf("PASS\n"); } while(0)
+        -:   23:#define FAIL(msg) do { tests_failed++; printf("FAIL: %s\n", msg); } while(0)
+        -:   24:#define ASSERT_EQ(a, b, msg) do { \
+        -:   25:    if ((a) != (b)) { \
+        -:   26:        FAIL(msg); \
+        -:   27:        printf("    expected %d, got %d\n", (int)(b), (int)(a)); \
+        -:   28:    } else { PASS(); } \
+        -:   29:} while(0)
+        -:   30:
+        1:   31:int main(void) {
+        1:   32:    struct ib_umem ro_umem = { .writable = 0 };
+        1:   33:    struct ib_umem rw_umem = { .writable = 1 };
+        1:   34:    struct ib_umem *null_umem = NULL;
+        -:   35:    int ret;
+        -:   36:
+        1:   37:    printf("=== ib_umem_check_rereg() Compatibility Contract Verification ===\n");
+        1:   38:    printf("Patch: 09dc18894148381d3bfc550083b1236043870dce\n");
+        1:   39:    printf("Finding: PCA-0001 INPUT_CONTRACT_CHANGE\n\n");
+        -:   40:
+        -:   41:    /* --- Contract: NULL umem should succeed (no-op) --- */
+        1:   42:    printf("--- NULL umem cases ---\n");
+        1:   43:    TEST("null umem, no flags");
+        1:   44:    ret = ib_umem_check_rereg(null_umem, 0, 0);
+       1*:   45:    ASSERT_EQ(ret, 0, "null umem should return 0");
+        -:   46:
+        1:   47:    TEST("null umem, REREG_ACCESS only, writable request");
+        1:   48:    ret = ib_umem_check_rereg(null_umem, IB_MR_REREG_ACCESS, IB_ACCESS_REMOTE_WRITE);
+       1*:   49:    ASSERT_EQ(ret, 0, "null umem should return 0 regardless of flags");
+        -:   50:
+        -:   51:    /* --- Contract: Already-writable umem should always succeed --- */
+        1:   52:    printf("\n--- Writable umem cases (should always succeed) ---\n");
+        1:   53:    TEST("rw umem, no flags");
+        1:   54:    ret = ib_umem_check_rereg(&rw_umem, 0, 0);
+       1*:   55:    ASSERT_EQ(ret, 0, "rw umem without flags should return 0");
+        -:   56:
+        1:   57:    TEST("rw umem, REREG_ACCESS only, writable request");
+        1:   58:    ret = ib_umem_check_rereg(&rw_umem, IB_MR_REREG_ACCESS, IB_ACCESS_REMOTE_WRITE);
+       1*:   59:    ASSERT_EQ(ret, 0, "rw umem REREG_ACCESS with writable request should succeed");
+        -:   60:
+        1:   61:    TEST("rw umem, REREG_ACCESS only, read-only request");
+        1:   62:    ret = ib_umem_check_rereg(&rw_umem, IB_MR_REREG_ACCESS, IB_ACCESS_REMOTE_READ);
+       1*:   63:    ASSERT_EQ(ret, 0, "rw umem REREG_ACCESS with read request should succeed");
+        -:   64:
+        -:   65:    /* --- KEY COMPATIBILITY CHANGE: RO umem + RW access without REREG_TRANS now fails --- */
+        1:   66:    printf("\n--- RO umem cases (COMPATIBILITY CHANGE) ---\n");
+        -:   67:
+        1:   68:    TEST("ro umem, no flags → should succeed");
+        1:   69:    ret = ib_umem_check_rereg(&ro_umem, 0, 0);
+       1*:   70:    ASSERT_EQ(ret, 0, "ro umem without flags should return 0");
+        -:   71:
+        1:   72:    TEST("ro umem, REREG_ACCESS only, writable request → should FAIL with -EACCES");
+        1:   73:    ret = ib_umem_check_rereg(&ro_umem, IB_MR_REREG_ACCESS, IB_ACCESS_REMOTE_WRITE);
+       1*:   74:    ASSERT_EQ(ret, -13, "ro umem REREG_ACCESS + writable should return -EACCES (-13)");
+        -:   75:
+        1:   76:    TEST("ro umem, REREG_ACCESS only, local write → should FAIL with -EACCES");
+        1:   77:    ret = ib_umem_check_rereg(&ro_umem, IB_MR_REREG_ACCESS, IB_ACCESS_LOCAL_WRITE);
+       1*:   78:    ASSERT_EQ(ret, -13, "ro umem REREG_ACCESS + local write should return -EACCES");
+        -:   79:
+        1:   80:    TEST("ro umem, REREG_ACCESS only, remote atomic → should FAIL with -EACCES");
+        1:   81:    ret = ib_umem_check_rereg(&ro_umem, IB_MR_REREG_ACCESS, IB_ACCESS_REMOTE_ATOMIC);
+       1*:   82:    ASSERT_EQ(ret, -13, "ro umem REREG_ACCESS + remote atomic should return -EACCES");
+        -:   83:
+        1:   84:    TEST("ro umem, REREG_ACCESS only, MW bind → should FAIL with -EACCES");
+        1:   85:    ret = ib_umem_check_rereg(&ro_umem, IB_MR_REREG_ACCESS, IB_ACCESS_MW_BIND);
+       1*:   86:    ASSERT_EQ(ret, -13, "ro umem REREG_ACCESS + MW bind should return -EACCES");
+        -:   87:
+        -:   88:    /* --- BOTH flags set: REREG_ACCESS + REREG_TRANS should succeed --- */
+        1:   89:    printf("\n--- REREG_ACCESS + REREG_TRANS cases (should succeed) ---\n");
+        -:   90:
+        1:   91:    TEST("ro umem, REREG_ACCESS+REREG_TRANS, writable request → should succeed");
+        1:   92:    ret = ib_umem_check_rereg(&ro_umem,
+        -:   93:        IB_MR_REREG_ACCESS | IB_MR_REREG_TRANS, IB_ACCESS_REMOTE_WRITE);
+       1*:   94:    ASSERT_EQ(ret, 0, "ro umem with both REREG flags should succeed (driver handles translation)");
+        -:   95:
+        1:   96:    TEST("ro umem, REREG_TRANS only, writable request → should succeed");
+        1:   97:    ret = ib_umem_check_rereg(&ro_umem, IB_MR_REREG_TRANS, IB_ACCESS_REMOTE_WRITE);
+       1*:   98:    ASSERT_EQ(ret, 0, "ro umem with only REREG_TRANS should succeed");
+        -:   99:
+        -:  100:    /* --- ro umem + read-only access request should succeed --- */
+        1:  101:    printf("\n--- RO umem with read-only access (should succeed) ---\n");
+        -:  102:
+        1:  103:    TEST("ro umem, REREG_ACCESS only, read request → should succeed");
+        1:  104:    ret = ib_umem_check_rereg(&ro_umem, IB_MR_REREG_ACCESS, IB_ACCESS_REMOTE_READ);
+       1*:  105:    ASSERT_EQ(ret, 0, "ro umem REREG_ACCESS + read request should succeed");
+        -:  106:
+        -:  107:    /* --- Mixed writable access flag combinations --- */
+        1:  108:    printf("\n--- Mixed writable flag combinations ---\n");
+        -:  109:
+        1:  110:    TEST("ro umem, REREG_ACCESS only, LOCAL_WRITE|REMOTE_READ → should FAIL with -EACCES");
+        1:  111:    ret = ib_umem_check_rereg(&ro_umem, IB_MR_REREG_ACCESS,
+        -:  112:        IB_ACCESS_LOCAL_WRITE | IB_ACCESS_REMOTE_READ);
+       1*:  113:    ASSERT_EQ(ret, -13, "local write + remote read should trigger -EACCES on RO");
+        -:  114:
+        -:  115:    /* --- Summary --- */
+        1:  116:    printf("\n========================================\n");
+        1:  117:    printf("RESULTS: %d run, %d passed, %d failed\n", tests_run, tests_passed, tests_failed);
+        1:  118:    printf("========================================\n");
+        -:  119:
+        1:  120:    return tests_failed ? 1 : 0;
+        -:  121:}

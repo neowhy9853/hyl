@@ -1,0 +1,183 @@
+{
+  "repo": "/data7/wanghy/tmp/linux",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P044/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P044",
+  "base_ref": "36c41e9724c9a7a7cda37f5a4e9d94f25c8031c4~1",
+  "base_commit": "d68b621bb5a48051932f1017a6e1bc9b18f854d0",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "36c41e9724c9a7a7cda37f5a4e9d94f25c8031c4",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/gregkh/linux/commit/36c41e9724c9a7a7cda37f5a4e9d94f25c8031c4",
+    "download_url": "https://github.com/gregkh/linux/commit/36c41e9724c9a7a7cda37f5a4e9d94f25c8031c4.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P044/_patch-cache/36c41e9724c9.patch",
+    "commit": "36c41e9724c9a7a7cda37f5a4e9d94f25c8031c4"
+  },
+  "package_profile": "kernel_6_6",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 8000,
+    "patch_lines": 215,
+    "diff_added_lines": 73,
+    "diff_deleted_lines": 12,
+    "diff_context_lines": 62,
+    "churn": 85,
+    "raw_hunks": 9,
+    "candidate_hunks": 9,
+    "skipped_doc_hunks": 0,
+    "changed_files": 4,
+    "candidate_context_bytes": 17156,
+    "public_candidate_hunks": 3,
+    "surface_counts": {
+      "exported_symbols": 1,
+      "public_headers": 2
+    },
+    "candidates_json_bytes": 39574
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 4,
+    "total_candidates": 9,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "sysfs device hierarchy / net_device lifecycle / uevent behavior",
+      "affected_api": {
+        "name": "NCM gadget net_device lifecycle (sysfs topology + uevents)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "drivers/usb/gadget/function/u_ether.c",
+        "old_lines": [
+          896,
+          901
+        ],
+        "new_lines": [
+          896,
+          923
+        ],
+        "symbol": "gether_attach_gadget"
+      },
+      "old_behavior": "NCM gadget的net_device在首次bind时注册, 并通过SET_NETDEV_DEV将parent永久设为gadget设备。gadget断开后net_device保留对已释放gadget设备的dangling parent引用, 造成sysfs悬空链接。net_device在instance释放时销毁, 重新连接时需重新注册, 网络接口可能被DHCP服务器视为新设备。",
+      "new_behavior": "新增gether_attach_gadget()/gether_detach_gadget()导出函数使用device_move()动态管理net_device的sysfs父设备关系。首次bind调用gether_register_netdev()注册net_device, 后续bind通过device_move将net_device迁移到gadget设备下, unbind时通过device_move迁回/sys/devices/virtual/。net_device在bind/unbind间持久存在, 接口名称和属性保持不变。",
+      "compatibility_reason": "net_device的sysfs层级结构在bind/unbind期间动态变化, 从/sys/devices/virtual/net/<iface>与gadget设备之间迁移。这改变了udev事件类型(KOBJ_MOVE替代KOBJ_REGISTER/UNREGISTER)和设备层次结构, 可能影响依赖sysfs路径或netlink device事件监控的用户空间工具(如udev规则、网络管理器、监控脚本)。同时net_device持久化意味着DHCP客户端/服务器可以保留租约绑定, 这是预期改进但仍属于行为变更。",
+      "evidence": [
+        {
+          "file": "drivers/usb/gadget/function/u_ether.c",
+          "lines": [
+            899,
+            910
+          ],
+          "snippet": "int gether_attach_gadget(struct net_device *net, struct usb_gadget *g)\n{\n\tint ret;\n\n\tret = device_move(&net->dev, &g->dev, DPM_ORDER_DEV_AFTER_PARENT);\n\tif (ret)\n\t\treturn ret;\n\n\tgether_set_gadget(net, g);\n\treturn 0;\n}\nEXPORT_SYMBOL_GPL(gether_attach_gadget);"
+        },
+        {
+          "file": "drivers/usb/gadget/function/f_ncm.c",
+          "lines": [
+            1442,
+            1456
+          ],
+          "snippet": "\tscoped_guard(mutex, &ncm_opts->lock)\n\t\tif (ncm_opts->bind_count == 0) {\n\t\t\tif (!device_is_registered(&ncm_opts->net->dev)) {\n\t\t\t\tgether_set_gadget(ncm_opts->net, cdev->gadget);\n\t\t\t\tstatus = gether_register_netdev(ncm_opts->net);\n\t\t\t} else\n\t\t\t\tstatus = gether_attach_gadget(ncm_opts->net, cdev->gadget);\n\n\t\t\tif (status)\n\t\t\t\treturn status;\n\t\t\tnet = ncm_opts->net;\n\t\t}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "gether_attach_gadget()和gether_detach_gadget()是EXPORT_SYMBOL_GPL的导出函数, 被f_ncm.c中的ncm_bind/ncm_unbind调用。虽然ncm_bind是static函数, 但通过USB composite framework的函数指针ops->bind被框架调用, 其行为改变直接导致sysfs拓扑变化和uevent事件变化, 这些变化对用户空间可观察。udev、NetworkManager等工具通过netlink监控net_device的注册/注销事件, device_move生成的KOBJ_MOVE事件与之前的KOBJ_ADD/KOBJ_REMOVE模式不同。",
+      "uncertainty": "通过代码级分析确认了udev事件行为变化, 但未在运行时验证。实际的udev行为取决于device_move调用的确切序列和内核的kobject基础设施。",
+      "manual_review_required": false,
+      "recommended_review": "验证NCM gadget反复bind/unbind时/sys/class/net/<iface>/device软链接是否始终有效, 以及udevadm monitor捕获的事件类型是否从ADD/REMOVE变为MOVE。",
+      "test_recommendation": "测试NCM gadget的bind/unbind循环: 通过configfs创建gadget配置, 反复绑定/解绑NCM function, 监控/sys/class/net/<iface>/device路径和udev事件, 确认net_device在整个过程中不丢失且DHCP客户端可以持续工作。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0007",
+            "file": "drivers/usb/gadget/function/u_ether.c",
+            "old_lines": [
+              896,
+              901
+            ],
+            "new_lines": [
+              896,
+              923
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "exported_symbols"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "exported_symbols",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported kernel symbols used by modules"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill.",
+  "notes": "经过语义分析, 9个候选hunk中3个标记为公共候选。HUNK-0007(新增EXPORT_SYMBOL_GPL函数)和HUNK-0008(新增头文件声明)为纯增量API, 不构成兼容性中断。HUNK-0009(f_ncm_opts结构体成员变更: bool bound→int bind_count)为内核内部结构体, 仅被in-tree代码使用, 不具备外部可观察影响, 不纳入兼容性发现。最终确认1个SIDE_EFFECT_CHANGE类型的兼容性变化。"
+}

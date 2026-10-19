@@ -1,0 +1,204 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/ruby",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/ruby/pca-results/23c056/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/ruby/pca-results/23c056",
+  "base_ref": "0b2b21767b",
+  "base_commit": "0b2b21767beb73cd8497ac6b18248e7b87dc433e",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "23c056c83cebad03f716c7af490c8bec9753ec90",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/bit_count_patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "ruby",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 6554,
+    "patch_lines": 215,
+    "diff_added_lines": 129,
+    "diff_deleted_lines": 1,
+    "diff_context_lines": 44,
+    "churn": 130,
+    "raw_hunks": 7,
+    "candidate_hunks": 7,
+    "skipped_doc_hunks": 0,
+    "changed_files": 6,
+    "candidate_context_bytes": 17991,
+    "public_candidate_hunks": 5,
+    "surface_counts": {
+      "ruby_c_extension_api": 6,
+      "ruby_exceptions": 5,
+      "c_ext_api": 6,
+      "exceptions": 5,
+      "tests": 2,
+      "user_visible_output": 1
+    },
+    "candidates_json_bytes": 44647
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 6,
+    "total_candidates": 7,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "ruby",
+      "affected_surface": "Ruby public method on Integer class",
+      "affected_api": {
+        "name": "Integer#bit_count",
+        "kind": "public_method",
+        "language": "ruby",
+        "signature_old": "(not present)",
+        "signature_new": "bit_count() -> integer"
+      },
+      "location": {
+        "file": "numeric.c",
+        "old_lines": [
+          6655,
+          6655
+        ],
+        "new_lines": [
+          6656,
+          6656
+        ],
+        "symbol": "Integer#bit_count"
+      },
+      "old_behavior": "Integer does not have a bit_count method; calling it raises NoMethodError.",
+      "new_behavior": "Integer#bit_count returns the population count (number of set bits) of the integer's binary representation. Raises ArgumentError for negative integers.",
+      "compatibility_reason": "Purely additive API change. A new public method Integer#bit_count is introduced. No existing API, contract, or behavior is modified. Existing code that does not call bit_count is unaffected. In rare cases where a subclass or monkey-patch defined bit_count on Integer, the built-in method would override it, but this is an edge case and the change follows the standard pattern for Ruby feature additions.",
+      "evidence": [
+        {
+          "file": "numeric.c",
+          "lines": [
+            6653,
+            6657
+          ],
+          "snippet": "    rb_define_method(rb_cInteger, \"<<\", rb_int_lshift, 1);\n    rb_define_method(rb_cInteger, \">>\", rb_int_rshift, 1);\n\n    rb_define_method(rb_cInteger, \"digits\", rb_int_digits, -1);\n    rb_define_method(rb_cInteger, \"bit_count\", rb_int_bit_count, 0);"
+        },
+        {
+          "file": "numeric.c",
+          "lines": [
+            5766,
+            5776
+          ],
+          "snippet": "VALUE\nrb_int_bit_count(VALUE num)\n{\n    if (FIXNUM_P(num)) {\n        return rb_fix_bit_count(num);\n    }\n    else if (RB_BIGNUM_TYPE_P(num)) {\n        return rb_big_bit_count(num);\n    }\n    UNREACHABLE_RETURN(Qnil);\n}"
+        },
+        {
+          "file": "internal/numeric.h",
+          "lines": [
+            128,
+            129
+          ],
+          "snippet": "VALUE rb_int_bit_length(VALUE num);\nVALUE rb_int_bit_count(VALUE num);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The method is publicly registered via rb_define_method on rb_cInteger, making it part of the Ruby core API surface visible to all Ruby code. The C implementation functions (rb_int_bit_count, rb_big_bit_count) are in internal headers, but the Ruby method Integer#bit_count is public.",
+      "uncertainty": "Low uncertainty. The change is purely additive with no modification to existing interfaces. The only potential edge case is overriding of existing monkey-patches, which is inherent to Ruby language evolution.",
+      "manual_review_required": false,
+      "recommended_review": "No manual review required. Standard additive feature addition with dedicated tests.",
+      "test_recommendation": "Run existing test_bit_count and test_bit_count_for_negative_numbers tests in test/ruby/test_integer.rb to verify fixnum and bignum behavior, including boundary conditions (0, positive integers, negative integer rejection). Also verify via direct smoke programs that Integer#bit_count returns correct values for common cases.",
+      "test_priority_reason": "Purely additive API change. No existing contracts are modified. The new method has its own comprehensive tests. Low priority because it cannot break existing code that does not call bit_count.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "Purely additive API change. No existing contracts are modified. The new method has its own comprehensive tests. Low priority because it cannot break existing code that does not call bit_count.",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [
+          "additive_behavior_only"
+        ],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=public_method with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "numeric.c",
+            "old_lines": [
+              6610,
+              6615
+            ],
+            "new_lines": [
+              6653,
+              6659
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "ruby_c_extension_api",
+              "c_ext_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "ruby_c_extension_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ruby C extension API and ABI."
+              },
+              {
+                "name": "c_ext_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ruby C extension API"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent has adjudicated candidates and written final compatibility findings. Proceeding to directed testing per user request."
+}

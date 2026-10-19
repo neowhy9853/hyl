@@ -1,0 +1,135 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P027/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P027/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P027",
+  "patch_id": "5235467b9183a8be8675aed17bd5b5a993975da7",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "inspect module CLI --details output",
+        "kind": "cli_command",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Lib/inspect.py",
+        "old_lines": [
+          3384,
+          3412
+        ],
+        "new_lines": [
+          3475,
+          3490
+        ],
+        "symbol": "_main"
+      },
+      "old_behavior": "使用 --details 参数时输出固定的字段列表：Target、Origin、Cached，然后根据是否为模块自身输出 Loader/Submodule search path（单数路径）或 Line。无 Source 字段，无条件输出字段。",
+      "new_behavior": "通过 _render_details_for_cli() 输出：Target（可选附加上下文别名信息）、Origin、Source（新增）、Cached，然后根据是否为模块自身输出 Loader 和 Submodule search paths（复数路径），或输出 Line/错误信息。Source 字段独立展示源文件路径。",
+      "compatibility_reason": "CLI --details 输出格式发生结构性变化：新增 Source 字段改变字段名和行数；Submodule search path 重命名为 Submodule search paths；当存在别名时 Target 行内容变为 'Target: <resolved> (looked up as \"<alias>\")'；模块级别错误在 --details 模式表现为信息性输出而非直接退出。任何解析 python -m inspect --details 输出的脚本或工具都可能因字段增减或格式变化而中断。",
+      "test_recommendation": "回归测试：使用 --details 参数测试各种目标类型（包、模块、内置模块、别名目标、数据目标），比较输出格式与预期一致。特别验证 Source 字段的存在性、Submodule search paths 的命名、以及带别名的 Target 行格式。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "inspect module CLI --details flag behavior",
+        "kind": "cli_command",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Lib/inspect.py",
+        "old_lines": [
+          3384,
+          3401
+        ],
+        "new_lines": [
+          3478,
+          3485
+        ],
+        "symbol": "_main"
+      },
+      "old_behavior": "python -m inspect sys --details 始终以 exit code 1 退出，输出 \"Can't get info for builtin modules.\" 到 stderr。任何内置模块都会立即被拒绝，无论是否使用了 --details 标志。",
+      "new_behavior": "python -m inspect sys --details 成功退出 (exit code 0)，在 stdout 上输出部分模块信息（Target、Origin、Source: None、Cached: None、Loader、空行）。错误消息变为仅在尝试获取源代码时才会触发。内置模块在 --details 模式下不再是致命错误。",
+      "compatibility_reason": "这是行为变化：之前确定性失败的命令现在变为确定性成功。依赖 exit code 或 stderr 输出检查内置模块状态的脚本将受影响。此前认为 python -m inspect 无法处理内置模块的用户现在会获得部分结果。",
+      "test_recommendation": "回归测试：对内置模块 (sys) 和扩展模块 (_testcapi) 同时使用和不使用 --details 测试。验证 --details 成功退出并检查输出格式。验证无 --details 的错误消息和 exit code。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P027/compatibility-testing"
+}

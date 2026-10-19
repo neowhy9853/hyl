@@ -1,0 +1,163 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P053/analysis.json",
+  "patch_id": "a8982b0376885b5007b5c6bbbfedfde7bb941a54",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P053/compatibility-testing",
+  "status": "blocked",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+    "base_commit": "a6d1d7aa49c264efc9d520ffe555299b7a92466e",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P053/_worktrees/patched",
+    "package_profile": "c_project"
+  },
+  "environment": {
+    "kind": "not_available",
+    "before_build": "not_run",
+    "after_build": "not_run",
+    "compiler": "gcc (Ubuntu 13.3.0)",
+    "optimization": "N/A",
+    "coverage_tool": "gcov (not executed)",
+    "notes": [
+      "Build blocked: autogen.sh requires intltoolize (package intltool) which is not installed",
+      "sudo not available for package installation",
+      "System has glib-2.0 and gio-2.0 runtime but lacks libsoup-2.4 development package",
+      "The analysis worktree uses autotools (2016-era); modern repo uses meson",
+      "Full test requires Apache HTTP server with Digest auth (native test at tests/auth-test.c)"
+    ]
+  },
+  "summary": {
+    "findings_total": 2,
+    "findings_targeted": 2,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 0,
+    "inputs_planned": 0,
+    "inputs_executed": 0,
+    "contracts_total": 1,
+    "contracts_passed": 0,
+    "contracts_breached": 0,
+    "contracts_skipped": 1,
+    "patch_executable_lines": 3,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 3,
+    "patch_line_coverage_rate": 0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "status": "blocked",
+      "target_location": {
+        "file": "libsoup/soup-auth-manager.c",
+        "new_lines": [446, 454],
+        "symbol": "update_authorization_header"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "needs_env",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+          "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+          "expected_signal": "Before patch: Authorization header stripped; After patch: Authorization header preserved",
+          "reachability_signal": "gcov coverage on lines 449-450 after sending request with manual Authorization header"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "side_effect_auth_header_preservation",
+          "status": "skipped",
+          "detail": "Cannot compile instrumented libsoup: autogen.sh requires intltoolize (intltool package), and soup-version.h.in needs configure to generate soup-version.h"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 2,
+        "covered_lines": 0,
+        "uncovered_lines": ["449", "450"],
+        "rate": 0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Test entry (reproducer.sh + harness.c) has been generated and is syntactically valid",
+        "Harness uses in-process SoupServer (no Apache needed) but requires compiled libsoup",
+        "Native test do_message_has_authorization_header_test exists in tests/auth-test.c with Apache requirement",
+        "Commit includes g_test_bug('775882') reference for the bug this patch fixes"
+      ]
+    },
+    {
+      "finding_id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "status": "not_run",
+      "target_location": {
+        "file": "libsoup/soup-auth-manager.c",
+        "new_lines": [456, 462],
+        "symbol": "update_authorization_header"
+      },
+      "entries": [],
+      "contracts": [],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 0,
+        "uncovered_lines": ["459"],
+        "rate": 0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Medium priority - not targeted by default (planner was run with --min-priority high)",
+        "Tests the append-to-replace semantic change in Authorization header manipulation"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "BLOCK-ENV-001",
+      "reason": "intltoolize not found. The autogen.sh script in the 2016-era analysis worktree requires intltool to generate the configure script. Without configure, soup-version.h (needed for compilation) cannot be generated from soup-version.h.in.",
+      "required_action": "Install intltool package: sudo apt install intltool OR sudo yum install intltool"
+    },
+    {
+      "scope": "build",
+      "id": "BLOCK-BLD-001",
+      "reason": "libsoup-2.4.pc not found (development package missing). While the shared library libsoup2.4-1 is installed, the pkg-config file and development headers are not available. This prevents linking test programs against the system libsoup.",
+      "required_action": "Install libsoup-2.4 development package: sudo apt install libsoup2.4-dev"
+    },
+    {
+      "scope": "entry",
+      "id": "BLOCK-ENT-001",
+      "reason": "Cannot compile or run the test harness without built libsoup library. Both the reproducer.sh script (which builds from analysis worktree) and the harness.c (which links against libsoup) require a working libsoup build environment.",
+      "required_action": "Resolve BLOCK-ENV-001 and BLOCK-BLD-001 first, then re-run the reproducer"
+    },
+    {
+      "scope": "contract",
+      "id": "BLOCK-CTR-001",
+      "reason": "Contract probe side_effect_auth_header_preservation cannot execute: before/after binaries are not available. The probe requires instrumented builds of both baseline (base_commit) and patched (analysis worktree) versions of libsoup.",
+      "required_action": "Build both baseline and patched libsoup with gcov instrumentation after resolving environment blockers"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "",
+    "execution_results": "",
+    "contract_summary": "test-entry-work/test-entry-verification.json",
+    "coverage_data": "",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": false,
+    "rationale": "Testing is blocked due to missing build dependencies (intltool for autogen.sh, libsoup-2.4-dev for linking). The static analysis identified 2 compatibility changes (PCA-0001 HIGH: conditional Authorization header removal, PCA-0002 MEDIUM: append-to-replace semantic change). Both are SIDE_EFFECT_CHANGE in the auth manager's HTTP header handling. Without being able to build and instrument the library, we cannot execute contract verification or measure patch-line coverage. The generated test artifacts (reproducer.sh + harness.c) are structurally complete and ready to execute once dependencies are installed.",
+    "recommended_actions": [
+      "安装 intltool: sudo apt install intltool",
+      "安装 libsoup 开发包: sudo apt install libsoup2.4-dev",
+      "运行 reproducer.sh 构建并测试基准版和补丁版 libsoup",
+      "使用 gcov 采集 libsoup/soup-auth-manager.c 第 446-454 行的覆盖率数据",
+      "对比 before/after 行为: 手动设置 Authorization 头在无缓存凭证时是否被保留",
+      "针对 native test 运行 /auth/authorization-header-request (需要 Apache)"
+    ]
+  }
+}

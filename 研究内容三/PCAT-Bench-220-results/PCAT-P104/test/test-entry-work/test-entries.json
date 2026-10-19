@@ -1,0 +1,38 @@
+[
+  {
+    "finding_id": "PCA-0001",
+    "entry_id": "PCA-TE-0001",
+    "entry_kind": "synthetic_harness",
+    "status": "static_valid_not_run",
+    "artifact_path": "test-entry-work/PCA-0001/ncm_gadget_reproducer.sh",
+    "build_command": "cd analysis_repo && make -j$(nproc) M=drivers/usb/gadget/function/ CFLAGS_MODULE=\"-O0 -g\"",
+    "run_command": "bash test-entry-work/PCA-0001/ncm_gadget_reproducer.sh {BEFORE_DIR} {AFTER_DIR}",
+    "target_location": {
+      "file": "drivers/usb/gadget/function/u_ether.c",
+      "new_lines": [
+        896,
+        923
+      ],
+      "symbol": "gether_attach_gadget"
+    },
+    "reachability_signal": "在补丁后内核中, 执行bind/unbind循环后, 通过dmesg或trace确认device_move()被调用; 通过`udevadm monitor`捕获KOBJ_MOVE事件而非KOBJ_ADD事件",
+    "expected_signal": "net_device在bind/unbind间持久存在; /sys/class/net/<iface>/device软链接指向正确的gadget设备; udevadm monitor显示MOVE事件; DHCP客户端保留租约",
+    "execution": {
+      "cwd": "result_dir",
+      "timeout_seconds": 600,
+      "uses_clean_source_copy": false
+    },
+    "input_strategy": "1) 通过configfs创建gadget配置, 绑定NCM function; 2) 解绑NCM function; 3) 重新绑定; 4) 在每个步骤监控sysfs和uevent",
+    "contract_probe": {
+      "probe_id": "ncm_sysfs_side_effect",
+      "command": "cat /sys/class/net/{IFACE}/device/uevent && udevadm info --query=path --name={IFACE}",
+      "before_command": "# 在基线内核(before)中: 期望每次unbind/bind时net_device重新注册, /sys/class/net/<iface>/device指向稳定的gadget设备路径",
+      "after_command": "# 在补丁内核(after)中: 期望net_device在unbind时迁回/sys/devices/virtual/, 再次bind时迁回gadget设备下, 路径动态变化",
+      "comparison": "exact",
+      "cwd": "result_dir",
+      "timeout_seconds": 30,
+      "tolerance_percent": null
+    },
+    "limitations": "需要能够运行自定义内核的QEMU VM环境, 需要CONFIG_USB_GADGET=y, CONFIG_USB_CONFIGFS=y, CONFIG_USB_CONFIGFS_NCM=y, dummy_hcd或实际USB gadget硬件。需要root权限操作configfs和监控udev事件。完整测试需要构建两个内核并分别启动VM。"
+  }
+]

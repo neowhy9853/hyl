@@ -1,0 +1,36 @@
+{
+  "task_id": "PCA-TE-0001",
+  "finding_id": "PCA-0001",
+  "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+  "test_priority": "medium",
+  "entry_type": "golden_output_probe",
+  "status": "needs_env",
+  "status_reason": "Build requires libapr1-dev, libaprutil1-dev headers not available on host (no sudo). Docker build attempted but requires git and complex CMake configuration. Documenting exact test plan for execution in properly configured environment.",
+  "artifact_path": "test-entry-work/PCA-TE-0001",
+  "contract_probe": {
+    "contract_id": "output_format_stability",
+    "comparison": "exact",
+    "before_command": "Build httpd from base_commit c513c04b680ecf204ec68327d6ad95e4d4325beb with mod_proxy_html, serve test HTML with comments + CDATA content through proxy, capture output",
+    "after_command": "Build httpd from patched commit fd74218c456c9b6322ee9316ff16955a088f75d4 with mod_proxy_html, serve same test HTML through proxy, capture output",
+    "expected_signal": "Before: duplicate content dump before comments; After: content output only at correct element boundaries, no duplication",
+    "output_format": "byte-level diff of proxy HTML output"
+  },
+  "build_instructions": "See test-entry-work/PCA-TE-0001/test_httpd.sh for complete build and test script",
+  "test_html_content": "<!DOCTYPE html><html><head><title>PCA Test</title></head><body><p>Text with <a href=\"http://backend:8080/app\">link</a> to proxy.</p><!-- Comment --><p>More text <a href=\"http://backend:9090/api\">API</a>.</p></body></html>",
+  "target_lines": [337, 340],
+  "target_symbol": "pcomment",
+  "target_file": "modules/filters/mod_proxy_html.c",
+  "verification_result": "needs_env",
+  "limitations": [
+    "Requires libapr1-dev and libaprutil1-dev for building httpd from source",
+    "Docker build attempted but source copying and CMake configuration need refinement",
+    "Full integration test requires running httpd as proxy with mod_proxy_html loaded"
+  ],
+  "manual_steps_required": [
+    "Install build dependencies: apt-get install libapr1-dev libaprutil1-dev libxml2-dev libexpat1-dev libpcre3-dev libssl-dev",
+    "Build httpd from source with gcov instrumentation",
+    "Configure mod_proxy_html with ProxyHTMLExtended Off",
+    "Serve test HTML page with comments and CDATA content",
+    "Compare proxy output before and after patch"
+  ]
+}

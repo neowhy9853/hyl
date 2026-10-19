@@ -1,0 +1,259 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P026/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P026/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P026",
+  "patch_id": "9770e32ce07110f0c8c7a381604ec9a490028eed",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "os.makedirs",
+        "kind": "exported_function",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Lib/os.py",
+        "old_lines": [
+          219,
+          232
+        ],
+        "new_lines": [
+          219,
+          235
+        ],
+        "symbol": "makedirs"
+      },
+      "old_behavior": "makedirs(name, mode=0o777, exist_ok=False) - 接受3个位置或关键字参数，中间目录使用默认权限创建（受umask影响）",
+      "new_behavior": "makedirs(name, mode=0o777, exist_ok=False, *, parent_mode=None) - 新增keyword-only参数parent_mode，当设置为非None时用作中间目录的创建模式；默认None保持原有行为",
+      "compatibility_reason": "函数签名新增一个keyword-only可选参数parent_mode。由于parent_mode位于*之后，调用者无法以位置参数方式传入，但已有调用者不受影响：所有现有参数（name、mode、exist_ok）的位置和默认值未变，不传递parent_mode时行为与旧版本完全一致。这是纯增量的向后兼容变更。",
+      "test_recommendation": "验证不传递parent_mode时makedirs的行为与旧版本完全一致；验证传递parent_mode时中间目录获得指定模式；验证parent_mode与mode值不同时的正确隔离。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "low",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "os.makedirs",
+        "kind": "exported_function",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Lib/os.py",
+        "old_lines": [
+          234,
+          240
+        ],
+        "new_lines": [
+          237,
+          247
+        ],
+        "symbol": "makedirs"
+      },
+      "old_behavior": "递归调用makedirs(head, exist_ok=exist_ok)创建中间目录——中间目录使用默认权限（受umask影响），无法单独指定模式",
+      "new_behavior": "当parent_mode参数不为None时，递归调用makedirs(head, mode=parent_mode, exist_ok=exist_ok, parent_mode=parent_mode)，将parent_mode用作中间目录创建模式和递归传递；当parent_mode为None（默认值）时，行为与旧版本完全相同",
+      "compatibility_reason": "更改了makedirs递归创建中间目录时的mode参数传递逻辑。当parent_mode被显式设置时，中间目录获得指定权限而非默认权限，改变了文件系统中的可观察副作用（目录权限位）。默认行为（parent_mode=None）不受影响，因此只有显式使用新参数的用户会观察到变化。",
+      "test_recommendation": "验证makedirs(path, parent_mode=0o700)时所有中间目录权限为0o700且叶目录为默认0o777；验证不设置parent_mode时行为不变；验证umask对parent_mode的屏蔽效果。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0003",
+      "finding_id": "PCA-0003",
+      "test_priority": "low",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "pathlib.Path.mkdir",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Lib/pathlib/__init__.py",
+        "old_lines": [
+          1204,
+          1210
+        ],
+        "new_lines": [
+          1204,
+          1210
+        ],
+        "symbol": "mkdir"
+      },
+      "old_behavior": "Path.mkdir(self, mode=0o777, parents=False, exist_ok=False) - 接受3个位置或关键字参数，中间目录使用默认权限创建",
+      "new_behavior": "Path.mkdir(self, mode=0o777, parents=False, exist_ok=False, *, parent_mode=None) - 新增keyword-only参数parent_mode，当设置为非None时用作中间目录的创建模式",
+      "compatibility_reason": "与os.makedirs相同的模式：pathlib.Path.mkdir新增keyword-only可选参数parent_mode。已有调用者不传递parent_mode时行为不变，纯增量兼容。",
+      "test_recommendation": "验证Path.mkdir(parents=True)不传parent_mode时行为不变；验证Path.mkdir(parents=True, parent_mode=0o700)时中间目录权限正确。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0004",
+      "finding_id": "PCA-0004",
+      "test_priority": "low",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "pathlib.Path.mkdir",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Lib/pathlib/__init__.py",
+        "old_lines": [
+          1213,
+          1219
+        ],
+        "new_lines": [
+          1213,
+          1223
+        ],
+        "symbol": "mkdir"
+      },
+      "old_behavior": "递归调用self.parent.mkdir(parents=True, exist_ok=True)创建父目录——父目录获得默认权限",
+      "new_behavior": "当parent_mode不为None时，递归调用self.parent.mkdir(mode=parent_mode, parents=True, exist_ok=True, parent_mode=parent_mode)，将parent_mode应用于父目录创建；当parent_mode为None时行为不变",
+      "compatibility_reason": "Path.mkdir递归创建父目录时的mode参数传递逻辑变化。显式设置parent_mode时父目录权限改变，默认行为不变。",
+      "test_recommendation": "验证Path.mkdir(parents=True, parent_mode=0o700)时父目录权限正确；验证深层目录层次时parent_mode正确传播到所有中间级别。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P026/compatibility-testing"
+}

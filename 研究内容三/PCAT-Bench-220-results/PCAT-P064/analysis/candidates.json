@@ -1,0 +1,296 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/patch.diff",
+  "profile": "haproxy",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "src/quic_tx.c"
+    ],
+    "total_hunks": 3,
+    "public_api_hunks": 3,
+    "patch_metrics": {
+      "patch_bytes": 1087,
+      "patch_lines": 30,
+      "diff_added_lines": 3,
+      "diff_deleted_lines": 1,
+      "diff_context_lines": 19,
+      "churn": 4,
+      "raw_hunks": 3,
+      "candidate_hunks": 3,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 7604,
+      "public_candidate_hunks": 3,
+      "surface_counts": {
+        "network_protocol": 3,
+        "protocol_behavior": 3
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/quic_tx.c",
+      "old_start": 2029,
+      "old_end": 2036,
+      "new_start": 2029,
+      "new_end": 2036,
+      "context_hint": "static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,",
+      "added_lines": [
+        ""
+      ],
+      "deleted_lines": [
+        ""
+      ],
+      "context_lines": [
+        "\t/* Handle Initial packet padding if necessary. */",
+        "\tif (padding && dglen < QUIC_INITIAL_PACKET_MINLEN) {",
+        "\t\tpadding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;",
+        "\t\tlen += padding_len;",
+        "\t\t/* Update size of packet length field with new PADDING data. */",
+        "\t\tif (pkt->type != QUIC_PACKET_TYPE_SHORT) {",
+        "\t\t\tsize_t len_sz_diff = quic_int_getsize(len) - len_sz;"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "qc_do_build_pkt",
+        "qc_build_cc_frm"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "protocol_behavior",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Proxy protocol, HTTP/TCP/TLS/QUIC behavior"
+          }
+        ],
+        "surface_reasons": [
+          "network_protocol",
+          "protocol_behavior"
+        ],
+        "profile": "haproxy",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "qc_do_build_pkt",
+        "snippet_start_line": 2000,
+        "snippet_end_line": 2066,
+        "snippet": "\tif (len_frms)\n\t\tlen = len_frms + QUIC_TLS_TAG_LEN;\n\telse\n\t\tlen += QUIC_TLS_TAG_LEN;\n\t/* CONNECTION_CLOSE frame */\n\tif (cc) {\n\t\tqc_build_cc_frm(qc, qel, &cc_frm);\n\t\tlen += qc_frm_len(&cc_frm);\n\t}\n\tadd_ping_frm = 0;\n\tpadding_len = 0;\n\t/* Add this packet size to <dglen> */\n\tdglen += head_len + len;\n\n\tif (pkt->type != QUIC_PACKET_TYPE_SHORT) {\n\t\t/* Remove reserved space for packet length. */\n\t\tpos -= len_sz;\n\t\tlen_sz = quic_int_getsize(len);\n\t\tdglen += len_sz;\n\t}\n\n\t/* TODO qc_do_build_pkt() must rely on its <probe> argument instead of using QEL <pto_probe> field. */\n\tif (qel->pktns->tx.pto_probe && LIST_ISEMPTY(&frm_list) && !cc) {\n\t\t/* Send PING if probing required but no frame avail for sending. */\n\t\tadd_ping_frm = 1;\n\t\tlen += 1;\n\t\tdglen += 1;\n\t}\n\n\t/* Handle Initial packet padding if necessary. */\n\tif (padding && dglen < QUIC_INITIAL_PACKET_MINLEN) {\n\t\tpadding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;\n\t\tlen += padding_len;\n\n\t\t/* Update size of packet length field with new PADDING data. */\n\t\tif (pkt->type != QUIC_PACKET_TYPE_SHORT) {\n\t\t\tsize_t len_sz_diff = quic_int_getsize(len) - len_sz;\n\t\t\tif (len_sz_diff) {\n\t\t\t\tpadding_len -= len_sz_diff;\n\t\t\t\tlen_sz += len_sz_diff;\n\t\t\t\tdglen += len_sz_diff;\n\t\t\t\tlen -= len_sz_diff;\n\t\t\t}\n\t\t}\n\t}\n\n\t/* RFC 9001 5.4.2. Header Protection Sample\n\t *\n\t * To ensure that sufficient data is available for sampling, packets are\n\t * padded so that the combined lengths of the encoded packet number and\n\t * protected payload is at least 4 bytes longer than the sample required\n\t * for header protection. The cipher suites defined in [TLS13] -- other\n\t * than TLS_AES_128_CCM_8_SHA256, for which a header protection scheme\n\t * is not defined in this document -- have 16-byte expansions and 16-\n\t * byte header protection samples. This results in needing at least 3\n\t * bytes of frames in the unprotected payload if the packet number is\n\t * encoded on a single byte, or 2 bytes of frames for a 2-byte packet\n\t * number encoding.\n\t */\n\n\t/* Add padding if packet is too small for HP sampling as specified\n\t * above. QUIC TLS algos relies on 16 bytes sample extracted\n\t * QUIC_PACKET_PN_MAXLEN(4) bytes after the PN offset Thus, pn and payload\n\t * must be at least QUIC_PACKET_PN_MAXLEN(4) bytes long, so that the sample\n\t * will be extracted as the AEAD tag.\n\t *\n\t * Note that from here, <len> includes <*pn_len>, the total frame lengths,\n"
+      }
+    },
+    {
+      "file": "src/quic_tx.c",
+      "old_start": 2038,
+      "old_end": 2043,
+      "new_start": 2038,
+      "new_end": 2044,
+      "context_hint": "static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,",
+      "added_lines": [
+        "\t\t\t\tlen -= len_sz_diff;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\t\t\tpadding_len -= len_sz_diff;",
+        "\t\t\t\tlen_sz += len_sz_diff;",
+        "\t\t\t\tdglen += len_sz_diff;",
+        "\t\t\t}",
+        "\t\t}",
+        "\t}"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "qc_do_build_pkt",
+        "len",
+        "len_sz_diff",
+        "qc_build_cc_frm"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "protocol_behavior",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Proxy protocol, HTTP/TCP/TLS/QUIC behavior"
+          }
+        ],
+        "surface_reasons": [
+          "network_protocol",
+          "protocol_behavior"
+        ],
+        "profile": "haproxy",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "qc_do_build_pkt",
+        "snippet_start_line": 2009,
+        "snippet_end_line": 2074,
+        "snippet": "\tadd_ping_frm = 0;\n\tpadding_len = 0;\n\t/* Add this packet size to <dglen> */\n\tdglen += head_len + len;\n\n\tif (pkt->type != QUIC_PACKET_TYPE_SHORT) {\n\t\t/* Remove reserved space for packet length. */\n\t\tpos -= len_sz;\n\t\tlen_sz = quic_int_getsize(len);\n\t\tdglen += len_sz;\n\t}\n\n\t/* TODO qc_do_build_pkt() must rely on its <probe> argument instead of using QEL <pto_probe> field. */\n\tif (qel->pktns->tx.pto_probe && LIST_ISEMPTY(&frm_list) && !cc) {\n\t\t/* Send PING if probing required but no frame avail for sending. */\n\t\tadd_ping_frm = 1;\n\t\tlen += 1;\n\t\tdglen += 1;\n\t}\n\n\t/* Handle Initial packet padding if necessary. */\n\tif (padding && dglen < QUIC_INITIAL_PACKET_MINLEN) {\n\t\tpadding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;\n\t\tlen += padding_len;\n\n\t\t/* Update size of packet length field with new PADDING data. */\n\t\tif (pkt->type != QUIC_PACKET_TYPE_SHORT) {\n\t\t\tsize_t len_sz_diff = quic_int_getsize(len) - len_sz;\n\t\t\tif (len_sz_diff) {\n\t\t\t\tpadding_len -= len_sz_diff;\n\t\t\t\tlen_sz += len_sz_diff;\n\t\t\t\tdglen += len_sz_diff;\n\t\t\t\tlen -= len_sz_diff;\n\t\t\t}\n\t\t}\n\t}\n\n\t/* RFC 9001 5.4.2. Header Protection Sample\n\t *\n\t * To ensure that sufficient data is available for sampling, packets are\n\t * padded so that the combined lengths of the encoded packet number and\n\t * protected payload is at least 4 bytes longer than the sample required\n\t * for header protection. The cipher suites defined in [TLS13] -- other\n\t * than TLS_AES_128_CCM_8_SHA256, for which a header protection scheme\n\t * is not defined in this document -- have 16-byte expansions and 16-\n\t * byte header protection samples. This results in needing at least 3\n\t * bytes of frames in the unprotected payload if the packet number is\n\t * encoded on a single byte, or 2 bytes of frames for a 2-byte packet\n\t * number encoding.\n\t */\n\n\t/* Add padding if packet is too small for HP sampling as specified\n\t * above. QUIC TLS algos relies on 16 bytes sample extracted\n\t * QUIC_PACKET_PN_MAXLEN(4) bytes after the PN offset Thus, pn and payload\n\t * must be at least QUIC_PACKET_PN_MAXLEN(4) bytes long, so that the sample\n\t * will be extracted as the AEAD tag.\n\t *\n\t * Note that from here, <len> includes <*pn_len>, the total frame lengths,\n\t * and QUIC_TLS_TAG_LEN(16).\n\t */\n\tif (len < QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN) {\n\t\tpadding_len = QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN - len;\n\t\tTRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_PHPKTS, qc, 0, 0, 0,\n\t\t             \"adding padding pn=%llu padding_len=%zu *pn_len=%zu\"\n\t\t             \" len=%zu len_frms=%zu\",\n\t\t             (ull)pn, padding_len, *pn_len, len, len_frms);\n"
+      }
+    },
+    {
+      "file": "src/quic_tx.c",
+      "old_start": 2074,
+      "old_end": 2079,
+      "new_start": 2075,
+      "new_end": 2081,
+      "context_hint": "static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,",
+      "added_lines": [
+        "\t/* Encode length field : length of PN and payload (frames + TLS AEAD tag). */"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\tlen += padding_len;",
+        "\t}",
+        "",
+        "\tif (pkt->type != QUIC_PACKET_TYPE_SHORT && !quic_enc_int(&pos, end, len))",
+        "\t\tgoto no_room;",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "qc_do_build_pkt",
+        "Encode",
+        "length",
+        "field",
+        "of",
+        "PN",
+        "TRACE_PRINTF"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "protocol_behavior",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Proxy protocol, HTTP/TCP/TLS/QUIC behavior"
+          }
+        ],
+        "surface_reasons": [
+          "network_protocol",
+          "protocol_behavior"
+        ],
+        "profile": "haproxy",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "qc_do_build_pkt",
+        "snippet_start_line": 2045,
+        "snippet_end_line": 2111,
+        "snippet": "\n\t/* RFC 9001 5.4.2. Header Protection Sample\n\t *\n\t * To ensure that sufficient data is available for sampling, packets are\n\t * padded so that the combined lengths of the encoded packet number and\n\t * protected payload is at least 4 bytes longer than the sample required\n\t * for header protection. The cipher suites defined in [TLS13] -- other\n\t * than TLS_AES_128_CCM_8_SHA256, for which a header protection scheme\n\t * is not defined in this document -- have 16-byte expansions and 16-\n\t * byte header protection samples. This results in needing at least 3\n\t * bytes of frames in the unprotected payload if the packet number is\n\t * encoded on a single byte, or 2 bytes of frames for a 2-byte packet\n\t * number encoding.\n\t */\n\n\t/* Add padding if packet is too small for HP sampling as specified\n\t * above. QUIC TLS algos relies on 16 bytes sample extracted\n\t * QUIC_PACKET_PN_MAXLEN(4) bytes after the PN offset Thus, pn and payload\n\t * must be at least QUIC_PACKET_PN_MAXLEN(4) bytes long, so that the sample\n\t * will be extracted as the AEAD tag.\n\t *\n\t * Note that from here, <len> includes <*pn_len>, the total frame lengths,\n\t * and QUIC_TLS_TAG_LEN(16).\n\t */\n\tif (len < QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN) {\n\t\tpadding_len = QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN - len;\n\t\tTRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_PHPKTS, qc, 0, 0, 0,\n\t\t             \"adding padding pn=%llu padding_len=%zu *pn_len=%zu\"\n\t\t             \" len=%zu len_frms=%zu\",\n\t\t             (ull)pn, padding_len, *pn_len, len, len_frms);\n\t\tlen += padding_len;\n\t}\n\n\t/* Encode length field : length of PN and payload (frames + TLS AEAD tag). */\n\tif (pkt->type != QUIC_PACKET_TYPE_SHORT && !quic_enc_int(&pos, end, len))\n\t\tgoto no_room;\n\n\t/* Packet number field address. */\n\t*buf_pn = pos;\n\n\t/* Packet number encoding. */\n\tif (!quic_packet_number_encode(&pos, end, pn, *pn_len))\n\t\tgoto no_room;\n\n\t/* payload building (ack-eliciting or not frames) */\n\tpayload = pos;\n\tif (ack_frm_len) {\n\t\tif (!qc_build_frm_pkt(&ack_frm, pkt, &pos, end, qc))\n\t\t\tgoto no_room;\n\n\t\tpkt->largest_acked_pn = quic_pktns_get_largest_acked_pn(qel->pktns);\n\t\tpkt->flags |= QUIC_FL_TX_PACKET_ACK;\n\t}\n\n\t/* Ack-eliciting frames */\n\tif (!LIST_ISEMPTY(&frm_list)) {\n\t\tstruct quic_frame *tmp_cf;\n\t\tlist_for_each_entry_safe(cf, tmp_cf, &frm_list, list) {\n\t\t\tif (!qc_build_frm_pkt(cf, pkt, &pos, end, qc)) {\n\t\t\t\tssize_t room = end - pos;\n\t\t\t\tTRACE_PROTO(\"Not enough room\", QUIC_EV_CONN_TXPKT,\n\t\t\t\t            qc, NULL, NULL, &room);\n\t\t\t\t/* Note that <cf> was added from <frms> to <frm_list> list by\n\t\t\t\t * qc_build_frms().\n\t\t\t\t */\n\t\t\t\tLIST_DEL_INIT(&cf->list);\n\t\t\t\tLIST_INSERT(frms, &cf->list);\n"
+      }
+    }
+  ]
+}

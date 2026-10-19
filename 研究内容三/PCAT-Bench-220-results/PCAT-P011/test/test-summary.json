@@ -1,0 +1,159 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/3a052d/analysis.json",
+  "patch_id": "3a052d55fbfca49d8d435cdd2110fb2667594c61",
+  "result_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/3a052d/compatibility-testing",
+  "status": "failed",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+    "base_commit": "1eab169173fc4c8579a3db61186096fe117e6aca",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/3a052d/_worktrees/patched",
+    "package_profile": "dnsmasq"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc (GCC) 14.2.0",
+    "optimization": "-O0",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Built with COPTS=-DHAVE_DNSSEC for DNSSEC support",
+      "Build has no-conntrack, no-DBus, no-UBus, no-IDN, no-Lua",
+      "Network namespace not available; tests use high ports (10600+) on loopback"
+    ]
+  },
+  "summary": {
+    "findings_total": 2,
+    "findings_targeted": 2,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 2,
+    "inputs_executed": 2,
+    "contracts_total": 2,
+    "contracts_passed": 0,
+    "contracts_breached": 2,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 4,
+    "patch_lines_covered": 4,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "status": "failed",
+      "target_location": {
+        "file": "src/forward.c",
+        "new_lines": [2570, 2576],
+        "symbol": "tcp_request"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "verified",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.py",
+          "run_command": "python3 test-entry-work/PCA-0001/reproducer.py {BEFORE_BIN} {AFTER_BIN} 10600",
+          "expected_signal": "Before: non-QUERY enters forwarding path. After: non-QUERY blocked, RCODE response sent.",
+          "reachability_signal": "gcov: before forwarding block hit, after forwarding block not entered (#####)"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "side_effect_manifest_stability",
+          "status": "breached",
+          "detail": "Before: forwarding block entered, ede=EDE_NOT_READY set, no TCP response. After: !flags guard blocks forwarding, ede=EDE_UNSET preserved, RCODE=4 response sent."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 4,
+        "covered_lines": 4,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I1",
+          "diff_type": "SIDE_EFFECT_CHANGE",
+          "before": "response_len=0 (no TCP response), log: 'reply opcode is not implemented (EDE: not ready)'",
+          "after": "response_len=29, OPCODE=4, RCODE=4 (NOTIMP), log: 'reply opcode is not implemented'",
+          "evidence": "gcov: before line 2583=1 (ede=EDE_NOT_READY), after line 2585=##### (ede unchanged)"
+        }
+      ],
+      "notes": [
+        "Behavior confirmed: NON-QUERY TCP request prevented from entering forwarding logic. This is the intended regression fix per commit message."
+      ]
+    },
+    {
+      "finding_id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "status": "failed",
+      "target_location": {
+        "file": "src/forward.c",
+        "new_lines": [2461, 2475],
+        "symbol": "tcp_request"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "verified",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.py",
+          "run_command": "python3 test-entry-work/PCA-0001/reproducer.py {BEFORE_BIN} {AFTER_BIN} 10600",
+          "expected_signal": "add_edns0_config, memset, memcpy now executed for non-QUERY requests",
+          "reachability_signal": "gcov: after lines 2466=1, 2469=1, 2471=1; before EDNS0 code not reached (#####)"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "side_effect_manifest_stability",
+          "status": "breached",
+          "detail": "Before: add_edns0_config/memset/memcpy not executed for non-QUERY. After: all executed (gcov hits on lines 2466, 2469, 2471)."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 4,
+        "covered_lines": 4,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I2",
+          "diff_type": "SIDE_EFFECT_CHANGE",
+          "before": "add_edns0_config not called for non-QUERY; out_header buffer uninitialized",
+          "after": "add_edns0_config called for non-QUERY; out_header initialized with memset+memcpy",
+          "evidence": "gcov: after lines 2466=1, 2469=1, 2471=1. Before: EDNS0 code inside QUERY branch not reached (#####)."
+        }
+      ],
+      "notes": [
+        "EDNS0 processing now applies to non-QUERY TCP requests. Required for proper out_header initialization for response generation."
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution",
+    "contract_summary": "phase3_contracts",
+    "coverage_data": "COVERAGE_REPORT.md",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "Both PCA findings confirmed via executed tests with gcov evidence. PCA-0001 (MEDIUM): non-QUERY TCP requests no longer enter forwarding logic - intended regression fix. PCA-0002 (LOW): EDNS0/buffer init now applies to non-QUERY TCP requests. 100% patch line coverage achieved.",
+    "recommended_actions": [
+      "Verify no infrastructure relies on dnsmasq forwarding non-QUERY TCP requests",
+      "Confirm EDNS0 processing on non-QUERY requests does not cause unexpected side effects"
+    ]
+  }
+}

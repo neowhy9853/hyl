@@ -1,0 +1,149 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/pca_84/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/pca_84/patch.diff",
+  "profile": "dnsmasq",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "src/dhcp.c"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 460,
+      "patch_lines": 13,
+      "diff_added_lines": 1,
+      "diff_deleted_lines": 1,
+      "diff_context_lines": 6,
+      "churn": 2,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 2028,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "protocol": 1,
+        "network_protocol": 1,
+        "persistence_state": 1,
+        "dhcp_protocol": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/dhcp.c",
+      "old_start": 399,
+      "old_end": 405,
+      "new_start": 399,
+      "new_end": 405,
+      "context_hint": "void dhcp_packet(time_t now, int pxe_fd)",
+      "added_lines": [
+        "  else if ((is_relay_use_source || mess->giaddr.s_addr) && !is_relay_reply)"
+      ],
+      "deleted_lines": [
+        "  if ((is_relay_use_source || mess->giaddr.s_addr) && !is_relay_reply)"
+      ],
+      "context_lines": [
+        "      if (mess->ciaddr.s_addr != 0)",
+        "\tdest.sin_addr = mess->ciaddr;",
+        "    }",
+        "    {",
+        "      /* Send to BOOTP relay. */",
+        "      if (is_relay_use_source)",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "dhcp_packet",
+        "is_relay_use_source",
+        "mess",
+        "giaddr",
+        "s_addr",
+        "is_relay_reply",
+        "lease_update_dns"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Network protocol behavior"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "dhcp_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "DHCPv4/v6 lease and option behavior"
+          }
+        ],
+        "surface_reasons": [
+          "protocol",
+          "network_protocol",
+          "persistence_state",
+          "dhcp_protocol"
+        ],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "dhcp_packet",
+        "snippet_start_line": 370,
+        "snippet_end_line": 435,
+        "snippet": "\treturn;\n\n      lease_prune(NULL, now); /* lose any expired leases */\n      iov.iov_len = dhcp_reply(parm.current, ifr.ifr_name, iface_index, (size_t)sz, now, unicast_dest,\n\t\t\t       loopback, &is_inform, pxe_fd, iface_addr, recvtime,\n\t\t\t       is_relay_use_source ? dest.sin_addr : mess->giaddr);\n      lease_update_file(now);\n      lease_update_dns(0);\n      \n      if (iov.iov_len == 0)\n\treturn;\n    }\n\n  msg.msg_name = &dest;\n  msg.msg_namelen = sizeof(dest);\n  msg.msg_control = NULL;\n  msg.msg_controllen = 0;\n  msg.msg_iov = &iov;\n  iov.iov_base = daemon->dhcp_packet.iov_base;\n  \n  /* packet buffer may have moved */\n  mess = (struct dhcp_packet *)daemon->dhcp_packet.iov_base;\n  \n#ifdef HAVE_SOCKADDR_SA_LEN\n  dest.sin_len = sizeof(struct sockaddr_in);\n#endif\n  \n  if (pxe_fd)\n    { \n      if (mess->ciaddr.s_addr != 0)\n\tdest.sin_addr = mess->ciaddr;\n    }\n  else if ((is_relay_use_source || mess->giaddr.s_addr) && !is_relay_reply)\n    {\n      /* Send to BOOTP relay. */\n      if (is_relay_use_source)\n\t/* restore as-received value */\n\tmess->giaddr.s_addr = INADDR_BROADCAST;\n      else\n\t{\n\t  dest.sin_addr = mess->giaddr;\n\t  dest.sin_port = htons(daemon->dhcp_server_port);\n\t}\n    }\n  else if (mess->ciaddr.s_addr)\n    {\n      /* If the client's idea of its own address tallys with\n\t the source address in the request packet, we believe the\n\t source port too, and send back to that.  If we're replying \n\t to a DHCPINFORM, trust the source address always. */\n      if ((!is_inform && dest.sin_addr.s_addr != mess->ciaddr.s_addr) ||\n\t  dest.sin_port == 0 || dest.sin_addr.s_addr == 0 || is_relay_reply)\n\t{\n\t  dest.sin_port = htons(daemon->dhcp_client_port); \n\t  dest.sin_addr = mess->ciaddr;\n\t}\n    } \n#if defined(HAVE_LINUX_NETWORK)\n  else\n    {\n      /* fill cmsg for outbound interface (both broadcast & unicast) */\n      struct in_pktinfo *pkt;\n      msg.msg_control = control_u.control;\n      msg.msg_controllen = sizeof(control_u);\n\n      /* alignment padding passed to the kernel should not be uninitialised. */\n"
+      }
+    }
+  ]
+}

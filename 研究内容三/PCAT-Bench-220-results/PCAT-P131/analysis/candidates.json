@@ -1,0 +1,127 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071/patch.diff",
+  "profile": "httpd",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "modules/filters/mod_proxy_html.c"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 1054,
+      "patch_lines": 27,
+      "diff_added_lines": 0,
+      "diff_deleted_lines": 1,
+      "diff_context_lines": 9,
+      "churn": 1,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 1965,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "user_visible_output": 1,
+        "plugin_api": 1,
+        "module_api": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "modules/filters/mod_proxy_html.c",
+      "old_start": 337,
+      "old_end": 343,
+      "new_start": 337,
+      "new_end": 342,
+      "context_hint": "static void pcomment(void *ctxt, const xmlChar *uchars)",
+      "added_lines": [],
+      "deleted_lines": [
+        "        dump_content(ctx);"
+      ],
+      "context_lines": [
+        "        ap_fputs(ctx->f->next, ctx->bb, \"<!--\");",
+        "        AP_fwrite(ctx, chars, strlen(chars), 1);",
+        "        ap_fputs(ctx->f->next, ctx->bb, \"-->\");",
+        "    }",
+        "}",
+        "static void pendElement(void *ctxt, const xmlChar *uname)",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "pcomment",
+        "dump_content",
+        "ctx",
+        "ap_fputs"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Public module API and hook contracts"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "plugin_api",
+          "module_api"
+        ],
+        "profile": "httpd",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "pcomment",
+        "snippet_start_line": 308,
+        "snippet_end_line": 372,
+        "snippet": "    ap_fputs(ctx->f->next, ctx->bb, \">\\n\");\n}\nstatic void pcdata(void *ctxt, const xmlChar *uchars, int length)\n{\n    const char *chars = (const char*) uchars;\n    saxctxt *ctx = (saxctxt*) ctxt;\n    if (ctx->cfg->extfix) {\n        ap_varbuf_strmemcat(&ctx->vb, chars, length);\n    }\n    else {\n        /* not sure if this should force-flush\n         * (i.e. can one cdata section come in multiple calls?)\n         */\n        AP_fwrite(ctx, chars, length, 0);\n    }\n}\nstatic void pcomment(void *ctxt, const xmlChar *uchars)\n{\n    const char *chars = (const char*) uchars;\n    saxctxt *ctx = (saxctxt*) ctxt;\n    if (ctx->cfg->strip_comments)\n        return;\n\n    if (ctx->cfg->extfix) {\n        ap_varbuf_strcat(&ctx->vb, \"<!--\");\n        ap_varbuf_strcat(&ctx->vb, chars);\n        ap_varbuf_strcat(&ctx->vb, \"-->\");\n    }\n    else {\n        ap_fputs(ctx->f->next, ctx->bb, \"<!--\");\n        AP_fwrite(ctx, chars, strlen(chars), 1);\n        ap_fputs(ctx->f->next, ctx->bb, \"-->\");\n    }\n}\nstatic void pendElement(void *ctxt, const xmlChar *uname)\n{\n    saxctxt *ctx = (saxctxt*) ctxt;\n    const char *name = (const char*) uname;\n    const htmlElemDesc* desc = htmlTagLookup(uname);\n\n    if ((ctx->cfg->doctype == fpi_html) || (ctx->cfg->doctype == fpi_xhtml)) {\n        /* enforce html */\n        if (!desc || desc->depr)\n            return;\n    \n    }\n    else if ((ctx->cfg->doctype == fpi_html_legacy)\n             || (ctx->cfg->doctype == fpi_xhtml_legacy)) {\n        /* enforce html legacy */\n        if (!desc)\n            return;\n    }\n    /* TODO - implement HTML \"allowed here\" using the stack */\n    /* nah.  Keeping the stack is too much overhead */\n\n    if (ctx->vb.strlen > 0) {\n        dump_content(ctx);\n        ctx->vb.strlen = 0;     /* having dumped it, we can re-use the memory */\n    }\n    if (!desc || !desc->empty) {\n        ap_fprintf(ctx->f->next, ctx->bb, \"</%s>\", name);\n    }\n}\n\nstatic void pstartElement(void *ctxt, const xmlChar *uname,\n"
+      }
+    }
+  ]
+}

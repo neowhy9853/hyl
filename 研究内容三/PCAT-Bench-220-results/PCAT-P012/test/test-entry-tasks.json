@@ -1,0 +1,135 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/8839fe/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/8839fe/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/8839fe",
+  "patch_id": "8839fe2a8962",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "dhcp6_maybe_relay",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/rfc3315.c",
+        "old_lines": [
+          112,
+          122
+        ],
+        "new_lines": [
+          113,
+          130
+        ],
+        "symbol": "dhcp6_maybe_relay"
+      },
+      "old_behavior": "Function dhcp6_maybe_relay() read msg_type = *inbuff unconditionally. A DHCPv6 packet with sz < 4 would read the first byte (possibly valid if sz >= 1) but then proceed with opts = inbuff + 34, which is out of bounds for sz < 34, leading to out-of-bounds reads and potential crashes.",
+      "new_behavior": "Function now checks if (sz < 4) return 0; before reading msg_type. Packets with fewer than 4 bytes are cleanly rejected as unhandled, preventing out-of-bounds access.",
+      "compatibility_reason": "Input contract tightened: packets with sz < 4 that previously might have triggered undefined behavior (crash/unpredictable) are now deterministically rejected. While this only affects malformed inputs per RFC, it is an externally observable behavior change triggered by network packets. A DHCPv6 client sending a truncated packet would observe different behavior (no crash).",
+      "test_recommendation": "Send a DHCPv6 packet with sz=0,1,2,3 bytes to the relay handling path. Before the patch: expected potential crash or unpredictable return. After the patch: expected return 0 (unhandled) without crash. Use a crafted raw packet sent to dnsmasq's DHCPv6 port.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "low",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "dhcp6_maybe_relay",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/rfc3315.c",
+        "old_lines": [
+          233,
+          243
+        ],
+        "new_lines": [
+          241,
+          248
+        ],
+        "symbol": "dhcp6_maybe_relay"
+      },
+      "old_behavior": "The relay options loop used raw pointer iteration: for (opt = opts; opt; opt = opt6_next(opt, end)) with an inline bounds check (if ((uint8_t *)opt6_ptr(opt, 0) + opt6_len(opt) > end) return 0;) inside the loop body. When opts pointed past end (sz between 4 and 36 for relay-forward), the inline check would read opt6_len(opt) at opt+2 which could be out of bounds.",
+      "new_behavior": "The loop now uses opt6_first(opts, end) which checks (uint8_t *)opt6_ptr(opt, 0) > end before entering the loop. If opts points past end, opt6_first returns NULL and the loop body never executes. The new opt6_first() function also validates option data end bounds: (uint8_t *)opt6_ptr(opt, opt6_len(opt)) > end.",
+      "compatibility_reason": "The relay option iteration now has an additional start-pointer validity check before loop entry. For malformed relay-forward packets where opts > end, the old code would attempt to enter the loop and potentially read out of bounds, while the new code cleanly skips the loop. This is an input contract tightening on the relay-forward parsing path.",
+      "test_recommendation": "Send a DHCPv6 RELAY-FORW message with sz between 4 and 36 bytes (truncated header). Before the patch: expected potential crash. After the patch: expected clean handling without crash. Use a crafted raw packet.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/8839fe/compatibility-testing"
+}

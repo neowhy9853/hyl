@@ -1,0 +1,268 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/pca-gi/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/pca-gi",
+  "base_ref": "31e8fcabd8a75b2c27cd4c98ea694c6836c29ad2^",
+  "base_commit": "9a2fb147f2c61d0cab52c883e7e26f5b7948e3ed",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "pca-git-sideband-patch",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca-git-sideband-patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "git",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1924,
+    "patch_lines": 66,
+    "diff_added_lines": 12,
+    "diff_deleted_lines": 10,
+    "diff_context_lines": 35,
+    "churn": 22,
+    "raw_hunks": 5,
+    "candidate_hunks": 5,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 8662,
+    "public_candidate_hunks": 5,
+    "surface_counts": {
+      "user_visible_output": 5,
+      "wire_protocol": 3
+    },
+    "candidates_json_bytes": 22750
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 5,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "git",
+      "affected_surface": "User-visible terminal output via sideband protocol (stderr)",
+      "affected_api": {
+        "name": "demultiplex_sideband",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "sideband.c",
+        "old_lines": [
+          129,
+          143
+        ],
+        "new_lines": [
+          129,
+          146
+        ],
+        "symbol": "demultiplex_sideband"
+      },
+      "old_behavior": "On TTY terminals, the ANSI clear-to-eol sequence \\033[K was appended after each non-empty line of sideband output (band 2) as a suffix. Error messages (band 3) received no ANSI sequence at all. On dumb/piped terminals, 8-space padding was appended as suffix and 'remote: ' was used as prefix unchanged.",
+      "new_behavior": "On TTY terminals, the ANSI clear-to-eol sequence \\033[K is prepended before the 'remote: ' prefix on EVERY line, including error messages (band 3). On TTY, the suffix is now empty. On dumb/piped terminals, behavior is identical to before (prefix='remote: ', suffix=8 spaces).",
+      "compatibility_reason": "The raw byte stream to stderr on TTY terminals has changed: ANSI escape sequence \\033[K moved from line-end to line-start position. Error messages (band 3) on TTY now also start with \\033[K where before they had none. While the visual terminal output looks effectively the same, any tool that captures raw TTY stderr and parses ANSI sequences could observe different output. Programmatic consumers that pipe stderr are unaffected (they hit the dumb terminal path where behavior is identical).",
+      "evidence": [
+        {
+          "file": "sideband.c",
+          "lines": [
+            120,
+            124
+          ],
+          "snippet": "#define ANSI_PREFIX \"\\033[K\"\n#define DUMB_SUFFIX \"        \""
+        },
+        {
+          "file": "sideband.c",
+          "lines": [
+            132,
+            144
+          ],
+          "snippet": "\tstatic const char *prefix, *suffix;\n\t...\n\tif (!suffix) {\n\t\tif (isatty(2) && !is_terminal_dumb()) {\n\t\t\tprefix = ANSI_PREFIX DISPLAY_PREFIX;\n\t\t\tsuffix = \"\";\n\t\t} else {\n\t\t\tprefix = DISPLAY_PREFIX;\n\t\t\tsuffix = DUMB_SUFFIX;\n\t\t}\n\t}"
+        },
+        {
+          "file": "sideband.c",
+          "lines": [
+            174,
+            177
+          ],
+          "snippet": "\tcase 3:\n\t\tif (die_on_error)\n\t\t\tdie(_(\"remote error: %s\"), buf + 1);\n\t\tstrbuf_addf(scratch, \"%s%s\", scratch->len ? \"\\n\" : \"\", prefix);"
+        },
+        {
+          "file": "sideband.c",
+          "lines": [
+            205,
+            211
+          ],
+          "snippet": "\t\t\tif (scratch->len && !linelen)\n\t\t\t\tstrbuf_addstr(scratch, suffix);\n\n\t\t\tif (!scratch->len)\n\t\t\t\tstrbuf_addstr(scratch, prefix);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "demultiplex_sideband is the core function for rendering all remote sideband messages (progress, diagnostics, errors) to stderr. It is not static and is called from multiple entry points in the fetch/push/pull code paths. The output change is directly visible to any user running git fetch/push/pull interactively on a TTY.",
+      "uncertainty": "The change is intentionally a no-op for dumb/piped terminal consumers. Only TTY output format changed. The \";[K sequence moves from suffix to prefix position, which changes raw byte order but preserves visual appearance. I cannot verify whether any specific external tool or test assertion depends on the exact ANSI sequence position without running the tests.",
+      "manual_review_required": false,
+      "recommended_review": "Review the existing test suite for sideband output assertions, particularly t/t5516-fetch-push.sh and any test that captures git remote output to verify expected format.",
+      "test_recommendation": "Run existing sideband-related tests with instrumentation to verify no test assertions break due to the changed ANSI sequence position. Build with gcov and run t5516-fetch-push.sh as primary regression. Focus on tests that capture or assert on the exact format of remote: prefixed output.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "Agent final priority is low. Disagreement reasons: additive_behavior_only (ANSI sequences only added, never removed; band 3 error messages now also get \\033[K prefix) and no_external_observable_break (visual TTY output identical, piped/dumb output completely unchanged). Deterministic recommendation is high: candidate_surface_priority=high from 3 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [
+          "additive_behavior_only",
+          "no_external_observable_break"
+        ],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 3 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 3,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "sideband.c",
+            "old_lines": [
+              129,
+              143
+            ],
+            "new_lines": [
+              129,
+              146
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "wire_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "wire_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Repository wire protocol and capability behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "sideband.c",
+            "old_lines": [
+              171,
+              178
+            ],
+            "new_lines": [
+              174,
+              180
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "wire_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "wire_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Repository wire protocol and capability behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0004",
+            "file": "sideband.c",
+            "old_lines": [
+              203,
+              209
+            ],
+            "new_lines": [
+              205,
+              211
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Disagreement reasons: additive_behavior_only (ANSI sequences only added, never removed; band 3 error messages now also get \\033[K prefix) and no_external_observable_break (visual TTY output identical, piped/dumb output completely unchanged). Deterministic recommendation is high: candidate_surface_priority=high from 3 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings."
+}

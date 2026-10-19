@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P051/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P051/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P051",
+  "patch_id": "324f7af5655a48841a079ac761fedef2ab3d1180",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "soup_session_send_message / soup_session_queue_message",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libsoup/soup-session.c",
+        "old_lines": [
+          845,
+          851
+        ],
+        "new_lines": [
+          845,
+          853
+        ],
+        "symbol": "redirect_handler"
+      },
+      "old_behavior": "POST 请求遇到 HTTP 301 (Moved Permanently) 响应时不会被自动重定向。请求完成但不会跟随重定向。",
+      "new_behavior": "POST 请求遇到 HTTP 301 响应时会被自动重定向——请求方法从 POST 改为 GET（POST 请求体被丢弃）。",
+      "compatibility_reason": "使用 libsoup 发送 POST 请求到返回 HTTP 301 的 URL 时，现在会观察到完全不同的行为：POST 被静默转换为 GET 请求并发送到重定向目标。依赖旧行为（不跟随 POST+301 重定向）的应用程序将被破坏——包括 POST 数据丢失和请求语义变化（非幂等到幂等转换）。",
+      "test_recommendation": "验证 POST+301 自动重定向为 GET 的行为正确，确保重定向目标收到 GET 请求。同时验证 POST+307 (Temporary Redirect) 不跟随重定向（因为 307 必须保持原 HTTP 方法），确保不存在回归。关注 soup-session.c:859 的 else-if 分支中 SOUP_STATUS_MOVED_PERMANENTLY 仍存在，需确认 GET+301 的正常重定向未受影响。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P051/compatibility-testing"
+}

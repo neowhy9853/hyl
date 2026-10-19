@@ -1,0 +1,66 @@
+[
+  {
+    "finding_id": "PCA-0001",
+    "entry_id": "PCA-TE-0001",
+    "entry_kind": "synthetic_harness",
+    "status": "needs_env",
+    "artifact_path": "test-entry-work/PCA-0001/harness.c",
+    "build_command": "make -C /data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P041/_worktrees/patched M=$(pwd) modules KCFLAGS=\"-fprofile-arcs -ftest-coverage -O0 -g\"",
+    "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+    "target_location": {
+      "file": "drivers/bluetooth/btmtk.c",
+      "new_lines": [682, 683],
+      "symbol": "btmtk_usb_hci_wmt_sync"
+    },
+    "reachability_signal": "Kernel log shows btmtk init without 'Failed to send wmt func ctrl' error; gcov shows lines 682-683 covered for btmtk.c",
+    "expected_signal": "btmtk_usb_hci_wmt_sync returns 0 (not -EINVAL) for too-short FUNC_CTRL event; Bluetooth adapter functions normally after init",
+    "execution": {
+      "cwd": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P041/compatibility-testing",
+      "timeout_seconds": 120,
+      "uses_clean_source_copy": false
+    },
+    "input_strategy": "Connect MT7925 (0e8d:e025) or MT7922 (0489:e0e2) USB BT adapter. The hardware sends short WMT FUNC_CTRL events without status field. The kernel BT stack calls btmtk_usb_hci_wmt_sync during adapter initialization. With the patch, the too-short event is interpreted as BTMTK_WMT_ON_UNDONE and init continues normally.",
+    "contract_probe": {
+      "probe_id": "return_contract_btmtk_wmt_sync_short_functrl",
+      "command": "dmesg | grep -c 'Failed to send wmt func ctrl'",
+      "before_command": "dmesg | grep -c 'Failed to send wmt func ctrl'",
+      "after_command": "dmesg | grep -c 'Failed to send wmt func ctrl'",
+      "comparison": "exit_code",
+      "cwd": ".",
+      "timeout_seconds": 30
+    },
+    "limitations": "Requires MT7925 (0e8d:e025) or MT7922 (0489:e0e2) USB Bluetooth adapter with specific firmware version. Without hardware, only static code inspection is available. btmtk_usb_hci_wmt_sync depends on full HCI/USB subsystem, so standalone kernel module calling it is impractical without a fully initialized hci_dev."
+  },
+  {
+    "finding_id": "PCA-0002",
+    "entry_id": "PCA-TE-0002",
+    "entry_kind": "synthetic_harness",
+    "status": "needs_env",
+    "artifact_path": "test-entry-work/PCA-0001/harness.c",
+    "build_command": "make -C /data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P041/_worktrees/patched M=$(pwd) modules KCFLAGS=\"-fprofile-arcs -ftest-coverage -O0 -g\"",
+    "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+    "target_location": {
+      "file": "drivers/bluetooth/btmtk.c",
+      "new_lines": [682, 683],
+      "symbol": "btmtk_usb_hci_wmt_sync"
+    },
+    "reachability_signal": "Same as PCA-0001: gcov coverage of lines 682-683 confirms the too-short event path was reached",
+    "expected_signal": "No -EINVAL error returned; function returns 0; no error log from callers; BT adapter functions normally",
+    "execution": {
+      "cwd": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P041/compatibility-testing",
+      "timeout_seconds": 120,
+      "uses_clean_source_copy": false
+    },
+    "input_strategy": "Same hardware as PCA-0001. Additionally, on non-MT7925 hardware, inject a mock short SKB into the WMT event receive path to trigger the error path and verify the new behavior returns 0 instead of -EINVAL.",
+    "contract_probe": {
+      "probe_id": "error_exception_btmtk_wmt_sync_short_functrl",
+      "command": "dmesg | grep -c 'Failed to send wmt func ctrl'",
+      "before_command": "dmesg | grep -c 'Failed to send wmt func ctrl'",
+      "after_command": "dmesg | grep -c 'Failed to send wmt func ctrl'",
+      "comparison": "error",
+      "cwd": ".",
+      "timeout_seconds": 30
+    },
+    "limitations": "Same as PCA-0001: requires specific MTK BT USB hardware. The error model change (from -EINVAL to success) cannot be tested without the hardware path that produces short FUNC_CTRL events. A kernel-level mock/fault-injection framework could simulate the condition but is not built into the mainline kernel for this driver."
+  }
+]

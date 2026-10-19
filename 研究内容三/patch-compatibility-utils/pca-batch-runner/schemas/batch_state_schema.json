@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://patch-compatibility-utils.skill/pca-batch-runner/batch-state-v1.json",
+  "title": "PCAT Batch State",
+  "description": "批次状态事实源（设计方案 §5.2.2）。每次状态变更原子写（tmp + rename），监控端只读消费",
+  "type": "object",
+  "required": ["batch_id", "schema_version", "started_at", "concurrency", "cases"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "batch_id": {
+      "type": "string",
+      "description": "批次标识，如 pcat220-20260830"
+    },
+    "manifest": {
+      "type": "string",
+      "description": "清单文件绝对路径"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["analysis", "analysis-test"]
+    },
+    "model": {
+      "type": ["string", "null"]
+    },
+    "agent": {
+      "type": "string"
+    },
+    "runner_pid": {
+      "type": ["integer", "null"],
+      "description": "当前/最后持有该状态的 runner 进程 pid"
+    },
+    "concurrency": {
+      "type": "integer"
+    },
+    "timeout_sec": {
+      "type": "integer"
+    },
+    "retries": {
+      "type": "integer"
+    },
+    "output_base": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string",
+      "description": "ISO-8601 时间戳"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "finished_at": {
+      "type": ["string", "null"]
+    },
+    "abort_reason": {
+      "type": ["string", "null"],
+      "description": "熔断原因（连续同签名失败）；非空表示批次被熔断中止"
+    },
+    "paused_reason": {
+      "type": ["string", "null"],
+      "description": "暂停原因（如 disk_low）；非空表示批次因资源水位暂停待 --resume"
+    },
+    "counts": {
+      "type": "object",
+      "description": "派生统计（每次落盘时重算，便于只读监控）",
+      "properties": {
+        "total": { "type": "integer" },
+        "done": { "type": "integer", "description": "done + already_done" },
+        "failed": { "type": "integer" },
+        "skipped": { "type": "integer" },
+        "pending": { "type": "integer" },
+        "running": { "type": "integer" },
+        "interrupted": { "type": "integer" }
+      }
+    },
+    "cases": {
+      "type": "object",
+      "description": "每个用例一档，key 为 case id",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "already_done",
+              "failed",
+              "interrupted",
+              "skipped"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "description": "已消耗的失败尝试次数（interrupted/熔断不消耗）"
+          },
+          "pid": { "type": ["integer", "null"], "description": "子进程 pid" },
+          "pgid": { "type": ["integer", "null"], "description": "子进程组 id" },
+          "started_at": { "type": ["string", "null"] },
+          "finished_at": { "type": ["string", "null"] },
+          "elapsed_sec": { "type": ["number", "null"] },
+          "result_dir": { "type": ["string", "null"] },
+          "summary": {
+            "type": ["string", "null"],
+            "description": "done 用例速览：compatibility_change=...; findings=n; top_priority=..."
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "失败/跳过原因"
+          },
+          "interrupted_count": {
+            "type": "integer",
+            "description": "累计被中断次数（观测用）"
+          },
+          "test": {
+            "type": ["object", "null"],
+            "description": "analysis-test 完成用例的测试聚合：status / coverage_rate / coverage_gate_met / backward_compatibility / summary"
+          }
+        }
+      }
+    }
+  }
+}

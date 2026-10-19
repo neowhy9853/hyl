@@ -1,0 +1,135 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1",
+  "patch_id": "c090f1d17b280c98630914334d341a2fa3318117",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "RESOURCE_LIFETIME_CHANGE",
+      "affected_api": {
+        "name": "swap_to_tcp",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/dnsmasq.c",
+        "old_lines": [
+          2231,
+          2238
+        ],
+        "new_lines": [
+          2262,
+          2273
+        ],
+        "symbol": "swap_to_tcp"
+      },
+      "old_behavior": "DNSSEC TCP child processes forked by swap_to_tcp() had no timeout alarm set. They would block indefinitely in tcp_from_udp() if the upstream server accepted the connection but never replied, holding child process and parent frec resources forever.",
+      "new_behavior": "swap_to_tcp() sets alarm(CHILD_LIFETIME) (150s) in the DNSSEC TCP child process before calling tcp_from_udp(), and stores forward/header/plen references via daemon->forward_to_tcp, daemon->header_to_tcp, daemon->plen_to_tcp for the SIGALRM handler. This gives DNSSEC TCP children a bounded lifetime of 150 seconds.",
+      "compatibility_reason": "DNSSEC queries that require TCP forwarding now have a bounded timeout (150s) instead of potentially hanging indefinitely. This changes the resource lifecycle of DNS query processing: a DNS client issuing a DNSSEC query that gets forwarded to TCP will now receive a response (STAT_ABANDONED via return_reply) after ~150s if the upstream is unresponsive, rather than hanging forever. While this is a security fix for a DoS vector, it changes the externally observable behavior of DNS query completion timing for this code path.",
+      "test_recommendation": "Construct a DNSSEC query that forces TCP forwarding (by setting TC bit or using a large DNSKEY response). Configure dnsmasq with an upstream that accepts TCP but never replies. Verify that (1) the TCP child terminates after ~150s, (2) the parent receives PIPE_OP_KILLED and processes STAT_ABANDONED, (3) the DNS client receives a proper error response, and (4) the syslog shows 'TCP process for DNSSEC validation timed out'.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "resource_lifecycle_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "resource_lifetime_stability",
+        "comparison": "exact",
+        "required_observation": "allocation/free, fd, lock, refcount, sanitizer, and cleanup manifest",
+        "input_axes": [
+          "normal cleanup",
+          "error cleanup",
+          "repetition",
+          "concurrency",
+          "cancellation"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "medium",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "sig_handler",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/dnsmasq.c",
+        "old_lines": [
+          1335,
+          1345
+        ],
+        "new_lines": [
+          1335,
+          1376
+        ],
+        "symbol": "sig_handler"
+      },
+      "old_behavior": "SIGALRM handling in child processes: old code checked pid != getpid() to detect children and unconditionally called _exit(0) on SIGALRM. A DNSSEC TCP child would silently exit without notifying the parent, leaving the parent's pending UDP query permanently blocked (no pipe notification ever arrives).",
+      "new_behavior": "SIGALRM handling now checks daemon->pipe_to_parent != -1 to identify TCP children. For DNSSEC TCP children (daemon->forward_to_tcp != NULL), when SIGALRM fires: (1) sends PIPE_OP_KILLED (6) through the pipe, (2) sends STAT_ABANDONED status, plen, packet header, forward pointer, and uid, (3) logs 'TCP process for DNSSEC validation timed out' via my_syslog(), (4) exits with _exit(0). If daemon->header_to_tcp is NULL (already completed), no notification is sent and the child exits normally.",
+      "compatibility_reason": "The signal handler change introduces a new notification mechanism (PIPE_OP_KILLED) on the parent-child IPC channel. When a DNSSEC TCP child times out, it now actively notifies the parent, enabling the parent to return a response to the client instead of being stuck. The IPC protocol between parent and child has a new operation code. A new syslog message is emitted on timeout. While parent and child are always the same binary version (fork model), the change in behavior (silent exit -> notification + log) is externally observable through daemon logs and DNS query completion.",
+      "test_recommendation": "Same as PCA-0001 - trigger a DNSSEC TCP timeout and verify the log message appears and the parent receives the killed-child notification.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1/compatibility-testing"
+}

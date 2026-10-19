@@ -1,0 +1,379 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/analysis.json",
+  "patch_id": "8b68438b2e0b38909b5b2f76e22ceccd2fa48278",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+    "base_commit": "d7ec293abc89a0dde9cc730acfa7ba838601a197",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/_worktrees/patched",
+    "package_profile": "httpd"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "blocked",
+    "after_build": "blocked",
+    "compiler": "gcc (Ubuntu 11.4.0)",
+    "optimization": "not_applicable",
+    "coverage_tool": "not_available",
+    "notes": [
+      "Full httpd build requires autotools configure step and runtime dependencies (APR, APR-util, nghttp2, OpenSSL)",
+      "nghttp2-devel not installed on this host; httpd mod_http2 module requires nghttp2 headers to build",
+      "Static API/ABI header verification was performed using pre/post-patch source comparison",
+      "Dynamic (runtime/coverage) testing blocked by build environment requirements"
+    ]
+  },
+  "summary": {
+    "findings_total": 9,
+    "findings_targeted": 6,
+    "entries_planned": 6,
+    "entries_generated": 6,
+    "entries_verified": 6,
+    "inputs_planned": 0,
+    "inputs_executed": 0,
+    "contracts_total": 6,
+    "contracts_passed": 6,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 27,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 27,
+    "patch_line_coverage_rate": 0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "status": "partial",
+      "target_location": {
+        "file": "modules/http2/h2_config.c",
+        "new_lines": [937, 942],
+        "symbol": "h2_cmds"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "static_verified",
+          "artifact_path": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/test-entry-work/test_api_config_removal.sh",
+          "run_command": "bash test_api_config_removal.sh",
+          "expected_signal": "Confirmed: H2HeaderStrictness absent from command_rec table",
+          "reachability_signal": "grep found 'H2HeaderStrictness' in old code but absent in new code"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "config_cli_behavior_stability",
+          "status": "breached",
+          "detail": "H2HeaderStrictness directive fully removed. Pre-patch: directive present at h2_config.c:967. Post-patch: directive absent. This is a confirmed breaking config change -- existing configs with this directive will cause httpd startup failure."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 9,
+        "covered_lines": 0,
+        "uncovered_lines": ["uncovered_1", "uncovered_2", "uncovered_3", "uncovered_4", "uncovered_5", "uncovered_6", "uncovered_7", "uncovered_8", "uncovered_9"],
+        "rate": 0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "static-0001",
+          "diff_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+          "before": "H2HeaderStrictness directive supported with values highest/rfc7540/rfc9113",
+          "after": "H2HeaderStrictness directive completely removed; existing configs will fail",
+          "evidence": "Pre-patch: AP_INIT_TAKE1(\"H2HeaderStrictness\", ...) at h2_config.c:967. Post-patch: grep returns no match for H2HeaderStrictness in h2_config.c."
+        }
+      ],
+      "notes": [
+        "Static verification confirmed directive removal",
+        "Build environment missing nghttp2-devel; full httpd runtime verification blocked"
+      ]
+    },
+    {
+      "finding_id": "PCA-0002",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "status": "partial",
+      "target_location": {
+        "file": "modules/http2/h2_session.c",
+        "new_lines": [957, 966],
+        "symbol": "h2_session_create"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0002",
+          "status": "static_verified",
+          "artifact_path": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/test-entry-work/test_api_config_removal.sh",
+          "run_command": "bash test_api_config_removal.sh",
+          "expected_signal": "nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation(options, 1)",
+          "reachability_signal": "Hardcoded 1 (validation disabled) replacing runtime config value"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "backward_input_acceptance",
+          "status": "breached",
+          "detail": "nghttp2 RFC9113 validation always disabled. Pre-patch: config-controlled (header_strictness >= 9113 enabled validation). Post-patch: always disabled (hardcoded 1). HTTP/2 clients with whitespace in headers will no longer receive RST_STREAM but will be silently accepted."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 10,
+        "covered_lines": 0,
+        "uncovered_lines": ["uncovered_1", "uncovered_2", "uncovered_3", "uncovered_4", "uncovered_5", "uncovered_6", "uncovered_7", "uncovered_8", "uncovered_9", "uncovered_10"],
+        "rate": 0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "static-0002",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation(options, h2_config_sgeti(s, H2_CONF_HEADER_STRICTNESS) < 9113)",
+          "after": "nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation(options, 1)",
+          "evidence": "h2_session.c:963: hardcoded 1 replaces dynamic config value, removing runtime-configurable validation behavior"
+        }
+      ],
+      "notes": [
+        "Source code confirms behavioral change -- dynamic config replaced by hardcoded disable",
+        "Full HTTP/2 runtime testing blocked by build requirements"
+      ]
+    },
+    {
+      "finding_id": "PCA-0003",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "high",
+      "status": "partial",
+      "target_location": {
+        "file": "modules/http2/h2_util.c",
+        "new_lines": [1456, 1469],
+        "symbol": "add_header"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0003",
+          "status": "static_verified",
+          "artifact_path": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/test-entry-work/test_api_config_removal.sh",
+          "run_command": "bash test_api_config_removal.sh",
+          "expected_signal": "strip_field_value_ws(nv) called in add_header",
+          "reachability_signal": "strip_field_value_ws defined at h2_util.c:1416, called at h2_util.c:1459"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "output_format_stability",
+          "status": "breached",
+          "detail": "New strip_field_value_ws() function strips leading/trailing whitespace from all HTTP/2 header field values. Pre-patch: values preserved verbatim. Post-patch: values trimmed. This is a normative output format change affecting all HTTP/2 response headers."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 8,
+        "covered_lines": 0,
+        "uncovered_lines": ["uncovered_1", "uncovered_2", "uncovered_3", "uncovered_4", "uncovered_5", "uncovered_6", "uncovered_7", "uncovered_8"],
+        "rate": 0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "static-0003",
+          "diff_type": "OUTPUT_FORMAT_CHANGE",
+          "before": "Header field values stored verbatim; no whitespace transformation applied",
+          "after": "strip_field_value_ws(nv) called, removing leading/trailing spaces and tabs from values",
+          "evidence": "h2_util.c:1416 new static function; called at h2_util.c:1459 and h2_util.c:1703"
+        }
+      ],
+      "notes": [
+        "strip_field_value_ws confirmed present and called in all header processing paths",
+        "Static verification confirms behavioral change; runtime verification blocked"
+      ]
+    },
+    {
+      "finding_id": "PCA-0004",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "status": "partial",
+      "target_location": {
+        "file": "modules/http2/h2_util.h",
+        "new_lines": [374, 380],
+        "symbol": "h2_util_ignore_header"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0004",
+          "status": "static_verified",
+          "artifact_path": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/test-entry-work/test_api_config_removal.sh",
+          "run_command": "bash test_api_config_removal.sh",
+          "expected_signal": "h2_util_ignore_header removed; h2_util_ignore_resp_header added",
+          "reachability_signal": "Pre-patch header: int h2_util_ignore_header(const char *name) at line 396. Post-patch header: int h2_util_ignore_resp_header(const char *name) at line 377. Old symbol absent."
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "api_signature_compatibility",
+          "status": "breached",
+          "detail": "h2_util_ignore_header() removed from public header h2_util.h. Replaced by h2_util_ignore_resp_header(). External modules using old symbol will fail to link."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 0,
+        "covered_lines": 0,
+        "uncovered_lines": [],
+        "rate": 0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "static-0004",
+          "diff_type": "API_SIGNATURE_CHANGE",
+          "before": "int h2_util_ignore_header(const char *name); (h2_util.h:396)",
+          "after": "int h2_util_ignore_resp_header(const char *name); (h2_util.h:377)",
+          "evidence": "Pre-patch git show confirms old declaration; post-patch grep confirms new name only"
+        }
+      ],
+      "notes": [
+        "Header declaration change confirmed via pre/post-patch comparison",
+        "All internal callers updated (h2_c2_filter.c:498, h2_util.c:2446)"
+      ]
+    },
+    {
+      "finding_id": "PCA-0005",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "status": "partial",
+      "target_location": {
+        "file": "modules/http2/h2_util.h",
+        "new_lines": [342, 349],
+        "symbol": "h2_req_ignore_header"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0005",
+          "status": "static_verified",
+          "artifact_path": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/test-entry-work/test_api_config_removal.sh",
+          "run_command": "bash test_api_config_removal.sh",
+          "expected_signal": "h2_req_ignore_header removed from public header",
+          "reachability_signal": "Pre-patch: int h2_req_ignore_header(const char *name, size_t len) at h2_util.h:345. Post-patch: absent."
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "api_signature_compatibility",
+          "status": "breached",
+          "detail": "h2_req_ignore_header() removed from public API. Made static internal with changed signature (nghttp2_nv*). External modules cannot use this function."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 0,
+        "covered_lines": 0,
+        "uncovered_lines": [],
+        "rate": 0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "static-0005",
+          "diff_type": "API_SIGNATURE_CHANGE",
+          "before": "int h2_req_ignore_header(const char *name, size_t len); (h2_util.h:345)",
+          "after": "(removed; internal static only)",
+          "evidence": "Pre-patch declaration confirmed; post-patch grep returns no match for h2_req_ignore_header"
+        }
+      ],
+      "notes": [
+        "Public API removal confirmed via header file comparison",
+        "No public replacement provided for request header ignore checking"
+      ]
+    },
+    {
+      "finding_id": "PCA-0007",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "status": "partial",
+      "target_location": {
+        "file": "modules/http2/h2_util.h",
+        "new_lines": [342, 349],
+        "symbol": "h2_res_ignore_trailer"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0007",
+          "status": "static_verified",
+          "artifact_path": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/test-entry-work/test_api_config_removal.sh",
+          "run_command": "bash test_api_config_removal.sh",
+          "expected_signal": "h2_res_ignore_trailer renamed to h2_ignore_resp_trailer with expanded behavior",
+          "reachability_signal": "Pre-patch: int h2_res_ignore_trailer at h2_util.h:347. Post-patch: int h2_ignore_resp_trailer at h2_util.h:346. New function also checks IgnoredResponseHeaders."
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "api_signature_compatibility",
+          "status": "breached",
+          "detail": "h2_res_ignore_trailer() renamed to h2_ignore_resp_trailer() with behavioral expansion: now also filters hop-by-hop response headers (upgrade, connection, keep-alive, transfer-encoding) from trailers, in addition to IgnoredResponseTrailers."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 0,
+        "covered_lines": 0,
+        "uncovered_lines": [],
+        "rate": 0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "static-0007",
+          "diff_type": "API_SIGNATURE_CHANGE",
+          "before": "int h2_res_ignore_trailer(name, len) { return ignore_header(IgnoredResponseTrailers, name, len); }",
+          "after": "int h2_ignore_resp_trailer(name, len) { return (contains_name(IgnoredResponseHeaders, &nv) || contains_name(IgnoredResponseTrailers, &nv)); }",
+          "evidence": "h2_util.c:1685-1693: new implementation with dual header+trailer filtering. IgnoredResponseHeaders array at h2_util.c:1625-1630."
+        }
+      ],
+      "notes": [
+        "Rename confirmed via header/file comparison",
+        "Behavioral expansion (additional IgnoredResponseHeaders filtering) confirmed via source code review",
+        "len parameter silently dropped (uses strlen) in new implementation"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "build",
+      "id": "BLOCKER-0001",
+      "reason": "Apache httpd build requires autotools configure step and multiple dependencies (APR, APR-util, nghttp2, OpenSSL, PCRE). nghttp2-devel not installed. Full build attempted but could not complete without installing additional development packages.",
+      "required_action": "Install nghttp2-devel and other missing build dependencies, run autotools configure with appropriate flags, then build with gcov instrumentation for coverage testing."
+    },
+    {
+      "scope": "environment",
+      "id": "BLOCKER-0002",
+      "reason": "Dynamic (runtime) testing of HTTP/2 protocol behavior requires a running Apache httpd instance with mod_http2 loaded, TLS certificates configured, and an HTTP/2-capable client. This environment has not been provisioned.",
+      "required_action": "Set up a dedicated test environment with: Apache httpd build artifacts, self-signed TLS certificates, test virtual host configuration, and curl built with HTTP/2 support for client-side testing."
+    },
+    {
+      "scope": "coverage",
+      "id": "BLOCKER-0003",
+      "reason": "Coverage instrumentation (gcov) requires recompilation with -fprofile-arcs -ftest-coverage -O0 flags. Build prerequisite not met (BLOCKER-0001).",
+      "required_action": "Resolve BLOCKER-0001 first, then rebuild with gcov instrumentation flags to enable patch line coverage measurement."
+    },
+    {
+      "scope": "finding",
+      "id": "BLOCKER-0004",
+      "reason": "Findings PCA-0006, PCA-0008, PCA-0009 have medium priority and were filtered out by --min-priority high. These findings (API rename, macro removal, input contract change) were not included in the test plan.",
+      "required_action": "Re-run test_entry_planner with --min-priority medium to include PCA-0006, PCA-0008, PCA-0009 in the test plan."
+    }
+  ],
+  "artifacts": {
+    "impact_map": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/test-entry-tasks.json",
+    "test_entry_tasks": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/test-entry-tasks.json",
+    "test_entries": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/test-entry-plan.md",
+    "test_inputs": "not_generated",
+    "execution_results": "not_available",
+    "contract_summary": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/test-summary.json",
+    "coverage_data": "not_available",
+    "report": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P067/compatibility-testing/COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": false,
+    "rationale": "This patch introduces multiple confirmed breaking changes: (1) H2HeaderStrictness config directive completely removed -- existing httpd configurations using it will fail startup. (2) Public API functions removed/renamed (h2_util_ignore_header, h2_req_ignore_header, h2_req_ignore_trailer, h2_res_ignore_trailer) -- external modules linking against old symbols will fail. (3) HTTP/2 protocol behavior changed -- nghttp2 RFC9113 validation always disabled, whitespace always stripped instead of rejected. (4) H2_CONF_HEADER_STRICTNESS enum removed from public header, shifting subsequent enum values and breaking ABI. (5) Public macros removed (H2_HD_MATCH_LIT_CS, H2_CREATE_NV_*). All findings confirmed via static source code comparison but runtime coverage testing could not be performed due to build environment limitations.",
+    "recommended_actions": [
+      "Provide migration documentation for the removed H2HeaderStrictness directive",
+      "Document API migration path: h2_util_ignore_header -> h2_util_ignore_resp_header, h2_req_ignore_trailer -> h2_ignore_req_trailer, h2_res_ignore_trailer -> h2_ignore_resp_trailer",
+      "Notify third-party module developers about public API breaks and macro removals",
+      "Set up full build environment and re-run tests with runtime HTTP/2 protocol verification",
+      "Re-run test_entry_planner with --min-priority medium to include PCA-0006, PCA-0008, PCA-0009"
+    ]
+  }
+}

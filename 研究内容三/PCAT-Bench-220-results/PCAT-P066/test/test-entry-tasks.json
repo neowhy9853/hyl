@@ -1,0 +1,133 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/9c0f64/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/rsyslog",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/9c0f64/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/9c0f64",
+  "patch_id": "9c0f64303f61a7ce5247831afe546146073046f3",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "affected_api": {
+        "name": "ratelimitAddConfig",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "runtime/ratelimit.h",
+        "old_lines": [
+          109,
+          114
+        ],
+        "new_lines": [
+          121,
+          135
+        ],
+        "symbol": "ratelimitAddConfig"
+      },
+      "old_behavior": "ratelimitAddConfig accepted 13 parameters: conf, name, interval, burst, severity, policy_file, policy_watch, policy_watch_debounce, per_source_enabled, per_source_policy_file, per_source_key_tpl_name, per_source_max_states, per_source_topn",
+      "new_behavior": "ratelimitAddConfig now requires 15 parameters: the original 13 plus 2 trailing sbool parameters: has_inline_policy_params, has_legacy_per_source_params",
+      "compatibility_reason": "Any external module or plugin that calls ratelimitAddConfig directly and was compiled against the old signature will fail to compile or link with the new signature. This function is declared in the public header runtime/ratelimit.h and exported from the runtime library.",
+      "test_recommendation": "Compile all known rsyslog plugins and external modules against the new header to detect compile failures. Run a link-time check on existing shared objects that may reference ratelimitAddConfig by symbol.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "downstream_compile_link_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "api_signature_compatibility",
+        "comparison": "success",
+        "required_observation": "old downstream source compiles and links against both versions",
+        "input_axes": [
+          "old declarations",
+          "language modes",
+          "compiler flags",
+          "link modes"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "ABI_CHANGE",
+      "affected_api": {
+        "name": "action_s / ratelimit_shared_s",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "runtime/action.h",
+        "old_lines": [
+          95,
+          122
+        ],
+        "new_lines": [
+          97,
+          130
+        ],
+        "symbol": "action_s"
+      },
+      "old_behavior": "The action_s struct had pszName as its last field before DEF_ATOMIC_HELPER_MUT(mutCAS), followed by error file fields and then stats counters ending at ctrResume.",
+      "new_behavior": "The action_s struct has two new fields (pszRatelimitName, ratelimiter) inserted after pszName, and 4 new STATSCOUNTER_DEF fields (ctrRateLimitAllowed, ctrRateLimitDropped, ctrRateLimitPaced, ctrRateLimitPacedUsec) added after ctrResume. The ratelimit_shared_s struct has 3 new fields (scope, output_mode, output_pace_forbidden) inserted before interval, shifting all subsequent field offsets.",
+      "compatibility_reason": "The action_s and ratelimit_shared_s structs are declared in public headers (action.h, ratelimit.h). Any code compiled against the old struct layouts that directly accesses struct members, uses sizeof(), or relies on field offsets will read incorrect data. Even indirect consumers (e.g., debuggers, core dump analyzers, serialization code) may be affected.",
+      "test_recommendation": "Rebuild all modules against the new headers and run full test suite. Verify ABI compatibility through symbol versioning checks if available.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "abi_dump_and_consumer_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "binary_abi_compatibility",
+        "comparison": "success",
+        "required_observation": "symbol/version manifest plus size, alignment, offset, enum, and calling ABI",
+        "input_axes": [
+          "exported symbols",
+          "symbol versions",
+          "type layouts",
+          "old binary consumer"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/9c0f64/compatibility-testing"
+}

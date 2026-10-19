@@ -1,0 +1,221 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/vim",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/vim/pca-results/5fdb44/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/5fdb44",
+  "base_ref": "9ed2c957fee9508c158bbc92b1404e93a2854197",
+  "base_commit": "9ed2c957fee9508c158bbc92b1404e93a2854197",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "5fdb44c438747d419a403110f3c2dd792f539497",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/vim_noclose.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "vim",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 4711,
+    "patch_lines": 135,
+    "diff_added_lines": 27,
+    "diff_deleted_lines": 5,
+    "diff_context_lines": 55,
+    "churn": 32,
+    "raw_hunks": 8,
+    "candidate_hunks": 3,
+    "skipped_doc_hunks": 5,
+    "changed_files": 3,
+    "candidate_context_bytes": 5182,
+    "public_candidate_hunks": 2,
+    "surface_counts": {
+      "callbacks": 1,
+      "plugin_api": 1,
+      "ex_commands": 3,
+      "options": 1,
+      "vimscript": 1,
+      "ui_behavior": 3,
+      "tests": 1,
+      "proc_sys_consumers": 1
+    },
+    "candidates_json_bytes": 16192
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 3,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "vim",
+      "affected_surface": "Vimscript API: term_start() option validation",
+      "affected_api": {
+        "name": "term_start term_finish option",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/job.c",
+        "old_lines": [
+          386,
+          392
+        ],
+        "new_lines": [
+          386,
+          393
+        ],
+        "symbol": "get_job_options"
+      },
+      "old_behavior": "The get_job_options() function validates the \"term_finish\" option of term_start(). Previously, only \"open\" and \"close\" were accepted as valid values. Passing \"noclose\" would cause an E475 error: \"Invalid value for argument \"term_finish\": noclose\".",
+      "new_behavior": "The validation is relaxed to also accept \"noclose\" as a valid value for \"term_finish\". When set, the terminal window will not close (and no window will be opened) when the job finishes. The buffer remains hidden, listed, and loaded with terminal output available.",
+      "compatibility_reason": "This is an additive (relaxed) input contract change. The set of accepted values for the \"term_finish\" option of term_start() is expanded from {\"open\", \"close\"} to {\"open\", \"close\", \"noclose\"}. No existing callers are broken since previously \"noclose\" would simply error. However, Vimscript code that string-checks valid term_finish values may need updating if it validates against a hard-coded list.",
+      "evidence": [
+        {
+          "file": "src/job.c",
+          "lines": [
+            386,
+            393
+          ],
+          "snippet": "\t\tif (STRCMP(val, \"open\") != 0 && STRCMP(val, \"close\") != 0\n\t\t\t&& STRCMP(val, \"noclose\") != 0)\n\t\t{\n\t\t    semsg(_(e_invalid_value_for_argument_str_str),\n\t\t\t\t\t\t\t   \"term_finish\", val);\n\t\t    return FAIL;\n\t\t}"
+        },
+        {
+          "file": "runtime/doc/terminal.txt",
+          "lines": [
+            1001,
+            1011
+          ],
+          "snippet": "\"term_finish\"\tWhat to do when the job is finished:\n\t\t\t\"close\": close any windows\n\t\t\t\"noclose\": window will not be opened\n\t\t\t\"open\": open window if needed"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "term_start() is part of the public Vimscript API. The \"term_finish\" option is documented in runtime/doc/terminal.txt and exposed to all Vimscript callers. Both the options and vimscript API surfaces classify this as public.",
+      "uncertainty": "No uncertainty: the change is straightforward. The only question is whether plugin code that manually validates term_finish values needs updating.",
+      "manual_review_required": false,
+      "recommended_review": "Review any Vimscript plugins that validate \"term_finish\" values with hard-coded lists (e.g., checking only \"open\" and \"close\"). The official documentation already reflects the new value.",
+      "test_recommendation": "Run existing terminal finish tests (open/close) to verify no regression. Run the new \"noclose\" test which verifies that a terminal with term_finish=noclose keeps the buffer hidden, listed, and loaded after job completion.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "src/job.c",
+            "old_lines": [
+              386,
+              392
+            ],
+            "new_lines": [
+              386,
+              393
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "plugin_api",
+              "ex_commands",
+              "options",
+              "vimscript",
+              "ui_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "ex_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ex command syntax and behavior"
+              },
+              {
+                "name": "options",
+                "test_priority": "high",
+                "public": true,
+                "description": "User-visible option names, values, and validation"
+              },
+              {
+                "name": "vimscript",
+                "test_priority": "high",
+                "public": true,
+                "description": "Vimscript/Vim9 API, functions, and type semantics"
+              },
+              {
+                "name": "ui_behavior",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible editor behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

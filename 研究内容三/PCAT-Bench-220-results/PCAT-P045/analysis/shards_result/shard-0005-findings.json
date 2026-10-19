@@ -1,0 +1,43 @@
+{
+  "shard_id": "SHARD-0005",
+  "surface": "public_headers",
+  "findings": [
+    {
+      "finding_id": "SHARD-0005-F001",
+      "candidate_index": 14,
+      "hunk_id": "HUNK-0015",
+      "is_compatibility_change": true,
+      "compatibility_type": "source_incompatible",
+      "test_priority": "high",
+      "affected_api": "nm_device_set_managed_async",
+      "location": {
+        "file": "src/libnm-client-public/nm-device.h",
+        "line_start": 155,
+        "line_end": 155
+      },
+      "evidence": "Parameter 'managed' changed from gboolean to NMDeviceManaged in nm_device_set_managed_async() declaration. The old deprecated nm_device_set_managed(NMDevice *, gboolean) remains unchanged at line 152.",
+      "old_behavior": "nm_device_set_managed_async() accepted gboolean (int) for the managed parameter. Callers could pass TRUE/FALSE or any integer value.",
+      "new_behavior": "nm_device_set_managed_async() accepts NMDeviceManaged enum for the managed parameter. Callers must use NM_DEVICE_MANAGED_NO, NM_DEVICE_MANAGED_YES, or NM_DEVICE_MANAGED_RESET.",
+      "compatibility_reason": "gboolean and C enum are both typically int-sized (32-bit), so the ABI layout and calling convention are preserved. Binary compatibility is maintained. However, source compatibility is broken: existing code passing gboolean literals (TRUE/FALSE) or integer variables will fail to compile or emit warnings due to type mismatch. The old synchronous nm_device_set_managed(gboolean) is preserved as deprecated, providing a migration path for existing callers."
+    },
+    {
+      "finding_id": "SHARD-0005-F002",
+      "candidate_index": 15,
+      "hunk_id": "HUNK-0016",
+      "is_compatibility_change": false,
+      "compatibility_type": "additive",
+      "test_priority": "high",
+      "affected_api": "NMDeviceManaged",
+      "location": {
+        "file": "src/libnm-core-public/nm-dbus-interface.h",
+        "line_start": 1248,
+        "line_end": 1269
+      },
+      "evidence": "New typedef enum NMDeviceManaged added with values NM_DEVICE_MANAGED_NO=0, NM_DEVICE_MANAGED_YES=1, NM_DEVICE_MANAGED_RESET=2. No prior type with this name existed.",
+      "old_behavior": "No NMDeviceManaged type existed in the public API. The SetManaged() D-Bus call and related functions used gboolean or raw integer values.",
+      "new_behavior": "NMDeviceManaged enum type is defined in the public header, providing typed values for device managed state: NO (0), YES (1), RESET (2).",
+      "compatibility_reason": "Purely additive new type definition. No existing symbols were removed or modified. Does not break existing source or binary compatibility. Backward compatible. This new type enables the source-incompatible parameter change in HUNK-0015 by providing the required enum values."
+    }
+  ],
+  "analysis_summary": "SHARD-0005 contains one source-incompatible but ABI-compatible change (gboolean→NMDeviceManaged parameter type in nm_device_set_managed_async) and one purely additive new enum definition (NMDeviceManaged). The old deprecated synchronous API nm_device_set_managed(gboolean) is preserved unchanged, providing a migration path."
+}

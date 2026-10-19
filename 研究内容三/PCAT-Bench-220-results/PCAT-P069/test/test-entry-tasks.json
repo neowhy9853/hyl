@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/rsyslog",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8",
+  "patch_id": "e671f885037435884f070493be753eb021e26e79",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "sd_notify(READY=1) via main() in rsyslogd.c",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "tools/rsyslogd.c",
+        "old_lines": [
+          2666,
+          2677
+        ],
+        "new_lines": [
+          2666,
+          2682
+        ],
+        "symbol": "main"
+      },
+      "old_behavior": "When built with HAVE_LIBSYSTEMD, rsyslog always called rsconfWaitForModulesReady() before sd_notify(0, \"READY=1\"), ensuring all modules had signalled readiness before informing systemd the service is fully started.",
+      "new_behavior": "rsconfWaitForModulesReady() and subsequent sd_notify(READY=1) are only executed when global(systemd.notifyReadyDelay=\"on\") is explicitly configured. By default (systemdNotifyReadyDelay=0), READY=1 is sent immediately after initAll() without waiting for module readiness. The sd_notify is now guarded by rsconfShouldDelayReadyNotify(runConf).",
+      "compatibility_reason": "Operators depending on rsyslog delaying systemd READY=1 until input modules have initialized will find the service starts faster but modules may not be fully ready when dependent services are ordered after rsyslog. The historical behavior was to always wait; the new default is to not wait. Operators relying on the delay for startup sequencing must explicitly add global(systemd.notifyReadyDelay=\"on\") to their configuration.",
+      "test_recommendation": "Verify that config validation accepts both systemd.notifyReadyDelay=\"on\" and \"off\". Verify that with the default (off), rsyslog sends READY=1 immediately. Verify that with \"on\", READY=1 is delayed until modules signal readiness (or 60s timeout).",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8/compatibility-testing"
+}

@@ -1,0 +1,101 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis/analysis.json",
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "api_harness",
+      "status": "generated",
+      "artifact_path": "real-rxe/rxe_probe.c",
+      "build_command": "sh real-rxe/build_one.sh before && sh real-rxe/build_one.sh after",
+      "run_command": "sh real-rxe/run_one.sh before && sh real-rxe/run_one.sh after",
+      "target_location": {
+        "file": "drivers/infiniband/core/umem.c",
+        "new_lines": [334, 342],
+        "symbol": "ib_umem_check_rereg"
+      },
+      "reachability_signal": "QEMU serial marker PCAT_P099_REAL_RXE_DONE plus kernel gcov for umem.gcda; mock fallback marker PCAT_P099_MOCK_SUITE_PASS",
+      "expected_signal": "before RO->RW succeeds; after fails with nonzero ibv_rereg_mr return and errno=EACCES; control inputs preserve their acceptance class",
+      "execution": {
+        "cwd": "compatibility-testing",
+        "timeout_seconds": 1800,
+        "uses_clean_source_copy": true
+      },
+      "input_strategy": "RXE/uverbs cases for RO->LOCAL_WRITE, legal REMOTE_WRITE/ATOMIC combinations, readonly, originally writable, PD-only, PD+ACCESS, ACCESS+TRANS, zero and invalid flags; identical mock matrix when QEMU cannot complete",
+      "contract_probe": {
+        "probe_id": "rereg_input_acceptance",
+        "before_command": "sh mock/probe_contract.sh before input",
+        "after_command": "sh mock/probe_contract.sh after input",
+        "comparison": "acceptance",
+        "cwd": ".",
+        "timeout_seconds": 30
+      },
+      "prerequisites": ["qemu-system-x86_64", "gcc", "libibverbs headers/provider", "TCG", "built before/after bzImage"],
+      "limitations": "Host RXE is unavailable. QEMU is the only real uverbs path. If guest RXE/provider setup fails, mock validates helper and driver contracts but is not end-to-end coverage."
+    },
+    {
+      "finding_id": "PCA-0002",
+      "entry_id": "PCA-TE-0002",
+      "entry_kind": "error_or_exception_harness",
+      "status": "generated",
+      "artifact_path": "mock/mock_rereg.c",
+      "build_command": "sh mock/build_and_run.sh",
+      "run_command": "sh mock/build_and_run.sh",
+      "target_location": {
+        "file": "drivers/infiniband/core/umem.c",
+        "new_lines": [339, 341],
+        "symbol": "ib_umem_check_rereg"
+      },
+      "reachability_signal": "gcov count on copied helper return -EACCES and PCAT_P099_MOCK_DONE failures=0",
+      "expected_signal": "after access-only non-writable RO->RW returns -EACCES; CONFIG_USER_MEM=n returns -EOPNOTSUPP; invalid flag stays -EOPNOTSUPP",
+      "execution": {
+        "cwd": "compatibility-testing",
+        "timeout_seconds": 120,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Compare exact negative return/errno for helper, uverbs validation model and mlx4's retained ACCESS|TRANS -EPERM path",
+      "contract_probe": {
+        "probe_id": "rereg_errno_stability",
+        "before_command": "sh mock/probe_contract.sh before error",
+        "after_command": "sh mock/probe_contract.sh after error",
+        "comparison": "error",
+        "cwd": ".",
+        "timeout_seconds": 30
+      },
+      "prerequisites": ["gcc", "gcov"],
+      "limitations": "Mock proves kernel helper/driver error contracts; only successful QEMU RXE results can prove libibverbs errno mapping."
+    },
+    {
+      "finding_id": "PCA-0003",
+      "entry_id": "PCA-TE-0003",
+      "entry_kind": "state_and_side_effect_probe",
+      "status": "generated",
+      "artifact_path": "mock/mock_rereg.c",
+      "build_command": "sh mock/build_and_run.sh",
+      "run_command": "sh mock/build_and_run.sh",
+      "target_location": {
+        "file": "drivers/infiniband/sw/rxe/rxe_verbs.c",
+        "new_lines": [1329, 1344],
+        "symbol": "rxe_rereg_user_mr"
+      },
+      "reachability_signal": "per-driver JSONL effect sequence and gcov call counts for hns/irdma/mlx4/mlx5/rxe wrappers",
+      "expected_signal": "after helper=-EACCES each wrapper returns before mailbox/hardware/PD/MR side effects; mlx4 ACCESS|TRANS retains mpt_get then -EPERM",
+      "execution": {
+        "cwd": "compatibility-testing",
+        "timeout_seconds": 120,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Record ordered controlled-mock calls for rejected access-only and valid/control flag combinations across all five drivers",
+      "contract_probe": {
+        "probe_id": "driver_side_effect_manifest",
+        "before_command": "sh mock/probe_contract.sh before side_effect",
+        "after_command": "sh mock/probe_contract.sh after side_effect",
+        "comparison": "exact",
+        "cwd": ".",
+        "timeout_seconds": 30
+      },
+      "prerequisites": ["gcc", "gcov"],
+      "limitations": "Hardware APIs are deterministic mocks. Real hns/irdma/mlx4/mlx5 firmware, mailbox and device state are not exercised."
+    }
+  ]
+}

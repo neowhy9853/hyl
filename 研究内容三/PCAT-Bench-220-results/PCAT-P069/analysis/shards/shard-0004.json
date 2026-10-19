@@ -1,0 +1,170 @@
+{
+  "shard_id": "SHARD-0004",
+  "surface": "ioctl_netlink_consumers",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    0
+  ],
+  "hunk_ids": [
+    "HUNK-0002"
+  ],
+  "files": [
+    "plugins/imfile/imfile.c"
+  ],
+  "symbols": [
+    "close",
+    "do_inotify",
+    "in_processEvent",
+    "ino_fd"
+  ],
+  "metrics": {
+    "hunks": 1,
+    "context_bytes": 2095
+  },
+  "candidates": [
+    {
+      "file": "plugins/imfile/imfile.c",
+      "old_start": 2909,
+      "old_end": 2915,
+      "new_start": 2909,
+      "new_end": 2918,
+      "context_hint": "static rsRetVal do_inotify(void) {",
+      "added_lines": [
+        "    if (ino_fd >= 0) {",
+        "        close(ino_fd);",
+        "        ino_fd = -1;",
+        "    }"
+      ],
+      "deleted_lines": [
+        "    close(ino_fd);"
+      ],
+      "context_lines": [
+        "",
+        "finalize_it:",
+        "    if (!bSignaledReady) rsconfSignalReady();",
+        "    RETiRet;",
+        "}",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "do_inotify",
+        "ino_fd",
+        "close",
+        "in_processEvent"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "ioctl_netlink",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "ioctl command, netlink attribute, and kernel ABI consumers"
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "ioctl_netlink_consumers",
+          "user_visible_output",
+          "ioctl_netlink",
+          "plugin_api",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "do_inotify",
+        "snippet_start_line": 2880,
+        "snippet_end_line": 2948,
+        "snippet": "                    last_delete_check = now;\n                }\n            }\n            rd = read(ino_fd, iobuf, sizeof(iobuf));\n            if (rd == -1 && errno == EINTR) {\n                /* This might have been our termination signal! */\n                DBGPRINTF(\"EINTR received during inotify, restarting poll\\n\");\n                continue;\n            }\n            if (rd == -1 && errno == EWOULDBLOCK) {\n                continue;\n            }\n            if (rd < 0) {\n                LogError(errno, RS_RET_IO_ERROR, \"imfile: error during inotify - ignored\");\n                continue;\n            }\n            currev = 0;\n            while (currev < rd) {\n                union {\n                    char *buf;\n                    struct inotify_event *ev;\n                } savecast;\n                savecast.buf = iobuf + currev;\n                in_dbg_showEv(savecast.ev);\n                in_processEvent(savecast.ev);\n                currev += sizeof(struct inotify_event) + savecast.ev->len;\n            }\n        }\n    }\n\nfinalize_it:\n    if (!bSignaledReady) rsconfSignalReady();\n    if (ino_fd >= 0) {\n        close(ino_fd);\n        ino_fd = -1;\n    }\n    RETiRet;\n}\n\n#else /* #if HAVE_INOTIFY_INIT */\nstatic rsRetVal do_inotify(void) {\n    LogError(0, RS_RET_NOT_IMPLEMENTED,\n             \"imfile: mode set to inotify, but the \"\n             \"platform does not support inotify\");\n    return RS_RET_NOT_IMPLEMENTED;\n}\n#endif /* #if HAVE_INOTIFY_INIT */\n\n\n/* --- Monitor files in FEN mode (OS_SOLARIS)*/\n#if defined(OS_SOLARIS) && defined(HAVE_PORT_SOURCE_FILE) /* use FEN on Solaris! */\nstatic void fen_printevent(int event) {\n    if (event & FILE_ACCESS) {\n        DBGPRINTF(\" FILE_ACCESS\");\n    }\n    if (event & FILE_MODIFIED) {\n        DBGPRINTF(\" FILE_MODIFIED\");\n    }\n    if (event & FILE_ATTRIB) {\n        DBGPRINTF(\" FILE_ATTRIB\");\n    }\n    if (event & FILE_DELETE) {\n        DBGPRINTF(\" FILE_DELETE\");\n    }\n    if (event & FILE_RENAME_TO) {\n        DBGPRINTF(\" FILE_RENAME_TO\");\n    }\n    if (event & FILE_RENAME_FROM) {\n        DBGPRINTF(\" FILE_RENAME_FROM\");\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

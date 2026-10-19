@@ -1,0 +1,340 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P024/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P024",
+  "base_ref": "7f8fc07e850d7b27a220c815db8c8abd545286c3^",
+  "base_commit": "2df69de5b36347d430aed0a959fa01e17b237331",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "7f8fc07e850d7b27a220c815db8c8abd545286c3",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/python/cpython/commit/7f8fc07e850d7b27a220c815db8c8abd545286c3",
+    "download_url": "https://github.com/python/cpython/commit/7f8fc07e850d7b27a220c815db8c8abd545286c3.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P024/_patch-cache/7f8fc07e850d.patch",
+    "commit": "7f8fc07e850d7b27a220c815db8c8abd545286c3",
+    "base_ref_inferred": "7f8fc07e850d7b27a220c815db8c8abd545286c3^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "c_project",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1836,
+    "patch_lines": 41,
+    "diff_added_lines": 3,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 17,
+    "churn": 5,
+    "raw_hunks": 3,
+    "candidate_hunks": 3,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 4708,
+    "public_candidate_hunks": 2,
+    "surface_counts": {
+      "callbacks": 1,
+      "environment_variables": 2,
+      "cli_options": 2,
+      "cli": 2,
+      "env_vars": 2,
+      "plugin_api": 2,
+      "user_visible_output": 1
+    },
+    "candidates_json_bytes": 15240
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 3,
+    "compatibility_changes": 2,
+    "high_priority": 0,
+    "medium_priority": 2,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "c_project",
+      "affected_surface": "CLI / environment variable: PYTHONSTARTUP behavior in asyncio REPL via `-E` and `-I` flags",
+      "affected_api": {
+        "name": "PYTHONSTARTUP",
+        "kind": "env_variable",
+        "language": "python"
+      },
+      "location": {
+        "file": "Lib/asyncio/__main__.py",
+        "old_lines": [
+          99,
+          105
+        ],
+        "new_lines": [
+          99,
+          105
+        ],
+        "symbol": "REPLThread.run"
+      },
+      "old_behavior": "使用 `python -E -m asyncio` 启动 asyncio REPL 时，PYTHONSTARTUP 环境变量指明的启动文件仍然会被加载执行。只有 `-I`（隔离模式）会阻止加载 PYTHONSTARTUP。",
+      "new_behavior": "使用 `python -E -m asyncio` 启动 asyncio REPL 时，PYTHONSTARTUP 环境变量会被忽略，启动文件不再被加载执行。`-E` 和 `-I` 都会阻止加载 PYTHONSTARTUP。",
+      "compatibility_reason": "`-E` 标志在标准 Python 交互式解释器中会忽略所有 PYTHON* 环境变量（包括 PYTHONSTARTUP），但 asyncio REPL 此前未遵守此约定。依赖 `python -E -m asyncio` 加载 PYTHONSTARTUP 的用户将发现其启动脚本不再被执行。使用 `-I` 的行为不变（新旧代码均阻止加载）。",
+      "evidence": [
+        {
+          "file": "Lib/asyncio/__main__.py",
+          "lines": [
+            99,
+            105
+          ],
+          "snippet": "旧代码：if not sys.flags.isolated and (startup_path := os.getenv(\"PYTHONSTARTUP\")):\n新代码：if not sys.flags.ignore_environment and (startup_path := os.getenv(\"PYTHONSTARTUP\")):\n\nsys.flags.isolated   → True 当且仅当 -I\nsys.flags.ignore_environment → True 当 -E 或 -I\n\n变更效果：-E 单独使用（无 -I）时，旧代码检查 isolated 为 False 故仍加载 PYTHONSTARTUP；新代码检查 ignore_environment 为 True 故跳过加载。"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "PYTHONSTARTUP 是 Python 文档化的公共环境变量，asyncio REPL 对其的处理方式是用户可观察的 CLI 行为。`REPLThread.run` 是线程入口方法，其环境变量检查逻辑直接决定用户可见的启动行为。",
+      "uncertainty": "依赖 `-E` 加载 PYTHONSTARTUP 的用户数量未知。标准 CPython 文档规定 `-E` 忽略 PYTHON* 环境变量，因此此变更更接近缺陷修复而非破坏性变更，但仍存在兼容性窗口。",
+      "manual_review_required": false,
+      "recommended_review": "确认与 CPython 文档一致性：`-E` 应忽略 PYTHONSTARTUP。此变更使 asyncio REPL 与标准 CPython 行为对齐。",
+      "test_recommendation": "测试组合 `-E` + PYTHONSTARTUP 设置时 asyncio REPL 不加载启动文件；测试 `-I` + PYTHONSTARTUP 时启动文件不加载（回归）；测试无 `-E`/`-I` + PYTHONSTARTUP 时正常加载（回归）；测试 `-E` 单独使用时 PYTHONSTARTUP 被忽略。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "Lib/asyncio/__main__.py",
+            "old_lines": [
+              99,
+              105
+            ],
+            "new_lines": [
+              99,
+              105
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "environment_variables",
+              "cli_options",
+              "cli",
+              "env_vars",
+              "plugin_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "environment_variables",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Environment-variable configuration behavior."
+              },
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "env_vars",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Environment variable behavior"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "c_project",
+      "affected_surface": "CLI / environment variable: PYTHON_BASIC_REPL behavior in asyncio REPL via `-E` and `-I` flags",
+      "affected_api": {
+        "name": "PYTHON_BASIC_REPL",
+        "kind": "env_variable",
+        "language": "python"
+      },
+      "location": {
+        "file": "Lib/asyncio/__main__.py",
+        "old_lines": [
+          200,
+          206
+        ],
+        "new_lines": [
+          200,
+          206
+        ],
+        "symbol": "interrupt"
+      },
+      "old_behavior": "设置 PYTHON_BASIC_REPL 环境变量后，无论是否使用 `-E` 或 `-I`，asyncio REPL 均会使用基本 REPL（而非 pyrepl）。PYTHON_BASIC_REPL 的检查不受 Python 命令行标志影响。",
+      "new_behavior": "当使用 `-E` 或 `-I` 时，PYTHON_BASIC_REPL 环境变量被忽略，asyncio REPL 将尝试使用 pyrepl（若可用）。只有未使用 `-E`/`-I` 时，PYTHON_BASIC_REPL 才会强制使用基本 REPL。",
+      "compatibility_reason": "设置了 PYTHON_BASIC_REPL 并同时使用 `-E` 或 `-I` 的用户将发现 REPL 后端从基本 REPL 变为 pyrepl，导致不同的行编辑行为和潜在不兼容。PYTHON_BASIC_REPL 是 PYTHON* 环境变量，`-E` 应忽略所有 PYTHON* 变量。",
+      "evidence": [
+        {
+          "file": "Lib/asyncio/__main__.py",
+          "lines": [
+            200,
+            206
+          ],
+          "snippet": "旧代码：if os.getenv('PYTHON_BASIC_REPL'):\n新代码：if not sys.flags.ignore_environment and os.getenv('PYTHON_BASIC_REPL'):\n\nsys.flags.ignore_environment → True 当 -E 或 -I\n\n变更效果：-E 或 -I 时，ignore_environment 为 True，整个条件短路为 False，因此 CAN_USE_PYREPL 不会被设为 False，将尝试导入并使用 pyrepl（而非基本 REPL）。"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "PYTHON_BASIC_REPL 是 CPython 文档化的公共环境变量，影响 asyncio REPL 使用的行编辑后端（pyrepl vs 基本 REPL）。用户观察到的交互行为（语法高亮、多行编辑、历史记录等）取决于此检查，因此是外部可观察的 CLI 行为变更。",
+      "uncertainty": "PYTHON_BASIC_REPL 用户群较小；大多数用户不会同时设置 PYTHON_BASIC_REPL 和 `-E`/`-I`。变更使行为与 `-E` 忽略 PYTHON* 变量的一般约定一致。",
+      "manual_review_required": false,
+      "recommended_review": "确认 `-E` 忽略 PYTHON_BASIC_REPL 与 CPython 关于 PYTHON* 环境变量的文档一致。",
+      "test_recommendation": "测试 `-E` + PYTHON_BASIC_REPL 设置时 asyncio REPL 使用 pyrepl（而非基本 REPL）；测试 `-I` + PYTHON_BASIC_REPL 时同样忽略；测试无 `-E`/`-I` + PYTHON_BASIC_REPL 时正常使用基本 REPL（回归）。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "Lib/asyncio/__main__.py",
+            "old_lines": [
+              200,
+              206
+            ],
+            "new_lines": [
+              200,
+              206
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "environment_variables",
+              "cli_options",
+              "user_visible_output",
+              "cli",
+              "env_vars",
+              "plugin_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "environment_variables",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Environment-variable configuration behavior."
+              },
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "env_vars",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Environment variable behavior"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

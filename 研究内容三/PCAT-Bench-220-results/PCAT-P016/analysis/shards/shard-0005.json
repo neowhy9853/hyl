@@ -1,0 +1,213 @@
+{
+  "shard_id": "SHARD-0005",
+  "surface": "python_exceptions",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    20,
+    18
+  ],
+  "hunk_ids": [
+    "HUNK-0021",
+    "HUNK-0019"
+  ],
+  "files": [
+    "Python/import.c"
+  ],
+  "symbols": [
+    "Py_CLEAR",
+    "_PyImport_ClearCore",
+    "imports",
+    "interp",
+    "lazy_pending_submodules",
+    "Add",
+    "LAZY_MODULES",
+    "module",
+    "name",
+    "register_from_lazy_on_parent",
+    "the",
+    "to"
+  ],
+  "metrics": {
+    "hunks": 2,
+    "context_bytes": 5065
+  },
+  "candidates": [
+    {
+      "file": "Python/import.c",
+      "old_start": 4790,
+      "old_end": 4795,
+      "new_start": 4814,
+      "new_end": 4820,
+      "context_hint": "_PyImport_ClearCore(PyInterpreterState *interp)",
+      "added_lines": [
+        "    Py_CLEAR(interp->imports.lazy_pending_submodules);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    Py_CLEAR(IMPORTLIB(interp));",
+        "    Py_CLEAR(IMPORT_FUNC(interp));",
+        "    Py_CLEAR(LAZY_IMPORT_FUNC(interp));",
+        "    Py_CLEAR(interp->imports.lazy_modules);",
+        "    Py_CLEAR(interp->imports.lazy_importing_modules);",
+        "    Py_CLEAR(interp->imports.lazy_imports_filter);"
+      ],
+      "hunk_id": "HUNK-0021",
+      "changed_symbols": [
+        "_PyImport_ClearCore",
+        "Py_CLEAR",
+        "interp",
+        "imports",
+        "lazy_pending_submodules"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          }
+        ],
+        "surface_reasons": [
+          "python_exceptions"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "_PyImport_ClearCore",
+        "snippet_start_line": 4761,
+        "snippet_end_line": 4850,
+        "snippet": "\nvoid\n_PyImport_Fini2(void)\n{\n    // Reset PyImport_Inittab\n    PyImport_Inittab = _PyImport_Inittab;\n\n    /* Free memory allocated by PyImport_ExtendInittab() */\n    _PyMem_DefaultRawFree(inittab_copy);\n    inittab_copy = NULL;\n}\n\n\n/*************************/\n/* interpreter lifecycle */\n/*************************/\n\nPyStatus\n_PyImport_InitCore(PyThreadState *tstate, PyObject *sysmod, int importlib)\n{\n    // XXX Initialize here: interp->modules and interp->import_func.\n    // XXX Initialize here: sys.modules and sys.meta_path.\n\n    if (importlib) {\n        /* This call sets up builtin and frozen import support */\n        if (init_importlib(tstate, sysmod) < 0) {\n            return _PyStatus_ERR(\"failed to initialize importlib\");\n        }\n    }\n\n    return _PyStatus_OK();\n}\n\n/* In some corner cases it is important to be sure that the import\n   machinery has been initialized (or not cleaned up yet).  For\n   example, see issue #4236 and PyModule_Create2(). */\n\nint\n_PyImport_IsInitialized(PyInterpreterState *interp)\n{\n    if (MODULES(interp) == NULL)\n        return 0;\n    return 1;\n}\n\n/* Clear the direct per-interpreter import state, if not cleared already. */\nvoid\n_PyImport_ClearCore(PyInterpreterState *interp)\n{\n    /* interp->modules should have been cleaned up and cleared already\n       by _PyImport_FiniCore(). */\n    Py_CLEAR(MODULES(interp));\n    Py_CLEAR(MODULES_BY_INDEX(interp));\n    Py_CLEAR(IMPORTLIB(interp));\n    Py_CLEAR(IMPORT_FUNC(interp));\n    Py_CLEAR(LAZY_IMPORT_FUNC(interp));\n    Py_CLEAR(interp->imports.lazy_pending_submodules);\n    Py_CLEAR(interp->imports.lazy_modules);\n    Py_CLEAR(interp->imports.lazy_importing_modules);\n    Py_CLEAR(interp->imports.lazy_imports_filter);\n}\n\nvoid\n_PyImport_FiniCore(PyInterpreterState *interp)\n{\n    int verbose = _PyInterpreterState_GetConfig(interp)->verbose;\n\n    if (_PySys_ClearAttrString(interp, \"meta_path\", verbose) < 0) {\n        PyErr_FormatUnraisable(\"Exception ignored while \"\n                               \"clearing sys.meta_path\");\n    }\n\n    // XXX Pull in most of finalize_modules() in pylifecycle.c.\n\n    if (_PySys_ClearAttrString(interp, \"modules\", verbose) < 0) {\n        PyErr_FormatUnraisable(\"Exception ignored while \"\n                               \"clearing sys.modules\");\n    }\n\n    _PyImport_ClearCore(interp);\n}\n\n// XXX Add something like _PyImport_Disable() for use early in interp fini?\n\n\n/* \"external\" imports */\n\nstatic int\ninit_zipimport(PyThreadState *tstate, int verbose)\n{\n"
+      }
+    },
+    {
+      "file": "Python/import.c",
+      "old_start": 4463,
+      "old_end": 4468,
+      "new_start": 4472,
+      "new_end": 4485,
+      "context_hint": "register_from_lazy_on_parent(PyThreadState *tstate, PyObject *abs_name,",
+      "added_lines": [
+        "",
+        "    // Add the module name to sys.lazy_modules set (PEP 810).",
+        "    PyObject *lazy_modules = LAZY_MODULES(tstate->interp);",
+        "    if (PySet_Add(lazy_modules, fromname) < 0) {",
+        "        Py_DECREF(fromname);",
+        "        return -1;",
+        "    }",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    if (fromname == NULL) {",
+        "        return -1;",
+        "    }",
+        "    int res = register_lazy_on_parent(tstate, fromname, builtins);",
+        "    Py_DECREF(fromname);",
+        "    return res;"
+      ],
+      "hunk_id": "HUNK-0019",
+      "changed_symbols": [
+        "register_from_lazy_on_parent",
+        "Add",
+        "the",
+        "module",
+        "name",
+        "to",
+        "LAZY_MODULES"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and message changes"
+          }
+        ],
+        "surface_reasons": [
+          "python_exceptions",
+          "exceptions"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "register_from_lazy_on_parent",
+        "snippet_start_line": 4434,
+        "snippet_end_line": 4515,
+        "snippet": "                }\n                if (!contains) {\n                    PyObject *lazy_module_attr = _PyLazyImport_New(\n                        tstate->current_frame, builtins, parent, child\n                    );\n                    if (lazy_module_attr == NULL) {\n                        goto done;\n                    }\n                    if (PyDict_SetItem(parent_dict, child,\n                                       lazy_module_attr) < 0) {\n                        Py_DECREF(lazy_module_attr);\n                        goto done;\n                    }\n                    Py_DECREF(lazy_module_attr);\n                }\n            }\n            ret = 0;\n            goto done;\n        }\n\n        Py_SETREF(name, parent);\n        parent = NULL;\n    }\n\ndone:\n    Py_XDECREF(parent_dict);\n    Py_XDECREF(parent_module);\n    Py_XDECREF(child);\n    Py_XDECREF(parent);\n    Py_XDECREF(name);\n    return ret;\n}\n\nstatic int\nregister_from_lazy_on_parent(PyThreadState *tstate, PyObject *abs_name,\n                             PyObject *from, PyObject *builtins)\n{\n    PyObject *fromname = PyUnicode_FromFormat(\"%U.%U\", abs_name, from);\n    if (fromname == NULL) {\n        return -1;\n    }\n\n    // Add the module name to sys.lazy_modules set (PEP 810).\n    PyObject *lazy_modules = LAZY_MODULES(tstate->interp);\n    if (PySet_Add(lazy_modules, fromname) < 0) {\n        Py_DECREF(fromname);\n        return -1;\n    }\n\n    int res = register_lazy_on_parent(tstate, fromname, builtins);\n    Py_DECREF(fromname);\n    return res;\n}\n\nPyObject *\n_PyImport_LazyImportModuleLevelObject(PyThreadState *tstate,\n                                      PyObject *name, PyObject *builtins,\n                                      PyObject *globals, PyObject *locals,\n                                      PyObject *fromlist, int level)\n{\n    assert(name != NULL);\n    if (!PyUnicode_Check(name)) {\n        _PyErr_Format(tstate, PyExc_TypeError,\n                      \"module name must be a string, got %T\", name);\n        return NULL;\n    }\n    if (level < 0) {\n        _PyErr_SetString(tstate, PyExc_ValueError, \"level must be >= 0\");\n        return NULL;\n    }\n\n    PyObject *abs_name = get_abs_name(tstate, name, globals, level);\n    if (abs_name == NULL) {\n        return NULL;\n    }\n\n    PyInterpreterState *interp = tstate->interp;\n    _PyInterpreterFrame *frame = _PyEval_GetFrame();\n    if (frame == NULL || frame->f_globals != frame->f_locals) {\n        Py_DECREF(abs_name);\n        PyErr_SetString(PyExc_SyntaxError,\n                        \"'lazy import' is only allowed at module level\");\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

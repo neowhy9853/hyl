@@ -1,0 +1,311 @@
+{
+  "shard_id": "SHARD-0019",
+  "surface": "user_visible_output",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    44,
+    43
+  ],
+  "hunk_ids": [
+    "HUNK-0060",
+    "HUNK-0059"
+  ],
+  "files": [
+    "runtime/net.c"
+  ],
+  "symbols": [
+    "AllowedSenders",
+    "NetAddr",
+    "isAllowedSender2",
+    "isAllowedSenderList",
+    "memcpy",
+    "pAllowRoot",
+    "pFrom",
+    "setAllowRoot",
+    "sockaddr",
+    "addAllowedSenderEntry",
+    "addAllowedSenderLine",
+    "ppLast",
+    "ppRoot",
+    "rsParsDestruct",
+    "rsRetVal"
+  ],
+  "metrics": {
+    "hunks": 2,
+    "context_bytes": 9965
+  },
+  "candidates": [
+    {
+      "file": "runtime/net.c",
+      "old_start": 962,
+      "old_end": 978,
+      "new_start": 1014,
+      "new_end": 1029,
+      "context_hint": "static int MaskCmp(struct NetAddr *pAllow, uint8_t bits, struct sockaddr *pFrom,",
+      "added_lines": [
+        "static int isAllowedSenderList(struct AllowedSenders *pAllowRoot,",
+        "                               struct sockaddr *pFrom,",
+        "                               const char *pszFromHost,",
+        "                               int bChkDNS) {"
+      ],
+      "deleted_lines": [
+        "static int isAllowedSender2(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS) {",
+        "    struct AllowedSenders *pAllowRoot = NULL;",
+        "    if (setAllowRoot(&pAllowRoot, pszType) != RS_RET_OK)",
+        "        return 0; /* if something went wrong, we deny access - that's the better choice... */",
+        ""
+      ],
+      "context_lines": [
+        " * (2 was added rgerhards, 2009-11-16).",
+        " * rgerhards, 2005-09-26",
+        " */",
+        "    struct AllowedSenders *pAllow;",
+        "    int bNeededDNS = 0; /* partial check because we could not resolve DNS? */",
+        "    int ret;",
+        "",
+        "    assert(pFrom != NULL);",
+        "",
+        "    if (pAllowRoot == NULL) return 1; /* checking disabled, everything is valid! */",
+        "",
+        "    /* now we loop through the list of allowed senders. As soon as"
+      ],
+      "hunk_id": "HUNK-0060",
+      "changed_symbols": [
+        "NetAddr",
+        "isAllowedSenderList",
+        "AllowedSenders",
+        "pAllowRoot",
+        "sockaddr",
+        "pFrom",
+        "isAllowedSender2",
+        "setAllowRoot",
+        "memcpy"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "persistence_state",
+          "module_api",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "NetAddr",
+        "snippet_start_line": 933,
+        "snippet_end_line": 1059,
+        "snippet": "\n/* compares a host to an allowed sender list entry. Handles all subleties\n * including IPv4/v6 as well as domain name wildcards.\n * This is a helper to isAllowedSender.\n * Returns 0 if they do not match, 1 if they match and 2 if a DNS name would have been required.\n * contributed 2007-07-16 by mildew@gmail.com\n */\nstatic int MaskCmp(struct NetAddr *pAllow, uint8_t bits, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS) {\n    assert(pAllow != NULL);\n    assert(pFrom != NULL);\n\n    if (F_ISSET(pAllow->flags, ADDR_NAME)) {\n        if (bChkDNS == 0) return 2;\n        dbgprintf(\"MaskCmp: host=\\\"%s\\\"; pattern=\\\"%s\\\"\\n\", pszFromHost, pAllow->addr.HostWildcard);\n\n#if !defined(FNM_CASEFOLD)\n        /* TODO: I don't know if that then works, seen on HP UX, what I have not in lab... ;) */\n        return (fnmatch(pAllow->addr.HostWildcard, pszFromHost, FNM_NOESCAPE) == 0);\n#else\n        return (fnmatch(pAllow->addr.HostWildcard, pszFromHost, FNM_NOESCAPE | FNM_CASEFOLD) == 0);\n#endif\n    } else { /* We need to compare an IP address */\n        switch (pFrom->sa_family) {\n            case AF_INET:\n                if (AF_INET == pAllow->addr.NetAddr->sa_family)\n                    return ((SIN(pFrom)->sin_addr.s_addr & htonl(0xffffffff << (32 - bits))) ==\n                            SIN(pAllow->addr.NetAddr)->sin_addr.s_addr);\n                else\n                    return 0;\n                break;\n            case AF_INET6:\n                switch (pAllow->addr.NetAddr->sa_family) {\n                    case AF_INET6: {\n                        struct in6_addr ip, net;\n                        register uint8_t i;\n\n                        memcpy(&ip, &(SIN6(pFrom))->sin6_addr, sizeof(struct in6_addr));\n                        memcpy(&net, &(SIN6(pAllow->addr.NetAddr))->sin6_addr, sizeof(struct in6_addr));\n\n                        i = bits / 32;\n                        if (bits % 32) ip.s6_addr32[i++] &= htonl(0xffffffff << (32 - (bits % 32)));\n                        for (; i < (sizeof ip.s6_addr32) / 4; i++) ip.s6_addr32[i] = 0;\n\n                        return (memcmp(ip.s6_addr, net.s6_addr, sizeof ip.s6_addr) == 0 &&\n                                (SIN6(pAllow->addr.NetAddr)->sin6_scope_id != 0\n                                     ? SIN6(pFrom)->sin6_scope_id == SIN6(pAllow->addr.NetAddr)->sin6_scope_id\n                                     : 1));\n                    }\n                    case AF_INET: {\n                        struct in6_addr *ip6 = &(SIN6(pFrom))->sin6_addr;\n                        struct in_addr *net = &(SIN(pAllow->addr.NetAddr))->sin_addr;\n\n                        if ((ip6->s6_addr32[3] & (u_int32_t)htonl((0xffffffff << (32 - bits)))) == net->s_addr &&\n#if BYTE_ORDER == LITTLE_ENDIAN\n                            (ip6->s6_addr32[2] == (u_int32_t)0xffff0000) &&\n#else\n                            (ip6->s6_addr32[2] == (u_int32_t)0x0000ffff) &&\n#endif\n                            (ip6->s6_addr32[1] == 0) && (ip6->s6_addr32[0] == 0))\n                            return 1;\n                        else\n                            return 0;\n                    }\n                    default:\n                        /* Unsupported AF */\n                        return 0;\n                }\n                /* fallthrough */\n            default:\n                /* Unsupported AF */\n                return 0;\n        }\n    }\n}\n\n\n/* check if a sender is allowed. The root of the the allowed sender.\n * list must be proveded by the caller. As such, this function can be\n * used to check both UDP and TCP allowed sender lists.\n * returns 1, if the sender is allowed, 0 if not and 2 if we could not\n * obtain a result because we would need a dns name, which we don't have\n * (2 was added rgerhards, 2009-11-16).\n * rgerhards, 2005-09-26\n */\nstatic int isAllowedSenderList(struct AllowedSenders *pAllowRoot,\n                               struct sockaddr *pFrom,\n                               const char *pszFromHost,\n                               int bChkDNS) {\n    struct AllowedSenders *pAllow;\n    int bNeededDNS = 0; /* partial check because we could not resolve DNS? */\n    int ret;\n\n    assert(pFrom != NULL);\n\n    if (pAllowRoot == NULL) return 1; /* checking disabled, everything is valid! */\n\n    /* now we loop through the list of allowed senders. As soon as\n     * we find a match, we return back (indicating allowed). We loop\n     * until we are out of allowed senders. If so, we fall through the\n     * loop and the function's terminal return statement will indicate\n     * that the sender is disallowed.\n     */\n    for (pAllow = pAllowRoot; pAllow != NULL; pAllow = pAllow->pNext) {\n        ret = MaskCmp(&(pAllow->allowedSender), pAllow->SignificantBits, pFrom, pszFromHost, bChkDNS);\n        if (ret == 1)\n            return 1;\n        else if (ret == 2)\n            bNeededDNS = 2;\n    }\n    return bNeededDNS;\n}\n\n\nstatic int isAllowedSender2(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS) {\n    struct AllowedSenders *pAllowRoot = NULL;\n\n    assert(pFrom != NULL);\n\n    if (setAllowRoot(&pAllowRoot, pszType) != RS_RET_OK)\n        return 0; /* if something went wrong, we deny access - that's the better choice... */\n\n    return isAllowedSenderList(pAllowRoot, pFrom, pszFromHost, bChkDNS);\n}\n\n\n/* legacy API, not to be used any longer */\nstatic int isAllowedSender(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost) {\n"
+      }
+    },
+    {
+      "file": "runtime/net.c",
+      "old_start": 879,
+      "old_end": 884,
+      "new_start": 900,
+      "new_end": 936,
+      "context_hint": "static rsRetVal addAllowedSenderLine(char *pName, uchar **ppRestOfConfLine) {",
+      "added_lines": [
+        "static rsRetVal addAllowedSenderEntry(struct AllowedSenders **ppRoot,",
+        "                                      struct AllowedSenders **ppLast,",
+        "                                      uchar *pszAllowedSender) {",
+        "    rsParsObj *pPars = NULL;",
+        "    struct NetAddr *uIP = NULL;",
+        "    int iBits;",
+        "    DEFiRet;",
+        "",
+        "    assert(ppRoot != NULL);",
+        "    assert(ppLast != NULL);",
+        "    assert(pszAllowedSender != NULL);",
+        "",
+        "    CHKiRet(rsParsConstructFromSz(&pPars, pszAllowedSender));",
+        "    CHKiRet(parsAddrWithBits(pPars, &uIP, &iBits));",
+        "    if (!parsIsAtEndOfParseString(pPars)) {",
+        "        LogError(0, RS_RET_INVALID_PARAMS, \"Invalid extra data after allowedSender entry '%s'\", pszAllowedSender);",
+        "        ABORT_FINALIZE(RS_RET_INVALID_PARAMS);",
+        "    }",
+        "    CHKiRet(AddAllowedSender(ppRoot, ppLast, uIP, iBits));",
+        "",
+        "finalize_it:",
+        "    if (uIP != NULL) {",
+        "        free(uIP); /* copy stored in AllowedSenders list */",
+        "    }",
+        "    if (pPars != NULL) {",
+        "        rsParsDestruct(pPars);",
+        "    }",
+        "    RETiRet;",
+        "}",
+        "",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "}",
+        "",
+        "",
+        "/* compares a host to an allowed sender list entry. Handles all subleties",
+        " * including IPv4/v6 as well as domain name wildcards.",
+        " * This is a helper to isAllowedSender."
+      ],
+      "hunk_id": "HUNK-0059",
+      "changed_symbols": [
+        "addAllowedSenderLine",
+        "rsRetVal",
+        "addAllowedSenderEntry",
+        "AllowedSenders",
+        "ppRoot",
+        "ppLast",
+        "rsParsDestruct"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "network_protocol",
+          "module_api",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "addAllowedSenderLine",
+        "snippet_start_line": 850,
+        "snippet_end_line": 966,
+        "snippet": "        LogError(0, RS_RET_ERR,\n                 \"Invalid protocol '%s' in allowed sender \"\n                 \"list, line ignored\",\n                 pName);\n        return RS_RET_ERR;\n    }\n\n    /* OK, we now know the protocol and have valid list pointers.\n     * So let's process the entries. We are using the parse class\n     * for this.\n     */\n    /* create parser object starting with line string without leading colon */\n    if ((iRet = rsParsConstructFromSz(&pPars, (uchar *)*ppRestOfConfLine)) != RS_RET_OK) {\n        LogError(0, iRet, \"Error %d constructing parser object - ignoring allowed sender list\", iRet);\n        return (iRet);\n    }\n\n    while (!parsIsAtEndOfParseString(pPars)) {\n        if (parsPeekAtCharAtParsPtr(pPars) == '#') break; /* a comment-sign stops processing of line */\n        /* now parse a single IP address */\n        if ((iRet = parsAddrWithBits(pPars, &uIP, &iBits)) != RS_RET_OK) {\n            LogError(0, iRet,\n                     \"Error %d parsing address in allowed sender\"\n                     \"list - ignoring.\",\n                     iRet);\n            rsParsDestruct(pPars);\n            return (iRet);\n        }\n        if ((iRet = AddAllowedSender(ppRoot, ppLast, uIP, iBits)) != RS_RET_OK) {\n            if (iRet == RS_RET_NOENTRY) {\n                LogError(0, iRet,\n                         \"Error %d adding allowed sender entry \"\n                         \"- ignoring.\",\n                         iRet);\n            } else {\n                LogError(0, iRet,\n                         \"Error %d adding allowed sender entry \"\n                         \"- terminating, nothing more will be added.\",\n                         iRet);\n                rsParsDestruct(pPars);\n                free(uIP);\n                return (iRet);\n            }\n        }\n        free(uIP); /* copy stored in AllowedSenders list */\n    }\n\n    /* cleanup */\n    *ppRestOfConfLine += parsGetCurrentPosition(pPars);\n    return rsParsDestruct(pPars);\n}\n\n\nstatic rsRetVal addAllowedSenderEntry(struct AllowedSenders **ppRoot,\n                                      struct AllowedSenders **ppLast,\n                                      uchar *pszAllowedSender) {\n    rsParsObj *pPars = NULL;\n    struct NetAddr *uIP = NULL;\n    int iBits;\n    DEFiRet;\n\n    assert(ppRoot != NULL);\n    assert(ppLast != NULL);\n    assert(pszAllowedSender != NULL);\n\n    CHKiRet(rsParsConstructFromSz(&pPars, pszAllowedSender));\n    CHKiRet(parsAddrWithBits(pPars, &uIP, &iBits));\n    if (!parsIsAtEndOfParseString(pPars)) {\n        LogError(0, RS_RET_INVALID_PARAMS, \"Invalid extra data after allowedSender entry '%s'\", pszAllowedSender);\n        ABORT_FINALIZE(RS_RET_INVALID_PARAMS);\n    }\n    CHKiRet(AddAllowedSender(ppRoot, ppLast, uIP, iBits));\n\nfinalize_it:\n    if (uIP != NULL) {\n        free(uIP); /* copy stored in AllowedSenders list */\n    }\n    if (pPars != NULL) {\n        rsParsDestruct(pPars);\n    }\n    RETiRet;\n}\n\n\n/* compares a host to an allowed sender list entry. Handles all subleties\n * including IPv4/v6 as well as domain name wildcards.\n * This is a helper to isAllowedSender.\n * Returns 0 if they do not match, 1 if they match and 2 if a DNS name would have been required.\n * contributed 2007-07-16 by mildew@gmail.com\n */\nstatic int MaskCmp(struct NetAddr *pAllow, uint8_t bits, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS) {\n    assert(pAllow != NULL);\n    assert(pFrom != NULL);\n\n    if (F_ISSET(pAllow->flags, ADDR_NAME)) {\n        if (bChkDNS == 0) return 2;\n        dbgprintf(\"MaskCmp: host=\\\"%s\\\"; pattern=\\\"%s\\\"\\n\", pszFromHost, pAllow->addr.HostWildcard);\n\n#if !defined(FNM_CASEFOLD)\n        /* TODO: I don't know if that then works, seen on HP UX, what I have not in lab... ;) */\n        return (fnmatch(pAllow->addr.HostWildcard, pszFromHost, FNM_NOESCAPE) == 0);\n#else\n        return (fnmatch(pAllow->addr.HostWildcard, pszFromHost, FNM_NOESCAPE | FNM_CASEFOLD) == 0);\n#endif\n    } else { /* We need to compare an IP address */\n        switch (pFrom->sa_family) {\n            case AF_INET:\n                if (AF_INET == pAllow->addr.NetAddr->sa_family)\n                    return ((SIN(pFrom)->sin_addr.s_addr & htonl(0xffffffff << (32 - bits))) ==\n                            SIN(pAllow->addr.NetAddr)->sin_addr.s_addr);\n                else\n                    return 0;\n                break;\n            case AF_INET6:\n                switch (pAllow->addr.NetAddr->sa_family) {\n                    case AF_INET6: {\n                        struct in6_addr ip, net;\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

@@ -1,0 +1,65 @@
+From 44d04e442683b53ed618b74861f056f93fcbd783 Mon Sep 17 00:00:00 2001
+From: Alyssa Ross <hi@alyssa.is>
+Date: Mon, 25 May 2026 18:23:12 +0200
+Subject: [PATCH] receive-pack: fix updateInstead with core.worktree
+
+Before a8cc594333 (hooks: fix an obscure TOCTOU "did we just run a
+hook?" race, 2022-03-07), when receive.denyCurrentBranch is set to
+updateInstead, only one of push_to_checkout() or push_to_deploy()
+was called.  That commit changed to always call push_to_checkout(),
+and then to call push_to_deploy() if push_to_checkout() didn't run
+anything.
+
+This change didn't take into account that push_to_checkout() had a
+side effect of modifying env, and that modified env broke updating
+the worktree in push_to_deploy() if core.worktree was configured.
+To fix this, only mutate the environment used inside
+push_to_commit(), rather than the environment that might later be
+passed to push_to_deploy().
+
+Signed-off-by: Alyssa Ross <hi@alyssa.is>
+Signed-off-by: Junio C Hamano <gitster@pobox.com>
+---
+ builtin/receive-pack.c |  2 +-
+ t/t5516-fetch-push.sh  | 11 +++++++++++
+ 2 files changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/builtin/receive-pack.c b/builtin/receive-pack.c
+index 9c4917461..9fbfa15a5 100644
+--- a/builtin/receive-pack.c
++++ b/builtin/receive-pack.c
+@@ -1427,8 +1427,8 @@ static const char *push_to_checkout(unsigned char *hash,
+ 	struct run_hooks_opt opt = RUN_HOOKS_OPT_INIT;
+ 	opt.invoked_hook = invoked_hook;
+ 
+-	strvec_pushf(env, "GIT_WORK_TREE=%s", absolute_path(work_tree));
+ 	strvec_pushv(&opt.env, env->v);
++	strvec_pushf(&opt.env, "GIT_WORK_TREE=%s", absolute_path(work_tree));
+ 	strvec_push(&opt.args, hash_to_hex(hash));
+ 	if (run_hooks_opt(the_repository, push_to_checkout_hook, &opt))
+ 		return "push-to-checkout hook declined";
+diff --git a/t/t5516-fetch-push.sh b/t/t5516-fetch-push.sh
+index 46926e7bb..a85b1fbf8 100755
+--- a/t/t5516-fetch-push.sh
++++ b/t/t5516-fetch-push.sh
+@@ -1791,6 +1791,17 @@ test_expect_success 'updateInstead with push-to-checkout hook' '
+ 	)
+ '
+ 
++test_expect_success 'denyCurrentBranch and core.worktree' '
++	test_when_finished "rm -fr cloned cloned.git" &&
++	git clone --separate-git-dir cloned.git . cloned &&
++	git --git-dir cloned.git config receive.denyCurrentBranch updateInstead &&
++	git --git-dir cloned.git config core.worktree "$PWD/cloned" &&
++	test_commit raspberry &&
++	git push cloned.git HEAD:main &&
++	test_path_exists cloned/raspberry.t &&
++	test_must_fail git push --delete cloned.git main
++'
++
+ test_expect_success 'denyCurrentBranch and worktrees' '
+ 	git worktree add new-wt &&
+ 	git clone . cloned &&
+-- 
+2.43.0
+

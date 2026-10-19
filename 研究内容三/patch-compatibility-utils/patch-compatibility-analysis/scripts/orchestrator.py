@@ -29,6 +29,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROFILE_LOADER = SCRIPT_DIR / "profile_loader.py"
 DIFF_PARSER = SCRIPT_DIR / "diff_parser.py"
 CALLGRAPH = SCRIPT_DIR / "callgraph.py"
+IMPACT_SCOPE = SCRIPT_DIR / "impact_scope.py"
 VALIDATOR = SCRIPT_DIR / "validate_analysis.py"
 CHECK_DEPENDENCIES = SCRIPT_DIR / "check_dependencies.py"
 if str(SCRIPT_DIR) not in sys.path:
@@ -432,7 +433,8 @@ def write_shard_artifacts(
             "Analyze only candidates in this shard. Use the repository paths "
             "from analysis.json. Do not infer compatibility findings from "
             "other shards. Emit confirmed findings only; use manual_review_required "
-            "when a cross-shard dependency is needed."
+            "when a cross-shard dependency is needed. Every finding must include "
+            "affected_scope with status and summary at minimum."
         )
         payload = {
             "shard_id": shard["id"],
@@ -823,6 +825,40 @@ def attach_callchains_to_analysis(
         analysis["candidate_artifacts"]["callchain_count"] = len(callchains)
     write_json(analysis_path, analysis)
     run([sys.executable, str(VALIDATOR), str(analysis_path)], timeout=60)
+
+
+def attach_impact_scope_to_analysis(
+    analysis_path: Path,
+    max_depth: int,
+    max_nodes: int,
+    max_files: int,
+) -> None:
+    ensure_analysis_worktree_available(analysis_path)
+    run(
+        [
+            sys.executable,
+            str(IMPACT_SCOPE),
+            "--analysis",
+            str(analysis_path),
+            "--apply",
+            "--max-depth",
+            str(max_depth),
+            "--max-nodes",
+            str(max_nodes),
+            "--max-files",
+            str(max_files),
+        ],
+        timeout=900,
+    )
+    run(
+        [
+            sys.executable,
+            str(VALIDATOR),
+            str(analysis_path),
+            "--require-affected-scope",
+        ],
+        timeout=60,
+    )
 
 
 def finding_dedupe_key(finding: dict) -> tuple:
@@ -1404,6 +1440,7 @@ def write_report(
     lines.extend(
         [
             "- Every finding must include code line locations and at least one evidence snippet.",
+            "- Every finding must include affected_scope (status + summary) after --attach-impact-scope; manually review not_available findings.",
             "- In heavy mode, analyze each shard independently, then aggregate shard results with:",
             "",
             f"`python {Path(__file__).resolve()} --aggregate-shards {result_dir / 'analysis.json'}`",
@@ -1461,6 +1498,31 @@ def parse_args() -> argparse.Namespace:
         help="Existing analysis.json whose final findings should receive call chains",
     )
     parser.add_argument(
+        "--attach-impact-scope",
+        help=(
+            "Existing analysis.json whose final findings should receive reverse-dependency "
+            "affected scope (downstream dependents)"
+        ),
+    )
+    parser.add_argument(
+        "--impact-max-depth",
+        type=int,
+        default=3,
+        help="Maximum reverse call-graph depth for affected-scope traversal",
+    )
+    parser.add_argument(
+        "--impact-max-nodes",
+        type=int,
+        default=200,
+        help="Maximum dependent nodes recorded per finding for affected scope",
+    )
+    parser.add_argument(
+        "--impact-max-files",
+        type=int,
+        default=5000,
+        help="Maximum source files scanned per language when building the impact call graph",
+    )
+    parser.add_argument(
         "--ensure-worktree",
         help="Existing analysis.json whose patched analysis worktree should be recreated",
     )
@@ -1513,6 +1575,17 @@ def main() -> int:
         print("Call chains attached to: %s" % Path(args.attach_call_chains).resolve())
         return 0
 
+    if args.attach_impact_scope:
+        analysis_path = Path(args.attach_impact_scope).resolve()
+        attach_impact_scope_to_analysis(
+            analysis_path,
+            args.impact_max_depth,
+            args.impact_max_nodes,
+            args.impact_max_files,
+        )
+        print("Impact scope attached to: %s" % analysis_path)
+        return 0
+
     if args.aggregate_shards:
         aggregate_shards(
             Path(args.aggregate_shards).resolve(),
@@ -1524,7 +1597,8 @@ def main() -> int:
     if not args.repo or not args.patch:
         raise ValueError(
             "--repo and --patch are required unless --attach-call-chains, "
-            "--ensure-worktree, --cleanup-worktree, or --aggregate-shards is used"
+            "--attach-impact-scope, --ensure-worktree, --cleanup-worktree, "
+            "or --aggregate-shards is used"
         )
 
     run([sys.executable, str(CHECK_DEPENDENCIES)], timeout=60)
@@ -1668,6 +1742,7 @@ def main() -> int:
             "patch-metrics.json",
             "effective-profile.yaml",
             "callchains.json",
+            "affected-scope.json",
             "analysis.json",
             "report.md",
         ] + (["shards.json", "shards/"] if shard_plan else []),

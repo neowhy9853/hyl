@@ -1,0 +1,206 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071",
+  "base_ref": "fd74218c456c9b6322ee9316ff16955a088f75d4^",
+  "base_commit": "c513c04b680ecf204ec68327d6ad95e4d4325beb",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "fd74218c456c9b6322ee9316ff16955a088f75d4",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/apache/httpd/commit/fd74218c456c9b6322ee9316ff16955a088f75d4",
+    "download_url": "https://github.com/apache/httpd/commit/fd74218c456c9b6322ee9316ff16955a088f75d4.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071/_patch-cache/fd74218c456c.patch",
+    "commit": "fd74218c456c9b6322ee9316ff16955a088f75d4",
+    "base_ref_inferred": "fd74218c456c9b6322ee9316ff16955a088f75d4^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "httpd",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1054,
+    "patch_lines": 27,
+    "diff_added_lines": 0,
+    "diff_deleted_lines": 1,
+    "diff_context_lines": 9,
+    "churn": 1,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 1965,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "user_visible_output": 1,
+      "plugin_api": 1,
+      "module_api": 1
+    },
+    "candidates_json_bytes": 5642
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "httpd",
+      "affected_surface": "user_visible_output",
+      "affected_api": {
+        "name": "mod_proxy_html SAX comment handler (pcomment)",
+        "kind": "plugin_api",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/filters/mod_proxy_html.c",
+        "old_lines": [
+          340,
+          340
+        ],
+        "new_lines": [
+          337,
+          340
+        ],
+        "symbol": "pcomment"
+      },
+      "old_behavior": "当 extfix 为 false（非外部修复模式）时，pcomment SAX 处理器在输出 HTML 注释之前调用 dump_content(ctx)，导致累积在 ctx->vb 中的 CDATA/文本内容被错误地提前输出到注释之前。由于该调用未将 ctx->vb.strlen 清零，后续 pendElement 在元素边界处会再次调用 dump_content(ctx) 输出相同内容，造成内容重复。",
+      "new_behavior": "pcomment 不再调用 dump_content(ctx)。累积的 CDATA/文本内容仅在正确位置（pendElement 等元素边界处）一次性输出，注释独立输出而不触发内容转储，输出顺序正确且无重复。",
+      "compatibility_reason": "修复了 r1934975 引入的回归 bug。旧代码在非 extfix 模式下输出 HTML 注释时会错误地提前转储并重复输出累积的缓冲区内容，导致 HTML 输出内容错位及重复。修复后 HTML 输出恢复正常。任何依赖旧有错误输出格式的下游消费者（如 HTML 抓取工具、代理缓存、集成测试断言）可能受到输出内容格式和顺序变化的影响。",
+      "evidence": [
+        {
+          "file": "modules/filters/mod_proxy_html.c",
+          "lines": [
+            336,
+            340
+          ],
+          "snippet": "    else {\n        ap_fputs(ctx->f->next, ctx->bb, \"<!--\");\n        AP_fwrite(ctx, chars, strlen(chars), 1);\n        ap_fputs(ctx->f->next, ctx->bb, \"-->\");\n    }"
+        },
+        {
+          "file": "modules/filters/mod_proxy_html.c",
+          "lines": [
+            363,
+            366
+          ],
+          "snippet": "    if (ctx->vb.strlen > 0) {\n        dump_content(ctx);\n        ctx->vb.strlen = 0;     /* having dumped it, we can re-use the memory */\n    }"
+        },
+        {
+          "file": "modules/filters/mod_proxy_html.c",
+          "lines": [
+            198,
+            282
+          ],
+          "snippet": "static void dump_content(saxctxt *ctx)\n{\n    ...\n    AP_fwrite(ctx, ctx->vb.buf, ctx->vb.strlen, 1);\n    ap_varbuf_free(&temp);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "pcomment 是 libxml2 SAX 解析器的 comment 回调函数，通过 SAX handler 结构注册给 libxml2。虽然函数声明为 static，但其行为直接影响 mod_proxy_html 过滤器输出的用户可见 HTML 内容。dump_content 是累积缓冲区内容输出的关键路径，移除该调用改变了 HTML 输出的内容顺序和是否存在重复。",
+      "uncertainty": "仅影响 extfix=false 且 HTML 文档中同时存在 CDATA 文本内容（含需代理 URL）和注释的场景。extfix=true 时该路径不可达。",
+      "manual_review_required": false,
+      "recommended_review": "复核 r1934975 引入此回归的上下文，确认修复完整无副作用。",
+      "test_recommendation": "构造包含 HTML 注释和需代理 URL 的 CDATA 文本内容的 HTML 页面，在 extfix=false 模式下通过 mod_proxy_html 代理后验证：1) 注释前后内容顺序正确；2) CDATA 内容无重复输出。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "modules/filters/mod_proxy_html.c",
+            "old_lines": [
+              337,
+              343
+            ],
+            "new_lines": [
+              337,
+              342
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "plugin_api",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "analysis complete."
+}

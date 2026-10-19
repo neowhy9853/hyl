@@ -1,0 +1,145 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P064/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P064/patch.diff",
+  "profile": "grub2",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "include/grub/i386/tsc.h"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 6046,
+      "patch_lines": 124,
+      "diff_added_lines": 5,
+      "diff_deleted_lines": 0,
+      "diff_context_lines": 71,
+      "churn": 5,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 1361,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "public_headers": 1,
+        "struct_layout": 1,
+        "module_api": 1,
+        "boot_protocol": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "include/grub/i386/tsc.h",
+      "old_start": 47,
+      "old_end": 52,
+      "new_start": 47,
+      "new_end": 57,
+      "context_hint": "grub_get_tsc (void)",
+      "added_lines": [
+        "  /*",
+        "   * Run cpuid after rdtsc instruction to ensure rdtsc is executed before",
+        "   * subsequent instruction.",
+        "   */",
+        "  grub_cpuid (0, a, b, c, d);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "  /* Read TSC value.  We cannot use \"=A\", since this would use",
+        "     %rax on x86_64. */",
+        "  asm volatile (\"rdtsc\":\"=a\" (lo), \"=d\" (hi));",
+        "",
+        "  return (((grub_uint64_t) hi) << 32) | lo;",
+        "}",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "grub_get_tsc",
+        "Run",
+        "cpuid",
+        "after",
+        "rdtsc",
+        "instruction",
+        "grub_cpuid"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers"
+          },
+          {
+            "name": "struct_layout",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "ABI-sensitive definitions:\n- Struct layout (size, field order, field type)\n- Enum values\n- Macro definitions\n- Constants\n"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "GRUB module and command API"
+          },
+          {
+            "name": "boot_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Boot protocol, loader, and platform behavior"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "struct_layout",
+          "module_api",
+          "boot_protocol"
+        ],
+        "profile": "grub2",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "grub_get_tsc",
+        "snippet_start_line": 18,
+        "snippet_end_line": 75,
+        "snippet": "\n#ifndef KERNEL_CPU_TSC_HEADER\n#define KERNEL_CPU_TSC_HEADER   1\n\n#include <grub/types.h>\n#include <grub/i386/cpuid.h>\n\nvoid grub_tsc_init (void);\n/* In ms per 2^32 ticks.  */\nextern grub_uint32_t EXPORT_VAR(grub_tsc_rate);\nint\ngrub_tsc_calibrate_from_xen (void);\nint\ngrub_tsc_calibrate_from_efi (void);\nint\ngrub_tsc_calibrate_from_pmtimer (void);\nint\ngrub_tsc_calibrate_from_pit (void);\n\n/* Read the TSC value, which increments with each CPU clock cycle. */\nstatic __inline grub_uint64_t\ngrub_get_tsc (void)\n{\n  grub_uint32_t lo, hi;\n  grub_uint32_t a,b,c,d;\n\n  /* The CPUID instruction is a 'serializing' instruction, and\n     avoids out-of-order execution of the RDTSC instruction. */\n  grub_cpuid (0,a,b,c,d);\n  /* Read TSC value.  We cannot use \"=A\", since this would use\n     %rax on x86_64. */\n  asm volatile (\"rdtsc\":\"=a\" (lo), \"=d\" (hi));\n  /*\n   * Run cpuid after rdtsc instruction to ensure rdtsc is executed before\n   * subsequent instruction.\n   */\n  grub_cpuid (0, a, b, c, d);\n\n  return (((grub_uint64_t) hi) << 32) | lo;\n}\n\nstatic __inline int\ngrub_cpu_is_tsc_supported (void)\n{\n#if !defined(GRUB_MACHINE_XEN) && !defined(GRUB_MACHINE_XEN_PVH)\n  grub_uint32_t a,b,c,d;\n  if (! grub_cpu_is_cpuid_supported ())\n    return 0;\n\n  grub_cpuid(1,a,b,c,d);\n\n  return (d & (1 << 4)) != 0;\n#else\n  return 1;\n#endif\n}\n\n#endif /* ! KERNEL_CPU_TSC_HEADER */\n"
+      }
+    }
+  ]
+}

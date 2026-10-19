@@ -1,0 +1,110 @@
+{
+  "source_generated_matrix": "phase3_inputs/test_inputs.generated.json",
+  "review": {
+    "placeholder_inputs_removed": 11,
+    "reason": "目标是 C UAPI 结构体而非 CLI/协议二进制；BINARY --help、参数规模和 JSON 输出占位符不能触达声明或证明布局变化。",
+    "not_applicable_dimensions": [
+      "cli_args",
+      "data_scale",
+      "abnormal_inputs",
+      "concurrency",
+      "protocol_variants"
+    ]
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "type": "ABI_CHANGE",
+      "dimensions": {
+        "default_user_abi": [
+          {
+            "input_id": "I1-default-layout",
+            "finding_id": "PCA-0001",
+            "target_lines": ["include/uapi/linux/input.h:44-50"],
+            "branch_targeted": "默认用户态 timeval 布局",
+            "input_type": "compile_and_run_api_harness",
+            "command": "bash test-entry-work/PCA-0001/reproducer.sh",
+            "cwd": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/compatibility-testing",
+            "expected_output": "ABI_CHANGE_DETECTED 且 after_size/after_stride 大于 before 值",
+            "reachability_signal": "同一 abi_probe.c 针对真实 baseline/patched UAPI 头文件编译运行",
+            "setup_required": "baseline 与 patched 隔离 worktree；C11 编译器",
+            "dependencies": ["cc", "cmp"]
+          }
+        ],
+        "field_contract": [
+          {
+            "input_id": "I2-new-field",
+            "finding_id": "PCA-0001",
+            "target_lines": ["include/uapi/linux/input.h:47"],
+            "branch_targeted": "新增 compat_reserved 字段的编译期可见性",
+            "input_type": "compile_contract",
+            "command": "bash test-entry-work/PCA-0001/reproducer.sh",
+            "cwd": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/compatibility-testing",
+            "expected_output": "baseline field_probe 编译失败，patched field_probe 输出 compat_reserved_offset",
+            "reachability_signal": "offsetof(struct input_event, compat_reserved) 仅由 patched UAPI 成功编译",
+            "setup_required": "baseline 与 patched 隔离 worktree；C11 编译器",
+            "dependencies": ["cc"]
+          }
+        ],
+        "time_width_configuration": [
+          {
+            "input_id": "I3-time64-layout",
+            "finding_id": "PCA-0001",
+            "target_lines": ["include/uapi/linux/input.h:28-50"],
+            "branch_targeted": "_TIME_BITS=64 / _FILE_OFFSET_BITS=64 构建配置",
+            "input_type": "compile_and_run_api_harness",
+            "command": "bash test-entry-work/PCA-0001/reproducer.sh",
+            "cwd": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/compatibility-testing",
+            "expected_output": "time64.before.txt 与 time64.after.txt 不同",
+            "reachability_signal": "两份头文件均在显式 time64 宏下完成编译并运行",
+            "setup_required": "支持 _TIME_BITS=64 的 libc 头文件；C11 编译器",
+            "dependencies": ["cc", "cmp"]
+          }
+        ],
+        "runtime_legacy_record_io": [
+          {
+            "input_id": "I4-evdev-legacy-record-io",
+            "finding_id": "PCA-0001",
+            "target_lines": [
+              "include/uapi/linux/input.h:44-50",
+              "drivers/input/misc/uinput.c:608-626",
+              "drivers/input/evdev.c:567-591"
+            ],
+            "branch_targeted": "旧 24 字节记录在 before/after 的 syscall 长度边界",
+            "input_type": "qemu_kernel_syscall_harness",
+            "command": "timeout 600 bash test-entry-work/PCA-0001/runtime_evdev.sh",
+            "cwd": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/compatibility-testing",
+            "expected_output": "before old_write_ret/old_read_ret=24；after 两者均为 -1 且 errno=22",
+            "reachability_signal": "两个 guest 均打印 EVDEV_RUNTIME_RESULT 和 success=1；write 经过 uinput，read 经过真实 /dev/input/eventX",
+            "setup_required": "隔离 before/after 内核 bzImage、内嵌静态 initramfs、QEMU TCG 或 KVM",
+            "dependencies": [
+              "qemu-system-x86_64",
+              "runtime-evdev/build/before/arch/x86/boot/bzImage",
+              "runtime-evdev/build/after/arch/x86/boot/bzImage"
+            ]
+          }
+        ],
+        "runtime_native_control": [
+          {
+            "input_id": "I5-evdev-native-record-control",
+            "finding_id": "PCA-0001",
+            "target_lines": [
+              "drivers/input/misc/uinput.c:611-626",
+              "drivers/input/evdev.c:585-591"
+            ],
+            "branch_targeted": "各内核 native record size 的成功 write/read 路径",
+            "input_type": "qemu_kernel_syscall_harness_control",
+            "command": "timeout 600 bash test-entry-work/PCA-0001/runtime_evdev.sh",
+            "cwd": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/compatibility-testing",
+            "expected_output": "before native write/read=24；after native write/read=32；errno 均为 0",
+            "reachability_signal": "native-size 控制路径成功，证明旧记录失败不是 uinput/evdev 环境故障",
+            "setup_required": "与 I4 共享已构建的双内核 QEMU 环境",
+            "dependencies": ["qemu-system-x86_64"]
+          }
+        ]
+      },
+      "total_inputs": 5
+    }
+  ],
+  "total_inputs": 5
+}

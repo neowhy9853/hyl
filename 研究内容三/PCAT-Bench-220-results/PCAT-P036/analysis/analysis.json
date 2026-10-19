@@ -1,0 +1,189 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/ruby",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/ruby/pca-results/183c9f/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/ruby/pca-results/183c9f",
+  "base_ref": "3760fedbff",
+  "base_commit": "3760fedbffb87b29d554f3b270b7c92c9a660a50",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "183c9f8f5c7367a65ff6b0574ba966ad158c1ad8",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/183c9f8f.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "ruby",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 3019,
+    "patch_lines": 70,
+    "diff_added_lines": 14,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 38,
+    "churn": 16,
+    "raw_hunks": 3,
+    "candidate_hunks": 3,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 9347,
+    "public_candidate_hunks": 2,
+    "surface_counts": {
+      "ruby_exceptions": 3,
+      "exceptions": 3,
+      "tests": 1
+    },
+    "candidates_json_bytes": 19158
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 3,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "ruby",
+      "affected_surface": "ruby_public_api - Time.parse is a public method in Ruby's standard library (lib/time.rb), part of the stable stdlib API.",
+      "affected_api": {
+        "name": "Time.parse",
+        "kind": "public_method",
+        "language": "ruby"
+      },
+      "location": {
+        "file": "lib/time.rb",
+        "old_lines": [
+          382,
+          393
+        ],
+        "new_lines": [
+          385,
+          396
+        ],
+        "symbol": "Time.parse"
+      },
+      "old_behavior": "Time.parse accepts two arguments: date (String) and now (Time, defaults to self.now). The parsed timezone from the date string is passed directly to make_time as the zone parameter. If the date string has no timezone or offset, d[:zone] is nil and make_time treats the parsed time as local time. Passing an unknown keyword argument like zone: raises ArgumentError.",
+      "new_behavior": "Time.parse accepts an optional keyword argument zone: (defaults to nil). When the parsed date string does not include a time zone or offset (d[:zone] is nil), the zone: value is used as the fallback timezone. If zone: is provided and the date has no timezone, make_time receives the zone: value instead of nil, causing the parsed time to be interpreted in that zone rather than local time. If the date string already contains a timezone or offset, zone: is ignored (d[:zone] takes precedence via the || operator).",
+      "compatibility_reason": "The new zone: keyword argument relaxes the input contract: previously, passing zone: to Time.parse would raise ArgumentError (unknown keyword). Now it is accepted and used as a fallback timezone when the parsed date lacks a timezone. This is a backward-compatible additive change because: (1) existing callers without zone: continue to work identically (default nil makes d[:zone] || nil === d[:zone]), (2) existing callers with date strings that include a timezone or offset are unaffected (d[:zone] is truthy and takes precedence), and (3) the zone: argument only affects behavior when explicitly passed and the parsed date has no timezone. This enables easier migration from DateTime.parse (which defaults to UTC) to Time.parse.",
+      "evidence": [
+        {
+          "file": "lib/time.rb",
+          "lines": [
+            385,
+            396
+          ],
+          "snippet": "    def parse(date, now=self.now, zone: nil)\n      comp = !block_given?\n      d = Date._parse(date, comp)\n      year = d[:year]\n      year = yield(year) if year && !comp\n      make_time(date, year, d[:yday], d[:mon], d[:mday], d[:hour], d[:min], d[:sec], d[:sec_fraction], d[:zone] || zone, now)\n    end"
+        },
+        {
+          "file": "lib/time.rb",
+          "lines": [
+            382,
+            393
+          ],
+          "snippet": "    def parse(date, now=self.now)\n      comp = !block_given?\n      d = Date._parse(date, comp)\n      year = d[:year]\n      year = yield(year) if year && !comp\n      make_time(date, year, d[:yday], d[:mon], d[:mday], d[:hour], d[:min], d[:sec], d[:sec_fraction], d[:zone], now)\n    end"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Time.parse is a public method on the Time class in Ruby's standard library (lib/time.rb). It is documented as a public API method and is widely used in Ruby applications. The change affects a public, documented API surface.",
+      "uncertainty": "Low. The diff is small and the behavioral change is clear: additive keyword argument with nil default. No existing call paths are affected. The only uncertainty is whether third-party code passing zone: (unlikely since it was invalid before) would have been catching ArgumentError from it.",
+      "manual_review_required": false,
+      "recommended_review": "No manual review needed. The change is purely additive and backward compatible. If desired, verify that the documentation accurately describes the new parameter's behavior.",
+      "test_recommendation": "Verify backward compatibility: (1) existing calls without zone: produce identical results to before the patch, (2) existing calls with date strings that include timezone/offset are unaffected when zone: is also passed, (3) new zone: argument works correctly for dates without timezone, (4) passing zone: nil (explicitly) behaves same as not passing zone: at all.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=public_method with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "lib/time.rb",
+            "old_lines": [
+              382,
+              393
+            ],
+            "new_lines": [
+              385,
+              396
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "ruby_exceptions",
+              "exceptions"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "ruby_exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception hierarchy, type, message, and failure behavior."
+              },
+              {
+                "name": "exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type and hierarchy changes"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=public_method with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

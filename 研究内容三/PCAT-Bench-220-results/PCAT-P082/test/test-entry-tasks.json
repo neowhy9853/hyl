@@ -1,0 +1,194 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P022/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P022/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P022",
+  "patch_id": "6ca5cdba185aeb3b7f72ae0dd61b6a9685d8c416",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "ABI_CHANGE",
+      "affected_api": {
+        "name": "PyCriticalSection / PyCriticalSection2 struct layout",
+        "kind": "struct_type",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "Include/critical_section.h",
+        "old_lines": [
+          4,
+          9
+        ],
+        "new_lines": [
+          4,
+          94
+        ],
+        "symbol": "PyCriticalSection / PyCriticalSection2"
+      },
+      "old_behavior": "struct PyCriticalSection 和 struct PyCriticalSection2 仅定义在 CPython 内部头文件 Include/cpython/critical_section.h 中，结构体内容明确标注为私有且可能在 Python 版本间变更。Limited API (Py_LIMITED_API) 用户无法访问这些结构体。",
+      "new_behavior": "struct PyCriticalSection 和 struct PyCriticalSection2 现在定义在公共头文件 Include/critical_section.h 中，不受 Py_LIMITED_API 保护宏限制。stable_abi.toml 中标记 struct_abi_kind = 'full-abi'，意味着结构体布局被冻结为 Stable ABI 契约，不能再在后续 Python 次要版本中变更。",
+      "compatibility_reason": "结构体布局冻结为 full-abi 意味着未来 Python 3.x 版本无法修改 PyCriticalSection 和 PyCriticalSection2 的成员偏移、类型或字节大小。扩展模块若直接访问结构体成员，将在 ABI 层面形成强依赖。旧代码中结构体布局被明确标注为 'may change between Python releases'，此次变更从契约上反转了这一保证。",
+      "test_recommendation": "使用 Py_LIMITED_API=0x030f0000 编译含 PyCriticalSection 结构体成员的扩展模块，验证结构体大小和偏移量在 3.15+ 版本间保持稳定。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "abi_dump_and_consumer_harness",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "binary_abi_compatibility",
+        "comparison": "success",
+        "required_observation": "symbol/version manifest plus size, alignment, offset, enum, and calling ABI",
+        "input_axes": [
+          "exported symbols",
+          "symbol versions",
+          "type layouts",
+          "old binary consumer"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "affected_api": {
+        "name": "PyCriticalSection_Begin / PyCriticalSection_End / PyCriticalSection2_Begin / PyCriticalSection2_End",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "Include/critical_section.h",
+        "old_lines": [
+          4,
+          9
+        ],
+        "new_lines": [
+          59,
+          69
+        ],
+        "symbol": "PyCriticalSection_Begin / PyCriticalSection_End / PyCriticalSection2_Begin / PyCriticalSection2_End"
+      },
+      "old_behavior": "这 4 个函数声明仅存在于 Include/cpython/critical_section.h 中，受 #ifndef Py_LIMITED_API 保护。使用 Stable ABI (Py_LIMITED_API) 编译的扩展模块无法调用这些函数。",
+      "new_behavior": "这 4 个函数声明现在位于 Include/critical_section.h 中，不受 Py_LIMITED_API 保护。使用 Stable ABI 编译的扩展模块现在可以直接调用这些函数。函数签名完全不变：void PyCriticalSection_Begin(PyCriticalSection*, PyObject*), void PyCriticalSection_End(PyCriticalSection*), void PyCriticalSection2_Begin(PyCriticalSection2*, PyObject*, PyObject*), void PyCriticalSection2_End(PyCriticalSection2*)。",
+      "compatibility_reason": "向 Limited API / Stable ABI 新增导出函数，扩展了 Stable ABI 的 API 表面积。依赖 Py_LIMITED_API 的扩展模块现在可以使用 critical section API，这些模块将锁定到这些符号在 3.15+ 的可用性。",
+      "test_recommendation": "使用 Py_LIMITED_API=0x030f0000 编译测试扩展模块，验证 PyCriticalSection_Begin/End 和 PyCriticalSection2_Begin/End 可以通过 dlsym/GetProcAddress 正确加载和调用。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "downstream_compile_link_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "api_signature_compatibility",
+        "comparison": "success",
+        "required_observation": "old downstream source compiles and links against both versions",
+        "input_axes": [
+          "old declarations",
+          "language modes",
+          "compiler flags",
+          "link modes"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0003",
+      "finding_id": "PCA-0003",
+      "test_priority": "high",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "affected_api": {
+        "name": "Py_BEGIN_CRITICAL_SECTION / Py_END_CRITICAL_SECTION / Py_BEGIN_CRITICAL_SECTION2 / Py_END_CRITICAL_SECTION2",
+        "kind": "macro",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "Include/critical_section.h",
+        "old_lines": [
+          4,
+          9
+        ],
+        "new_lines": [
+          71,
+          97
+        ],
+        "symbol": "Py_BEGIN_CRITICAL_SECTION / Py_END_CRITICAL_SECTION / Py_BEGIN_CRITICAL_SECTION2 / Py_END_CRITICAL_SECTION2"
+      },
+      "old_behavior": "这 4 个宏的展开定义仅存在于 Include/cpython/critical_section.h 中，且分为两个条件分支：Py_GIL_DISABLED（自由线程）分支和 !Py_GIL_DISABLED（非自由线程）分支。两个分支均展开为声明结构体变量 + 调用函数的完整模式。但宏本身不在 Stable ABI 中。",
+      "new_behavior": "宏定义现在位于 Include/critical_section.h 中（不受 Py_LIMITED_API 保护），始终展开为完整的 struct 声明 + 函数调用模式（与旧自由线程分支一致）。Include/cpython/critical_section.h 中通过 #undef 再 #define 的方式为 !Py_GIL_DISABLED 分支覆盖为空操作 { }。stable_abi.toml 和 stable_abi.dat 中正式登记为 Stable ABI macro。",
+      "compatibility_reason": "在 Stable ABI 模式下，宏现在总是展开为完整定义（结构体声明 + 函数调用），而非空操作。这意味着使用 Py_LIMITED_API 编译的扩展模块可以像非受限 API 代码一样使用这些宏。宏的展开内容已锁定为 Stable ABI 契约。",
+      "test_recommendation": "使用 Py_LIMITED_API 编译测试扩展模块，验证宏 Py_BEGIN_CRITICAL_SECTION/Py_END_CRITICAL_SECTION 和 Py_BEGIN_CRITICAL_SECTION2/Py_END_CRITICAL_SECTION2 可以正常使用且不产生编译错误。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "downstream_compile_link_harness",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "api_signature_compatibility",
+        "comparison": "success",
+        "required_observation": "old downstream source compiles and links against both versions",
+        "input_axes": [
+          "old declarations",
+          "language modes",
+          "compiler flags",
+          "link modes"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P022/compatibility-testing"
+}

@@ -1,0 +1,189 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/analysis.json",
+  "patch_id": "632ca5e16e3e3141e559b9b4a4e588d252d0df2a",
+  "result_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/compatibility-testing",
+  "status": "failed",
+  "coverage_gate": 80,
+  "coverage_accounting": {
+    "basis": "verified_patch_targets",
+    "targets_total": 1,
+    "targets_covered": 1,
+    "rate": 100.0,
+    "runtime_gcov_executable_lines": 0,
+    "runtime_gcov_applicability": "not_applicable"
+  },
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/linux",
+    "base_commit": "ffc253263a1375a65fa6c9f62a893e9767fbebfa",
+    "analysis_repo": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/_worktrees/patched",
+    "package_profile": "kernel_6_6"
+  },
+  "environment": {
+    "kind": "mixed",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "GCC 13.3.0",
+    "optimization": "-O0 -g",
+    "coverage_tool": "Benchmark patch-target coverage via GCC type layout/offsetof probes; runtime gcov N/A for a struct field declaration",
+    "notes": [
+      "编译期 probe 使用稀疏 benchmark 的 before/after 头文件；运行时 probe 使用 _repos/kernel 完整仓库在 base_commit 创建的隔离 detached worktree。",
+      "before/after 内核均完成 headers_install、静态 initramfs 探针构建和 bzImage 构建；所有产物位于 compatibility-testing/runtime-evdev。",
+      "按内核 headers_install 的用户态导出语义，仅将 raw 头中的 __user 注解定义为空。",
+      "双内核通过无特权 QEMU TCG 启动；guest 内用 uinput 创建虚拟键盘并通过真实 /dev/input/eventX 执行 syscall。",
+      "唯一新增行是非可执行结构体字段声明；按用户指定 benchmark 口径，已验证的编译期目标按 1/1=100% 计入有效覆盖，runtime gcov 仍为 N/A。"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 2,
+    "entries_generated": 2,
+    "entries_verified": 2,
+    "inputs_planned": 5,
+    "inputs_executed": 5,
+    "contracts_total": 4,
+    "contracts_passed": 0,
+    "contracts_breached": 4,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 1,
+    "patch_lines_covered": 1,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "high",
+      "status": "failed",
+      "target_location": {
+        "file": "include/uapi/linux/input.h",
+        "new_lines": [47, 47],
+        "symbol": "struct input_event"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+          "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+          "expected_signal": "ABI_CHANGE_DETECTED，after_size/after_stride 大于 before 值",
+          "reachability_signal": "GCC 对真实 patched input.h 中 compat_reserved 执行 offsetof，并对 before/after 结构体生成不同的 sizeof 与数组步长"
+        },
+        {
+          "entry_id": "PCA-TE-0002",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/PCA-0001/runtime_evdev.sh",
+          "run_command": "timeout 600 bash test-entry-work/PCA-0001/runtime_evdev.sh",
+          "expected_signal": "before 的旧 24 字节 write/read 成功；after 的相同调用返回 EINVAL；native-size 对照均成功",
+          "reachability_signal": "QEMU guest 内 write(/dev/uinput) 与 read(/dev/input/eventX) 实际执行 input_event_from_user/input_event_to_user 路径，并输出双侧成功标记"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "uapi_struct_size_stability",
+          "status": "breached",
+          "detail": "同一用户态 probe 的 sizeof(struct input_event) 从基线 24 变为补丁后 32。"
+        },
+        {
+          "contract_id": "evdev_record_stride_stability",
+          "status": "breached",
+          "detail": "同一用户态 probe 的 struct input_event 数组步长从 24 变为 32。"
+        },
+        {
+          "contract_id": "evdev_legacy_write_acceptance",
+          "status": "breached",
+          "detail": "真实内核中 write(/dev/uinput, old_record, 24) 从返回 24 变为 -1/EINVAL。"
+        },
+        {
+          "contract_id": "evdev_legacy_read_buffer_acceptance",
+          "status": "breached",
+          "detail": "真实内核中 read(/dev/input/eventX, buffer, 24) 从返回 24 变为 -1/EINVAL；native-size 读取在两侧均成功。"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 1,
+        "uncovered_lines": [],
+        "rate": 100.0,
+        "accounting_basis": "verified_patch_targets",
+        "runtime_gcov_executable_lines": 0,
+        "runtime_gcov_applicability": "not_applicable",
+        "compile_time_targets": 1,
+        "compile_time_targets_verified": 1
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I1-default-layout",
+          "diff_type": "ABI_CHANGE",
+          "before": "sizeof=24, align=8, offsets(type/code/value)=16/18/20, stride=24",
+          "after": "sizeof=32, align=8, offsets(type/code/value)=16/18/20, stride=32",
+          "evidence": "phase4_execution/abi_probe/default.before.txt and default.after.txt"
+        },
+        {
+          "input_id": "I2-new-field",
+          "diff_type": "ABI_CHANGE",
+          "before": "field probe 编译失败：没有 compat_reserved 成员",
+          "after": "field probe 编译运行成功：compat_reserved_offset=24",
+          "evidence": "phase4_execution/abi_probe/field_probe.before.stderr and field.after.txt"
+        },
+        {
+          "input_id": "I3-time64-layout",
+          "diff_type": "ABI_CHANGE",
+          "before": "_TIME_BITS=64 build: sizeof/stride=24/24",
+          "after": "_TIME_BITS=64 build: sizeof/stride=32/32",
+          "evidence": "phase4_execution/abi_probe/time64.before.txt and time64.after.txt"
+        },
+        {
+          "input_id": "I4-evdev-legacy-record-io",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "24 字节 uinput write 和 evdev read 均返回 24",
+          "after": "24 字节 uinput write 和 evdev read 均返回 -1/EINVAL；32 字节 native 对照成功",
+          "evidence": "runtime-evdev/results/before.console.log, after.console.log, and runtime_summary.json"
+        }
+      ],
+      "notes": [
+        "实际编译与执行确认了公开 UAPI 类型布局差异，而不是仅比较文本。",
+        "原有 type/code/value 字段偏移保持 16/18/20，新增字段位于偏移 24；结构体尾部扩展导致整体对齐后增长 8 字节。",
+        "变化行属于类型声明，没有 gcov 可执行计数器；按 benchmark 有效目标口径，编译期目标 1/1 已验证并记为 100%。",
+        "真实双内核测试执行了 uinput write(2) 与 evdev read(2)：旧 24 字节记录在补丁内核中均被 EINVAL 拒绝，native 32 字节路径保持可用。"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "coverage",
+      "id": "patch_line_gcov",
+      "reason": "runtime gcov 对结构体字段声明不适用；有效 patch-target coverage 已由编译期布局/offsetof probe 验证为 1/1=100%。",
+      "required_action": "无需补充 runtime gcov；保留编译期目标覆盖与真实 QEMU ABI 契约证据。"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "phase4_execution/coverage_data.json",
+    "entry_verification": "test-entry-work/test-entry-verification.json",
+    "behavior_diff": "phase4_execution/behavior_diff.json",
+    "coverage_iterations": "phase4_execution/coverage_iterations.json",
+    "runtime_summary": "runtime-evdev/results/runtime_summary.json",
+    "runtime_before_log": "runtime-evdev/results/before.console.log",
+    "runtime_after_log": "runtime-evdev/results/after.console.log",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "编译期 before/after probe 确认 struct input_event 的大小和连续记录步长均从 24 增至 32；真实 QEMU 双内核进一步确认旧 24 字节 uinput write 与 evdev read 从成功变为 -1/EINVAL，而各内核 native-size 对照均成功。四个 UAPI/输入契约均被突破。按用户指定 benchmark 口径，唯一编译期 patch target 已验证，覆盖率 1/1=100%；runtime gcov 对声明不适用。",
+    "recommended_actions": [
+      "不要在现有 evdev UAPI 结构体尾部直接增加字段；若必须扩展，设计显式版本化的新记录格式或协商机制。",
+      "为既有 24 字节用户态程序保留兼容解析/复制路径，或拒绝合入这一未版本化的稳定 UAPI 布局变化。",
+      "将本次无特权 QEMU + 静态 initramfs + uinput 流程复用于其他需要真实内核 syscall 验证的 kernel case。"
+    ]
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P016/analysis.json",
+  "patch_id": "1d4e965829eef4cdb089a984fda21ca465a1f534",
+  "result_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P016/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/cpython",
+    "base_commit": "baf11a4e9a9d6542a1f3a891c670da36c89cbc96",
+    "analysis_repo": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P016/_worktrees/patched",
+    "package_profile": "cpython"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "GCC 13.3.0",
+    "optimization": "-O0 -g (for coverage build), default for before/after behavior build",
+    "coverage_tool": "gcov (GCC)",
+    "notes": [
+      "Before worktree created from base_commit baf11a4e9a9d6542a1f3a891c670da36c89cbc96",
+      "After worktree is the analysis_repo patched worktree",
+      "Build with ./configure --without-ensurepip && make -j8",
+      "_dbm and _decimal missing (not required for lazy import tests)",
+      "Coverage build used CFLAGS='-O0 -g -fprofile-arcs -ftest-coverage' LDFLAGS='--coverage'"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 3,
+    "inputs_executed": 3,
+    "contracts_total": 3,
+    "contracts_passed": 3,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 15,
+    "patch_lines_covered": 10,
+    "patch_lines_uncovered": 5,
+    "patch_line_coverage_rate": 66.7
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "status": "partial",
+      "target_location": {
+        "file": "Python/import.c",
+        "new_lines": [275, 281],
+        "symbol": "_PyImport_InitLazyModules"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/PCA-0001/probe_contract.py",
+          "run_command": "<patched-python> test-entry-work/PCA-0001/probe_contract.py",
+          "expected_signal": "isinstance(sys.lazy_modules, set) is True, isinstance(sys.lazy_modules, dict) is False",
+          "reachability_signal": "exit code 0, type shows <class 'set'>"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "CTR-001",
+          "status": "passed",
+          "detail": "sys.lazy_modules type change confirmed: dict->set. This is the documented intentional change per PEP 810 — not a regression but a verified compatibility break."
+        },
+        {
+          "contract_id": "CTR-002",
+          "status": "passed",
+          "detail": "Dict operations (subscript, .keys(), .items()) fail on new set type as expected. Before build accepts dict ops, after build rejects them."
+        },
+        {
+          "contract_id": "CTR-003",
+          "status": "passed",
+          "detail": "Set operations (.add(), 'in', len(), clear()) work on new set type. Before build lacks .add() on dict."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 15,
+        "covered_lines": 10,
+        "uncovered_lines": [
+          "import.c:4473 (fromname allocation failure - fault injection needed)",
+          "import.c:4480 (PySet_Add failure - fault injection needed)",
+          "import.c:4578 (PySet_Add failure in LazyImportModuleLevelObject - fault injection needed)",
+          "import.c:5670 (PySet_Discard failure - fault injection needed)",
+          "import.c:5691 (PyDict_DelItem failure - fault injection needed)"
+        ],
+        "rate": 66.7
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I1",
+          "diff_type": "API_SIGNATURE_CHANGE",
+          "before": "type=<class 'dict'>, isinstance(dict)=True, isinstance(set)=False",
+          "after": "type=<class 'set'>, isinstance(dict)=False, isinstance(set)=True",
+          "evidence": "gcov confirmed lines 279-280 executed (49 runs each)"
+        }
+      ],
+      "notes": [
+        "Uncovered lines are memory-allocation failure paths or error-return paths requiring fault injection — architecturally unreachable with normal test inputs.",
+        "Full test suite (112 tests) passes on both before and after builds.",
+        "Behavioral contract breach intentionally documented in PEP 810 and NEWS fragment.",
+        "Coverage gate (80%) not met due to fault-injection-only lines. With fault injection, all lines are coverable."
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "coverage",
+      "id": "BLK-001",
+      "reason": "5 of 15 new/modified executable lines are error-return paths that cannot be exercised without fault injection (e.g., LD_PRELOAD malloc failure shim). These are architecturally unreachable with normal test inputs.",
+      "required_action": "Use fault injection (e.g., force malloc failure) to cover the remaining 5 error paths and reach the 80% coverage gate."
+    },
+    {
+      "scope": "coverage",
+      "id": "BLK-002",
+      "reason": "Coverage was measured only on Python/import.c. Include/internal/pycore_interp_structs.h changes are compile-time (struct layout), not executable at runtime — gcov does not produce meaningful coverage for struct declarations.",
+      "required_action": "Coverage measurement of header struct changes is not applicable — verified by compilation success."
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_inputs/contract_verification.json",
+    "coverage_data": "../_worktrees/patched/Python#import.c.gcov",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": false,
+    "rationale": "sys.lazy_modules changed from dict to set — a verified, intentional API signature change per PEP 810. The type change breaks code using dict methods (subscript, .keys(), .items()) on sys.lazy_modules. All normal-execution-path lines are covered by gcov; only fault-injection error paths remain uncovered. The test suite confirms the new set-based behavior works correctly.",
+    "recommended_actions": [
+      "Update all downstream code using sys.lazy_modules from dict-style access to set membership checks.",
+      "Use fault injection to cover error-handling paths in _PyImport_InitLazyModules, register_from_lazy_on_parent, _PyImport_LazyImportModuleLevelObject, and _imp__set_lazy_attributes_impl.",
+      "Run Lib/test/test_lazy_import/__init__.py as a regression gate.",
+      "Document the type change in release notes and migration guides."
+    ]
+  }
+}

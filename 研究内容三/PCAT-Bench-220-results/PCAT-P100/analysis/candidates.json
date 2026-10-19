@@ -1,0 +1,133 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040/patch.diff",
+  "profile": "kernel_6_6",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "net/bluetooth/mgmt.c"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 1644,
+      "patch_lines": 38,
+      "diff_added_lines": 3,
+      "diff_deleted_lines": 2,
+      "diff_context_lines": 8,
+      "churn": 5,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 1642,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "syscall": 1,
+        "sysctl": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "net/bluetooth/mgmt.c",
+      "old_start": 9144,
+      "old_end": 9151,
+      "new_start": 9144,
+      "new_end": 9152,
+      "context_hint": "static int add_ext_adv_data(struct sock *sk, struct hci_dev *hdev, void *data,",
+      "added_lines": [
+        "\texpected_len = struct_size(cp, data, cp->adv_data_len +",
+        "\t\t\t\t   cp->scan_rsp_len);",
+        "\tif (expected_len > data_len)"
+      ],
+      "deleted_lines": [
+        "\texpected_len = struct_size(cp, data, cp->adv_data_len + cp->scan_rsp_len);",
+        "\tif (expected_len != data_len)"
+      ],
+      "context_lines": [
+        "",
+        "\tBT_DBG(\"%s\", hdev->name);",
+        "",
+        "\t\treturn mgmt_cmd_status(sk, hdev->id, MGMT_OP_ADD_EXT_ADV_DATA,",
+        "\t\t\t\t       MGMT_STATUS_INVALID_PARAMS);",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "sock",
+        "expected_len",
+        "struct_size",
+        "cp",
+        "data",
+        "adv_data_len",
+        "add_ext_adv_data_sync"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          },
+          {
+            "name": "sysctl",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "output_format",
+              "permission",
+              "default_value"
+            ],
+            "description": "/proc/sys sysctl names, permissions, parsers, ranges, defaults, and output"
+          }
+        ],
+        "surface_reasons": [
+          "syscall",
+          "sysctl"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "sock",
+        "snippet_start_line": 9115,
+        "snippet_end_line": 9182,
+        "snippet": "\nunlock:\n\thci_dev_unlock(hdev);\n\n\treturn err;\n}\n\nstatic void add_ext_adv_data_complete(struct hci_dev *hdev, void *data, int err)\n{\n\tstruct mgmt_pending_cmd *cmd = data;\n\tstruct mgmt_cp_add_ext_adv_data *cp = cmd->param;\n\tstruct mgmt_rp_add_advertising rp;\n\n\tadd_adv_complete(hdev, cmd->sk, cp->instance, err);\n\n\tmemset(&rp, 0, sizeof(rp));\n\n\trp.instance = cp->instance;\n\n\tif (err)\n\t\tmgmt_cmd_status(cmd->sk, cmd->hdev->id, cmd->opcode,\n\t\t\t\tmgmt_status(err));\n\telse\n\t\tmgmt_cmd_complete(cmd->sk, cmd->hdev->id, cmd->opcode,\n\t\t\t\t  mgmt_status(err), &rp, sizeof(rp));\n\n\tmgmt_pending_free(cmd);\n}\n\nstatic int add_ext_adv_data_sync(struct hci_dev *hdev, void *data)\n{\n\tstruct mgmt_pending_cmd *cmd = data;\n\tstruct mgmt_cp_add_ext_adv_data *cp = cmd->param;\n\tint err;\n\n\tif (ext_adv_capable(hdev)) {\n\t\terr = hci_update_adv_data_sync(hdev, cp->instance);\n\t\tif (err)\n\t\t\treturn err;\n\n\t\terr = hci_update_scan_rsp_data_sync(hdev, cp->instance);\n\t\tif (err)\n\t\t\treturn err;\n\n\t\treturn hci_enable_ext_advertising_sync(hdev, cp->instance);\n\t}\n\n\treturn hci_schedule_adv_instance_sync(hdev, cp->instance, true);\n}\n\nstatic int add_ext_adv_data(struct sock *sk, struct hci_dev *hdev, void *data,\n\t\t\t    u16 data_len)\n{\n\tstruct mgmt_cp_add_ext_adv_data *cp = data;\n\tstruct mgmt_rp_add_ext_adv_data rp;\n\tu8 schedule_instance = 0;\n\tstruct adv_info *next_instance;\n\tstruct adv_info *adv_instance;\n\tint err = 0;\n\tstruct mgmt_pending_cmd *cmd;\n\tu16 expected_len;\n\n\tBT_DBG(\"%s\", hdev->name);\n\n\texpected_len = struct_size(cp, data, cp->adv_data_len +\n\t\t\t\t   cp->scan_rsp_len);\n\tif (expected_len > data_len)\n\t\treturn mgmt_cmd_status(sk, hdev->id, MGMT_OP_ADD_EXT_ADV_DATA,\n"
+      }
+    }
+  ]
+}

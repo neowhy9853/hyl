@@ -1,0 +1,49 @@
+{
+  "inputs": [
+    {
+      "input_id": "I1",
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "target_lines": ["lib/config/config.c:515-519"],
+      "branch_targeted": "integer overflow path (size + size2 < size)",
+      "input_type": "binary_analysis",
+      "command": "strings tools/lvm | grep 'Metadata buffer size overflow'",
+      "expected_output": "old: 'Metadata buffer size overflow.' new: 'Metadata buffer size overflow %zu + %zu on %s.'",
+      "reachability_signal": "string found in binary confirms the format change is compiled in",
+      "setup_required": "build with -O0 -g --coverage",
+      "dependencies": ["lvm binary built from patched source"],
+      "status": "executed",
+      "result": "confirmed - new format string present in binary"
+    },
+    {
+      "input_id": "I2",
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "target_lines": ["lib/config/config.c:528-549"],
+      "branch_targeted": "normal config read path (use_plain_read / dev_read_bytes)",
+      "input_type": "cli_command",
+      "command": "LD_LIBRARY_PATH=... LVM_SYSTEM_DIR='' tools/lvm dumpconfig",
+      "expected_output": "identical dumpconfig output before/after (excluding shell FD leak messages)",
+      "reachability_signal": "exit code 0, no error",
+      "setup_required": "build",
+      "dependencies": ["lvm binary"],
+      "status": "executed",
+      "result": "passed - dumpconfig output identical before/after"
+    },
+    {
+      "input_id": "I3",
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "target_lines": ["lib/config/config.c:553-554", "lib/config/config.c:558"],
+      "branch_targeted": "non-regular device path (memcpy->strncpy change, not a compat finding but part of same patch)",
+      "input_type": "cli_command",
+      "command": "Attempt to exercise via LVM on a real PV",
+      "expected_output": "unchanged validation behavior for valid metadata",
+      "reachability_signal": "metadata is read and validated",
+      "setup_required": "/dev/mapper/control + real or loop PV device",
+      "dependencies": ["kernel device-mapper support"],
+      "status": "blocked",
+      "blocker": "No /dev/mapper/control - kernel device-mapper driver unavailable"
+    }
+  ]
+}

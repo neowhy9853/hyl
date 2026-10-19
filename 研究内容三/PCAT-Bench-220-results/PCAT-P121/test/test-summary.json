@@ -1,0 +1,118 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P061/analysis.json",
+  "patch_id": "d84e4091ed0c581ac647a0019c1ee82227d77949",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P061/compatibility-testing",
+  "status": "passed",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/grub2",
+    "base_commit": "cb5cfe9cc6bd6ad1aaed2fc1cb3ad2975401edf4",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P061/_worktrees/patched",
+    "package_profile": "grub2"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "n/a (shell script, no compilation required)",
+    "optimization": "n/a",
+    "coverage_tool": "manual (shell script execution tracing)",
+    "notes": [
+      "Shell script patch - before/after scripts prepared directly from source (no C compilation needed)",
+      "Used mock grub-editenv for before/after behavior comparison",
+      "Used real grub-editenv to verify grubenv variable coexistence"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 3,
+    "inputs_executed": 3,
+    "contracts_total": 1,
+    "contracts_passed": 1,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 1,
+    "patch_lines_covered": 1,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "status": "passed",
+      "target_location": {
+        "file": "util/systemd/systemd-integration.sh.in",
+        "new_lines": [4, 11],
+        "symbol": "menu_show_once"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "passed",
+          "artifact_path": "test-entry-work/PCA-0001/entry.sh",
+          "run_command": "bash entry.sh",
+          "expected_signal": "PASS: menu_show_once=1 detected in after-script grubenv",
+          "reachability_signal": "PASS: menu_show_once=1 detected in after-script grubenv (NEW side effect confirmed)",
+          "execution_stdout": "All 3 sub-tests passed:\n- Test 1: menu_show_once NOT set in before-patch behavior\n- Test 2: menu_show_once=1 detected in after-patch grubenv\n- Test 3: Both variables coexist in real grubenv",
+          "execution_exit_code": 0
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "side_effect_manifest_stability",
+          "status": "passed",
+          "detail": "Before-patch: only menu_show_once_timeout=20 set. After-patch: both menu_show_once_timeout=20 and menu_show_once=1 set. The new side effect (menu_show_once=1) is confirmed present and additive. Real grub-editenv confirms both variables coexist; menu_show_once_timeout overrides menu_show_once as documented."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 1,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I1",
+          "diff_type": "SIDE_EFFECT_CHANGE",
+          "before": "grubenv contains only: menu_show_once_timeout=20",
+          "after": "grubenv contains: menu_show_once_timeout=20 AND menu_show_once=1",
+          "evidence": "After-patch script execution adds new grubenv variable menu_show_once=1 as expected per commit message and code change at util/systemd/systemd-integration.sh.in:11"
+        }
+      ],
+      "notes": [
+        "Additive change: new variable does not break existing grub.cfg behavior",
+        "menu_show_once_timeout takes precedence when both are set (documented in commit message)",
+        "Downstream-only compatibility fix for older grub.cfg files"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "contract_verification.json",
+    "coverage_data": "phase4_execution/coverage.json",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "compatible",
+    "coverage_gate_met": true,
+    "rationale": "The patch adds a backward-compatible side effect: setting menu_show_once=1 in grubenv for compatibility with older grub.cfg files. The new menu_show_once_timeout variable overrides menu_show_once when both are present, ensuring no regression for users with updated grub.cfg. All 3 test inputs passed, 1/1 contract verified, 100% patch line coverage achieved.",
+    "recommended_actions": [
+      "Verify integration with actual systemd reboot-to-boot-loader-menu workflow in VM/real environment",
+      "Confirm grub.cfg scripts correctly handle the override precedence of menu_show_once_timeout over menu_show_once",
+      "No further action required for this isolated patch"
+    ]
+  }
+}

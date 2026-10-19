@@ -1,0 +1,133 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/grub2/pca-results/5f8e09/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/grub2/pca-results/5f8e09/patch.diff",
+  "profile": "grub2",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "grub-core/kern/ieee1275/init.c"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 1210,
+      "patch_lines": 27,
+      "diff_added_lines": 1,
+      "diff_deleted_lines": 2,
+      "diff_context_lines": 8,
+      "churn": 3,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 2796,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "user_visible_output": 1,
+        "module_api": 1,
+        "boot_protocol": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "grub-core/kern/ieee1275/init.c",
+      "old_start": 472,
+      "old_end": 478,
+      "new_start": 472,
+      "new_end": 478,
+      "context_hint": "grub_regions_claim (grub_uint64_t addr, grub_uint64_t len,",
+      "added_lines": [
+        "                  /* Take the bigger chunk from either below linux_rmo_save or above RMO_ADDR_MAX. */"
+      ],
+      "deleted_lines": [
+        "                  /* take the bigger chunk from either below linux_rmo_save or above upper_mem_limit */",
+        "- "
+      ],
+      "context_lines": [
+        "              /* We must not exceed the upper_mem_limit (assuming it's >= RMO_ADDR_MAX) */",
+        "              if (addr + len > upper_mem_limit)",
+        "                {",
+        "                  len = upper_mem_limit - addr;",
+        "                  if (orig_addr < linux_rmo_save && linux_rmo_save - orig_addr > len)",
+        "                    {",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "grub_regions_claim",
+        "Take",
+        "the",
+        "bigger",
+        "chunk",
+        "from",
+        "grub_dprintf"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "GRUB module and command API"
+          },
+          {
+            "name": "boot_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Boot protocol, loader, and platform behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "module_api",
+          "boot_protocol"
+        ],
+        "profile": "grub2",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "grub_regions_claim",
+        "snippet_start_line": 443,
+        "snippet_end_line": 508,
+        "snippet": "   */\n  linux_rmo_save = grub_min (RMO_ADDR_MAX, rmo_top) - RUNTIME_MIN_SPACE;\n  if (rmo_top > RUNTIME_MIN_SPACE)\n    {\n      if (rmo_top <= RMO_ADDR_MAX)\n        {\n          if (addr > linux_rmo_save)\n            {\n              grub_dprintf (\"ieee1275\", \"rejecting region in RUNTIME_MIN_SPACE reservation (%llx)\\n\",\n                            addr);\n              return 0;\n            }\n          else if (addr + len > linux_rmo_save)\n            {\n              grub_dprintf (\"ieee1275\", \"capping region: (%llx -> %llx) -> (%llx -> %llx)\\n\",\n                            addr, addr + len, addr, rmo_top - RUNTIME_MIN_SPACE);\n              len = linux_rmo_save - addr;\n            }\n        }\n      else\n        {\n          grub_uint64_t upper_mem_limit = rmo_top;\n          grub_uint64_t orig_addr = addr;\n\n          check_kernel_dump (&upper_mem_limit);\n\n          grub_dprintf (\"ieee1275\", \"upper_mem_limit is at %llx (%lld MiB)\\n\",\n                        upper_mem_limit, upper_mem_limit >> 20);\n\n          /*\n           * we order these cases to prefer higher addresses and avoid some\n           * splitting issues\n           * The following shows the order of variables:\n           *  no   kernel dump: linux_rmo_save < RMO_ADDR_MAX <= upper_mem_limit == rmo_top\n           *  with kernel dump: liuxx_rmo_save < RMO_ADDR_MAX <= upper_mem_limit <= rmo_top\n           */\n          if (addr < RMO_ADDR_MAX && (addr + len) > RMO_ADDR_MAX && upper_mem_limit >= RMO_ADDR_MAX)\n            {\n              grub_dprintf (\"ieee1275\",\n                            \"adjusting region for RUNTIME_MIN_SPACE: (%llx -> %llx) -> (%llx -> %llx)\\n\",\n                            addr, addr + len, RMO_ADDR_MAX, addr + len);\n              len = (addr + len) - RMO_ADDR_MAX;\n              addr = RMO_ADDR_MAX;\n\n              /* We must not exceed the upper_mem_limit (assuming it's >= RMO_ADDR_MAX) */\n              if (addr + len > upper_mem_limit)\n                {\n                  /* Take the bigger chunk from either below linux_rmo_save or above RMO_ADDR_MAX. */\n                  len = upper_mem_limit - addr;\n                  if (orig_addr < linux_rmo_save && linux_rmo_save - orig_addr > len)\n                    {\n                      /* lower part is bigger */\n                      addr = orig_addr;\n                      len = linux_rmo_save - addr;\n                    }\n\n                  grub_dprintf (\"ieee1275\", \"re-adjusted region to: (%llx -> %llx)\\n\",\n                                addr, addr + len);\n\n                  if (len == 0)\n                    return 0;\n                }\n            }\n          else if ((addr < linux_rmo_save) && ((addr + len) > linux_rmo_save))\n            {\n              grub_dprintf (\"ieee1275\", \"capping region: (%llx -> %llx) -> (%llx -> %llx)\\n\",\n"
+      }
+    }
+  ]
+}

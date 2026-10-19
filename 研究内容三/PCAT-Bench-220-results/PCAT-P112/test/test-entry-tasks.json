@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052",
+  "patch_id": "becb3a0ab8aa986f829efb77a52d53e75419c413",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "redirect_handler",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libsoup/soup-session.c",
+        "old_lines": [
+          890,
+          890
+        ],
+        "new_lines": [
+          890,
+          890
+        ],
+        "symbol": "redirect_handler"
+      },
+      "old_behavior": "HTTP 重定向处理时，只检查 soup_uri_new_with_base() 返回的 new_uri 是否为 NULL。如果 Location 头解析出的 URI 存在但没有 host（例如 \"about:blank\" 这类无 scheme 无 host 的 URL），重定向会被执行，但后续代码中访问 new_uri->host 时会访问空指针，导致进程崩溃。",
+      "new_behavior": "HTTP 重定向处理时，除了检查 new_uri 是否为 NULL，还检查 new_uri->host 是否为 NULL。如果解析出的 URI 没有 host 字段，直接返回 SOUP_STATUS_MALFORMED 错误给调用方，不再执行重定向，避免了崩溃。",
+      "compatibility_reason": "HTTP 客户端在跟踪重定向时，如果服务器返回的 Location 头指向了一个无 host 的 URI（如 \"about:blank\"），旧版本会崩溃（segfault），新版本返回 502/Invalid Redirect URL 错误。这意味着依赖旧行为（期望能工作或捕获崩溃）的上游调用方现在会收到一个明确的 HTTP 状态码错误而非进程崩溃，兼容性发生变化。这是从\"整个进程崩溃\"到\"优雅错误返回\"的行为变更，对于使用 libsoup 进行 HTTP 请求的应用程序来说，虽然改进是积极的，但行为确实已改变。",
+      "test_recommendation": "建议测试：构造一个返回 Location: about:blank 的 HTTP 302 重定向响应，验证客户端是否返回 SOUP_STATUS_MALFORMED 而非崩溃。同时验证正常重定向（Location 为有效 HTTP URL）不受影响。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/compatibility-testing"
+}

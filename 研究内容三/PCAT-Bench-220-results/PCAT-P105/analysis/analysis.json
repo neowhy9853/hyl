@@ -1,0 +1,356 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux-stable",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P045/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P045",
+  "base_ref": "234681c54581756c28cd928b0dac75ab4576e59d",
+  "base_commit": "234681c54581756c28cd928b0dac75ab4576e59d",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "8a3cd890fd2a7d016a821a1c9dfd8a84d45ad320",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/gregkh/linux/commit/8a3cd890fd2a7d016a821a1c9dfd8a84d45ad320",
+    "download_url": "https://github.com/gregkh/linux/commit/8a3cd890fd2a7d016a821a1c9dfd8a84d45ad320.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P045/_patch-cache/8a3cd890fd2a.patch",
+    "commit": "8a3cd890fd2a7d016a821a1c9dfd8a84d45ad320"
+  },
+  "package_profile": "kernel_6_6",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "soft threshold exceeded",
+    "candidates_json_bytes=102737 >= 100000"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 12103,
+    "patch_lines": 383,
+    "diff_added_lines": 137,
+    "diff_deleted_lines": 17,
+    "diff_context_lines": 157,
+    "churn": 154,
+    "raw_hunks": 20,
+    "candidate_hunks": 20,
+    "skipped_doc_hunks": 0,
+    "changed_files": 7,
+    "candidate_context_bytes": 36585,
+    "public_candidate_hunks": 20,
+    "surface_counts": {
+      "syscall": 20,
+      "public_headers": 7,
+      "ioctl_netlink_consumers": 6,
+      "netlink": 5
+    },
+    "candidates_json_bytes": 102737
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 6
+  },
+  "summary": {
+    "total_changed_files": 7,
+    "total_candidates": 20,
+    "compatibility_changes": 2,
+    "high_priority": 1,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.85,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "SMB file access credential override (__ksmbd_override_fsids) — the function that sets process credentials for SMB client file operations. Supplementary groups are now populated, changing which files are accessible via SMB.",
+      "affected_api": {
+        "name": "__ksmbd_override_fsids",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "fs/smb/server/smb_common.c",
+        "old_lines": [
+          759,
+          766
+        ],
+        "new_lines": [
+          761,
+          778
+        ],
+        "symbol": "__ksmbd_override_fsids"
+      },
+      "old_behavior": "在执行 SMB 文件操作时，`__ksmbd_override_fsids()` 通过 `groups_alloc(0)` 设置空的辅助组列表，仅使用用户的主组（primary group）进行文件访问权限检查。这意味着即使用户属于某个辅助组且有文件访问权限，通过 SMB 访问仍会返回 NT_STATUS_ACCESS_DENIED。",
+      "new_behavior": "现在 `groups_alloc(user->ngroups)` 被调用，并通过 `user->sgid` 数组填充用户的辅助组 ID 到凭证中。当用户属于辅助组时，该组对文件的权限将被正确应用于 SMB 文件访问。辅助组列表通过 `groups_sort()` 排序后设置到进程凭证。",
+      "compatibility_reason": "此变更改变了 SMB 客户端可观察的文件访问行为：补丁前，用户即使通过辅助组有文件访问权限，通过 SMB 操作文件时也会被拒绝访问（NT_STATUS_ACCESS_DENIED）；补丁后，辅助组权限被正常识别，用户可以通过 SMB 访问原来无法访问的文件。这改变了文件服务器对外部客户端的安全行为语义——之前被拒绝的操作现在被允许。该行为变更对所有使用辅助组进行文件权限管理的部署具有广泛影响。",
+      "evidence": [
+        {
+          "file": "fs/smb/server/smb_common.c",
+          "lines": [
+            759,
+            776
+          ],
+          "snippet": "// 旧代码\n\tgi = groups_alloc(0);\n\n// 新代码\n\tgi = groups_alloc(user->ngroups);\n\tif (!gi) {\n\t\tabort_creds(cred);\n\t\treturn -ENOMEM;\n\t}\n\n\tfor (i = 0; i < user->ngroups; i++)\n\t\tgi->gid[i] = make_kgid(&init_user_ns, user->sgid[i]);\n\n\tif (user->ngroups)\n\t\tgroups_sort(gi);\n\n\tset_groups(cred, gi);"
+        },
+        {
+          "file": "fs/smb/server/mgmt/user_config.c",
+          "lines": [
+            49,
+            62
+          ],
+          "snippet": "\tuser->ngroups = 0;\n\tuser->sgid = NULL;\n\t...\n\tif (resp_ext) {\n\t\tif (resp_ext->ngroups > NGROUPS_MAX) {\n\t\t\tpr_err(\"ngroups(%u) from login response exceeds max groups(%d)\\n\", ...);\n\t\t\tgoto err_free;\n\t\t}\n\t\tuser->sgid = kmemdup(resp_ext->____payload,\n\t\t\t\t     resp_ext->ngroups * sizeof(gid_t),\n\t\t\t\t     GFP_KERNEL);\n\t\tif (!user->sgid)\n\t\t\tgoto err_free;\n\t\tuser->ngroups = resp_ext->ngroups;"
+        },
+        {
+          "file": "fs/smb/server/smb_common.c",
+          "lines": [
+            740,
+            778
+          ],
+          "snippet": "// 提交消息说明：\n// \"Even though system user has a supplementary group, It gets\n//  NT_STATUS_ACCESS_DENIED when attempting to create file or directory.\""
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "__ksmbd_override_fsids() 是 ksmbd 模块中在每次 SMB 文件操作时被调用的凭证覆盖函数。其行为直接决定客户端通过网络访问文件时的权限判定结果，具有明确的外部可观察效应：改变了哪些文件操作被允许、哪些被拒绝。该函数虽然是在内核模块内部定义，但其行为变更对 SMB 客户端完全可观察。",
+      "uncertainty": "该变更要求 ksmbd-tools 用户态守护进程支持新的 KSMBD_EVENT_LOGIN_REQUEST_EXT/RESPONSE_EXT netlink 事件才能实际传递辅助组信息。如果使用旧版本 ksmbd-tools，KSMBD_USER_FLAG_EXTENSION 标志不会被设置，resp_ext 将为 NULL，此时行为与补丁前完全一致（空辅助组列表）。只有同时更新 ksmbd-tools 后该变更才生效。",
+      "manual_review_required": false,
+      "recommended_review": "无需额外人工复核。该变更的兼容性语义清晰：补丁前使用空辅助组列表，补丁后支持辅助组。与旧 ksmbd-tools 兼容（向后兼容），与新 ksmbd-tools 则启用辅助组功能。",
+      "test_recommendation": "建议测试：1) 设置一个文件，其组权限仅授予某辅助组，验证通过 SMB 访问该文件时补丁前后行为差异；2) 验证旧 ksmbd-tools 与新内核的兼容性（KSMBD_USER_FLAG_EXTENSION 未设置时行为不变）；3) 验证 ngroups > NGROUPS_MAX 时的错误处理（返回 NULL 并打印 pr_err）；4) 验证 groups_alloc() 分配失败时的错误路径。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0013",
+            "file": "fs/smb/server/smb_common.c",
+            "old_lines": [
+              759,
+              769
+            ],
+            "new_lines": [
+              761,
+              778
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "syscall"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "syscall",
+                "test_priority": "high",
+                "public": true,
+                "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0012",
+            "file": "fs/smb/server/smb_common.c",
+            "old_lines": [
+              740,
+              752
+            ],
+            "new_lines": [
+              740,
+              754
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "syscall"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "syscall",
+                "test_priority": "high",
+                "public": true,
+                "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "IOCTL_NETLINK_ABI_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.8,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "ksmbd generic netlink 协议 (SMBD_GENL family) — 内核 ksmbd 模块与用户态 ksmbd-tools 守护进程之间的 netlink IPC 接口，用于用户认证、共享配置等操作的通信协议。",
+      "affected_api": {
+        "name": "KSMBD_EVENT_LOGIN_REQUEST_EXT / KSMBD_EVENT_LOGIN_RESPONSE_EXT",
+        "kind": "netlink_family",
+        "language": "c"
+      },
+      "location": {
+        "file": "fs/smb/server/ksmbd_netlink.h",
+        "old_lines": [
+          308,
+          313
+        ],
+        "new_lines": [
+          321,
+          329
+        ],
+        "symbol": "enum ksmbd_event"
+      },
+      "old_behavior": "ksmbd 通用 netlink 协议 (SMBD_GENL) 定义了 15 个事件类型（KSMBD_EVENT_UNSPEC 到 KSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE）。`resv_start_op` 设置为 KSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE + 1 = 16。`nla_policy` 数组定义了对应 16 个类型的属性验证策略。`genl_ops` 注册了所有事件的处理函数。",
+      "new_behavior": "协议扩展为 17 个事件类型，新增 KSMBD_EVENT_LOGIN_REQUEST_EXT (=16) 和 KSMBD_EVENT_LOGIN_RESPONSE_EXT (=17)。新增结构体 `ksmbd_login_response_ext` 作为扩展登录响应（包含 handle、ngroups、reserved[128]、payload[] 字段）。新增 `KSMBD_USER_FLAG_EXTENSION BIT(6)` 标志。`resv_start_op` 更新为 KSMBD_EVENT_LOGIN_RESPONSE_EXT + 1 = 18。新增 `nla_policy` 条目和 `genl_ops` 条目处理新事件。LOGIN_REQUEST_EXT 的处理函数是 `handle_unsupported_event`（内核不自行发起登录扩展请求），LOGIN_RESPONSE_EXT 使用 `handle_generic_event`。",
+      "compatibility_reason": "该变更扩展了 ksmbd 内核模块与 ksmbd-tools 用户态守护进程之间的 netlink 协议。枚举值增加改变了后续事件类型的隐式编号（16→18），`resv_start_op` 的更新向 genl 子系统声明了新的命令范围。旧版本 ksmbd-tools 不会发送新的扩展事件，因此向后兼容；但新版本 ksmbd-tools 需要了解这些新事件和结构体才能使用辅助组功能。结构体 `ksmbd_login_response_ext` 的布局（ngroups 为 __s32、reserved[128] 为 __s8 数组 128 字节、____payload[] 柔性数组）将影响采用新接口的用户态工具的 ABI。",
+      "evidence": [
+        {
+          "file": "fs/smb/server/ksmbd_netlink.h",
+          "lines": [
+            150,
+            165
+          ],
+          "snippet": "struct ksmbd_login_response_ext {\n\t__u32\thandle;\n\t__s32\tngroups;\t\t\t/* supplementary group count */\n\t__s8\treserved[128];\t\t\t/* Reserved room */\n\t__s8\t____payload[];\n};"
+        },
+        {
+          "file": "fs/smb/server/ksmbd_netlink.h",
+          "lines": [
+            321,
+            329
+          ],
+          "snippet": "\tKSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE\t= 15,\n\n\tKSMBD_EVENT_LOGIN_REQUEST_EXT,\n\tKSMBD_EVENT_LOGIN_RESPONSE_EXT,\n\n\t__KSMBD_EVENT_MAX,\n\tKSMBD_EVENT_MAX = __KSMBD_EVENT_MAX - 1"
+        },
+        {
+          "file": "fs/smb/server/ksmbd_netlink.h",
+          "lines": [
+            354,
+            360
+          ],
+          "snippet": "#define KSMBD_USER_FLAG_EXTENSION\tBIT(6)"
+        },
+        {
+          "file": "fs/smb/server/transport_ipc.c",
+          "lines": [
+            212,
+            215
+          ],
+          "snippet": "// 旧代码\n\t.resv_start_op\t= KSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE + 1,\n// 新代码\n\t.resv_start_op\t= KSMBD_EVENT_LOGIN_RESPONSE_EXT + 1,"
+        },
+        {
+          "file": "fs/smb/server/transport_ipc.c",
+          "lines": [
+            193,
+            201
+          ],
+          "snippet": "\t{\n\t\t.cmd\t= KSMBD_EVENT_LOGIN_REQUEST_EXT,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_LOGIN_RESPONSE_EXT,\n\t\t.doit\t= handle_generic_event,\n\t},"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "ksmbd_netlink.h 中定义的枚举、结构体和标志构成内核 ksmbd 模块与用户态 ksmbd-tools 守护进程之间的 netlink 协议契约。`enum ksmbd_event` 的枚举值直接对应 netlink 消息类型号，用户态工具通过这些值和结构体与内核通信。`resv_start_op` 由 generic netlink 子系统用于管理命令范围。该协议的扩展直接影响用户态工具（ksmbd-tools）的构建和运行兼容性。",
+      "uncertainty": "补丁提交说明明确声明 'The new netlink event doesn't break backward compatibility when using old ksmbd-tools'，即协议扩展是向后兼容的。然而，`resv_start_op` 的变更意味着用户态工具（如果在编译时包含新版头文件）会看到不同的 genl 命令范围。对重新编译但尚未适配新事件的工具可能存在影响。此外，ksmbd_netlink.h 位于 fs/smb/server/ 目录而非 include/uapi/，但实际上它被用户态 ksmbd-tools 直接包含使用，属于事实上的 de facto UAPI。",
+      "manual_review_required": false,
+      "recommended_review": "建议确认 ksmbd-tools 是否直接 `#include` 该头文件，以及新事件是否已在 ksmbd-tools 中实现对应的处理逻辑。确认旧版本 ksmbd-tools 在接收未知 netlink 命令号时的行为。",
+      "test_recommendation": "建议测试：1) 使用旧版本 ksmbd-tools 连接新内核，验证基本功能不受影响（KSMBD_USER_FLAG_EXTENSION 标志未被设置时行为不变）；2) 使用新版本 ksmbd-tools 设置辅助组，验证 KSMBD_EVENT_LOGIN_REQUEST_EXT 请求和 KSMBD_EVENT_LOGIN_RESPONSE_EXT 响应的正确性；3) 验证 ipc_validate_msg 正确计算扩展响应的消息大小（包含 ngroups * sizeof(gid_t)）；4) 验证 nla_policy 中的新属性长度约束（LOGIN_REQUEST_EXT len=sizeof(ksmbd_login_request), LOGIN_RESPONSE_EXT len=sizeof(ksmbd_login_response_ext)）。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=netlink_family with compatibility_type=IOCTL_NETLINK_ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "fs/smb/server/ksmbd_netlink.h",
+            "old_lines": [
+              308,
+              313
+            ],
+            "new_lines": [
+              321,
+              329
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "syscall"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers and declarations."
+              },
+              {
+                "name": "syscall",
+                "test_priority": "high",
+                "public": true,
+                "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=netlink_family with compatibility_type=IOCTL_NETLINK_ABI_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "analysis_summary": {
+    "notes": "20 个候选 hunk 中，18 个是内部实现变更（内核模块内部的变量声明变更、函数签名变更、结构体内存管理变更），不构成外部兼容性变更。2 个确认为兼容性变更：1) __ksmbd_override_fsids() 的行为变更（SIDE_EFFECT_CHANGE），从忽略辅助组变为使用辅助组进行文件访问权限检查；2) ksmbd 通用 netlink 协议扩展，新增 KSMBD_EVENT_LOGIN_REQUEST_EXT/RESPONSE_EXT 事件和相关数据结构（IOCTL_NETLINK_ABI_CHANGE）。补丁本身声明向后兼容旧版本 ksmbd-tools。"
+  }
+}

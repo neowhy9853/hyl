@@ -1,0 +1,413 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1",
+  "base_ref": "c090f1d17b280c98630914334d341a2fa3318117^",
+  "base_commit": "fa48bdb939c34213cac8b92db0f070ceeb69e51e",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "c090f1d17b280c98630914334d341a2fa3318117",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/c090f1d1.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "dnsmasq",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 7106,
+    "patch_lines": 181,
+    "diff_added_lines": 63,
+    "diff_deleted_lines": 13,
+    "diff_context_lines": 74,
+    "churn": 76,
+    "raw_hunks": 10,
+    "candidate_hunks": 10,
+    "skipped_doc_hunks": 0,
+    "changed_files": 4,
+    "candidate_context_bytes": 25790,
+    "public_candidate_hunks": 10,
+    "surface_counts": {
+      "daemon_control": 6,
+      "persistence_state": 6,
+      "dns_protocol": 10,
+      "daemon_interfaces": 6,
+      "network_protocol": 9,
+      "cli_options": 3,
+      "user_visible_output": 6,
+      "protocol": 4,
+      "logging": 5,
+      "config_cli": 4,
+      "dhcp_protocol": 5,
+      "public_headers": 2,
+      "callbacks": 1,
+      "cli": 1,
+      "plugin_api": 1,
+      "config_keys": 1
+    },
+    "candidates_json_bytes": 75174
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 4,
+    "total_candidates": 10,
+    "compatibility_changes": 2,
+    "high_priority": 0,
+    "medium_priority": 2,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "RESOURCE_LIFETIME_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "dnsmasq",
+      "affected_surface": "dns_protocol (DNSSEC query lifecycle)",
+      "affected_api": {
+        "name": "swap_to_tcp",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/dnsmasq.c",
+        "old_lines": [
+          2231,
+          2238
+        ],
+        "new_lines": [
+          2262,
+          2273
+        ],
+        "symbol": "swap_to_tcp"
+      },
+      "old_behavior": "DNSSEC TCP child processes forked by swap_to_tcp() had no timeout alarm set. They would block indefinitely in tcp_from_udp() if the upstream server accepted the connection but never replied, holding child process and parent frec resources forever.",
+      "new_behavior": "swap_to_tcp() sets alarm(CHILD_LIFETIME) (150s) in the DNSSEC TCP child process before calling tcp_from_udp(), and stores forward/header/plen references via daemon->forward_to_tcp, daemon->header_to_tcp, daemon->plen_to_tcp for the SIGALRM handler. This gives DNSSEC TCP children a bounded lifetime of 150 seconds.",
+      "compatibility_reason": "DNSSEC queries that require TCP forwarding now have a bounded timeout (150s) instead of potentially hanging indefinitely. This changes the resource lifecycle of DNS query processing: a DNS client issuing a DNSSEC query that gets forwarded to TCP will now receive a response (STAT_ABANDONED via return_reply) after ~150s if the upstream is unresponsive, rather than hanging forever. While this is a security fix for a DoS vector, it changes the externally observable behavior of DNS query completion timing for this code path.",
+      "evidence": [
+        {
+          "file": "src/dnsmasq.c",
+          "lines": [
+            2262,
+            2273
+          ],
+          "snippet": "alarm(CHILD_LIFETIME);\nclose(pipefd[0]);\ndaemon->pipe_to_parent = pipefd[1];\ndaemon->forward_to_tcp = forward;\ndaemon->header_to_tcp = header;\ndaemon->plen_to_tcp = *plen;"
+        },
+        {
+          "file": "src/forward.c",
+          "lines": [
+            2240,
+            2246
+          ],
+          "snippet": "/* we have succeeded and are no longer blocked talking\n   on a TCP connection, so if the watchdog alarm goes off,\n   ignore it. */\ndaemon->forward_to_tcp = NULL;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The DNSSEC query forwarding path (swap_to_tcp -> tcp_from_udp -> tcp_key_recurse) is triggered by incoming DNS queries with DNSSEC records. The timeout change affects the client-facing DNS response behavior (query completion timing and error status). This is not a purely internal change - it changes how and when a DNS client receives a response for DNSSEC queries that hit the TCP forwarding path.",
+      "uncertainty": "The exact behavior of STAT_ABANDONED when returned to the client depends on how return_reply() and pop_and_retry_query() translate the status to a DNS response code. The client-facing effect may vary (SERVFAIL vs truncated vs no response).",
+      "manual_review_required": false,
+      "recommended_review": "Verify that return_reply(STAT_ABANDONED) produces a reasonable DNS error response (SERVFAIL or similar) rather than an empty or malformed packet. Check that the 150s timeout is appropriate for the deployment environment.",
+      "test_recommendation": "Construct a DNSSEC query that forces TCP forwarding (by setting TC bit or using a large DNSKEY response). Configure dnsmasq with an upstream that accepts TCP but never replies. Verify that (1) the TCP child terminates after ~150s, (2) the parent receives PIPE_OP_KILLED and processes STAT_ABANDONED, (3) the DNS client receives a proper error response, and (4) the syslog shows 'TCP process for DNSSEC validation timed out'.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=RESOURCE_LIFETIME_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "src/dnsmasq.c",
+            "old_lines": [
+              2231,
+              2238
+            ],
+            "new_lines": [
+              2262,
+              2273
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "protocol",
+              "logging",
+              "network_protocol",
+              "daemon_control",
+              "persistence_state",
+              "config_cli",
+              "dns_protocol",
+              "dhcp_protocol",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol behavior"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "daemon_control",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control, metrics, and administration interfaces."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "config_cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line and dnsmasq.conf option behavior"
+              },
+              {
+                "name": "dns_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "DNS query, response, cache, and DNSSEC semantics"
+              },
+              {
+                "name": "dhcp_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "DHCPv4/v6 lease and option behavior"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control and metrics interfaces"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=RESOURCE_LIFETIME_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.8,
+      "package_profile": "dnsmasq",
+      "affected_surface": "dns_protocol (DNSSEC timeout handling), logging",
+      "affected_api": {
+        "name": "sig_handler",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/dnsmasq.c",
+        "old_lines": [
+          1335,
+          1345
+        ],
+        "new_lines": [
+          1335,
+          1376
+        ],
+        "symbol": "sig_handler"
+      },
+      "old_behavior": "SIGALRM handling in child processes: old code checked pid != getpid() to detect children and unconditionally called _exit(0) on SIGALRM. A DNSSEC TCP child would silently exit without notifying the parent, leaving the parent's pending UDP query permanently blocked (no pipe notification ever arrives).",
+      "new_behavior": "SIGALRM handling now checks daemon->pipe_to_parent != -1 to identify TCP children. For DNSSEC TCP children (daemon->forward_to_tcp != NULL), when SIGALRM fires: (1) sends PIPE_OP_KILLED (6) through the pipe, (2) sends STAT_ABANDONED status, plen, packet header, forward pointer, and uid, (3) logs 'TCP process for DNSSEC validation timed out' via my_syslog(), (4) exits with _exit(0). If daemon->header_to_tcp is NULL (already completed), no notification is sent and the child exits normally.",
+      "compatibility_reason": "The signal handler change introduces a new notification mechanism (PIPE_OP_KILLED) on the parent-child IPC channel. When a DNSSEC TCP child times out, it now actively notifies the parent, enabling the parent to return a response to the client instead of being stuck. The IPC protocol between parent and child has a new operation code. A new syslog message is emitted on timeout. While parent and child are always the same binary version (fork model), the change in behavior (silent exit -> notification + log) is externally observable through daemon logs and DNS query completion.",
+      "evidence": [
+        {
+          "file": "src/dnsmasq.c",
+          "lines": [
+            1338,
+            1373
+          ],
+          "snippet": "else if (daemon->pipe_to_parent != -1)\n    {\n      if (sig == SIGALRM)\n        {\n#ifdef HAVE_DNSSEC\n          if (!daemon->forward_to_tcp)\n#endif\n            _exit(0);\n#ifdef HAVE_DNSSEC\n          else\n            {\n              if (daemon->header_to_tcp)\n                {\n                  unsigned char op = PIPE_OP_KILLED;\n                  int status = STAT_ABANDONED;\n                  ...\n                  my_syslog(LOG_INFO, _(\"TCP process for DNSSEC validation timed out\"));\n                  _exit(0);\n                }\n            }\n#endif\n        }\n    }"
+        },
+        {
+          "file": "src/cache.c",
+          "lines": [
+            1002,
+            1040
+          ],
+          "snippet": "case PIPE_OP_RESULT:\n    case PIPE_OP_KILLED:\n      {\n        ...\n        if (op == PIPE_OP_RESULT && ...)\n          return 0;\n        ...\n        if (op == PIPE_OP_RESULT)\n          {\n            *keycountp = keycount;\n            *validatecountp = validatecount;\n          }\n        if (!forward->dependent)\n          return_reply(now, forward, ..., ret_len, status);\n        else\n          pop_and_retry_query(forward, status, now);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The SIGALRM handler change produces externally observable effects: (1) the daemon syslog records 'TCP process for DNSSEC validation timed out' when a timeout occurs, (2) the DNS client receives a response (STAT_ABANDONED via return_reply) instead of hanging indefinitely, and (3) the parent process's resource usage changes (frecs are freed on timeout instead of remaining allocated). These are not purely internal changes.",
+      "uncertainty": "The behavior when daemon->header_to_tcp is NULL (already completed) may mask the timeout. It is unclear whether there are edge cases where the PIPE_OP_KILLED sequence collides with a concurrently completing child.",
+      "manual_review_required": false,
+      "recommended_review": "Review the interaction between SIGALRM handler and the tcp_from_udp completion path: verify that daemon->header_to_tcp is set to NULL when the TCP exchange completes, ensuring no double-notification or race between completion and alarm.",
+      "test_recommendation": "Same as PCA-0001 - trigger a DNSSEC TCP timeout and verify the log message appears and the parent receives the killed-child notification.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "src/dnsmasq.c",
+            "old_lines": [
+              1335,
+              1345
+            ],
+            "new_lines": [
+              1335,
+              1376
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "protocol",
+              "logging",
+              "network_protocol",
+              "config_cli",
+              "dns_protocol",
+              "dhcp_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol behavior"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "config_cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line and dnsmasq.conf option behavior"
+              },
+              {
+                "name": "dns_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "DNS query, response, cache, and DNSSEC semantics"
+              },
+              {
+                "name": "dhcp_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "DHCPv4/v6 lease and option behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

@@ -1,0 +1,197 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/git/pca-results/42d960/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/42d960/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/42d960",
+  "patch_id": "42d960748efa79a31e72cc36d983aca244dc167e",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "git log -L",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "line-log.c",
+        "old_lines": [
+          1004,
+          1032
+        ],
+        "new_lines": [
+          1003,
+          1020
+        ],
+        "symbol": "line_log_queue_pairs"
+      },
+      "old_behavior": "line_log_print() printed a blank-line separator unconditionally before each diff block using fprintf(rev->diffopt.file, \"%s\n\", prefix). The commit header was followed by a blank line before the diff started.",
+      "new_behavior": "line_log_queue_pairs() only queues pre-computed filepairs; show_log() and separator emission is deferred to log_tree_diff_flush(). log_tree_diff_flush() only emits the blank-line separator for verbose headers. Non-verbose (--oneline) output no longer has an extra blank line before the diff.",
+      "compatibility_reason": "Scripts or tools that parse git log -L output and depend on a blank line between the commit header and the diff will see one fewer blank line. Test expectations confirm this: expect files removed blank lines that were previously unconditional. The test  explicitly validates this new behavior.",
+      "test_recommendation": "Run git log -L with various formats (--oneline, --format=, default) and verify blank-line behavior matches the new expectations. Use existing t4211-line-log.sh tests as regression.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "low",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "git log -L --full-diff",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "revision.c",
+        "old_lines": [
+          3179,
+          3186
+        ],
+        "new_lines": [
+          3179,
+          3188
+        ],
+        "symbol": "setup_revisions"
+      },
+      "old_behavior": "git log -L with --full-diff was either silently accepted (possibly with confusing results since -L pre-computes filepairs scoped to tracked line ranges) or rejected with the generic message \"-L does not yet support diff formats besides -p and -s\" if combined with incompatible format flags.",
+      "new_behavior": "git log -L --full-diff is explicitly rejected with die(\"-L does not yet support the requested diff format\"). The error message also changed to be more general.",
+      "compatibility_reason": "Users who previously invoked git log -L --full-diff (possibly in scripts or aliases) will now get a fatal error instead of any output. This is a tightening of CLI input validation.",
+      "test_recommendation": "Run git log -L --full-diff and verify it exits with error. Test is included in t4211-line-log.sh.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0003",
+      "finding_id": "PCA-0003",
+      "test_priority": "low",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "git log -L with -S/-G/--find-object/--diff-filter",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "log-tree.c",
+        "old_lines": [
+          1179,
+          1185
+        ],
+        "new_lines": [
+          1185,
+          1190
+        ],
+        "symbol": "log_tree_commit"
+      },
+      "old_behavior": "When using git log -L with -S/-G/--find-object/--diff-filter, show_log() was called inside line_log_print() before diffcore_std() ran. This meant pickaxe could not suppress commit headers even when no diff pairs survived filtering. All commits in the range were shown.",
+      "new_behavior": "show_log() is now deferred until after diffcore_std() inside log_tree_diff_flush(). Pickaxe (-S, -G, --find-object) and --diff-filter now properly suppress commits when all pairs are filtered out. Commits without matching content changes are omitted from output.",
+      "compatibility_reason": "Scripts using git log -L with pickaxe options that previously saw all commits in the range will now see fewer commits (only those matching the pickaxe pattern). This changes the output contract for a documented option combination.",
+      "test_recommendation": "Run the t4211-line-log.sh tests for -L with -G, -S, --find-object, and --diff-filter. Verify commits are properly suppressed with non-matching patterns.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/42d960/compatibility-testing"
+}

@@ -1,0 +1,995 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P022/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P022/patch.diff",
+  "profile": "cpython",
+  "summary": {
+    "total_changed_files": 7,
+    "changed_files": [
+      "Misc/NEWS.d/next/C_API/2026-05-01-14-49-09.gh-issue-149225.IdAYPZ.rst",
+      "PC/python3dll.c",
+      "Lib/test/test_stable_abi_ctypes.py",
+      "Include/cpython/critical_section.h",
+      "Include/critical_section.h",
+      "Misc/stable_abi.toml",
+      "Lib/test/test_cext/extension.c"
+    ],
+    "total_hunks": 9,
+    "public_api_hunks": 5,
+    "patch_metrics": {
+      "patch_bytes": 19102,
+      "patch_lines": 500,
+      "diff_added_lines": 195,
+      "diff_deleted_lines": 95,
+      "diff_context_lines": 143,
+      "churn": 290,
+      "raw_hunks": 19,
+      "candidate_hunks": 9,
+      "skipped_doc_hunks": 10,
+      "changed_files": 7,
+      "candidate_context_bytes": 16790,
+      "public_candidate_hunks": 5,
+      "surface_counts": {
+        "public_headers": 4,
+        "user_visible_output": 1,
+        "c_api": 4,
+        "stable_abi": 2,
+        "tests": 2,
+        "python_exceptions": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "Include/cpython/critical_section.h",
+      "old_start": 2,
+      "old_end": 16,
+      "new_start": 2,
+      "new_end": 7,
+      "context_hint": "",
+      "added_lines": [],
+      "deleted_lines": [
+        "// Python critical sections",
+        "//",
+        "// Conceptually, critical sections are a deadlock avoidance layer on top of",
+        "// per-object locks. These helpers, in combination with those locks, replace",
+        "// our usage of the global interpreter lock to provide thread-safety for",
+        "// otherwise thread-unsafe objects, such as dict.",
+        "//",
+        "// NOTE: These APIs are no-ops in non-free-threaded builds.",
+        "//"
+      ],
+      "context_lines": [
+        "#  error \"this header file must not be included directly\"",
+        "#endif",
+        "",
+        "// Straightforward per-object locking could introduce deadlocks that were not",
+        "// present when running with the GIL. Threads may hold locks for multiple",
+        "// objects simultaneously because Python operations can nest. If threads were"
+      ],
+      "hunk_id": "HUNK-0011",
+      "changed_symbols": [
+        "Python",
+        "critical",
+        "sections",
+        "Conceptually",
+        "are",
+        "a"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "c_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "CPython C API"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "user_visible_output",
+          "c_api"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 1,
+        "snippet_end_line": 37,
+        "snippet": "#ifndef Py_CPYTHON_CRITICAL_SECTION_H\n#  error \"this header file must not be included directly\"\n#endif\n\n// Straightforward per-object locking could introduce deadlocks that were not\n// present when running with the GIL. Threads may hold locks for multiple\n// objects simultaneously because Python operations can nest. If threads were\n// to acquire the same locks in different orders, they would deadlock.\n//\n// One way to avoid deadlocks is to allow threads to hold only the lock (or\n// locks) for a single operation at a time (typically a single lock, but some\n// operations involve two locks). When a thread begins a nested operation it\n// could suspend the locks for any outer operation: before beginning the nested\n// operation, the locks for the outer operation are released and when the\n// nested operation completes, the locks for the outer operation are\n// reacquired.\n//\n// To improve performance, this API uses a variation of the above scheme.\n// Instead of immediately suspending locks any time a nested operation begins,\n// locks are only suspended if the thread would block. This reduces the number\n// of lock acquisitions and releases for nested operations, while still\n// avoiding deadlocks.\n//\n// Additionally, the locks for any active operation are suspended around\n// other potentially blocking operations, such as I/O. This is because the\n// interaction between locks and blocking operations can lead to deadlocks in\n// the same way as the interaction between multiple locks.\n//\n// Each thread's critical sections and their corresponding locks are tracked in\n// a stack in `PyThreadState.critical_section`. When a thread calls\n// `_PyThreadState_Detach()`, such as before a blocking I/O operation or when\n// waiting to acquire a lock, the thread suspends all of its active critical\n// sections, temporarily releasing the associated locks. When the thread calls\n// `_PyThreadState_Attach()`, it resumes the top-most (i.e., most recent)\n// critical section by reacquiring the associated lock or locks.  See\n// `_PyCriticalSection_Resume()`.\n\n"
+      }
+    },
+    {
+      "file": "Include/cpython/critical_section.h",
+      "old_start": 43,
+      "old_end": 94,
+      "new_start": 34,
+      "new_end": 52,
+      "context_hint": "",
+      "added_lines": [
+        "#undef Py_BEGIN_CRITICAL_SECTION",
+        "#undef Py_END_CRITICAL_SECTION",
+        "#undef Py_BEGIN_CRITICAL_SECTION2",
+        "#undef Py_END_CRITICAL_SECTION2",
+        ""
+      ],
+      "deleted_lines": [
+        "//",
+        "// NOTE: Only the top-most critical section is guaranteed to be active.",
+        "// Operations that need to lock two objects at once must use",
+        "// `Py_BEGIN_CRITICAL_SECTION2()`. You *CANNOT* use nested critical sections",
+        "// to lock more than one object at once, because the inner critical section",
+        "// may  suspend the outer critical sections. This API does not provide a way",
+        "// to lock more than two objects at once (though it could be added later",
+        "// if actually needed).",
+        "//",
+        "// NOTE: Critical sections implicitly behave like reentrant locks because",
+        "// attempting to acquire the same lock will suspend any outer (earlier)",
+        "// critical sections. However, they are less efficient for this use case than",
+        "// purposefully designed reentrant locks.",
+        "//",
+        "// Example usage:",
+        "//  Py_BEGIN_CRITICAL_SECTION(op);",
+        "//  ...",
+        "//  Py_END_CRITICAL_SECTION();",
+        "//",
+        "// To lock two objects at once:",
+        "//  Py_BEGIN_CRITICAL_SECTION2(op1, op2);",
+        "//  ...",
+        "//  Py_END_CRITICAL_SECTION2();",
+        "",
+        "typedef struct PyCriticalSection PyCriticalSection;",
+        "typedef struct PyCriticalSection2 PyCriticalSection2;",
+        "",
+        "PyAPI_FUNC(void)",
+        "PyCriticalSection_Begin(PyCriticalSection *c, PyObject *op);",
+        "PyAPI_FUNC(void)",
+        "PyCriticalSection_End(PyCriticalSection *c);",
+        "",
+        "PyAPI_FUNC(void)",
+        "PyCriticalSection2_Begin(PyCriticalSection2 *c, PyObject *a, PyObject *b);",
+        "",
+        "PyAPI_FUNC(void)",
+        "PyCriticalSection2_End(PyCriticalSection2 *c);",
+        ""
+      ],
+      "context_lines": [
+        "// `_PyThreadState_Attach()`, it resumes the top-most (i.e., most recent)",
+        "// critical section by reacquiring the associated lock or locks.  See",
+        "// `_PyCriticalSection_Resume()`.",
+        "",
+        "PyAPI_FUNC(void)",
+        "PyCriticalSection_BeginMutex(PyCriticalSection *c, PyMutex *m);",
+        "",
+        "PyAPI_FUNC(void)",
+        "PyCriticalSection2_BeginMutex(PyCriticalSection2 *c, PyMutex *m1, PyMutex *m2);",
+        "",
+        "#ifndef Py_GIL_DISABLED",
+        "# define Py_BEGIN_CRITICAL_SECTION(op)      \\",
+        "    {",
+        "# define Py_BEGIN_CRITICAL_SECTION_MUTEX(mutex)    \\"
+      ],
+      "hunk_id": "HUNK-0012",
+      "changed_symbols": [
+        "undef",
+        "Py_BEGIN_CRITICAL_SECTION",
+        "Py_END_CRITICAL_SECTION",
+        "Py_BEGIN_CRITICAL_SECTION2",
+        "Py_END_CRITICAL_SECTION2",
+        "NOTE"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "c_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "CPython C API"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "c_api"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 14,
+        "snippet_end_line": 75,
+        "snippet": "// operation, the locks for the outer operation are released and when the\n// nested operation completes, the locks for the outer operation are\n// reacquired.\n//\n// To improve performance, this API uses a variation of the above scheme.\n// Instead of immediately suspending locks any time a nested operation begins,\n// locks are only suspended if the thread would block. This reduces the number\n// of lock acquisitions and releases for nested operations, while still\n// avoiding deadlocks.\n//\n// Additionally, the locks for any active operation are suspended around\n// other potentially blocking operations, such as I/O. This is because the\n// interaction between locks and blocking operations can lead to deadlocks in\n// the same way as the interaction between multiple locks.\n//\n// Each thread's critical sections and their corresponding locks are tracked in\n// a stack in `PyThreadState.critical_section`. When a thread calls\n// `_PyThreadState_Detach()`, such as before a blocking I/O operation or when\n// waiting to acquire a lock, the thread suspends all of its active critical\n// sections, temporarily releasing the associated locks. When the thread calls\n// `_PyThreadState_Attach()`, it resumes the top-most (i.e., most recent)\n// critical section by reacquiring the associated lock or locks.  See\n// `_PyCriticalSection_Resume()`.\n\nPyAPI_FUNC(void)\nPyCriticalSection_BeginMutex(PyCriticalSection *c, PyMutex *m);\n\nPyAPI_FUNC(void)\nPyCriticalSection2_BeginMutex(PyCriticalSection2 *c, PyMutex *m1, PyMutex *m2);\n\n#ifndef Py_GIL_DISABLED\n#undef Py_BEGIN_CRITICAL_SECTION\n#undef Py_END_CRITICAL_SECTION\n#undef Py_BEGIN_CRITICAL_SECTION2\n#undef Py_END_CRITICAL_SECTION2\n\n# define Py_BEGIN_CRITICAL_SECTION(op)      \\\n    {\n# define Py_BEGIN_CRITICAL_SECTION_MUTEX(mutex)    \\\n    {\n# define Py_END_CRITICAL_SECTION()          \\\n    }\n# define Py_BEGIN_CRITICAL_SECTION2(a, b)   \\\n    {\n# define Py_BEGIN_CRITICAL_SECTION2_MUTEX(m1, m2)  \\\n    {\n# define Py_END_CRITICAL_SECTION2()         \\\n    }\n\n#else /* !Py_GIL_DISABLED */\n\n# define Py_BEGIN_CRITICAL_SECTION_MUTEX(mutex)                         \\\n    {                                                                   \\\n        PyCriticalSection _py_cs;                                       \\\n        PyCriticalSection_BeginMutex(&_py_cs, mutex)\n\n# define Py_BEGIN_CRITICAL_SECTION2_MUTEX(m1, m2)                       \\\n    {                                                                   \\\n        PyCriticalSection2 _py_cs2;                                     \\\n        PyCriticalSection2_BeginMutex(&_py_cs2, m1, m2)\n\n#endif /* !Py_GIL_DISABLED */\n"
+      }
+    },
+    {
+      "file": "Include/cpython/critical_section.h",
+      "old_start": 101,
+      "old_end": 154,
+      "new_start": 59,
+      "new_end": 75,
+      "context_hint": "PyCriticalSection2_End(PyCriticalSection2 *c);",
+      "added_lines": [
+        "#else /* !Py_GIL_DISABLED */",
+        "#endif /* !Py_GIL_DISABLED */"
+      ],
+      "deleted_lines": [
+        "#else /* !Py_GIL_DISABLED */",
+        "",
+        "// NOTE: the contents of this struct are private and may change betweeen",
+        "// Python releases without a deprecation period.",
+        "struct PyCriticalSection {",
+        "    // Tagged pointer to an outer active critical section (or 0).",
+        "    uintptr_t _cs_prev;",
+        "",
+        "    // Mutex used to protect critical section",
+        "    PyMutex *_cs_mutex;",
+        "};",
+        "",
+        "// A critical section protected by two mutexes. Use",
+        "// Py_BEGIN_CRITICAL_SECTION2 and Py_END_CRITICAL_SECTION2.",
+        "// NOTE: the contents of this struct are private and may change betweeen",
+        "// Python releases without a deprecation period.",
+        "struct PyCriticalSection2 {",
+        "    PyCriticalSection _cs_base;",
+        "    PyMutex *_cs_mutex2;",
+        "};",
+        "",
+        "# define Py_BEGIN_CRITICAL_SECTION(op)                                  \\",
+        "    {                                                                   \\",
+        "        PyCriticalSection _py_cs;                                       \\",
+        "        PyCriticalSection_Begin(&_py_cs, _PyObject_CAST(op))",
+        "# define Py_END_CRITICAL_SECTION()                                      \\",
+        "        PyCriticalSection_End(&_py_cs);                                 \\",
+        "    }",
+        "",
+        "# define Py_BEGIN_CRITICAL_SECTION2(a, b)                               \\",
+        "    {                                                                   \\",
+        "        PyCriticalSection2 _py_cs2;                                     \\",
+        "        PyCriticalSection2_Begin(&_py_cs2, _PyObject_CAST(a), _PyObject_CAST(b))",
+        "",
+        "# define Py_END_CRITICAL_SECTION2()                                     \\",
+        "        PyCriticalSection2_End(&_py_cs2);                               \\",
+        "    }",
+        "",
+        "#endif"
+      ],
+      "context_lines": [
+        "    {",
+        "# define Py_END_CRITICAL_SECTION2()         \\",
+        "    }",
+        "",
+        "",
+        "# define Py_BEGIN_CRITICAL_SECTION_MUTEX(mutex)                         \\",
+        "    {                                                                   \\",
+        "        PyCriticalSection _py_cs;                                       \\",
+        "        PyCriticalSection_BeginMutex(&_py_cs, mutex)",
+        "",
+        "# define Py_BEGIN_CRITICAL_SECTION2_MUTEX(m1, m2)                       \\",
+        "    {                                                                   \\",
+        "        PyCriticalSection2 _py_cs2;                                     \\",
+        "        PyCriticalSection2_BeginMutex(&_py_cs2, m1, m2)",
+        ""
+      ],
+      "hunk_id": "HUNK-0013",
+      "changed_symbols": [
+        "PyCriticalSection2_End",
+        "Py_GIL_DISABLED",
+        "endif",
+        "NOTE",
+        "the",
+        "contents"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "c_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "CPython C API"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "c_api"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "PyCriticalSection2_End",
+        "snippet_start_line": 72,
+        "snippet_end_line": 75,
+        "snippet": "        PyCriticalSection2 _py_cs2;                                     \\\n        PyCriticalSection2_BeginMutex(&_py_cs2, m1, m2)\n\n#endif /* !Py_GIL_DISABLED */\n"
+      }
+    },
+    {
+      "file": "Include/critical_section.h",
+      "old_start": 4,
+      "old_end": 9,
+      "new_start": 4,
+      "new_end": 94,
+      "context_hint": "",
+      "added_lines": [
+        "// Python critical sections",
+        "//",
+        "// Conceptually, critical sections are a deadlock avoidance layer on top of",
+        "// per-object locks. These helpers, in combination with those locks, replace",
+        "// our usage of the global interpreter lock to provide thread-safety for",
+        "// otherwise thread-unsafe objects, such as dict.",
+        "//",
+        "// NOTE: These APIs are no-ops in non-free-threaded builds.",
+        "//",
+        "// NOTE: Only the top-most critical section is guaranteed to be active.",
+        "// Operations that need to lock two objects at once must use",
+        "// `Py_BEGIN_CRITICAL_SECTION2()`. You *CANNOT* use nested critical sections",
+        "// to lock more than one object at once, because the inner critical section",
+        "// may suspend the outer critical sections. This API does not provide a way",
+        "// to lock more than two objects at once (though it could be added later",
+        "// if actually needed).",
+        "//",
+        "// NOTE: Critical sections implicitly behave like reentrant locks because",
+        "// attempting to acquire the same lock will suspend any outer (earlier)",
+        "// critical sections. However, they are less efficient for this use case than",
+        "// purposefully designed reentrant locks.",
+        "//",
+        "// Example usage:",
+        "//  Py_BEGIN_CRITICAL_SECTION(op);",
+        "//  ...",
+        "//  Py_END_CRITICAL_SECTION();",
+        "//",
+        "// To lock two objects at once:",
+        "//  Py_BEGIN_CRITICAL_SECTION2(op1, op2);",
+        "//  ...",
+        "//  Py_END_CRITICAL_SECTION2();",
+        "",
+        "// NOTE: the contents of this struct are private and their meaning may",
+        "// change betweeen Python releases without a deprecation period.",
+        "typedef struct PyCriticalSection {",
+        "    // Tagged pointer to an outer active critical section (or 0).",
+        "    uintptr_t _cs_prev;",
+        "",
+        "    // Mutex used to protect critical section",
+        "    struct PyMutex *_cs_mutex;",
+        "} PyCriticalSection;",
+        "",
+        "// A critical section protected by two mutexes. Use",
+        "// Py_BEGIN_CRITICAL_SECTION2 and Py_END_CRITICAL_SECTION2.",
+        "// NOTE: the contents of this struct are private and may change betweeen",
+        "// Python releases without a deprecation period.",
+        "typedef struct PyCriticalSection2 {",
+        "    PyCriticalSection _cs_base;",
+        "",
+        "    struct PyMutex *_cs_mutex2;",
+        "} PyCriticalSection2;",
+        "",
+        "PyAPI_FUNC(void)",
+        "PyCriticalSection_Begin(PyCriticalSection *c, PyObject *op);",
+        "",
+        "PyAPI_FUNC(void)",
+        "PyCriticalSection_End(PyCriticalSection *c);",
+        "",
+        "PyAPI_FUNC(void)",
+        "PyCriticalSection2_Begin(PyCriticalSection2 *c, PyObject *a, PyObject *b);",
+        "",
+        "PyAPI_FUNC(void)",
+        "PyCriticalSection2_End(PyCriticalSection2 *c);",
+        "",
+        "// These are definitions for the stable ABI. For GIL-ful builds they're",
+        "// conditionally redefined as no-ops in cpython/critical_section.h.",
+        "",
+        "# define Py_BEGIN_CRITICAL_SECTION(op)                                  \\",
+        "    {                                                                   \\",
+        "        PyCriticalSection _py_cs;                                       \\",
+        "        PyCriticalSection_Begin(&_py_cs, _PyObject_CAST(op))",
+        "",
+        "# define Py_END_CRITICAL_SECTION()                                      \\",
+        "        PyCriticalSection_End(&_py_cs);                                 \\",
+        "    }",
+        "",
+        "# define Py_BEGIN_CRITICAL_SECTION2(a, b)                               \\",
+        "    {                                                                   \\",
+        "        PyCriticalSection2 _py_cs2;                                     \\",
+        "        PyCriticalSection2_Begin(&_py_cs2, _PyObject_CAST(a), _PyObject_CAST(b))",
+        "",
+        "# define Py_END_CRITICAL_SECTION2()                                     \\",
+        "        PyCriticalSection2_End(&_py_cs2);                               \\",
+        "    }",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "extern \"C\" {",
+        "#endif",
+        "",
+        "#ifndef Py_LIMITED_API",
+        "#  define Py_CPYTHON_CRITICAL_SECTION_H",
+        "#  include \"cpython/critical_section.h\""
+      ],
+      "hunk_id": "HUNK-0014",
+      "changed_symbols": [
+        "Python",
+        "critical",
+        "sections",
+        "Conceptually",
+        "are",
+        "a"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "c_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "CPython C API"
+          },
+          {
+            "name": "stable_abi",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Limited API / Stable ABI"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "c_api",
+          "stable_abi"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 1,
+        "snippet_end_line": 101,
+        "snippet": "#ifndef Py_CRITICAL_SECTION_H\n#define Py_CRITICAL_SECTION_H\n#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n// Python critical sections\n//\n// Conceptually, critical sections are a deadlock avoidance layer on top of\n// per-object locks. These helpers, in combination with those locks, replace\n// our usage of the global interpreter lock to provide thread-safety for\n// otherwise thread-unsafe objects, such as dict.\n//\n// NOTE: These APIs are no-ops in non-free-threaded builds.\n//\n// NOTE: Only the top-most critical section is guaranteed to be active.\n// Operations that need to lock two objects at once must use\n// `Py_BEGIN_CRITICAL_SECTION2()`. You *CANNOT* use nested critical sections\n// to lock more than one object at once, because the inner critical section\n// may suspend the outer critical sections. This API does not provide a way\n// to lock more than two objects at once (though it could be added later\n// if actually needed).\n//\n// NOTE: Critical sections implicitly behave like reentrant locks because\n// attempting to acquire the same lock will suspend any outer (earlier)\n// critical sections. However, they are less efficient for this use case than\n// purposefully designed reentrant locks.\n//\n// Example usage:\n//  Py_BEGIN_CRITICAL_SECTION(op);\n//  ...\n//  Py_END_CRITICAL_SECTION();\n//\n// To lock two objects at once:\n//  Py_BEGIN_CRITICAL_SECTION2(op1, op2);\n//  ...\n//  Py_END_CRITICAL_SECTION2();\n\n// NOTE: the contents of this struct are private and their meaning may\n// change betweeen Python releases without a deprecation period.\ntypedef struct PyCriticalSection {\n    // Tagged pointer to an outer active critical section (or 0).\n    uintptr_t _cs_prev;\n\n    // Mutex used to protect critical section\n    struct PyMutex *_cs_mutex;\n} PyCriticalSection;\n\n// A critical section protected by two mutexes. Use\n// Py_BEGIN_CRITICAL_SECTION2 and Py_END_CRITICAL_SECTION2.\n// NOTE: the contents of this struct are private and may change betweeen\n// Python releases without a deprecation period.\ntypedef struct PyCriticalSection2 {\n    PyCriticalSection _cs_base;\n\n    struct PyMutex *_cs_mutex2;\n} PyCriticalSection2;\n\nPyAPI_FUNC(void)\nPyCriticalSection_Begin(PyCriticalSection *c, PyObject *op);\n\nPyAPI_FUNC(void)\nPyCriticalSection_End(PyCriticalSection *c);\n\nPyAPI_FUNC(void)\nPyCriticalSection2_Begin(PyCriticalSection2 *c, PyObject *a, PyObject *b);\n\nPyAPI_FUNC(void)\nPyCriticalSection2_End(PyCriticalSection2 *c);\n\n// These are definitions for the stable ABI. For GIL-ful builds they're\n// conditionally redefined as no-ops in cpython/critical_section.h.\n\n# define Py_BEGIN_CRITICAL_SECTION(op)                                  \\\n    {                                                                   \\\n        PyCriticalSection _py_cs;                                       \\\n        PyCriticalSection_Begin(&_py_cs, _PyObject_CAST(op))\n\n# define Py_END_CRITICAL_SECTION()                                      \\\n        PyCriticalSection_End(&_py_cs);                                 \\\n    }\n\n# define Py_BEGIN_CRITICAL_SECTION2(a, b)                               \\\n    {                                                                   \\\n        PyCriticalSection2 _py_cs2;                                     \\\n        PyCriticalSection2_Begin(&_py_cs2, _PyObject_CAST(a), _PyObject_CAST(b))\n\n# define Py_END_CRITICAL_SECTION2()                                     \\\n        PyCriticalSection2_End(&_py_cs2);                               \\\n    }\n\n#ifndef Py_LIMITED_API\n#  define Py_CPYTHON_CRITICAL_SECTION_H\n#  include \"cpython/critical_section.h\"\n#  undef Py_CPYTHON_CRITICAL_SECTION_H\n#endif\n\n#ifdef __cplusplus\n}\n#endif\n#endif /* !Py_CRITICAL_SECTION_H */\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_cext/extension.c",
+      "old_start": 99,
+      "old_end": 104,
+      "new_start": 99,
+      "new_end": 108,
+      "context_hint": "_testcext_exec(PyObject *module)",
+      "added_lines": [
+        "    // Test that Py_BEGIN_CRITICAL_SECTION is available",
+        "    Py_BEGIN_CRITICAL_SECTION(module);",
+        "    Py_END_CRITICAL_SECTION();",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    obj = NULL;",
+        "    Py_CLEAR(obj);",
+        "",
+        "    return 0;",
+        "}",
+        ""
+      ],
+      "hunk_id": "HUNK-0015",
+      "changed_symbols": [
+        "_testcext_exec",
+        "Test",
+        "that",
+        "Py_BEGIN_CRITICAL_SECTION",
+        "is",
+        "available",
+        "Py_END_CRITICAL_SECTION",
+        "assert"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          }
+        ],
+        "surface_reasons": [
+          "tests"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testcext_exec",
+        "snippet_start_line": 70,
+        "snippet_end_line": 138,
+        "snippet": "\n\nstatic PyMethodDef _testcext_methods[] = {\n    {\"add\", _testcext_add, METH_VARARGS, _testcext_add_doc},\n    {\"test_datetime\", test_datetime, METH_NOARGS, NULL},\n    {NULL, NULL, 0, NULL}  // sentinel\n};\n\n\nstatic int\n_testcext_exec(PyObject *module)\n{\n    PyObject *result, *obj;\n\n#ifdef __STDC_VERSION__\n    if (PyModule_AddIntMacro(module, __STDC_VERSION__) < 0) {\n        return -1;\n    }\n#endif\n\n    result = PyObject_CallMethod(module, \"test_datetime\", \"\");\n    if (!result) return -1;\n    Py_DECREF(result);\n\n    // test Py_BUILD_ASSERT() and Py_BUILD_ASSERT_EXPR()\n    Py_BUILD_ASSERT(sizeof(int) == sizeof(unsigned int));\n    assert(Py_BUILD_ASSERT_EXPR(sizeof(int) == sizeof(unsigned int)) == 0);\n\n    // Test Py_CLEAR()\n    obj = NULL;\n    Py_CLEAR(obj);\n\n    // Test that Py_BEGIN_CRITICAL_SECTION is available\n    Py_BEGIN_CRITICAL_SECTION(module);\n    Py_END_CRITICAL_SECTION();\n\n    return 0;\n}\n\n#define _FUNC_NAME(NAME) PyModExport_ ## NAME\n#define FUNC_NAME(NAME) _FUNC_NAME(NAME)\n\n// Converting from function pointer to void* has undefined behavior, but\n// works on all known platforms, and CPython's module and type slots currently\n// need it.\n// (GCC doesn't have a narrower category for this than -Wpedantic.)\n_Py_COMP_DIAG_PUSH\n#if defined(__GNUC__)\n#pragma GCC diagnostic ignored \"-Wpedantic\"\n#pragma GCC diagnostic ignored \"-Wcast-qual\"\n#elif defined(__clang__)\n#pragma clang diagnostic ignored \"-Wpedantic\"\n#pragma clang diagnostic ignored \"-Wcast-qual\"\n#endif\n\nPyDoc_STRVAR(_testcext_doc, \"C test extension.\");\nPyABIInfo_VAR(abi_info);\n\nstatic PyModuleDef_Slot _testcext_slots[] = {\n    {Py_mod_abi, &abi_info},\n    {Py_mod_name, STR(MODULE_NAME)},\n    {Py_mod_doc, (void*)(char*)_testcext_doc},\n    {Py_mod_exec, (void*)_testcext_exec},\n    {Py_mod_methods, _testcext_methods},\n    {0, NULL}\n};\n\n_Py_COMP_DIAG_POP\n\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_stable_abi_ctypes.py",
+      "old_start": 134,
+      "old_end": 139,
+      "new_start": 134,
+      "new_end": 143,
+      "context_hint": "def test_windows_feature_macros(self):",
+      "added_lines": [
+        "    \"PyCriticalSection2_Begin\",",
+        "    \"PyCriticalSection2_End\",",
+        "    \"PyCriticalSection_Begin\",",
+        "    \"PyCriticalSection_End\","
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    \"PyComplex_ImagAsDouble\",",
+        "    \"PyComplex_RealAsDouble\",",
+        "    \"PyComplex_Type\",",
+        "    \"PyDescr_NewClassMethod\",",
+        "    \"PyDescr_NewGetSet\",",
+        "    \"PyDescr_NewMember\","
+      ],
+      "hunk_id": "HUNK-0016",
+      "changed_symbols": [
+        "test_windows_feature_macros",
+        "PyCriticalSection2_Begin",
+        "PyCriticalSection2_End",
+        "PyCriticalSection_Begin",
+        "PyCriticalSection_End"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          }
+        ],
+        "surface_reasons": [
+          "tests"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "test_windows_feature_macros",
+        "snippet_start_line": 105,
+        "snippet_end_line": 173,
+        "snippet": "    \"PyCapsule_Import\",\n    \"PyCapsule_IsValid\",\n    \"PyCapsule_New\",\n    \"PyCapsule_SetContext\",\n    \"PyCapsule_SetDestructor\",\n    \"PyCapsule_SetName\",\n    \"PyCapsule_SetPointer\",\n    \"PyCapsule_Type\",\n    \"PyClassMethodDescr_Type\",\n    \"PyCodec_BackslashReplaceErrors\",\n    \"PyCodec_Decode\",\n    \"PyCodec_Decoder\",\n    \"PyCodec_Encode\",\n    \"PyCodec_Encoder\",\n    \"PyCodec_IgnoreErrors\",\n    \"PyCodec_IncrementalDecoder\",\n    \"PyCodec_IncrementalEncoder\",\n    \"PyCodec_KnownEncoding\",\n    \"PyCodec_LookupError\",\n    \"PyCodec_NameReplaceErrors\",\n    \"PyCodec_Register\",\n    \"PyCodec_RegisterError\",\n    \"PyCodec_ReplaceErrors\",\n    \"PyCodec_StreamReader\",\n    \"PyCodec_StreamWriter\",\n    \"PyCodec_StrictErrors\",\n    \"PyCodec_Unregister\",\n    \"PyCodec_XMLCharRefReplaceErrors\",\n    \"PyComplex_FromDoubles\",\n    \"PyComplex_ImagAsDouble\",\n    \"PyComplex_RealAsDouble\",\n    \"PyComplex_Type\",\n    \"PyCriticalSection2_Begin\",\n    \"PyCriticalSection2_End\",\n    \"PyCriticalSection_Begin\",\n    \"PyCriticalSection_End\",\n    \"PyDescr_NewClassMethod\",\n    \"PyDescr_NewGetSet\",\n    \"PyDescr_NewMember\",\n    \"PyDescr_NewMethod\",\n    \"PyDictItems_Type\",\n    \"PyDictIterItem_Type\",\n    \"PyDictIterKey_Type\",\n    \"PyDictIterValue_Type\",\n    \"PyDictKeys_Type\",\n    \"PyDictProxy_New\",\n    \"PyDictProxy_Type\",\n    \"PyDictRevIterItem_Type\",\n    \"PyDictRevIterKey_Type\",\n    \"PyDictRevIterValue_Type\",\n    \"PyDictValues_Type\",\n    \"PyDict_Clear\",\n    \"PyDict_Contains\",\n    \"PyDict_Copy\",\n    \"PyDict_DelItem\",\n    \"PyDict_DelItemString\",\n    \"PyDict_GetItem\",\n    \"PyDict_GetItemRef\",\n    \"PyDict_GetItemString\",\n    \"PyDict_GetItemStringRef\",\n    \"PyDict_GetItemWithError\",\n    \"PyDict_Items\",\n    \"PyDict_Keys\",\n    \"PyDict_Merge\",\n    \"PyDict_MergeFromSeq2\",\n    \"PyDict_New\",\n    \"PyDict_Next\",\n    \"PyDict_SetDefaultRef\",\n    \"PyDict_SetItem\",\n"
+      }
+    },
+    {
+      "file": "Misc/NEWS.d/next/C_API/2026-05-01-14-49-09.gh-issue-149225.IdAYPZ.rst",
+      "old_start": 0,
+      "old_end": -1,
+      "new_start": 1,
+      "new_end": 2,
+      "context_hint": "",
+      "added_lines": [
+        ":c:type:`PyCriticalSection` and related functions are added to the Stable",
+        "ABI."
+      ],
+      "deleted_lines": [],
+      "context_lines": [],
+      "hunk_id": "HUNK-0017",
+      "changed_symbols": [
+        "c",
+        "type",
+        "PyCriticalSection",
+        "and",
+        "related",
+        "functions"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 1,
+        "snippet_end_line": 2,
+        "snippet": ":c:type:`PyCriticalSection` and related functions are added to the Stable\nABI.\n"
+      }
+    },
+    {
+      "file": "Misc/stable_abi.toml",
+      "old_start": 2689,
+      "old_end": 2694,
+      "new_start": 2689,
+      "new_end": 2716,
+      "context_hint": "",
+      "added_lines": [
+        "[function.PyCriticalSection_Begin]",
+        "    added = '3.15'",
+        "[function.PyCriticalSection_End]",
+        "    added = '3.15'",
+        "[struct.PyCriticalSection]",
+        "    added = '3.15'",
+        "    struct_abi_kind = 'full-abi'",
+        "[macro.Py_BEGIN_CRITICAL_SECTION]",
+        "    added = '3.15'",
+        "[macro.Py_END_CRITICAL_SECTION]",
+        "    added = '3.15'",
+        "[function.PyCriticalSection2_Begin]",
+        "    added = '3.15'",
+        "[function.PyCriticalSection2_End]",
+        "    added = '3.15'",
+        "[struct.PyCriticalSection2]",
+        "    added = '3.15'",
+        "    struct_abi_kind = 'full-abi'",
+        "[macro.Py_BEGIN_CRITICAL_SECTION2]",
+        "    added = '3.15'",
+        "[macro.Py_END_CRITICAL_SECTION2]",
+        "    added = '3.15'"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    added = '3.15'",
+        "[function.PyType_GetModuleByToken_DuringGC]",
+        "    added = '3.15'",
+        "",
+        "# PEP 757 import/export API.",
+        "[function.PyLong_GetNativeLayout]"
+      ],
+      "hunk_id": "HUNK-0018",
+      "changed_symbols": [
+        "function",
+        "PyCriticalSection_Begin",
+        "added",
+        "PyCriticalSection_End",
+        "PyCriticalSection",
+        "struct_abi_kind"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 2660,
+        "snippet_end_line": 2741,
+        "snippet": "    added = '3.15'\n[const.Py_mod_state_clear]\n    added = '3.15'\n[const.Py_mod_state_free]\n    added = '3.15'\n[const.Py_mod_token]\n    added = '3.15'\n[function.PyDict_SetDefaultRef]\n    added = '3.15'\n[function.Py_SIZE]\n    # Before 3.15, this was a macro that accessed the PyObject member\n    added = '3.15'\n[function.Py_IS_TYPE]\n    # Before 3.15, this was a macro that accessed the PyObject member\n    added = '3.15'\n[function.Py_SET_SIZE]\n    # Before 3.15, this was a macro that accessed the PyObject member\n    added = '3.15'\n[function.PyObject_GetTypeData_DuringGC]\n    added = '3.15'\n[function.PyType_GetModuleState_DuringGC]\n    added = '3.15'\n[function.PyModule_GetState_DuringGC]\n    added = '3.15'\n[function.PyModule_GetToken_DuringGC]\n    added = '3.15'\n[function.PyType_GetBaseByToken_DuringGC]\n    added = '3.15'\n[function.PyType_GetModule_DuringGC]\n    added = '3.15'\n[function.PyType_GetModuleByToken_DuringGC]\n    added = '3.15'\n[function.PyCriticalSection_Begin]\n    added = '3.15'\n[function.PyCriticalSection_End]\n    added = '3.15'\n[struct.PyCriticalSection]\n    added = '3.15'\n    struct_abi_kind = 'full-abi'\n[macro.Py_BEGIN_CRITICAL_SECTION]\n    added = '3.15'\n[macro.Py_END_CRITICAL_SECTION]\n    added = '3.15'\n[function.PyCriticalSection2_Begin]\n    added = '3.15'\n[function.PyCriticalSection2_End]\n    added = '3.15'\n[struct.PyCriticalSection2]\n    added = '3.15'\n    struct_abi_kind = 'full-abi'\n[macro.Py_BEGIN_CRITICAL_SECTION2]\n    added = '3.15'\n[macro.Py_END_CRITICAL_SECTION2]\n    added = '3.15'\n\n# PEP 757 import/export API.\n[function.PyLong_GetNativeLayout]\n    added = '3.15'\n[function.PyLong_Export]\n    added = '3.15'\n[function.PyLong_FreeExport]\n    added = '3.15'\n[function.PyLongWriter_Create]\n    added = '3.15'\n[function.PyLongWriter_Finish]\n    added = '3.15'\n[function.PyLongWriter_Discard]\n    added = '3.15'\n[struct.PyLongWriter]\n    added = '3.15'\n    struct_abi_kind = 'opaque'\n[struct.PyLongLayout]\n    added = '3.15'\n    struct_abi_kind = 'full-abi'\n[struct.PyLongExport]\n    added = '3.15'\n    # Note: The `_reserved` member of this struct is for interal use only.\n    # (The definition of 'full-abi' was clarified when this entry was added.)\n    struct_abi_kind = 'full-abi'\n\n[function.PyObject_CallFinalizerFromDealloc]\n    added = '3.15'\n"
+      }
+    },
+    {
+      "file": "PC/python3dll.c",
+      "old_start": 174,
+      "old_end": 179,
+      "new_start": 174,
+      "new_end": 183,
+      "context_hint": "EXPORT_FUNC(PyCodec_XMLCharRefReplaceErrors)",
+      "added_lines": [
+        "EXPORT_FUNC(PyCriticalSection2_Begin)",
+        "EXPORT_FUNC(PyCriticalSection2_End)",
+        "EXPORT_FUNC(PyCriticalSection_Begin)",
+        "EXPORT_FUNC(PyCriticalSection_End)"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "EXPORT_FUNC(PyComplex_FromDoubles)",
+        "EXPORT_FUNC(PyComplex_ImagAsDouble)",
+        "EXPORT_FUNC(PyComplex_RealAsDouble)",
+        "EXPORT_FUNC(PyDescr_NewClassMethod)",
+        "EXPORT_FUNC(PyDescr_NewGetSet)",
+        "EXPORT_FUNC(PyDescr_NewMember)",
+        ""
+      ],
+      "hunk_id": "HUNK-0019",
+      "changed_symbols": [
+        "EXPORT_FUNC",
+        "PyCriticalSection2_Begin",
+        "PyCriticalSection2_End",
+        "PyCriticalSection_Begin",
+        "PyCriticalSection_End",
+        "__pragma"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          },
+          {
+            "name": "stable_abi",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Limited API / Stable ABI"
+          }
+        ],
+        "surface_reasons": [
+          "python_exceptions",
+          "stable_abi"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "EXPORT_FUNC",
+        "snippet_start_line": 145,
+        "snippet_end_line": 213,
+        "snippet": "EXPORT_FUNC(PyCapsule_SetDestructor)\nEXPORT_FUNC(PyCapsule_SetName)\nEXPORT_FUNC(PyCapsule_SetPointer)\nEXPORT_FUNC(PyCFunction_Call)\nEXPORT_FUNC(PyCFunction_GetFlags)\nEXPORT_FUNC(PyCFunction_GetFunction)\nEXPORT_FUNC(PyCFunction_GetSelf)\nEXPORT_FUNC(PyCFunction_New)\nEXPORT_FUNC(PyCFunction_NewEx)\nEXPORT_FUNC(PyCMethod_New)\nEXPORT_FUNC(PyCodec_BackslashReplaceErrors)\nEXPORT_FUNC(PyCodec_Decode)\nEXPORT_FUNC(PyCodec_Decoder)\nEXPORT_FUNC(PyCodec_Encode)\nEXPORT_FUNC(PyCodec_Encoder)\nEXPORT_FUNC(PyCodec_IgnoreErrors)\nEXPORT_FUNC(PyCodec_IncrementalDecoder)\nEXPORT_FUNC(PyCodec_IncrementalEncoder)\nEXPORT_FUNC(PyCodec_KnownEncoding)\nEXPORT_FUNC(PyCodec_LookupError)\nEXPORT_FUNC(PyCodec_NameReplaceErrors)\nEXPORT_FUNC(PyCodec_Register)\nEXPORT_FUNC(PyCodec_RegisterError)\nEXPORT_FUNC(PyCodec_ReplaceErrors)\nEXPORT_FUNC(PyCodec_StreamReader)\nEXPORT_FUNC(PyCodec_StreamWriter)\nEXPORT_FUNC(PyCodec_StrictErrors)\nEXPORT_FUNC(PyCodec_Unregister)\nEXPORT_FUNC(PyCodec_XMLCharRefReplaceErrors)\nEXPORT_FUNC(PyComplex_FromDoubles)\nEXPORT_FUNC(PyComplex_ImagAsDouble)\nEXPORT_FUNC(PyComplex_RealAsDouble)\nEXPORT_FUNC(PyCriticalSection2_Begin)\nEXPORT_FUNC(PyCriticalSection2_End)\nEXPORT_FUNC(PyCriticalSection_Begin)\nEXPORT_FUNC(PyCriticalSection_End)\nEXPORT_FUNC(PyDescr_NewClassMethod)\nEXPORT_FUNC(PyDescr_NewGetSet)\nEXPORT_FUNC(PyDescr_NewMember)\nEXPORT_FUNC(PyDescr_NewMethod)\nEXPORT_FUNC(PyDict_Clear)\nEXPORT_FUNC(PyDict_Contains)\nEXPORT_FUNC(PyDict_Copy)\nEXPORT_FUNC(PyDict_DelItem)\nEXPORT_FUNC(PyDict_DelItemString)\nEXPORT_FUNC(PyDict_GetItem)\nEXPORT_FUNC(PyDict_GetItemRef)\nEXPORT_FUNC(PyDict_GetItemString)\nEXPORT_FUNC(PyDict_GetItemStringRef)\nEXPORT_FUNC(PyDict_GetItemWithError)\nEXPORT_FUNC(PyDict_Items)\nEXPORT_FUNC(PyDict_Keys)\nEXPORT_FUNC(PyDict_Merge)\nEXPORT_FUNC(PyDict_MergeFromSeq2)\nEXPORT_FUNC(PyDict_New)\nEXPORT_FUNC(PyDict_Next)\nEXPORT_FUNC(PyDict_SetDefaultRef)\nEXPORT_FUNC(PyDict_SetItem)\nEXPORT_FUNC(PyDict_SetItemString)\nEXPORT_FUNC(PyDict_Size)\nEXPORT_FUNC(PyDict_Update)\nEXPORT_FUNC(PyDict_Values)\nEXPORT_FUNC(PyDictProxy_New)\nEXPORT_FUNC(PyErr_BadArgument)\nEXPORT_FUNC(PyErr_BadInternalCall)\nEXPORT_FUNC(PyErr_CheckSignals)\nEXPORT_FUNC(PyErr_Clear)\nEXPORT_FUNC(PyErr_Display)\nEXPORT_FUNC(PyErr_DisplayException)\n"
+      }
+    }
+  ]
+}

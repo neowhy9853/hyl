@@ -1,0 +1,187 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P025/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P025",
+  "base_ref": "3a2b81e919103c0be3bc60a47aaa74d34fea6e9e^",
+  "base_commit": "1516c263999d73a494af735fbbd9abb45dc027b1",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "3a2b81e919103c0be3bc60a47aaa74d34fea6e9e",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/python/cpython/commit/3a2b81e919103c0be3bc60a47aaa74d34fea6e9e",
+    "download_url": "https://github.com/python/cpython/commit/3a2b81e919103c0be3bc60a47aaa74d34fea6e9e.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P025/_patch-cache/3a2b81e91910.patch",
+    "commit": "3a2b81e919103c0be3bc60a47aaa74d34fea6e9e",
+    "base_ref_inferred": "3a2b81e919103c0be3bc60a47aaa74d34fea6e9e^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "c_project",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 2964,
+    "patch_lines": 61,
+    "diff_added_lines": 7,
+    "diff_deleted_lines": 0,
+    "diff_context_lines": 29,
+    "churn": 7,
+    "raw_hunks": 4,
+    "candidate_hunks": 4,
+    "skipped_doc_hunks": 0,
+    "changed_files": 3,
+    "candidate_context_bytes": 9155,
+    "public_candidate_hunks": 2,
+    "surface_counts": {
+      "config_keys": 4,
+      "user_visible_output": 1,
+      "tests": 2
+    },
+    "candidates_json_bytes": 20491
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 4,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.9,
+      "package_profile": "c_project",
+      "affected_surface": "sysconfig.get_platform() 返回值 — Android armv8l 平台的 platform 字符串",
+      "affected_api": {
+        "name": "sysconfig.get_platform",
+        "kind": "exported_function",
+        "language": "python"
+      },
+      "location": {
+        "file": "Lib/sysconfig/__init__.py",
+        "old_lines": [
+          694,
+          704
+        ],
+        "new_lines": [
+          694,
+          708
+        ],
+        "symbol": "get_platform"
+      },
+      "old_behavior": "在 32 位 ARM Android 运行于 64 位 ARM 内核的设备上，os.uname().machine 返回 'armv8l'。由于 'armv8l' 不在 get_platform() 内部 machine→ABI 映射字典中，dict[machine] 查找会引发 KeyError，导致该平台无法正确获取 platform 字符串。",
+      "new_behavior": "'armv8l' 被新增到映射字典中，映射为 'armeabi_v7a'（与 armv7l 相同）。get_platform() 在 armv8l Android 设备上返回 'android-<api_level>-armeabi_v7a'，不再抛出 KeyError。",
+      "compatibility_reason": "这是一个公共 API 输入契约放宽变更：get_platform() 现在接受此前被拒的 machine 值 'armv8l'。在 armv8l Android 设备上行为从 KeyError 异常变为正常返回 platform 字符串。该变更不破坏已有调用方（现有 armv7l/x86_64/i686/aarch64 行为完全不变），但会改变依赖 get_platform() 进行平台检测或 wheel tag 解析的下游代码在 armv8l 设备上的行为——从无法运行变为可以运行。该变更是向后兼容的 bug 修复。",
+      "evidence": [
+        {
+          "file": "Lib/sysconfig/__init__.py",
+          "lines": [
+            694,
+            708
+          ],
+          "snippet": "    if osname == \"android\" or sys.platform == \"android\":\n        osname = \"android\"\n        release = get_config_var(\"ANDROID_API_LEVEL\")\n\n        # Wheel tags use the ABI names from Android's own tools.\n        # When Python is running on 32-bit ARM Android on a 64-bit ARM kernel,\n        # 'os.uname().machine' is 'armv8l'. Such devices run the same userspace\n        # code as 'armv7l' devices.\n        machine = {\n            \"x86_64\": \"x86_64\",\n            \"i686\": \"x86\",\n            \"aarch64\": \"arm64_v8a\",\n            \"armv7l\": \"armeabi_v7a\",\n            \"armv8l\": \"armeabi_v7a\",\n        }[machine]"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "get_platform() 是 sysconfig 标准库模块的公开函数（无下划线前缀），属于 Python stdlib 公共 API，被广泛用于平台检测、wheel tag 解析和构建系统。",
+      "uncertainty": "armv8l 平台设备数量极少（特定 Android 硬件组合），实际影响面窄。",
+      "manual_review_required": false,
+      "recommended_review": "确认 armv8l 与 armv7l 确实共享相同的 Android ABI (armeabi_v7a)，且不会有其他需要区分的场景。",
+      "test_recommendation": "建议在 armv8l Android 设备上运行 test_get_platform 和 test_android_ext_suffix 测试用例，验证 platform 字符串和 EXT_SUFFIX 的正确性。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [
+          "additive_behavior_only",
+          "narrow_surface"
+        ],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "Lib/sysconfig/__init__.py",
+            "old_lines": [
+              694,
+              704
+            ],
+            "new_lines": [
+              694,
+              708
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

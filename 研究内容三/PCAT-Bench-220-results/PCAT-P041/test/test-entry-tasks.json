@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/glib/pca-results/407349/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/glib",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/glib/pca-results/407349/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/glib/pca-results/407349",
+  "patch_id": "407349aa255a5c2b49caa52847aca1b8311c98b2",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "_g_dbus_auth_run_server (reachable via GDBusServer/GDBusConnection public API)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "gio/gdbusauth.c",
+        "old_lines": [
+          314,
+          324
+        ],
+        "new_lines": [
+          344,
+          365
+        ],
+        "symbol": "_my_g_input_stream_read_line_safe"
+      },
+      "old_behavior": "读取D-Bus认证行时没有长度限制，客户端可以发送任意长度的行，服务器会一直读取直到收到\r\n。内存消耗不受控，存在OOM风险。",
+      "new_behavior": "新增max_line_length参数和长度检查：当读取行超过max_line_length+2字节时，立即停止读取，设置G_IO_ERROR_FAILED并返回NULL，拒绝该连接。",
+      "compatibility_reason": "GDBusServer/GDBusConnection认证过程中对客户端输入增加了行长度限制。发送过长的AUTH/DATA/BEGIN行的客户端连接会被拒绝（errno: G_IO_ERROR_FAILED）。正常D-Bus客户端行为不受影响，但之前被接受的非标准/恶意超长输入现在被拒绝。",
+      "test_recommendation": "运行gio/tests/gdbus-auth.c中的test_auth_server_read_limit测试用例验证超长行被拒绝。建议额外验证正常长度（边界附近）的认证行能正常通过。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/glib/pca-results/407349/compatibility-testing"
+}

@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/haproxy",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4",
+  "patch_id": "fb38e40",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "qc_do_build_pkt",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/quic_tx.c",
+        "old_lines": [
+          2038,
+          2043
+        ],
+        "new_lines": [
+          2038,
+          2044
+        ],
+        "symbol": "qc_do_build_pkt"
+      },
+      "old_behavior": "在 QUIC Initial 包需要填充（padding）到 QUIC_INITIAL_PACKET_MINLEN 且包类型为非 Short 时，若长度字段编码大小因 padding 而改变（len_sz_diff != 0），函数未对 len 变量做相应减少。导致后续 quic_enc_int() 编码的包长度字段比实际 PN+payload+AEAD tag 长度大 len_sz_diff 字节，发送了 wire format 不正确的 Initial 包。",
+      "new_behavior": "新增 `len -= len_sz_diff;`，在 len_sz_diff != 0 时同步减少 len 变量，使后续编码的包长度字段正确反映 PN+payload+AEAD tag 的实际长度。Initial 包的 wire format 现在符合 QUIC 规范。",
+      "compatibility_reason": "这是一个 BUG/MINOR 修复，修正了 QUIC Initial 包构建时长度字段编码值可能偏大的问题。修复前发送的包长度字段不正确（偏大），修复后长度字段正确。对于严格校验 QUIC 包长度字段的对端，旧行为可能导致连接失败（但实践中大部分 QUIC 实现对此容忍）。修复后包格式符合 RFC 9000/9001。由于这是 bug fix（使行为符合协议规范），且旧行为本身就是不合规的，实际用户/对端依赖旧行为的可能性极低。兼容性影响为低风险。",
+      "test_recommendation": "低优先级：验证已构建 QUIC 包的 wire format 正确性，可使用 tcpdump/wireshark 或 QUIC 协议单元测试验证长度字段。建议在启用 QUIC 的构建中运行 haproxy reg-tests 中与 QUIC 相关的测试集。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/compatibility-testing"
+}

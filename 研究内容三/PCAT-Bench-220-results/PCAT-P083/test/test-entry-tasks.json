@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/libsoup",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3",
+  "patch_id": "04d0a30ca93c",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "soup_message_headers_append_common",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libsoup/soup-message-headers.c",
+        "old_lines": [
+          296,
+          307
+        ],
+        "new_lines": [
+          297,
+          310
+        ],
+        "symbol": "soup_message_headers_append_common"
+      },
+      "old_behavior": "Content-Length header values that overflow uint64 in g_ascii_strtoull were accepted. Two distinct overflowing values would both saturate to G_MAXUINT64 and incorrectly pass the equality check, allowing the duplicate Content-Length header to be appended.",
+      "new_behavior": "Prior to each g_ascii_strtoull call, errno is cleared to 0. After parsing, if the value overflowed (errno == ERANGE), the function returns FALSE, rejecting the Content-Length header as invalid. Overflows are now properly detected and rejected.",
+      "compatibility_reason": "The patch tightens the input validation contract for Content-Length header parsing. Previously, overflowed values that saturated to G_MAXUINT64 were silently accepted by the library. After the patch, these same values are rejected with FALSE. Any libsoup-based HTTP client or server that relied on the old behavior (e.g., proxied traffic with malformed Content-Length headers) may experience connection failures or request rejections after update. While this is a correctness fix per RFC 9110 §8.6, it narrows the set of accepted inputs and is externally observable as changed HTTP header processing behavior.",
+      "test_recommendation": "Test with valid Content-Length values (within uint64 range), boundary values (0, 1, G_MAXUINT64), and overflow values (G_MAXUINT64+1, large numbers exceeding 2^64-1). Verify proper return value (FALSE for invalid/overflow) and that valid duplicate Content-Length headers still pass. Test whitespace variants and negative values as already covered by header-parsing-test.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/compatibility-testing"
+}

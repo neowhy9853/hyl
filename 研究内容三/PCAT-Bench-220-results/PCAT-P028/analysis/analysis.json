@@ -1,0 +1,188 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/0cd225/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/0cd225",
+  "base_ref": "HEAD",
+  "base_commit": "ea97ad8d017de0c9037451a78008a0fd60abea0c",
+  "patch_apply_status": "applied_3way",
+  "patch_apply_message": "patch applied with git apply --3way",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "0cd2255e64b4775520a6acbbb1868437fc26662d",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca_patch_0cd225.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "git",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 15057,
+    "patch_lines": 418,
+    "diff_added_lines": 178,
+    "diff_deleted_lines": 10,
+    "diff_context_lines": 142,
+    "churn": 188,
+    "raw_hunks": 19,
+    "candidate_hunks": 16,
+    "skipped_doc_hunks": 3,
+    "changed_files": 5,
+    "candidate_context_bytes": 35136,
+    "public_candidate_hunks": 13,
+    "surface_counts": {
+      "cli_options": 9,
+      "config_keys": 9,
+      "config": 8,
+      "commands": 7,
+      "proc_sys_consumers": 1,
+      "user_visible_output": 8,
+      "public_library_headers": 1,
+      "tests": 3,
+      "cli": 2
+    },
+    "candidates_json_bytes": 92417
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 5,
+    "total_candidates": 16,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "git",
+      "affected_surface": "public_library_headers",
+      "affected_api": {
+        "name": "write_midx_file_only / write_midx_file_compact",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "midx.h",
+        "old_lines": [
+          132,
+          145
+        ],
+        "new_lines": [
+          132,
+          145
+        ],
+        "symbol": "write_midx_file_only, write_midx_file_compact"
+      },
+      "old_behavior": "`write_midx_file_only()` accepted 5 parameters (source, packs_to_include, preferred_pack_name, refs_snapshot, flags). `write_midx_file_compact()` accepted 4 parameters (source, from, to, flags). Neither accepted an `incremental_base` parameter.",
+      "new_behavior": "Both `write_midx_file_only()` and `write_midx_file_compact()` now accept a new `const char *incremental_base` parameter at position 4 (before `flags`). `write_midx_file_only` now has 6 parameters; `write_midx_file_compact` now has 5 parameters.",
+      "compatibility_reason": "`midx.h` is a public header (matched by `public_library_headers` surface in the git profile). Any external code that includes `midx.h` and calls `write_midx_file_only()` or `write_midx_file_compact()` will fail to compile due to the missing parameter. The parameter is inserted before `flags`, so existing callers passing positional arguments will have their arguments misaligned. All in-tree callers (builtin/multi-pack-index.c, midx-write.c) have been updated in the same patch, but external callers linking against git's internal libraries will break.",
+      "evidence": [
+        {
+          "file": "midx.h",
+          "lines": [
+            132,
+            145
+          ],
+          "snippet": "int write_midx_file_only(struct odb_source *source,\n                         struct string_list *packs_to_include,\n                         const char *preferred_pack_name,\n                         const char *refs_snapshot,\n                         const char *incremental_base,\n                         unsigned flags);\nint write_midx_file_compact(struct odb_source *source,\n                            struct multi_pack_index *from,\n                            struct multi_pack_index *to,\n                            const char *incremental_base,\n                            unsigned flags);"
+        },
+        {
+          "file": "patch.diff",
+          "lines": [
+            302,
+            337
+          ],
+          "snippet": "--- a/midx.h\n+++ b/midx.h\n@@ -132,15 +132,17 @@ int prepare_multi_pack_index_one(struct odb_source *source);\n int write_midx_file(struct odb_source *source,\n                     const char *preferred_pack_name, const char *refs_snapshot,\n                     unsigned flags);\n int write_midx_file_only(struct odb_source *source,\n                          struct string_list *packs_to_include,\n                          const char *preferred_pack_name,\n                          const char *refs_snapshot,\n+                         const char *incremental_base,\n                          unsigned flags);\n int write_midx_file_compact(struct odb_source *source,\n                             struct multi_pack_index *from,\n                             struct multi_pack_index *to,\n+                            const char *incremental_base,\n                             unsigned flags);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "`midx.h` is included in the `public_library_headers` surface of the git profile, which covers headers used by both Git builtins and external integrations. The C function signature change is a classic compilation-breaking API change.",
+      "uncertainty": "The `public_library_headers` surface in the git profile covers all `*.h` files, but `midx.h` is primarily an internal header within the git project. External consumers of git's internal headers are uncommon. The parameter is also the last non-flags parameter and is `NULL`-able (callers can pass NULL for default behavior), which reduces actual breakage risk. However, the function protoype change is undeniably a signature change.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that no external consumers call `write_midx_file_only()` or `write_midx_file_compact()` directly. Git's own builtins have been updated. If there are external consumers (e.g., libgit users), they need to pass NULL for `incremental_base` to preserve behavior.",
+      "test_recommendation": "Run t5334-incremental-multi-pack-index.sh and t5335-compact-multi-pack-index.sh to verify that `write_midx_file_only` and `write_midx_file_compact` work correctly with and without the new `--base` / `incremental_base` parameter. These tests already cover the new `--base` option behavior.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=medium from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0016",
+            "file": "midx.h",
+            "old_lines": [
+              132,
+              141
+            ],
+            "new_lines": [
+              132,
+              144
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_library_headers"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "public_library_headers",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Headers used by Git builtins and external integrations"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=medium from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings."
+}

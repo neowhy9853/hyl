@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071",
+  "patch_id": "fd74218c456c9b6322ee9316ff16955a088f75d4",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "mod_proxy_html SAX comment handler (pcomment)",
+        "kind": "plugin_api",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "modules/filters/mod_proxy_html.c",
+        "old_lines": [
+          340,
+          340
+        ],
+        "new_lines": [
+          337,
+          340
+        ],
+        "symbol": "pcomment"
+      },
+      "old_behavior": "当 extfix 为 false（非外部修复模式）时，pcomment SAX 处理器在输出 HTML 注释之前调用 dump_content(ctx)，导致累积在 ctx->vb 中的 CDATA/文本内容被错误地提前输出到注释之前。由于该调用未将 ctx->vb.strlen 清零，后续 pendElement 在元素边界处会再次调用 dump_content(ctx) 输出相同内容，造成内容重复。",
+      "new_behavior": "pcomment 不再调用 dump_content(ctx)。累积的 CDATA/文本内容仅在正确位置（pendElement 等元素边界处）一次性输出，注释独立输出而不触发内容转储，输出顺序正确且无重复。",
+      "compatibility_reason": "修复了 r1934975 引入的回归 bug。旧代码在非 extfix 模式下输出 HTML 注释时会错误地提前转储并重复输出累积的缓冲区内容，导致 HTML 输出内容错位及重复。修复后 HTML 输出恢复正常。任何依赖旧有错误输出格式的下游消费者（如 HTML 抓取工具、代理缓存、集成测试断言）可能受到输出内容格式和顺序变化的影响。",
+      "test_recommendation": "构造包含 HTML 注释和需代理 URL 的 CDATA 文本内容的 HTML 页面，在 extfix=false 模式下通过 mod_proxy_html 代理后验证：1) 注释前后内容顺序正确；2) CDATA 内容无重复输出。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071/compatibility-testing"
+}

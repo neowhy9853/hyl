@@ -1,0 +1,134 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/git/pca-results/e21647/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/e21647/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/e21647",
+  "patch_id": "e2164742",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "add_negotiation_tips/--negotiation-restrict",
+        "kind": "cli_option",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "builtin/fetch.c",
+        "old_lines": [
+          1534,
+          1556
+        ],
+        "new_lines": [
+          1535,
+          1563
+        ],
+        "symbol": "add_negotiation_tips"
+      },
+      "old_behavior": "When --negotiation-restrict receives an unresolvable ref name (not a valid object), git dies with error message \"%s is not a valid object\".",
+      "new_behavior": "When --negotiation-restrict receives an unresolvable ref name, it is silently ignored (continue). Only missing objects that exist as ref targets still die. The error message for glob patterns that match no refs now shows the option name (--negotiation-restrict) instead of being hardcoded.",
+      "compatibility_reason": "Scripts or tools that rely on git fetch --negotiation-restrict to fail with a non-zero exit code on invalid ref names will no longer detect the error. This is a silent contract relaxation that could mask user errors or CI misconfiguration.",
+      "test_recommendation": "Test that git fetch --negotiation-restrict=invalid-ref no longer exits non-zero, and that it still fails on a valid ref name pointing to a non-existent object.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "affected_api": {
+        "name": "negotiate_using_fetch",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "fetch-pack.h",
+        "old_lines": [
+          93,
+          99
+        ],
+        "new_lines": [
+          94,
+          101
+        ],
+        "symbol": "negotiate_using_fetch"
+      },
+      "old_behavior": "void negotiate_using_fetch(const struct oid_array *negotiation_restrict_tips, const struct string_list *server_options, int stateless_rpc, int fd[], struct oidset *acked_commits)",
+      "new_behavior": "void negotiate_using_fetch(const struct oid_array *negotiation_restrict_tips, const struct string_list *server_options, int stateless_rpc, int fd[], struct oidset *acked_commits, const struct oid_array *negotiation_include_tips)",
+      "compatibility_reason": "A new parameter was appended to the function signature. Any external code or plugin that calls negotiate_using_fetch() directly will fail to compile/link unless updated. This function is declared in fetch-pack.h, which is a public header.",
+      "test_recommendation": "Verify that existing callers (transport.c) were updated. Test that calling negotiate_using_fetch with NULL for the new parameter works as before.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "downstream_compile_link_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "api_signature_compatibility",
+        "comparison": "success",
+        "required_observation": "old downstream source compiles and links against both versions",
+        "input_axes": [
+          "old declarations",
+          "language modes",
+          "compiler flags",
+          "link modes"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/e21647/compatibility-testing"
+}

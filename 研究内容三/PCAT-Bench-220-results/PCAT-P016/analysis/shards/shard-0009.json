@@ -1,0 +1,116 @@
+{
+  "shard_id": "SHARD-0009",
+  "surface": "user_visible_output",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    14
+  ],
+  "hunk_ids": [
+    "HUNK-0015"
+  ],
+  "files": [
+    "Python/import.c"
+  ],
+  "symbols": [
+    "PyDictObject",
+    "PyObject",
+    "PyObject_GetAttr",
+    "ensure_lazy_pending_submodules",
+    "get_mod_dict",
+    "lazy_modules",
+    "parent"
+  ],
+  "metrics": {
+    "hunks": 1,
+    "context_bytes": 2194
+  },
+  "candidates": [
+    {
+      "file": "Python/import.c",
+      "old_start": 4338,
+      "old_end": 4344,
+      "new_start": 4344,
+      "new_end": 4350,
+      "context_hint": "get_mod_dict(PyObject *module)",
+      "added_lines": [
+        "ensure_lazy_pending_submodules(PyDictObject *lazy_modules, PyObject *parent)"
+      ],
+      "deleted_lines": [
+        "ensure_lazy_submodules(PyDictObject *lazy_modules, PyObject *parent)"
+      ],
+      "context_lines": [
+        "// ensure we have the set for the parent module name in sys.lazy_modules.",
+        "// Returns a new reference.",
+        "static PyObject *",
+        "{",
+        "    PyObject *lazy_submodules;",
+        "    Py_BEGIN_CRITICAL_SECTION(lazy_modules);"
+      ],
+      "hunk_id": "HUNK-0015",
+      "changed_symbols": [
+        "get_mod_dict",
+        "ensure_lazy_pending_submodules",
+        "PyDictObject",
+        "lazy_modules",
+        "PyObject",
+        "parent",
+        "PyObject_GetAttr"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "get_mod_dict",
+        "snippet_start_line": 4309,
+        "snippet_end_line": 4380,
+        "snippet": "    }\n    else {\n        int has_path = PyObject_HasAttrWithError(mod, &_Py_ID(__path__));\n        if (has_path < 0) {\n            goto error;\n        }\n        if (has_path) {\n            final_mod = PyObject_CallMethodObjArgs(\n                        IMPORTLIB(interp), &_Py_ID(_handle_fromlist),\n                        mod, fromlist, IMPORT_FUNC(interp), NULL);\n        }\n        else {\n            final_mod = Py_NewRef(mod);\n        }\n    }\n\n  error:\n    Py_XDECREF(abs_name);\n    Py_XDECREF(mod);\n    if (final_mod == NULL) {\n        remove_importlib_frames(tstate);\n    }\n    return final_mod;\n}\n\nstatic PyObject *\nget_mod_dict(PyObject *module)\n{\n    if (PyModule_Check(module)) {\n        return Py_NewRef(_PyModule_GetDict(module));\n    }\n\n    return PyObject_GetAttr(module, &_Py_ID(__dict__));\n}\n\n// ensure we have the set for the parent module name in sys.lazy_modules.\n// Returns a new reference.\nstatic PyObject *\nensure_lazy_pending_submodules(PyDictObject *lazy_modules, PyObject *parent)\n{\n    PyObject *lazy_submodules;\n    Py_BEGIN_CRITICAL_SECTION(lazy_modules);\n    int err = _PyDict_GetItemRef_Unicode_LockHeld(lazy_modules, parent,\n                                                  &lazy_submodules);\n    if (err == 0) {\n        // value isn't present\n        lazy_submodules = PySet_New(NULL);\n        if (lazy_submodules != NULL &&\n            _PyDict_SetItem_LockHeld(lazy_modules, parent,\n                                     lazy_submodules) < 0) {\n            Py_CLEAR(lazy_submodules);\n        }\n    }\n    Py_END_CRITICAL_SECTION();\n    return lazy_submodules;\n}\n\n// Ensures that we have a LazyImportObject on the parent module for\n// all children modules which have been lazily imported. If the parent\n// module overrides the child attribute then the value is not replaced.\nstatic int\nregister_lazy_on_parent(PyThreadState *tstate, PyObject *name,\n                        PyObject *builtins)\n{\n    int ret = -1;\n    PyObject *parent = NULL;\n    PyObject *child = NULL;\n    PyObject *parent_module = NULL;\n    PyObject *parent_dict = NULL;\n\n    PyInterpreterState *interp = tstate->interp;\n    PyObject *lazy_pending_submodules = LAZY_PENDING_SUBMODULES(interp);\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

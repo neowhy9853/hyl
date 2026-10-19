@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/ca30c8/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/ca30c8/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/ca30c8",
+  "patch_id": "ca30c82",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "answer_auth",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/auth.c",
+        "old_lines": [
+          669,
+          677
+        ],
+        "new_lines": [
+          667,
+          677
+        ],
+        "symbol": "answer_auth"
+      },
+      "old_behavior": "在配置了 --auth-server（无interface）和 --auth-secondary 的权威 DNS 服务器上，当 NS 查询到达时，answer_auth() 为 secondary forward server 构造 NS 记录时使用正数 offset 作为 nameoffset 参数，且直接使用 secondary->name 作为记录名字。当 offset==0 时，这会用 secondary 服务器名替代区域名作为 NS 记录的属主名，产生 NS 响应的名字字段编码错误（\"mangled\"）。",
+      "new_behavior": "answer_auth() 为 secondary forward server 构造 NS 记录时改为使用负数 -offset 作为 nameoffset，同时使用 offset==0 ? authname : NULL 作为名字参数。当 offset==0 时，使用 authname（区域名）作为 NS 记录的属主名，并在成功后设置 offset = newoffset。这种方式与已有 authinterface 分支完全一致，确保 NS 记录的属主名正确编码为区域名。",
+      "compatibility_reason": "该补丁修复了特定配置下的 DNS NS 响应格式错误。虽然变更了 DNS 协议响应的线上格式，但旧行为是明确的 bug（mangled/wrong 响应），且仅在特定配置（--auth-server 无interface + --auth-secondary）下由 NS 查询触发。任何依赖旧 mangled 响应的客户端实际收到的是不符合 DNS 协议规范的响应。因此兼容性影响很小——这是 bug fix 导致的正确行为变化。",
+      "test_recommendation": "构造特定配置的 DNS NS 查询测试：1) 配置 --auth-server=</zone>（不指定interface）和 --auth-secondary；2) 对该 zone 发起 NS 类型查询，验证响应 RR 的 owner name 正确使用区域名而非 secondary server 名。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/ca30c8/compatibility-testing"
+}

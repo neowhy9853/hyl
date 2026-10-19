@@ -1,0 +1,20 @@
+{
+  "run_id": "run-c987f8b9f97e",
+  "attempt_id": "attempt-03490a718c43",
+  "task_id": "PCAT-P058",
+  "summary": "## PCA 补丁兼容性分析与定向测试报告\n\n**补丁**: dnsmasq `c090f1d` - \"Terminate TCP child processes that arise from UDP truncated replies\"\n\n### 分析结果\n分析识别出 **2 个兼容性变更 finding**（均为 MEDIUM 优先级）：\n\n1. **PCA-0001 (RESOURCE_LIFETIME_CHANGE)**: `swap_to_tcp()` 新增 `alarm(CHILD_LIFETIME)` 为 DNSSEC TCP 子进程设置 150s 超时。此前 DNSSEC TCP 子进程无超时机制，当上游不响应时可能永久挂起。\n2. **PCA-0002 (SIDE_EFFECT_CHANGE)**: `sig_handler()` 中 SIGALRM 处理变更——DNSSEC TCP 子进程超时时通过管道发送 `PIPE_OP_KILLED` 通知父进程并记录日志，而非静默退出。\n\n### 测试结果\n- **状态**: `partial`（无法在沙箱中创建受控网络环境执行完整的 DNSSEC TCP 超时测试）\n- **构建**: 前后二进制均成功构建（`gcc -O0 -g --coverage -DHAVE_DNSSEC`），42 个 `.gcno` 文件\n- **基本行为**: `--version` 仅有预期版本差异，`--help` 输出完全一致\n- **覆盖率**: 变更代码行为 DNSSEC TCP 转发路径，基本启动测试无法覆盖（gcov 确认所有变更行标记 `#####`）\n- **阻塞原因**: 需要网络命名空间/容器创建受控上游 TCP 黑盒监听器\n\n### 产物目录\n- 分析结果: `pca-results/c090f1/analysis.json`\n- 测试结果: `pca-results/c090f1/compatibility-testing/`\n- 覆盖率报告: `pca-results/c090f1/compatibility-testing/COVERAGE_REPORT.md`\n\n所有 worktree 已清理。",
+  "artifact_path": "",
+  "metadata": {
+    "patch_id": "c090f1d17b280c98630914334d341a2fa3318117",
+    "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+    "findings_count": 2,
+    "high_priority": 0,
+    "medium_priority": 2,
+    "low_priority": 0,
+    "test_status": "partial",
+    "backward_compatibility": "inconclusive",
+    "coverage_rate": 0,
+    "worktree_cleaned": true,
+    "analysis_validated": true
+  }
+}

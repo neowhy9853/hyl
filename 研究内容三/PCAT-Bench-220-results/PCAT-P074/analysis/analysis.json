@@ -1,0 +1,236 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/lvm2",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/19b79b/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/19b79b",
+  "base_ref": "19b79b4d9625b379848559ece3507a189c0b89b8^",
+  "base_commit": "a83165b7d71e40d9ef2238b6775169200766554f",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "19b79b4d9625b379848559ece3507a189c0b89b8",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/19b79b4d9625b379848559ece3507a189c0b89b8.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "lvm2",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 479,
+    "patch_lines": 13,
+    "diff_added_lines": 1,
+    "diff_deleted_lines": 1,
+    "diff_context_lines": 6,
+    "churn": 2,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 1876,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "public_headers": 1,
+      "cli_options": 1,
+      "config_keys": 1,
+      "user_visible_output": 1,
+      "cli": 1,
+      "logging": 1,
+      "cli_tools": 1,
+      "config_metadata": 1
+    },
+    "candidates_json_bytes": 7762
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "confidence": 1.0,
+      "package_profile": "lvm2",
+      "affected_surface": "CLI 诊断信息输出格式",
+      "affected_api": {
+        "name": "dumpconfig --valuesonly --type list/--list",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "tools/dumpconfig.c",
+        "old_lines": [
+          331,
+          337
+        ],
+        "new_lines": [
+          331,
+          337
+        ],
+        "symbol": "dumpconfig"
+      },
+      "old_behavior": "当用户同时指定 --valuesonly 与 --type list 或 --list 时，lvm dumpconfig 通过 log_err 输出错误信息 \"--valuesonly has no effect with --type list or --list\"。log_err 与 log_error 在宏展开上是同一实现 (log_error(args...) = log_err(args))，均使用 LOG_LINE_WITH_ERRNO(_LOG_ERR, EUNCLASSIFIED, ...)",
+      "new_behavior": "同一条件下改用 log_error（行为与 log_err 完全相同，属于别名级变更），错误消息末尾增加句点，变为 \"--valuesonly has no effect with --type list or --list.\"",
+      "compatibility_reason": "用户可见的错误诊断消息文本发生微小变化（末尾增加句点）。虽然 log_err/log_error 在 lvm2 中是相同宏，但直接文本输出变化可能影响对错误消息做精确匹配的回归测试断言或外部工具。",
+      "evidence": [
+        {
+          "file": "tools/dumpconfig.c",
+          "lines": [
+            331,
+            337
+          ],
+          "snippet": "\t\tif (arg_is_set(cmd, valuesonly_ARG)) {\n\t\t\tlog_error(\"--valuesonly has no effect with --type list or --list.\");\n\t\t\treturn EINVALID_CMD_LINE;\n\t\t}"
+        },
+        {
+          "file": "lib/log/log.h",
+          "lines": [
+            105,
+            117
+          ],
+          "snippet": "#define log_err(x...) LOG_LINE_WITH_ERRNO(_LOG_ERR, EUNCLASSIFIED, x)\n#define log_error(args...) log_err(args)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "变更发生在 CLI 工具 lvm 的 dumpconfig 命令的错误输出路径中，影响的是用户可见的 stdout/stderr 诊断消息，属于外部可观察输出。",
+      "uncertainty": "log_err 与 log_error 在 log.h 中定义为相同宏展开，无日志级别或格式差异。唯一确凿的外部可观察变化是错误消息字符串内容（末尾句点的增加）。",
+      "manual_review_required": false,
+      "recommended_review": "确认是否有回归测试脚本通过精确字符串匹配检查 dumpconfig 的 --valuesonly 与 --type list/--list 组合的错误输出。",
+      "test_recommendation": "构造 lvm dumpconfig --valuesonly --type list 命令，比较实际 stderr 输出是否包含句点。同时验证 --withcomments、--withlocalpreamble、--withgeneralpreamble 等其他同类检查的错误消息格式是否一致（无句点）。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "tools/dumpconfig.c",
+            "old_lines": [
+              331,
+              337
+            ],
+            "new_lines": [
+              331,
+              337
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "cli_options",
+              "config_keys",
+              "user_visible_output",
+              "cli",
+              "logging",
+              "cli_tools",
+              "config_metadata"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "liblvm and device-mapper public/API-like headers"
+              },
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "cli_tools",
+                "test_priority": "high",
+                "public": true,
+                "description": "LVM command-line syntax, options, and exit behavior"
+              },
+              {
+                "name": "config_metadata",
+                "test_priority": "high",
+                "public": true,
+                "description": "lvm.conf, profiles, metadata format, and parsing behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings."
+}

@@ -1,0 +1,249 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/glib",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/glib/pca-results/407349/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/glib/pca-results/407349",
+  "base_ref": "91adfd09b",
+  "base_commit": "91adfd09b24aa3e7dd632597faabe1ed386a9aef",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "available",
+  "patch_id": "407349aa255a5c2b49caa52847aca1b8311c98b2",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca-glib-patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "glib2",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "normal",
+  "heavy_reason": [
+    "user requested normal mode; no hard threshold exceeded"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 10102,
+    "patch_lines": 257,
+    "diff_added_lines": 163,
+    "diff_deleted_lines": 0,
+    "diff_context_lines": 72,
+    "churn": 163,
+    "raw_hunks": 9,
+    "candidate_hunks": 9,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 36227,
+    "public_candidate_hunks": 7,
+    "surface_counts": {
+      "cli_options": 4,
+      "user_visible_output": 9,
+      "cli": 4,
+      "daemon_control": 9,
+      "gio_behavior": 9,
+      "ioctl_netlink_consumers": 8,
+      "ioctl_netlink": 8,
+      "network_protocol": 3,
+      "persistence_state": 3,
+      "callbacks": 2,
+      "environment_variables": 2,
+      "env_vars": 2
+    },
+    "candidates_json_bytes": 86370
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 9,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.75,
+      "package_profile": "glib2",
+      "affected_surface": "gio_behavior, daemon_control, network_protocol",
+      "affected_api": {
+        "name": "_g_dbus_auth_run_server (reachable via GDBusServer/GDBusConnection public API)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "gio/gdbusauth.c",
+        "old_lines": [
+          314,
+          324
+        ],
+        "new_lines": [
+          344,
+          365
+        ],
+        "symbol": "_my_g_input_stream_read_line_safe"
+      },
+      "old_behavior": "读取D-Bus认证行时没有长度限制，客户端可以发送任意长度的行，服务器会一直读取直到收到\r\n。内存消耗不受控，存在OOM风险。",
+      "new_behavior": "新增max_line_length参数和长度检查：当读取行超过max_line_length+2字节时，立即停止读取，设置G_IO_ERROR_FAILED并返回NULL，拒绝该连接。",
+      "compatibility_reason": "GDBusServer/GDBusConnection认证过程中对客户端输入增加了行长度限制。发送过长的AUTH/DATA/BEGIN行的客户端连接会被拒绝（errno: G_IO_ERROR_FAILED）。正常D-Bus客户端行为不受影响，但之前被接受的非标准/恶意超长输入现在被拒绝。",
+      "evidence": [
+        {
+          "file": "gio/gdbusauth.c",
+          "lines": [
+            344,
+            365
+          ],
+          "snippet": "g_assert (max_line_length <= SIZE_MAX - 2);\n...\nif (str->len >= max_line_length + 2  /* allow for \\r\\n */)\n{\n  g_set_error_literal (error,\n                       G_IO_ERROR,\n                       G_IO_ERROR_FAILED,\n                       _(\"Malformed D-Bus authentication line\"));\n  goto fail;\n}"
+        },
+        {
+          "file": "gio/gdbusauth.c",
+          "lines": [
+            1114,
+            1118
+          ],
+          "snippet": "line = _my_g_input_stream_read_line_safe (...,\n  strlen(\"AUTH \") + get_longest_mechanism_name_length(auth) + strlen(\" \") + MAX_DATA_PAYLOAD_LENGTH_BYTES,\n  ...);"
+        },
+        {
+          "file": "gio/gdbusauth.c",
+          "lines": [
+            1336,
+            1340
+          ],
+          "snippet": "line = _my_g_input_stream_read_line_safe (...,\n  strlen(\"DATA \") + MAX_DATA_PAYLOAD_LENGTH_BYTES,\n  ...);"
+        },
+        {
+          "file": "gio/gdbusauth.c",
+          "lines": [
+            1379,
+            1383
+          ],
+          "snippet": "line = _my_g_input_stream_read_line_safe (...,\n  MAX(strlen(\"BEGIN\"), strlen(\"NEGOTIATE_UNIX_FD\")),\n  ...);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "虽然_g_dbus_auth_run_server是内部函数，但它通过GDBusConnection从公共API GDBusServer->g_dbus_server_start()调用链可达。认证行为的变化直接影响D-Bus服务器对客户端连接的处理，是外部可观察的协议层行为变更。",
+      "uncertainty": "长度阈值(4096字节)较为宽松，正常D-Bus客户端不会触发此限制。只有发送超长行或恶意的客户端会受影响。",
+      "manual_review_required": false,
+      "recommended_review": "确认MAX_DATA_PAYLOAD_LENGTH_BYTES=4096对于所有使用场景是否足够。检查是否有已知的D-Bus扩展机制需要更长的认证行。",
+      "test_recommendation": "运行gio/tests/gdbus-auth.c中的test_auth_server_read_limit测试用例验证超长行被拒绝。建议额外验证正常长度（边界附近）的认证行能正常通过。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0004",
+            "file": "gio/gdbusauth.c",
+            "old_lines": [
+              314,
+              324
+            ],
+            "new_lines": [
+              344,
+              365
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "ioctl_netlink_consumers",
+              "cli_options",
+              "user_visible_output",
+              "ioctl_netlink",
+              "cli",
+              "daemon_control",
+              "gio_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "ioctl_netlink_consumers",
+                "test_priority": "high",
+                "public": true,
+                "description": "ioctl and netlink ABI consumers or producers."
+              },
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "ioctl_netlink",
+                "test_priority": "high",
+                "public": true,
+                "description": "ioctl command, netlink attribute, and kernel ABI consumers"
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "daemon_control",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control, metrics, and administration interfaces."
+              },
+              {
+                "name": "gio_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "I/O, DBus, settings, and network behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

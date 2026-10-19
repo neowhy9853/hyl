@@ -1,0 +1,85 @@
+{
+  "inputs": [
+    {
+      "input_id": "I1-layout-before",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/if_link.h:37-42"],
+      "branch_targeted": "before headers_install layout",
+      "input_type": "uapi_compile_layout",
+      "command": "runtime-netlink/results/layout.before",
+      "expected_output": "size=96 align=4 stride=96 off_rx_nohandler=92",
+      "reachability_signal": "LAYOUT_RESULT header=before",
+      "setup_required": "before headers_install",
+      "dependencies": ["gcc"]
+    },
+    {
+      "input_id": "I2-layout-after",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/if_link.h:37-43"],
+      "branch_targeted": "after headers_install layout and new field offset",
+      "input_type": "uapi_compile_layout",
+      "command": "runtime-netlink/results/layout.after",
+      "expected_output": "size=100 align=4 stride=100 off_rx_nohandler=92 off_rx_dropped_by_xdp=96",
+      "reachability_signal": "LAYOUT_RESULT header=after",
+      "setup_required": "after headers_install",
+      "dependencies": ["gcc"]
+    },
+    {
+      "input_id": "I3-rtnetlink-before-native",
+      "finding_id": "PCA-0001",
+      "target_lines": ["net/core/rtnetlink.c:1263-1268"],
+      "branch_targeted": "RTM_GETLINK known operation with native before UAPI",
+      "input_type": "netlink_route_dump",
+      "command": "bash runtime-netlink/run_vm.sh before",
+      "expected_output": "payload_len=96 strict_old_accept=1 prefix_old_accept=1 native_exact=1",
+      "reachability_signal": "NETLINK_RUNTIME_RESULT label=before and DONE success=1",
+      "setup_required": "before bzImage with static /init",
+      "dependencies": ["qemu-system-x86_64"]
+    },
+    {
+      "input_id": "I4-rtnetlink-after-native",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/if_link.h:40", "net/core/rtnetlink.c:1263-1268"],
+      "branch_targeted": "RTM_GETLINK known operation with native after UAPI control",
+      "input_type": "netlink_route_dump",
+      "command": "bash runtime-netlink/run_vm.sh after",
+      "expected_output": "payload_len=100 strict_old_accept=0 prefix_old_accept=1 native_exact=1",
+      "reachability_signal": "NETLINK_RUNTIME_RESULT label=after and DONE success=1",
+      "setup_required": "after bzImage with native after-header static /init",
+      "dependencies": ["qemu-system-x86_64"]
+    },
+    {
+      "input_id": "I5-rtnetlink-after-oldheader",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/if_link.h:40", "net/core/rtnetlink.c:1263-1268"],
+      "branch_targeted": "old 96-byte strict consumer versus compatible-prefix consumer on after kernel",
+      "input_type": "netlink_old_consumer",
+      "command": "bash runtime-netlink/run_vm.sh after-oldheader",
+      "expected_output": "compiled_size=96 payload_len=100 strict_old_accept=0 prefix_old_accept=1 native_exact=0",
+      "reachability_signal": "NETLINK_RUNTIME_RESULT label=after_oldheader and DONE success=1",
+      "setup_required": "after bzImage plus external initramfs containing before-header probe",
+      "dependencies": ["qemu-system-x86_64", "gen_init_cpio"]
+    },
+    {
+      "input_id": "I6-compat32-toolchain-check",
+      "finding_id": "PCA-0001",
+      "target_lines": ["include/uapi/linux/if_link.h:40"],
+      "branch_targeted": "32-bit compat compile availability",
+      "input_type": "toolchain_capability",
+      "command": "gcc -m32 -fsyntax-only -I runtime-netlink/headers/after/include runtime-netlink/layout_probe.c",
+      "expected_output": "successful syntax check if 32-bit libc development headers are installed",
+      "reachability_signal": "compiler exit status and diagnostic log",
+      "setup_required": "host multilib headers",
+      "dependencies": ["gcc multilib"]
+    }
+  ],
+  "diversity": {
+    "known_operation": true,
+    "native_before": true,
+    "native_after": true,
+    "old_strict_size": true,
+    "old_prefix_size": true,
+    "compat32_attempted": true,
+    "unknown_or_nested_attributes": "not applicable: patch changes reply-only fixed IFLA_STATS payload, not request attribute policy"
+  }
+}

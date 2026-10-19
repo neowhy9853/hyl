@@ -1,0 +1,265 @@
+{
+  "shard_id": "SHARD-0003",
+  "surface": "internal_or_unknown",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    12,
+    16,
+    17
+  ],
+  "hunk_ids": [
+    "HUNK-0013",
+    "HUNK-0017",
+    "HUNK-0018"
+  ],
+  "files": [
+    "Python/import.c"
+  ],
+  "symbols": [
+    "LAZY_MODULES",
+    "LAZY_PENDING_SUBMODULES",
+    "NULL",
+    "_PyImport_InitLazyModules",
+    "assert",
+    "import_get_module",
+    "interp",
+    "PyObject",
+    "ensure_lazy_pending_submodules",
+    "lazy_pending_submodules",
+    "register_lazy_on_parent",
+    "PyDictObject",
+    "Py_XDECREF",
+    "lazy_submodules"
+  ],
+  "metrics": {
+    "hunks": 3,
+    "context_bytes": 7626
+  },
+  "candidates": [
+    {
+      "file": "Python/import.c",
+      "old_start": 271,
+      "old_end": 278,
+      "new_start": 273,
+      "new_end": 283,
+      "context_hint": "import_get_module(PyThreadState *tstate, PyObject *name)",
+      "added_lines": [
+        "    assert(LAZY_MODULES(interp) == NULL &&",
+        "           LAZY_PENDING_SUBMODULES(interp) == NULL);",
+        "",
+        "    LAZY_PENDING_SUBMODULES(interp) = PyDict_New();",
+        "    LAZY_MODULES(interp) = PySet_New(0);"
+      ],
+      "deleted_lines": [
+        "    assert(LAZY_MODULES(interp) == NULL);",
+        "    LAZY_MODULES(interp) = PyDict_New();"
+      ],
+      "context_lines": [
+        "PyObject *",
+        "_PyImport_InitLazyModules(PyInterpreterState *interp)",
+        "{",
+        "    return LAZY_MODULES(interp);",
+        "}",
+        ""
+      ],
+      "hunk_id": "HUNK-0013",
+      "changed_symbols": [
+        "import_get_module",
+        "assert",
+        "LAZY_MODULES",
+        "interp",
+        "NULL",
+        "LAZY_PENDING_SUBMODULES",
+        "_PyImport_InitLazyModules"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "import_get_module",
+        "snippet_start_line": 242,
+        "snippet_end_line": 313,
+        "snippet": "int\n_PyImport_SetModule(PyObject *name, PyObject *m)\n{\n    PyThreadState *tstate = _PyThreadState_GET();\n    PyObject *modules = get_modules_dict(tstate, true);\n    return PyObject_SetItem(modules, name, m);\n}\n\nint\n_PyImport_SetModuleString(const char *name, PyObject *m)\n{\n    PyThreadState *tstate = _PyThreadState_GET();\n    PyObject *modules = get_modules_dict(tstate, true);\n    return PyMapping_SetItemString(modules, name, m);\n}\n\nstatic PyObject *\nimport_get_module(PyThreadState *tstate, PyObject *name)\n{\n    PyObject *modules = get_modules_dict(tstate, false);\n    if (modules == NULL) {\n        return NULL;\n    }\n\n    PyObject *m;\n    Py_INCREF(modules);\n    (void)PyMapping_GetOptionalItem(modules, name, &m);\n    Py_DECREF(modules);\n    return m;\n}\n\nPyObject *\n_PyImport_InitLazyModules(PyInterpreterState *interp)\n{\n    assert(LAZY_MODULES(interp) == NULL &&\n           LAZY_PENDING_SUBMODULES(interp) == NULL);\n\n    LAZY_PENDING_SUBMODULES(interp) = PyDict_New();\n    LAZY_MODULES(interp) = PySet_New(0);\n    return LAZY_MODULES(interp);\n}\n\nvoid\n_PyImport_ClearLazyModules(PyInterpreterState *interp)\n{\n    Py_CLEAR(LAZY_MODULES(interp));\n    Py_CLEAR(LAZY_PENDING_SUBMODULES(interp));\n}\n\nstatic int\nimport_ensure_initialized(PyInterpreterState *interp, PyObject *mod, PyObject *name)\n{\n    PyObject *spec;\n\n    /* Optimization: only call _bootstrap._lock_unlock_module() if\n       __spec__._initializing is true.\n       NOTE: because of this, initializing must be set *before*\n       stuffing the new module in sys.modules.\n    */\n    int rc = PyObject_GetOptionalAttr(mod, &_Py_ID(__spec__), &spec);\n    if (rc > 0) {\n        rc = _PyModuleSpec_IsInitializing(spec);\n        Py_DECREF(spec);\n    }\n    if (rc == 0) {\n        goto done;\n    }\n    else if (rc < 0) {\n        return rc;\n    }\n\n    /* Wait until module is done importing. */\n"
+      }
+    },
+    {
+      "file": "Python/import.c",
+      "old_start": 4368,
+      "old_end": 4383,
+      "new_start": 4377,
+      "new_end": 4392,
+      "context_hint": "register_lazy_on_parent(PyThreadState *tstate, PyObject *name,",
+      "added_lines": [
+        "    PyObject *lazy_pending_submodules = LAZY_PENDING_SUBMODULES(interp);",
+        "    assert(lazy_pending_submodules != NULL);",
+        "            PyObject *lazy_submodules = ensure_lazy_pending_submodules(",
+        "                (PyDictObject *)lazy_pending_submodules, name);"
+      ],
+      "deleted_lines": [
+        "    PyObject *lazy_modules = LAZY_MODULES(interp);",
+        "    assert(lazy_modules != NULL);",
+        "            PyObject *lazy_submodules = ensure_lazy_submodules(",
+        "                (PyDictObject *)lazy_modules, name);"
+      ],
+      "context_lines": [
+        "    PyObject *parent_dict = NULL;",
+        "",
+        "    PyInterpreterState *interp = tstate->interp;",
+        "",
+        "    Py_INCREF(name);",
+        "    while (true) {",
+        "        Py_ssize_t dot = PyUnicode_FindChar(name, '.', 0,",
+        "                                            PyUnicode_GET_LENGTH(name), -1);",
+        "        if (dot < 0) {",
+        "            if (lazy_submodules == NULL) {",
+        "                goto done;",
+        "            }"
+      ],
+      "hunk_id": "HUNK-0017",
+      "changed_symbols": [
+        "register_lazy_on_parent",
+        "PyObject",
+        "lazy_pending_submodules",
+        "LAZY_PENDING_SUBMODULES",
+        "interp",
+        "assert",
+        "ensure_lazy_pending_submodules",
+        "LAZY_MODULES"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "register_lazy_on_parent",
+        "snippet_start_line": 4339,
+        "snippet_end_line": 4422,
+        "snippet": "    }\n\n    return PyObject_GetAttr(module, &_Py_ID(__dict__));\n}\n\n// ensure we have the set for the parent module name in sys.lazy_modules.\n// Returns a new reference.\nstatic PyObject *\nensure_lazy_pending_submodules(PyDictObject *lazy_modules, PyObject *parent)\n{\n    PyObject *lazy_submodules;\n    Py_BEGIN_CRITICAL_SECTION(lazy_modules);\n    int err = _PyDict_GetItemRef_Unicode_LockHeld(lazy_modules, parent,\n                                                  &lazy_submodules);\n    if (err == 0) {\n        // value isn't present\n        lazy_submodules = PySet_New(NULL);\n        if (lazy_submodules != NULL &&\n            _PyDict_SetItem_LockHeld(lazy_modules, parent,\n                                     lazy_submodules) < 0) {\n            Py_CLEAR(lazy_submodules);\n        }\n    }\n    Py_END_CRITICAL_SECTION();\n    return lazy_submodules;\n}\n\n// Ensures that we have a LazyImportObject on the parent module for\n// all children modules which have been lazily imported. If the parent\n// module overrides the child attribute then the value is not replaced.\nstatic int\nregister_lazy_on_parent(PyThreadState *tstate, PyObject *name,\n                        PyObject *builtins)\n{\n    int ret = -1;\n    PyObject *parent = NULL;\n    PyObject *child = NULL;\n    PyObject *parent_module = NULL;\n    PyObject *parent_dict = NULL;\n\n    PyInterpreterState *interp = tstate->interp;\n    PyObject *lazy_pending_submodules = LAZY_PENDING_SUBMODULES(interp);\n    assert(lazy_pending_submodules != NULL);\n\n    Py_INCREF(name);\n    while (true) {\n        Py_ssize_t dot = PyUnicode_FindChar(name, '.', 0,\n                                            PyUnicode_GET_LENGTH(name), -1);\n        if (dot < 0) {\n            PyObject *lazy_submodules = ensure_lazy_pending_submodules(\n                (PyDictObject *)lazy_pending_submodules, name);\n            if (lazy_submodules == NULL) {\n                goto done;\n            }\n            Py_DECREF(lazy_submodules);\n            ret = 0;\n            goto done;\n        }\n        parent = PyUnicode_Substring(name, 0, dot);\n        // If `parent` is NULL then this has hit the end of the import, no\n        // more \"parent.child\" in the import name. The entire import will be\n        // resolved lazily.\n        if (parent == NULL) {\n            goto done;\n        }\n        Py_XDECREF(child);\n        child = PyUnicode_Substring(name, dot + 1, PyUnicode_GET_LENGTH(name));\n        if (child == NULL) {\n            goto done;\n        }\n\n        // Record the child as being lazily imported from the parent.\n        PyObject *lazy_submodules = ensure_lazy_pending_submodules(\n            (PyDictObject *)lazy_pending_submodules, parent);\n        if (lazy_submodules == NULL) {\n            goto done;\n        }\n\n        if (PySet_Add(lazy_submodules, child) < 0) {\n            Py_DECREF(lazy_submodules);\n            goto done;\n        }\n        Py_DECREF(lazy_submodules);\n\n"
+      }
+    },
+    {
+      "file": "Python/import.c",
+      "old_start": 4399,
+      "old_end": 4406,
+      "new_start": 4408,
+      "new_end": 4415,
+      "context_hint": "register_lazy_on_parent(PyThreadState *tstate, PyObject *name,",
+      "added_lines": [
+        "        PyObject *lazy_submodules = ensure_lazy_pending_submodules(",
+        "            (PyDictObject *)lazy_pending_submodules, parent);"
+      ],
+      "deleted_lines": [
+        "        PyObject *lazy_submodules = ensure_lazy_submodules(",
+        "            (PyDictObject *)lazy_modules, parent);"
+      ],
+      "context_lines": [
+        "        }",
+        "",
+        "        // Record the child as being lazily imported from the parent.",
+        "        if (lazy_submodules == NULL) {",
+        "            goto done;",
+        "        }"
+      ],
+      "hunk_id": "HUNK-0018",
+      "changed_symbols": [
+        "register_lazy_on_parent",
+        "PyObject",
+        "lazy_submodules",
+        "ensure_lazy_pending_submodules",
+        "PyDictObject",
+        "lazy_pending_submodules",
+        "Py_XDECREF"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "register_lazy_on_parent",
+        "snippet_start_line": 4370,
+        "snippet_end_line": 4445,
+        "snippet": "register_lazy_on_parent(PyThreadState *tstate, PyObject *name,\n                        PyObject *builtins)\n{\n    int ret = -1;\n    PyObject *parent = NULL;\n    PyObject *child = NULL;\n    PyObject *parent_module = NULL;\n    PyObject *parent_dict = NULL;\n\n    PyInterpreterState *interp = tstate->interp;\n    PyObject *lazy_pending_submodules = LAZY_PENDING_SUBMODULES(interp);\n    assert(lazy_pending_submodules != NULL);\n\n    Py_INCREF(name);\n    while (true) {\n        Py_ssize_t dot = PyUnicode_FindChar(name, '.', 0,\n                                            PyUnicode_GET_LENGTH(name), -1);\n        if (dot < 0) {\n            PyObject *lazy_submodules = ensure_lazy_pending_submodules(\n                (PyDictObject *)lazy_pending_submodules, name);\n            if (lazy_submodules == NULL) {\n                goto done;\n            }\n            Py_DECREF(lazy_submodules);\n            ret = 0;\n            goto done;\n        }\n        parent = PyUnicode_Substring(name, 0, dot);\n        // If `parent` is NULL then this has hit the end of the import, no\n        // more \"parent.child\" in the import name. The entire import will be\n        // resolved lazily.\n        if (parent == NULL) {\n            goto done;\n        }\n        Py_XDECREF(child);\n        child = PyUnicode_Substring(name, dot + 1, PyUnicode_GET_LENGTH(name));\n        if (child == NULL) {\n            goto done;\n        }\n\n        // Record the child as being lazily imported from the parent.\n        PyObject *lazy_submodules = ensure_lazy_pending_submodules(\n            (PyDictObject *)lazy_pending_submodules, parent);\n        if (lazy_submodules == NULL) {\n            goto done;\n        }\n\n        if (PySet_Add(lazy_submodules, child) < 0) {\n            Py_DECREF(lazy_submodules);\n            goto done;\n        }\n        Py_DECREF(lazy_submodules);\n\n        // Add the lazy import for the child to the parent.\n        Py_XSETREF(parent_module, PyImport_GetModule(parent));\n        if (parent_module != NULL) {\n            Py_XSETREF(parent_dict, get_mod_dict(parent_module));\n            if (parent_dict == NULL) {\n                goto done;\n            }\n            if (PyDict_CheckExact(parent_dict)) {\n                int contains = PyDict_Contains(parent_dict, child);\n                if (contains < 0) {\n                    goto done;\n                }\n                if (!contains) {\n                    PyObject *lazy_module_attr = _PyLazyImport_New(\n                        tstate->current_frame, builtins, parent, child\n                    );\n                    if (lazy_module_attr == NULL) {\n                        goto done;\n                    }\n                    if (PyDict_SetItem(parent_dict, child,\n                                       lazy_module_attr) < 0) {\n                        Py_DECREF(lazy_module_attr);\n                        goto done;\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

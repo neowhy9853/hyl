@@ -1,0 +1,49 @@
+From 6328380a3a83713ff6f55eec772358aadd2f9014 Mon Sep 17 00:00:00 2001
+From: Jean Boussier <byroot@ruby-lang.org>
+Date: Mon, 20 Jul 2026 08:35:56 +0200
+Subject: [PATCH] [ruby/time] Fix `Time.xmlschema` handling leading and
+ trailing whitespaces
+
+https://github.com/ruby/time/commit/8cf52fa3cd
+---
+ lib/time.rb       |  2 +-
+ test/test_time.rb | 10 ++++++++++
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/lib/time.rb b/lib/time.rb
+index eaf98364d6..40f954ab27 100644
+--- a/lib/time.rb
++++ b/lib/time.rb
+@@ -670,7 +670,7 @@ def rfc3339(time)
+     if RUBY_VERSION >= "3.2"
+       def _xmlschema(pattern, time) # :nodoc:
+         if pattern.match?(time)
+-          new(time)
++          new(time.strip)
+         else
+           raise ArgumentError.new("invalid xmlschema format: #{time.inspect}")
+         end
+diff --git a/test/test_time.rb b/test/test_time.rb
+index a4df0b9ef4..200adc9a0b 100644
+--- a/test/test_time.rb
++++ b/test/test_time.rb
+@@ -245,6 +245,16 @@ def subtest_xmlschema_encode(method)
+     assert_equal("-10000-01-01T00:00:00Z", Time.utc(-10000).__send__(method))
+   end
+ 
++  def subtest_xmlschema_whitespaces(method)
++    t = Time.utc(1985, 4, 12, 23, 20, 50, 520000)
++    s = "  \t  1985-04-12T23:20:50.52Z"
++    assert_equal(t, Time.__send__(method, s))
++
++    t = Time.utc(1985, 4, 12, 23, 20, 50, 520000)
++    s = "1985-04-12T23:20:50.52Z  \t "
++    assert_equal(t, Time.__send__(method, s))
++  end
++
+   def test_completion
+     now = Time.local(2001,11,29,21,26,35)
+     assert_equal(Time.local( 2001,11,29,21,12),
+-- 
+2.43.0
+

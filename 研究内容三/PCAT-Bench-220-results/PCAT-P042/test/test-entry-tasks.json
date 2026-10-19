@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/glib/pca-results/c9da97/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/glib",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/glib/pca-results/c9da97/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/glib/pca-results/c9da97",
+  "patch_id": "c9da977c",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "g_dbus_node_info_new_for_xml",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "gio/gdbusintrospection.c",
+        "old_lines": [
+          1266,
+          1272
+        ],
+        "new_lines": [
+          1266,
+          1272
+        ],
+        "symbol": "parser_start_element"
+      },
+      "old_behavior": "The parser_start_element callback for the <node> element had a buggy guard: `!(g_slist_length(stack) >= 1 || strcmp(stack->next->data, \"node\") != 0)`. Since g_slist_length(stack) >= 1 is always TRUE for any non-NULL stack (the stack is always a valid non-empty list from g_markup_parse_context_get_element_stack), the entire expression evaluates to `!(TRUE) = FALSE`, meaning the error path (setting G_MARKUP_ERROR_INVALID_CONTENT) was NEVER reached. Invalid introspection XML with <node> elements nested inside non-<node> parent elements (interface, method, signal, property, arg) was silently accepted and incorrectly parsed.",
+      "new_behavior": "The guard is fixed to `stack->next != NULL && strcmp(stack->next->data, \"node\") != 0`. It properly checks whether there is a parent element (stack->next != NULL) and whether that parent is something other than \"node\". When a <node> element appears inside a non-<node> parent (e.g., <interface>, <method>, <signal>, <property>, <arg>), the parser now correctly rejects it with G_MARKUP_ERROR_INVALID_CONTENT and the error message '<node> elements can only be top-level or embedded in other <node> elements'.",
+      "compatibility_reason": "This is an input contract change on g_dbus_node_info_new_for_xml(), a public GIO API. Previously, certain malformed introspection XML documents (with <node> elements nested inside interface/method/signal/property/arg) were silently accepted and parsed. After the fix, the same XML inputs are rejected with G_MARKUP_ERROR_INVALID_CONTENT. Any application that relied on the buggy behavior by passing such malformed XML to g_dbus_node_info_new_for_xml() will now receive an error instead of successfully parsing the introspection data. In practice, this is unlikely to affect correct D-Bus introspection consumers because such nesting is invalid per the D-Bus specification, but it is a genuine input contract tightening on a public API surface.",
+      "test_recommendation": "Run the existing gdbus-introspection test suite to confirm the new test_invalid test passes. The test covers 5 cases of invalid XML that now correctly produce G_MARKUP_ERROR_INVALID_CONTENT. Also verify that g_dbus_node_info_new_for_xml() continues to accept valid introspection XML documents (both top-level <node> and <node> nested inside other <node> elements).",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/glib/pca-results/c9da97/compatibility-testing"
+}

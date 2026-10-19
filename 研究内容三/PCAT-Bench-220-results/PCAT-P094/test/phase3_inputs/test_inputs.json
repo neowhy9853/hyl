@@ -1,0 +1,42 @@
+[
+  {
+    "input_id": "I1",
+    "finding_id": "PCA-0001",
+    "target_lines": ["src/net/http/server.go:1209-1220", "src/net/http/server.go:570-599", "src/net/http/server.go:1002-1013"],
+    "branch_targeted": "WriteHeader code >= 200 path, disableWriteContinue skipDrain=true path",
+    "input_type": "api_harness",
+    "command": "BEFORE_GO=/data7/wanghy/tmp/opencode/go/bin/go PATCTED_GO=<patched_go> bash test-entry-work/PCA-0001/reproducer.sh",
+    "expected_output": "Before: hang (exit 2), After: ok (exit 0, status=200)",
+    "reachability_signal": "Observable behavior difference: before hangs >5s, after returns in <1s",
+    "setup_required": "Go 1.24+ bootstrap to build patched Go from source",
+    "dependencies": ["go1.24.13 at /data7/wanghy/tmp/opencode/go", "patched Go built at worktree/bin/go"],
+    "input_dimensions": {
+      "cli_arguments": ["POST request with Expect: 100-continue"],
+      "data_scale": ["small body (some body)"],
+      "environment": ["loopback TCP, server handler writes 200 immediately"],
+      "abnormal_inputs": [],
+      "concurrency": ["single request"],
+      "protocol_variants": ["HTTP/1.1"]
+    }
+  },
+  {
+    "input_id": "I2",
+    "finding_id": "PCA-0001",
+    "target_lines": ["src/net/http/server.go:1209-1220"],
+    "branch_targeted": "WriteHeader code=100 path (informational, skipDrain=false)",
+    "input_type": "api_harness",
+    "command": "PATCED_GO=<patched_go> go test -v -run TestServerExpect100ContinueUnreadBody net/http",
+    "expected_output": "PASS (h1 + h2)",
+    "reachability_signal": "Test passes in both h1 and h2 modes",
+    "setup_required": "Patched Go built from source",
+    "dependencies": ["patched Go at worktree/bin/go"],
+    "input_dimensions": {
+      "cli_arguments": ["go test -run TestServerExpect100ContinueUnreadBody"],
+      "data_scale": ["test framework runs client-server internally"],
+      "environment": ["h1 mode (HTTP/1.1), h2 mode (HTTP/2)"],
+      "abnormal_inputs": [],
+      "concurrency": ["single test"],
+      "protocol_variants": ["HTTP/1.1, HTTP/2"]
+    }
+  }
+]

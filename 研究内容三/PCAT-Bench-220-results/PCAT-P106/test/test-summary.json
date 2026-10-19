@@ -1,0 +1,162 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/analysis.json",
+  "patch_id": "a23d8e124fbd",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux",
+    "base_commit": "475b2384bb91576e7881bca8f17548a6bbee8ded",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/_worktrees/patched",
+    "package_profile": "kernel_6_6"
+  },
+  "environment": {
+    "kind": "not_available",
+    "before_build": "not_run",
+    "after_build": "not_run",
+    "compiler": "gcc-12 (attempted, failed due to kernel version mismatch)",
+    "optimization": "Og (attempted, build failed)",
+    "coverage_tool": "gcov (not usable - build blocked)",
+    "notes": [
+      "Host kernel: 6.8.0-90-generic",
+      "Analysis worktree kernel: v7.2-rc (requires kernel headers >= v7.0)",
+      "Build attempted twice: (1) standard module build failed with net/netdev_lock.h missing, (2) extended include paths failed with struct bond_params field mismatches",
+      "Kernel module build requires a VM running kernel >= v7.0 with matching headers",
+      "GCOV_KERNEL=y and CONFIG_GCOV_PROFILE_ALL=y needed for coverage instrumentation"
+    ]
+  },
+  "summary": {
+    "findings_total": 2,
+    "findings_targeted": 2,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 0,
+    "inputs_planned": 6,
+    "inputs_executed": 0,
+    "contracts_total": 2,
+    "contracts_passed": 0,
+    "contracts_breached": 0,
+    "contracts_skipped": 2,
+    "patch_executable_lines": 6,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 6,
+    "patch_line_coverage_rate": 0.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "status": "blocked",
+      "target_location": {
+        "file": "drivers/net/bonding/bond_options.c",
+        "new_lines": [1592, 1599],
+        "symbol": "bond_option_xmit_hash_policy_set"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "generated",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+          "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+          "expected_signal": "EOPNOTSUPP when XDP loaded + vlan+srcmac; success when XDP not loaded",
+          "reachability_signal": "sysfs write to /sys/class/net/<bond>/bonding/xmit_hash_policy triggers bond_option_xmit_hash_policy_set"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "config_cli_behavior_stability",
+          "status": "skipped",
+          "detail": "Kernel bonding module from analysis worktree (v7.2-rc) cannot be built against host kernel 6.8.0. Requires VM with matching kernel version."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 6,
+        "covered_lines": 0,
+        "uncovered_lines": ["1592", "1593", "1594", "1595", "1596", "1597"],
+        "rate": 0.0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Highest priority finding: sysfs/netlink xmit_hash_policy change rejection affects userspace tools",
+        "Test script generated at test-entry-work/PCA-0001/reproducer.sh - ready for VM execution",
+        "Build blocked: requires VM with kernel >= v7.0, CONFIG_BONDING=m, XDP support, and bpftool"
+      ]
+    },
+    {
+      "finding_id": "PCA-0002",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "low",
+      "status": "not_run",
+      "target_location": {
+        "file": "include/net/bonding.h",
+        "new_lines": [697, 703],
+        "symbol": "__bond_xdp_check"
+      },
+      "entries": [],
+      "contracts": [
+        {
+          "contract_id": "api_signature_stability",
+          "status": "skipped",
+          "detail": "Low priority additive-only change. __bond_xdp_check is a new symbol; bond_xdp_check signature preserved."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 0,
+        "uncovered_lines": ["700"],
+        "rate": 0.0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Additive-only API change: new __bond_xdp_check function declared in bonding.h",
+        "Existing bond_xdp_check signature and callers unchanged",
+        "Low priority: does not break existing consumers"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "build",
+      "id": "kernel_version_mismatch",
+      "reason": "Analysis worktree code (kernel v7.2-rc) requires kernel headers >= v7.0. Host has 6.8.0-90-generic. Bonding module fails with: net/netdev_lock.h missing, struct bond_params field differences (broadcast_neighbor, lacp_strict), pernet_operations exit signature change.",
+      "required_action": "Set up a VM running Linux >= v7.0 with kernel headers installed, CONFIG_BONDING=m, and GCOV_KERNEL=y for coverage instrumentation."
+    },
+    {
+      "scope": "environment",
+      "id": "xdp_environment",
+      "reason": "XDP program loading for bond device requires bpftool and a compiled XDP object file. Root privileges needed for bond device creation and XDP attach/detach.",
+      "required_action": "Install bpftool, compile or use an XDP pass program (.o), run reproducer.sh as root in a VM with matching kernel."
+    },
+    {
+      "scope": "coverage",
+      "id": "gcov_kernel_missing",
+      "reason": "GCOV_KERNEL=y and CONFIG_GCOV_PROFILE_ALL=y required for line-level patch coverage. Host kernel not built with GCOV support. Debugfs must be mounted.",
+      "required_action": "Rebuild kernel in VM with CONFIG_GCOV_KERNEL=y and CONFIG_GCOV_PROFILE_ALL=y, add GCOV_PROFILE_bonding.o := y to drivers/net/bonding/Makefile."
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "phase4_execution/coverage_iterations.json",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": false,
+    "rationale": "Static analysis confirmed 2 compatibility changes: (1) HIGH: bond_option_xmit_hash_policy_set now rejects vlan+srcmac xmit_hash_policy when XDP is loaded on 802.3ad/balance-xor bonds via EOPNOTSUPP, affecting sysfs (/sys/class/net/<bond>/bonding/xmit_hash_policy) and netlink (IFLA_BOND_XMIT_HASH_POLICY) interfaces; (2) LOW: new __bond_xdp_check API symbol added to bonding.h (additive only). Dynamic testing was limited by kernel version mismatch - the analysis worktree uses v7.2-rc code that cannot be built against host kernel 6.8.0. Test entry scripts and contract probes have been generated and are ready for execution in a matching VM. Build was attempted 2 times with different strategies; both failed due to struct/API differences between kernel versions.",
+    "recommended_actions": [
+      "Set up a VM running Linux >= v7.0 with XDP and bonding support",
+      "Build kernel with CONFIG_GCOV_KERNEL=y and CONFIG_GCOV_PROFILE_ALL=y for coverage",
+      "Run test-entry-work/PCA-0001/reproducer.sh as root in the VM to verify the EOPNOTSUPP contract",
+      "Execute contract verification for both PCA-0001 (config_cli_behavior_stability) and PCA-0002 (api_signature_stability)",
+      "Collect gcov data from /sys/kernel/debug/gcov/ to measure patch line coverage"
+    ]
+  }
+}

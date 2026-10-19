@@ -1,0 +1,197 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/921fe6/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/NetworkManager",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/921fe6/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/921fe6",
+  "patch_id": "921fe6ec68a1cffc18a81752f996578831702ad7",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "NMSettingBond:arp_missed_max default",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/libnm-core-impl/nm-setting-bond.c",
+        "old_lines": [
+          199,
+          199
+        ],
+        "new_lines": [
+          200,
+          200
+        ],
+        "symbol": "arp_missed_max"
+      },
+      "old_behavior": "Default value for arp_missed_max is \"0\". Valid range 0-255. Value 0 is an invalid kernel value (kernel accepts 1-255), causing warnings when applied.",
+      "new_behavior": "Default value for arp_missed_max is \"2\" (matching kernel default). Valid range 0-255 remains unchanged. Value 0 is still accepted in the range but normalized away when unset.",
+      "compatibility_reason": "All bond connections created without an explicit arp_missed_max value will now default to 2 instead of 0. This changes the runtime behavior of bond interfaces: previously 0 meant unset/invalid (causing kernel warnings), now the kernel default of 2 applies automatically. Existing connections with explicit arp_missed_max=0 will be normalized to 2 via the new normalization logic.",
+      "test_recommendation": "HIGH: Verify default value for new bond connections is 2. Verify normalization of explicit 0 to 2. Verify nmcli output shows correct default.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "_bond_get_option_normalized: arp_missed_max zero-to-default mapping",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/libnm-core-impl/nm-setting-bond.c",
+        "old_lines": [
+          364,
+          369
+        ],
+        "new_lines": [
+          364,
+          373
+        ],
+        "symbol": "_bond_get_option_normalized"
+      },
+      "old_behavior": "arp_missed_max normalization passes through whatever value the user set (or the option default \"0\") directly.",
+      "new_behavior": "When arp_missed_max is \"0\", it is treated as \"unset\" and replaced with the option default (now \"2\"). Explicit non-zero values pass through unchanged.",
+      "compatibility_reason": "Users who explicitly set arp_missed_max=0 (previously a valid way to express \"unset/default\") will now see the normalized value become 2 instead. The value \"0\" is no longer preserved in normalized output. This affects D-Bus property reads, nmcli output, and any API that calls nm_setting_bond_get_option_normalized().",
+      "test_recommendation": "HIGH: Verify _bond_get_option_normalized returns \"2\" for default case. Verify explicit \"0\" is normalized to \"2\". Verify non-zero values pass through unchanged.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0003",
+      "finding_id": "PCA-0003",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "verify(): arp_missed_max mode compatibility check",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/libnm-core-impl/nm-setting-bond.c",
+        "old_lines": [
+          950,
+          955
+        ],
+        "new_lines": [
+          957,
+          974
+        ],
+        "symbol": "verify"
+      },
+      "old_behavior": "The verify() function does not check arp_missed_max against bond mode. A connection with arp_missed_max > 0 in TLB/ALB/802.3ad modes is accepted; the kernel would return EOPNOTSUPP at apply time.",
+      "new_behavior": "verify() rejects arp_missed_max > 0 in TLB/ALB/802.3ad modes with NM_CONNECTION_ERROR_INVALID_PROPERTY and a descriptive error message. Connections with arp_missed_max=0 (now normalized to 2) are accepted via the new comment that keeps \"0\" as a valid value for verification.",
+      "compatibility_reason": "Existing bond connections configured with arp_missed_max > 0 in TLB, ALB, or 802.3ad modes will now fail NM connection verification. Previously these were silently accepted and passed to the kernel (which would return EOPNOTSUPP). This is a contract tightening change.",
+      "test_recommendation": "HIGH: Verify bond connection with TLB mode + arp_missed_max=2 is rejected. Verify bond connection with balance-rr mode + arp_missed_max=2 is accepted. Verify error message is descriptive.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/921fe6/compatibility-testing"
+}

@@ -1,0 +1,862 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/NetworkManager",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/921fe6/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/921fe6",
+  "base_ref": "HEAD",
+  "base_commit": "4b63ae29a5c030c9a5cd199b546da3d7a1331827",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "Commit 921fe6ec68a1cffc18a81752f996578831702ad7 was already applied in the target repo",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "921fe6ec68a1cffc18a81752f996578831702ad7",
+  "package_profile": "networkmanager",
+  "summary": {
+    "total_changed_files": 6,
+    "total_candidates": 16,
+    "compatibility_changes": 7,
+    "high_priority": 3,
+    "medium_priority": 2,
+    "low_priority": 2
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "networkmanager",
+      "affected_surface": "Bond connection profile option default value (config_keys > config)",
+      "affected_api": {
+        "name": "NMSettingBond:arp_missed_max default",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/libnm-core-impl/nm-setting-bond.c",
+        "old_lines": [
+          199,
+          199
+        ],
+        "new_lines": [
+          200,
+          200
+        ],
+        "symbol": "arp_missed_max"
+      },
+      "old_behavior": "Default value for arp_missed_max is \"0\". Valid range 0-255. Value 0 is an invalid kernel value (kernel accepts 1-255), causing warnings when applied.",
+      "new_behavior": "Default value for arp_missed_max is \"2\" (matching kernel default). Valid range 0-255 remains unchanged. Value 0 is still accepted in the range but normalized away when unset.",
+      "compatibility_reason": "All bond connections created without an explicit arp_missed_max value will now default to 2 instead of 0. This changes the runtime behavior of bond interfaces: previously 0 meant unset/invalid (causing kernel warnings), now the kernel default of 2 applies automatically. Existing connections with explicit arp_missed_max=0 will be normalized to 2 via the new normalization logic.",
+      "evidence": [
+        {
+          "file": "src/libnm-core-impl/nm-setting-bond.c",
+          "lines": [
+            197,
+            200
+          ],
+          "snippet": "{NM_SETTING_BOND_OPTION_ARP_MISSED_MAX, {\"0\", NM_BOND_OPTION_TYPE_INT, 0, 255}},"
+        },
+        {
+          "file": "src/libnm-core-impl/nm-setting-bond.c",
+          "lines": [
+            198,
+            201
+          ],
+          "snippet": "{NM_SETTING_BOND_OPTION_ARP_MISSED_MAX, {\"2\", NM_BOND_OPTION_TYPE_INT, 0, 255}},"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "NMSettingBond is a user-facing connection profile setting exposed through D-Bus, nmcli, and nmtui. Default value changes affect all bond connections across the entire system.",
+      "uncertainty": "None. The default value change is explicit in the diff.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that existing bond connections without explicit arp_missed_max continue to work correctly with the new default of 2. Check if any monitoring/alerting relies on the old kernel warning behavior.",
+      "test_recommendation": "HIGH: Verify default value for new bond connections is 2. Verify normalization of explicit 0 to 2. Verify nmcli output shows correct default.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0004",
+            "file": "src/libnm-core-impl/nm-setting-bond.c",
+            "old_lines": [
+              197,
+              203
+            ],
+            "new_lines": [
+              197,
+              203
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "syscall_wrappers"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "syscall_wrappers",
+                "test_priority": "high",
+                "public": true,
+                "description": "C/C++ library wrappers or consumers of Linux system calls. Treat signature,\nerrno, flag validation, blocking/retry, timeout, and fallback-path changes\nas compatibility candidates when reachable from public APIs or commands."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "networkmanager",
+      "affected_surface": "Bond option normalization logic (config_keys > config)",
+      "affected_api": {
+        "name": "_bond_get_option_normalized: arp_missed_max zero-to-default mapping",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/libnm-core-impl/nm-setting-bond.c",
+        "old_lines": [
+          364,
+          369
+        ],
+        "new_lines": [
+          364,
+          373
+        ],
+        "symbol": "_bond_get_option_normalized"
+      },
+      "old_behavior": "arp_missed_max normalization passes through whatever value the user set (or the option default \"0\") directly.",
+      "new_behavior": "When arp_missed_max is \"0\", it is treated as \"unset\" and replaced with the option default (now \"2\"). Explicit non-zero values pass through unchanged.",
+      "compatibility_reason": "Users who explicitly set arp_missed_max=0 (previously a valid way to express \"unset/default\") will now see the normalized value become 2 instead. The value \"0\" is no longer preserved in normalized output. This affects D-Bus property reads, nmcli output, and any API that calls nm_setting_bond_get_option_normalized().",
+      "evidence": [
+        {
+          "file": "src/libnm-core-impl/nm-setting-bond.c",
+          "lines": [
+            367,
+            370
+          ],
+          "snippet": "} else if (nm_streq(option, NM_SETTING_BOND_OPTION_ARP_MISSED_MAX)) {\n            value = _bond_get_option(self, NM_SETTING_BOND_OPTION_ARP_MISSED_MAX) ?: \"0\";\n            if (nm_streq(value, \"0\"))\n                value = _bond_get_option_default(self, option);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "nm_setting_bond_get_option_normalized() is a public API used by D-Bus property getters and nmcli to report normalized option values.",
+      "uncertainty": "None. The normalization logic is explicit.",
+      "manual_review_required": false,
+      "recommended_review": "Check that external consumers (monitoring, scripts) that read arp_missed_max via D-Bus or nmcli can handle the new default value of 2.",
+      "test_recommendation": "HIGH: Verify _bond_get_option_normalized returns \"2\" for default case. Verify explicit \"0\" is normalized to \"2\". Verify non-zero values pass through unchanged.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=low from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "src/libnm-core-impl/nm-setting-bond.c",
+            "old_lines": [
+              364,
+              369
+            ],
+            "new_lines": [
+              364,
+              373
+            ],
+            "is_public": false,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [],
+            "surface_test_priority": "low",
+            "matched_surfaces": []
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=low from 1 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "networkmanager",
+      "affected_surface": "Bond connection verification (config > user_visible_output)",
+      "affected_api": {
+        "name": "verify(): arp_missed_max mode compatibility check",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/libnm-core-impl/nm-setting-bond.c",
+        "old_lines": [
+          950,
+          955
+        ],
+        "new_lines": [
+          957,
+          974
+        ],
+        "symbol": "verify"
+      },
+      "old_behavior": "The verify() function does not check arp_missed_max against bond mode. A connection with arp_missed_max > 0 in TLB/ALB/802.3ad modes is accepted; the kernel would return EOPNOTSUPP at apply time.",
+      "new_behavior": "verify() rejects arp_missed_max > 0 in TLB/ALB/802.3ad modes with NM_CONNECTION_ERROR_INVALID_PROPERTY and a descriptive error message. Connections with arp_missed_max=0 (now normalized to 2) are accepted via the new comment that keeps \"0\" as a valid value for verification.",
+      "compatibility_reason": "Existing bond connections configured with arp_missed_max > 0 in TLB, ALB, or 802.3ad modes will now fail NM connection verification. Previously these were silently accepted and passed to the kernel (which would return EOPNOTSUPP). This is a contract tightening change.",
+      "evidence": [
+        {
+          "file": "src/libnm-core-impl/nm-setting-bond.c",
+          "lines": [
+            906,
+            909
+          ],
+          "snippet": "/* \"0\" is an invalid value in the kernel, but we used to accept it to indicate \"default value\".\n     * Keep accepting \"0\" as a valid value, although we'll apply a different value, actually.\n     * Bond modes that don't accept arp_missed_max must just ignore the \"0\" value, too. */\n    arp_missed_max = _atoi(_bond_get_option(self, NM_SETTING_BOND_OPTION_ARP_MISSED_MAX) ?: \"0\");"
+        },
+        {
+          "file": "src/libnm-core-impl/nm-setting-bond.c",
+          "lines": [
+            962,
+            973
+          ],
+          "snippet": "if (NM_IN_SET(bond_mode, NM_BOND_MODE_TLB, NM_BOND_MODE_ALB, NM_BOND_MODE_8023AD)) {\n        if (arp_missed_max > 0) {\n            g_set_error(error,\n                        NM_CONNECTION_ERROR,\n                        NM_CONNECTION_ERROR_INVALID_PROPERTY,\n                        _(\"'%s=%s' is incompatible with '%s > 0'\"),\n                        NM_SETTING_BOND_OPTION_MODE,\n                        mode_str,\n                        NM_SETTING_BOND_OPTION_ARP_MISSED_MAX);\n            g_prefix_error(error, \"%s.%s: \", NM_SETTING_BOND_SETTING_NAME, NM_SETTING_BOND_OPTIONS);\n            return FALSE;\n        }\n    }"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The verify() function is called when connections are saved, activated, or modified via D-Bus. It directly affects user-facing connection management.",
+      "uncertainty": "None. The new validation logic is explicit in the diff.",
+      "manual_review_required": false,
+      "recommended_review": "Check if any existing bond configurations use TLB/ALB/802.3ad modes with arp_missed_max set to a non-zero value. These will start failing verification after the patch.",
+      "test_recommendation": "HIGH: Verify bond connection with TLB mode + arp_missed_max=2 is rejected. Verify bond connection with balance-rr mode + arp_missed_max=2 is accepted. Verify error message is descriptive.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0007",
+            "file": "src/libnm-core-impl/nm-setting-bond.c",
+            "old_lines": [
+              950,
+              955
+            ],
+            "new_lines": [
+              957,
+              965
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "config"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "Connection profile and daemon configuration semantics"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "src/libnm-core-impl/nm-setting-bond.c",
+            "old_lines": [
+              894,
+              906
+            ],
+            "new_lines": [
+              898,
+              913
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "config",
+              "persistence_state"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "Connection profile and daemon configuration semantics"
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "networkmanager",
+      "affected_surface": "Netlink bond attribute sending (ioctl_netlink > network_protocol)",
+      "affected_api": {
+        "name": "_nl_msg_new_link_set_linkinfo: IFLA_BOND_MISSED_MAX netlink attribute",
+        "kind": "netlink_family",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/libnm-platform/nm-linux-platform.c",
+        "old_lines": [
+          5129,
+          5132
+        ],
+        "new_lines": [
+          5133,
+          5134
+        ],
+        "symbol": "_nl_msg_new_link_set_linkinfo"
+      },
+      "old_behavior": "IFLA_BOND_MISSED_MAX netlink attribute is included when props->arp_missed_max is non-zero.",
+      "new_behavior": "IFLA_BOND_MISSED_MAX netlink attribute is included only when props->arp_missed_max_has is TRUE.",
+      "compatibility_reason": "The condition for sending the netlink attribute changed from value check to _has flag check. When arp_missed_max_has is FALSE (meaning the kernel did not report this attribute during parsing, or the platform init did not set it), the attribute will now be omitted from netlink messages even if arp_missed_max has a non-zero value. This could affect bond interface configuration during reapply.",
+      "evidence": [
+        {
+          "file": "src/libnm-platform/nm-linux-platform.c",
+          "lines": [
+            5133,
+            5134
+          ],
+          "snippet": "if (props->arp_missed_max_has)\n            NLA_PUT_U8(msg, IFLA_BOND_MISSED_MAX, props->arp_missed_max);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Netlink attribute changes affect the kernel bond interface configuration, which is externally observable via iproute2 and /proc/net/bonding/*.",
+      "uncertainty": "The _has flag is properly maintained across parsing and init paths, so the change should only affect edge cases where arp_missed_max was set without the _has flag.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that the _has flag is correctly maintained across all code paths that set arp_missed_max.",
+      "test_recommendation": "MEDIUM: Verify IFLA_BOND_MISSED_MAX is sent when arp_missed_max_has=TRUE. Verify it is omitted when _has=FALSE even if value is non-zero.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0010",
+            "file": "src/libnm-platform/nm-linux-platform.c",
+            "old_lines": [
+              5126,
+              5132
+            ],
+            "new_lines": [
+              5130,
+              5136
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "syscall_wrappers",
+              "network_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "syscall_wrappers",
+                "test_priority": "high",
+                "public": true,
+                "description": "C/C++ library wrappers or consumers of Linux system calls. Treat signature,\nerrno, flag validation, blocking/retry, timeout, and fallback-path changes\nas compatibility candidates when reachable from public APIs or commands."
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    },
+    {
+      "id": "PCA-0005",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.9,
+      "package_profile": "networkmanager",
+      "affected_surface": "Bond reapply behavior (config > dbus_api)",
+      "affected_api": {
+        "name": "reapply_connection: arp_missed_max reapply scope",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/core/devices/nm-device-bond.c",
+        "old_lines": [
+          52,
+          62
+        ],
+        "new_lines": [
+          52,
+          63
+        ],
+        "symbol": "reapply_connection"
+      },
+      "old_behavior": "arp_missed_max is included in OPTIONS_REAPPLY_SUBSET, meaning it gets reapplied during both subset and full reapply.",
+      "new_behavior": "arp_missed_max is moved to OPTIONS_REAPPLY_FULL, meaning it is only reapplied during full reapply. Additionally, it is only reapplied for bond modes that support it (not TLB, ALB, 802.3ad).",
+      "compatibility_reason": "arp_missed_max is no longer reapplied during subset reapply operations. This means quick connection changes that trigger subset reapply will not update arp_missed_max. The explicit mode check also prevents attempts to set arp_missed_max in unsupported modes.",
+      "evidence": [
+        {
+          "file": "src/core/devices/nm-device-bond.c",
+          "lines": [
+            55,
+            60
+          ],
+          "snippet": "#define OPTIONS_REAPPLY_FULL                                                        \\n    OPTIONS_REAPPLY_SUBSET, NM_SETTING_BOND_OPTION_ACTIVE_SLAVE,                    \\n        NM_SETTING_BOND_OPTION_ARP_IP_TARGET, NM_SETTING_BOND_OPTION_NS_IP6_TARGET, \\n        NM_SETTING_BOND_OPTION_ARP_MISSED_MAX"
+        },
+        {
+          "file": "src/core/devices/nm-device-bond.c",
+          "lines": [
+            912,
+            914
+          ],
+          "snippet": "    if (!NM_IN_SET(mode, NM_BOND_MODE_TLB, NM_BOND_MODE_ALB, NM_BOND_MODE_8023AD))\n        set_bond_attr_or_default(device, s_bond, NM_SETTING_BOND_OPTION_ARP_MISSED_MAX);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The reapply mechanism is exposed through D-Bus Reapply() method and affects runtime bond configuration.",
+      "uncertainty": "The change only affects the reapply scope. On initial activation, the value is still set correctly via the platform init path.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that subset reapply no longer touches arp_missed_max while full reapply still works correctly.",
+      "test_recommendation": "MEDIUM: Verify arp_missed_max is not applied during subset reapply. Verify it is applied during full reapply for supported modes.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/core/devices/nm-device-bond.c",
+            "old_lines": [
+              52,
+              62
+            ],
+            "new_lines": [
+              52,
+              63
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "syscall_wrappers",
+              "user_visible_output",
+              "config",
+              "logging",
+              "dbus_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "syscall_wrappers",
+                "test_priority": "high",
+                "public": true,
+                "description": "C/C++ library wrappers or consumers of Linux system calls. Treat signature,\nerrno, flag validation, blocking/retry, timeout, and fallback-path changes\nas compatibility candidates when reachable from public APIs or commands."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "Connection profile and daemon configuration semantics"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "dbus_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Stable D-Bus interfaces, properties, signals, and methods"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "src/core/devices/nm-device-bond.c",
+            "old_lines": [
+              907,
+              912
+            ],
+            "new_lines": [
+              910,
+              917
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "config",
+              "dbus_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "Connection profile and daemon configuration semantics"
+              },
+              {
+                "name": "dbus_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Stable D-Bus interfaces, properties, signals, and methods"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0006",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "confidence": 1.0,
+      "package_profile": "networkmanager",
+      "affected_surface": "Debug/log output format (user_visible_output > network_protocol)",
+      "affected_api": {
+        "name": "nm_platform_lnk_bond_to_string: arp_missed_max output",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/libnm-platform/nm-platform.c",
+        "old_lines": [
+          6403,
+          6461
+        ],
+        "new_lines": [
+          6404,
+          6467
+        ],
+        "symbol": "nm_platform_lnk_bond_to_string"
+      },
+      "old_behavior": "arp_missed_max is always printed as \" arp_missed_max %u\", showing the integer value unconditionally.",
+      "new_behavior": "arp_missed_max is conditionally shown as \" arp_missed_max[?] %u\" only when the _has flag is set or the value is non-zero. When unavailable, it is omitted entirely.",
+      "compatibility_reason": "The string representation of bond link info changes for debugging/diagnostic output. Scripts or tools that parse this output (e.g., log analysis) may need to handle the new conditional format.",
+      "evidence": [
+        {
+          "file": "src/libnm-platform/nm-platform.c",
+          "lines": [
+            6407,
+            6407
+          ],
+          "snippet": "\"%s\" /* arp_missed_max %u */"
+        },
+        {
+          "file": "src/libnm-platform/nm-platform.c",
+          "lines": [
+            6459,
+            6464
+          ],
+          "snippet": "lnk->arp_missed_max_has || lnk->arp_missed_max != 0\n            ? nm_sprintf_buf(sbuf_arp_missed_max,\n                             \" arp_missed_max%s %u\",\n                             !lnk->arp_missed_max_has ? \"?\" : \"\",\n                             (int) lnk->arp_missed_max)\n            : \"\","
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The to_string function is used for diagnostic/debug output that may be captured in logs or used by monitoring tools.",
+      "uncertainty": "Low impact since this is primarily debug/diagnostic output.",
+      "manual_review_required": false,
+      "recommended_review": "Low priority, mainly affects log format consistency with other bond fields.",
+      "test_recommendation": "LOW: Verify log output shows arp_missed_max correctly when set, omits it when unavailable.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0012",
+            "file": "src/libnm-platform/nm-platform.c",
+            "old_lines": [
+              6403,
+              6409
+            ],
+            "new_lines": [
+              6404,
+              6410
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "network_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0013",
+            "file": "src/libnm-platform/nm-platform.c",
+            "old_lines": [
+              6455,
+              6461
+            ],
+            "new_lines": [
+              6456,
+              6467
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "network_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0007",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.7,
+      "package_profile": "networkmanager",
+      "affected_surface": "Internal platform struct layout (public_headers)",
+      "affected_api": {
+        "name": "NMPlatformLnkBond: added arp_missed_max_has field",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/libnm-platform/nm-platform.h",
+        "old_lines": [
+          840,
+          845
+        ],
+        "new_lines": [
+          840,
+          846
+        ],
+        "symbol": "NMPlatformLnkBond"
+      },
+      "old_behavior": "NMPlatformLnkBond struct has bitfield bools up to use_carrier.",
+      "new_behavior": "NMPlatformLnkBond struct adds bool arp_missed_max_has : 1 after use_carrier.",
+      "compatibility_reason": "A new bitfield is added to the NMPlatformLnkBond struct. While this is a platform-internal struct (src/libnm-platform/), it is exposed via the public header nm-platform.h. External consumers that directly access struct fields could break if they rely on specific struct layout or size. However, the struct uses standard GLib conventions and the field is added at the end of the bitfield section, minimizing ABI impact.",
+      "evidence": [
+        {
+          "file": "src/libnm-platform/nm-platform.h",
+          "lines": [
+            842,
+            843
+          ],
+          "snippet": "bool            arp_missed_max_has : 1;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The struct is defined in a public header (nm-platform.h), though direct access by external consumers is unlikely.",
+      "uncertainty": "NMPlatformLnkBond is part of libnm-platform which is an internal library, not a public API. External consumers should not directly access this struct. Impact is minimal unless consumers are violating the encapsulation boundary.",
+      "manual_review_required": true,
+      "recommended_review": "Confirm that NMPlatformLnkBond is not directly used by external consumers. Check if the struct layout change affects any binary compatibility guarantee.",
+      "test_recommendation": "LOW: Verify struct size and field offsets if ABI compatibility is a concern.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0016",
+            "file": "src/libnm-platform/nm-platform.h",
+            "old_lines": [
+              840,
+              845
+            ],
+            "new_lines": [
+              840,
+              846
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "network_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ABI_CHANGE -> high"
+    }
+  ],
+  "non_findings": [
+    {
+      "hunk_ids": [
+        "HUNK-0008"
+      ],
+      "file": "src/libnm-core-impl/tests/test-setting.c",
+      "reason": "Test-only file update. The test assertion changes from expecting 0 to expecting 2 to match the new default. No compatibility impact."
+    }
+  ]
+}

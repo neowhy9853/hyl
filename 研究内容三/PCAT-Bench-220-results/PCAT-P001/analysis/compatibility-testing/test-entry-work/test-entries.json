@@ -1,0 +1,72 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/analysis.json",
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "api_harness",
+      "status": "refined",
+      "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+      "build_command": "由 reproducer.sh 用 cc -include 分别强制包含真实 baseline/patched input.h，并让其依赖回落到系统 sanitized UAPI；以 -std=c11 -O0 -g 构建 probe",
+      "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+      "target_location": {
+        "file": "include/uapi/linux/input.h",
+        "new_lines": [44, 50],
+        "symbol": "struct input_event"
+      },
+      "reachability_signal": "patched field_probe.c 成功编译并输出 compat_reserved_offset；同一 abi_probe.c 的 before/after 输出显示 sizeof 和数组步长改变",
+      "expected_signal": "stdout 包含 ABI_CHANGE_DETECTED，且 after_size/after_stride 大于 before_size/before_stride",
+      "execution": {
+        "cwd": "result_dir",
+        "timeout_seconds": 120,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "比较默认用户态 ABI 与 _TIME_BITS=64 构建；同时验证旧头文件拒绝新增字段、补丁头文件接受新增字段。",
+      "prerequisites": [
+        "本机 C11 编译器与已安装的系统 sanitized Linux UAPI 依赖头",
+        "隔离 baseline worktree at environment/baseline",
+        "analysis_repo patched worktree"
+      ],
+      "limitations": "验证的是编译期 UAPI 布局契约；未启动补丁内核，也未从真实 /dev/input/eventX 读取事件记录。",
+            "provenance": {
+                "source": "synthetic_harness",
+                "reason": "补丁提交消息没有 reproducer，tools/testing/selftests 与 tools/input 中未找到针对 struct input_event 布局的原生测试；本地 kernel worktree 是稀疏快照且不能执行 headers_install，因此入口使用 -include 精确选择两个真实 input.h，并复用系统 sanitized 依赖头。"
+            }
+        },
+        {
+            "finding_id": "PCA-0001",
+            "entry_id": "PCA-TE-0002",
+            "entry_kind": "kernel_qemu_syscall_harness",
+            "status": "refined",
+            "artifact_path": "test-entry-work/PCA-0001/runtime_evdev.sh",
+            "build_command": "bash runtime-evdev/build_one.sh before && bash runtime-evdev/build_one.sh after",
+            "run_command": "timeout 600 bash test-entry-work/PCA-0001/runtime_evdev.sh",
+            "target_location": {
+                "file": "include/uapi/linux/input.h",
+                "new_lines": [
+                    44,
+                    50
+                ],
+                "symbol": "struct input_event"
+            },
+            "reachability_signal": "guest 通过 write(/dev/uinput) 执行 input_event_from_user，并通过 read(/dev/input/eventX) 执行 input_event_to_user；串口日志同时给出 before/after syscall 返回值和成功完成标记",
+            "expected_signal": "before 的 24 字节 write/read 返回 24；after 的相同 24 字节调用返回 -1/EINVAL；两侧 native-size write/read 均成功",
+            "execution": {
+                "cwd": "result_dir",
+                "timeout_seconds": 600,
+                "uses_clean_source_copy": true
+            },
+            "input_strategy": "在隔离 QEMU VM 中创建 uinput 虚拟键盘，分别以旧 24 字节记录和各内核 native 记录执行写入与读取，并用 native 路径作为设备/调用链可达性对照。",
+            "prerequisites": [
+                "_repos/kernel 中可用的完整 base_commit Git 对象",
+                "qemu-system-x86_64、静态 GCC、内核构建依赖与 cpio",
+                "runtime-evdev/build/before 和 runtime-evdev/build/after 中已构建的 bzImage"
+            ],
+            "limitations": "当前环境没有 /dev/kvm，使用 QEMU TCG；首次双内核构建耗时较长，但运行探针不需要宿主 root 或真实输入硬件。",
+            "provenance": {
+                "source": "synthetic_harness",
+                "reason": "编译期入口确认布局变化后，为验证真实 syscall 边界补充最小静态 initramfs 探针；uinput 在 guest 内提供确定性的 evdev 设备。"
+            }
+        }
+    ]
+}

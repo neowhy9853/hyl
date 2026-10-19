@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/19b79b/analysis.json",
+  "patch_id": "19b79b4d9625b379848559ece3507a189c0b89b8",
+  "result_dir": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/19b79b/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/lvm2",
+    "base_commit": "a83165b7d71e40d9ef2238b6775169200766554f",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/19b79b/_worktrees/patched",
+    "package_profile": "lvm2"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc (gcov)",
+    "optimization": "-O0 -g --coverage",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Reduced userspace build per AGENTS.md: --disable-udev_sync --disable-udev_rules --disable-selinux --disable-readline --without-blkid --with-thin=none --with-cache=none --with-vdo=none --with-writecache=none --disable-lvmimportvdo",
+      "Kernel device-mapper tests blocked (no /dev/mapper/control access); userspace error-path test only",
+      "Before build: git worktree /tmp/pca-lvm2-before at base_commit a83165b7d",
+      "After build: analysis_repo worktree with patch applied"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 2,
+    "inputs_executed": 2,
+    "contracts_total": 1,
+    "contracts_passed": 0,
+    "contracts_breached": 1,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 1,
+    "patch_lines_covered": 1,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "status": "partial",
+      "target_location": {
+        "file": "tools/dumpconfig.c",
+        "new_lines": [331, 337],
+        "symbol": "dumpconfig"
+      },
+      "entries": [
+        {
+          "entry_id": "TE-0001",
+"status": "partial",
+          "artifact_path": "test-entry-work/TE-0001",
+          "run_command": "LD_LIBRARY_PATH=.../libdm/ioctl LVM_SYSTEM_DIR='' tools/lvm dumpconfig --valuesonly --type list",
+          "expected_signal": "stderr contains patched error message with period",
+          "reachability_signal": "gcov dumpconfig.c shows line 334 executed (2 hits)"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "output_format_stability",
+          "status": "breached",
+          "detail": "Before: '--valuesonly has no effect with --type list or --list' (no period). After: '--valuesonly has no effect with --type list or --list.' (period added). This is the intentional change of the patch. Exit code unchanged (3)."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 1,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [
+        {
+          "input_id": "TE-0001-A",
+          "diff_type": "OUTPUT_FORMAT_CHANGE",
+          "before": "--valuesonly has no effect with --type list or --list",
+          "after": "--valuesonly has no effect with --type list or --list.",
+          "evidence": "Before/after stderr capture and diff: the only difference is the trailing period. Exit code identical (3). gcov confirms line 334 executed (2 hits)."
+        }
+      ],
+      "notes": [
+        "log_error() and log_err() are identical macros (log_error(args...) = log_err(args)) - both use LOG_LINE_WITH_ERRNO(_LOG_ERR, EUNCLASSIFIED, ...). The only observable change is the added period in the string.",
+        "Neighboring options (--withcomments, --withlocalpreamble, --withgeneralpreamble) remain without periods, creating a minor inconsistency."
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "",
+    "test_entries": "",
+    "test_inputs": "",
+    "execution_results": "phase4_execution/before_stderr.txt,phase4_execution/after_stderr.txt",
+    "contract_summary": "",
+    "coverage_data": "tools/dumpconfig.c.gcov",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "The patch intentionally changes the output format of the lvm dumpconfig --valuesonly --type list error diagnostic by adding a period at the end. This is a LOW-severity OUTPUT_FORMAT_CHANGE because: (1) it only affects one specific CLI error path, (2) exit code is unchanged, (3) error message text changes are unlikely to break production consumers. Coverage gate met (100%).",
+    "recommended_actions": [
+      "Update any regression tests or scripts that assert exact error message text for dumpconfig --valuesonly.",
+      "Consider whether the same period convention should be applied to neighboring error messages (--withcomments, --withlocalpreamble, --withgeneralpreamble) for consistency."
+    ]
+  }
+}

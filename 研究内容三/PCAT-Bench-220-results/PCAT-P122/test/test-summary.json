@@ -1,0 +1,141 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P062/analysis.json",
+  "patch_id": "56ccc5ed569869fd735074ccebeaa7aab058342d",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P062/compatibility-testing",
+  "status": "passed",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/grub2",
+    "base_commit": "01f064064c3146bd82e0c8db0da11d286bca31c6",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P062/_worktrees/patched",
+    "package_profile": "grub2"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "N/A (shell script)",
+    "optimization": "N/A",
+    "coverage_tool": "N/A (shell script logic coverage via test matrix)",
+    "notes": [
+      "Changed file is a shell script (util/grub.d/30_os-prober.in), no C compilation required",
+      "Testing via isolated mocked harness that exercises old and new matching logic",
+      "grub_probe mocking provides predictable UUIDs for test devices",
+      "Full grub2 build not required for unit-level compatibility verification of regex matching logic"
+    ]
+  },
+  "summary": {
+    "findings_total": 2,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 18,
+    "inputs_executed": 18,
+    "contracts_total": 1,
+    "contracts_passed": 1,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 16,
+    "patch_lines_covered": 16,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "status": "passed",
+      "target_location": {
+        "file": "util/grub.d/30_os-prober.in",
+        "new_lines": [117, 142],
+        "symbol": "GRUB_OS_PROBER_SKIP_LIST"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "passed",
+          "artifact_path": "test-entry-work/PCA-TE-0001/test_skip_list.sh",
+          "run_command": "bash test-entry-work/PCA-TE-0001/test_skip_list.sh",
+          "expected_signal": "All 18 tests pass, confirming both old bug behavior and new fix behavior",
+          "reachability_signal": "Exercises old and new regex matching paths for GRUB_OS_PROBER_SKIP_LIST"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "config_cli_behavior_stability",
+          "status": "passed",
+          "detail": "Contract comparison: old code required @device suffix in SKIP_LIST for non-EFI (UUID-only entries silently ignored). New code correctly matches UUID-only entries and accepts @/dev/* deprecated format with warning. EFI entries work identically in both versions. Comma and semicolon are accepted as additional separators."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 16,
+        "covered_lines": 16,
+        "uncovered_lines": [],
+        "rate": 100.0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "T1-UUID-only-nonEFI",
+          "diff_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+          "before": "UUID-only entry in SKIP_LIST for non-EFI device: noskip (BUG — silently ignored)",
+          "after": "UUID-only entry in SKIP_LIST for non-EFI device: skip (FIXED)",
+          "evidence": "Old code: EXPUUID always appended @device suffix, making UUID-only entries not match. New code: non-EFI path uses EXPUUID='UUID(@/dev/.*)?' which matches UUID-only entries."
+        },
+        {
+          "input_id": "T2-UUID@device-rejection",
+          "diff_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+          "before": "UUID@sda1 in SKIP_LIST: skip (accepted any @suffix)",
+          "after": "UUID@sda1 in SKIP_LIST: noskip (rejected, only @/dev/* accepted)",
+          "evidence": "New code for non-EFI: EXPUUID='UUID(@/dev/.*)?' does not match 'UUID@sda1' in SKIP_LIST (sda1 lacks /dev/ prefix). Users must use UUID@/dev/sda1 for backward compat."
+        },
+        {
+          "input_id": "T3-separators",
+          "diff_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+          "before": "Comma/semicolon as UUID separators: not explicitly supported (relied on \\b word boundary)",
+          "after": "Comma and semicolon explicitly accepted as separators (SPACE='[[:space:],;]')",
+          "evidence": "New code explicitly includes comma and semicolon in SPACE regex pattern for entry separation."
+        },
+        {
+          "input_id": "T4-deprecation-warning",
+          "diff_type": "SIDE_EFFECT_CHANGE",
+          "before": "No deprecation warning for any SKIP_LIST format",
+          "after": "Deprecation warning emitted to stderr when SKIP_LIST contains UUID@/dev/* entries",
+          "evidence": "New case statement checks for *@/[dD][eE][vV]/* pattern and calls grub_warn with deprecation message."
+        }
+      ],
+      "notes": [
+        "All 18 test cases passed: 0 failures",
+        "Test covers: UUID-only (bug fix), @device rejection, @/dev/* backward compat, deprecation warning, comma/semicolon/space separators, exact matching, EFI paths, empty lists",
+        "Old code bug confirmed: UUID-only SKIP_LIST entries never worked for non-EFI because EXPUUID always got @device suffix appended",
+        "New code fixes the bug while maintaining backward compatibility for UUID@/dev/* format",
+        "PCA-0002 (SIDE_EFFECT_CHANGE - deprecation warning) is verified as part of the CONFIG_CLI_BEHAVIOR_CHANGE testing"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "test-entry-work/PCA-TE-0001/test_skip_list.sh",
+    "execution_results": "test-entry-work/PCA-TE-0001/runs/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "test-entry-work/PCA-TE-0001/runs/results.json",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "补丁修复了 GRUB_OS_PROBER_SKIP_LIST 配置变量的两个缺陷：(1) 非 EFI 系统上仅 UUID 的跳过条目静默失效（现修复为正确生效），(2) 单词边界正则导致的 UUID 部分匹配误报（现改为显式分隔符锚定匹配）。存在向后不兼容的行为变化：旧版接受 UUID@sda1 格式的 SKIP_LIST 条目（现在被拒绝，需使用 UUID@/dev/sda1），且新增了弃用警告输出。但鉴于旧行为已在文档中描述为 bug，此变更应视为向前改进而非破坏性兼容性问题。",
+    "recommended_actions": [
+      "检查现有 /etc/default/grub 配置中是否使用了 'UUID@sda1' 格式的 GRUB_OS_PROBER_SKIP_LIST 条目，应迁移为 'UUID'（仅 UUID）或 'UUID@/dev/sda1'（弃用格式）",
+      "如果自动化脚本解析 grub-mkconfig 的 stderr 输出，需注意新增的弃用警告消息",
+      "验证非 EFI 系统上仅 UUID 的跳过行为符合预期，确保文档与实际行为一致",
+      "验证 EFI 链式加载器（UUID@EFI_PATH）的跳过行为不受影响"
+    ]
+  }
+}

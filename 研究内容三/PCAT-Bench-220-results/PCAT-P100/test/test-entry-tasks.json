@@ -1,0 +1,82 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040",
+  "patch_id": "ba760c38b38b4fc5377f30bea492deba5f17df60",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "MGMT_OP_ADD_EXT_ADV_DATA",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "net/bluetooth/mgmt.c",
+        "old_lines": [
+          9147,
+          9148
+        ],
+        "new_lines": [
+          9147,
+          9149
+        ],
+        "symbol": "add_ext_adv_data"
+      },
+      "old_behavior": "MGMT_OP_ADD_EXT_ADV_DATA 要求传入的 data_len 必须精确等于 struct_size(cp, data, cp->adv_data_len + cp->scan_rsp_len)，即使用精确长度匹配。如果 bluetoothd 发送了额外字节（如因自身 bug 导致多余尾部数据），内核会以 MGMT_STATUS_INVALID_PARAMS 拒绝命令。",
+      "new_behavior": "MGMT_OP_ADD_EXT_ADV_DATA 仅检查 expected_len > data_len，即仅在期望长度大于实际数据长度（会导致越界访问）时拒绝。如果 data_len 大于 expected_len（存在额外尾部字节），多余字节被静默忽略，命令正常继续执行。",
+      "compatibility_reason": "内核 MGMT 协议对长度校验从严格精确匹配放宽为上限检查。之前由于内核提交 d3f7d17960ed 引入的严格长度校验导致与带有尾部多余字节的 bluetoothd 不兼容；本补丁将校验放宽，使得 bluetoothd 发送的带有额外字节的 MGMT_OP_ADD_EXT_ADV_DATA 命令可以正常处理，恢复与旧版本 bluetoothd 的向后兼容性。符合 profile 中 'INPUT_CONTRACT_CHANGE: Input validation or accepted flag/range change' 分类。",
+      "test_recommendation": "使用 bluetoothd 或模拟 MGMT 客户端发送 MGMT_OP_ADD_EXT_ADV_DATA 命令：1) data_len 精确匹配时正常执行；2) data_len 带有少量额外字节时不再返回 MGMT_STATUS_INVALID_PARAMS，而是正常处理；3) data_len 小于 expected_len 时（越界风险）仍应返回 MGMT_STATUS_INVALID_PARAMS。建议同时验证 hci_cmd_sync_queue 异步路径通过 add_ext_adv_data_sync 和 add_ext_adv_data_complete 的完整生命周期。",
+      "static_call_chains": [
+        {
+          "entry_kind": "mgmt_command",
+          "entry": "mgmt.c::mgmt_process_cmd -> add_ext_adv_data",
+          "chain": [
+            "MGMT_OP_ADD_EXT_ADV_DATA handler table dispatch",
+            "add_ext_adv_data"
+          ]
+        }
+      ],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "kselftest, syzkaller program, shell command, or minimal module only when no user-space path exists",
+        "trigger_surface": "drive the externally reachable subsystem path that reaches the changed line",
+        "seed_sources": [
+          "tools/testing/selftests",
+          "static_call_chains",
+          "subsystem docs"
+        ],
+        "surface_entry_kind": "kernel_reachability_reproducer",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040/compatibility-testing"
+}

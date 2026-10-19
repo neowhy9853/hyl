@@ -1,0 +1,113 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P047/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P047/patch.diff",
+  "profile": "kernel_6_6",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "fs/ext4/mballoc.c"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 1785,
+      "patch_lines": 44,
+      "diff_added_lines": 0,
+      "diff_deleted_lines": 2,
+      "diff_context_lines": 9,
+      "churn": 2,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 1683,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "syscall": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "fs/ext4/mballoc.c",
+      "old_start": 1090,
+      "old_end": 1097,
+      "new_start": 1090,
+      "new_end": 1095,
+      "context_hint": "static inline int should_optimize_scan(struct ext4_allocation_context *ac)",
+      "added_lines": [],
+      "deleted_lines": [
+        "\tif (!ext4_test_inode_flag(ac->ac_inode, EXT4_INODE_EXTENTS))",
+        "\t\treturn 0;"
+      ],
+      "context_lines": [
+        "\t\treturn 0;",
+        "\tif (ac->ac_criteria >= CR_GOAL_LEN_SLOW)",
+        "\t\treturn 0;",
+        "\treturn 1;",
+        "}",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "ext4_allocation_context",
+        "ext4_test_inode_flag",
+        "ac",
+        "ac_inode",
+        "EXT4_INODE_EXTENTS",
+        "should_optimize_scan"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ext4_allocation_context",
+        "snippet_start_line": 1061,
+        "snippet_end_line": 1125,
+        "snippet": "\t\tif (num_stripe_clusters > 0) {\n\t\t\t/*\n\t\t\t * Try to round up the adjusted goal length to\n\t\t\t * stripe size (in cluster units) multiple for\n\t\t\t * efficiency.\n\t\t\t */\n\t\t\tac->ac_g_ex.fe_len = roundup(ac->ac_g_ex.fe_len,\n\t\t\t\t\t\t     num_stripe_clusters);\n\t\t}\n\n\t\tfrag_order = mb_avg_fragment_size_order(ac->ac_sb,\n\t\t\t\t\t\t\tac->ac_g_ex.fe_len);\n\n\t\tgrp = ext4_mb_find_good_group_avg_frag_lists(ac, frag_order);\n\t\tif (grp) {\n\t\t\t*group = grp->bb_group;\n\t\t\tac->ac_flags |= EXT4_MB_CR_BEST_AVAIL_LEN_OPTIMIZED;\n\t\t\treturn;\n\t\t}\n\t}\n\n\t/* Reset goal length to original goal length before falling into CR_GOAL_LEN_SLOW */\n\tac->ac_g_ex.fe_len = ac->ac_orig_goal_len;\n\t*new_cr = CR_GOAL_LEN_SLOW;\n}\n\nstatic inline int should_optimize_scan(struct ext4_allocation_context *ac)\n{\n\tif (unlikely(!test_opt2(ac->ac_sb, MB_OPTIMIZE_SCAN)))\n\t\treturn 0;\n\tif (ac->ac_criteria >= CR_GOAL_LEN_SLOW)\n\t\treturn 0;\n\treturn 1;\n}\n\n/*\n * Return next linear group for allocation. If linear traversal should not be\n * performed, this function just returns the same group\n */\nstatic ext4_group_t\nnext_linear_group(struct ext4_allocation_context *ac, ext4_group_t group,\n\t\t  ext4_group_t ngroups)\n{\n\tif (!should_optimize_scan(ac))\n\t\tgoto inc_and_return;\n\n\tif (ac->ac_groups_linear_remaining) {\n\t\tac->ac_groups_linear_remaining--;\n\t\tgoto inc_and_return;\n\t}\n\n\treturn group;\ninc_and_return:\n\t/*\n\t * Artificially restricted ngroups for non-extent\n\t * files makes group > ngroups possible on first loop.\n\t */\n\treturn group + 1 >= ngroups ? 0 : group + 1;\n}\n\n/*\n * ext4_mb_choose_next_group: choose next group for allocation.\n *\n * @ac        Allocation Context\n * @new_cr    This is an output parameter. If the there is no good group\n"
+      }
+    }
+  ]
+}

@@ -1,0 +1,317 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P057/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repos/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P057/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P057",
+  "patch_id": "204a6ddfb3bb456929e7c364e1e8d6ee1928b471",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "ABI_CHANGE",
+      "affected_api": {
+        "name": "struct linux_kernel_params",
+        "kind": "struct_type",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "include/grub/i386/linux.h",
+        "old_lines": [
+          142,
+          346
+        ],
+        "new_lines": [
+          190,
+          506
+        ],
+        "symbol": "linux_kernel_params"
+      },
+      "old_behavior": "linux_kernel_params 使用扁平结构，视频相关字段（lfb_width, lfb_height, lfb_depth, lfb_base, lfb_line_len, red_mask_size, green_mask_size, blue_mask_size, reserved_mask_size, capabilities, ext_lfb_base, lfb_size）直接作为顶层成员；have_vga 作为视频类型标识；APM 字段（apm_version 等）作为顶层成员；IST 字段（ist_signature 等）作为顶层成员；OFW 字段（ofw_signature 等）作为顶层成员；e820_map 使用 struct grub_e820_mmap 类型；setup header 字段嵌套在结构体中",
+      "new_behavior": "linux_kernel_params 重组为嵌套子结构：screen_info(struct grub_screen_info) 包含所有视频相关字段，字段名从 lfb_width 改为 screen_info.lfb_width 等；have_vga 改为 screen_info.orig_video_isVGA；apm_bios_info(struct grub_apm_bios_info) 包含 APM 字段；ist_info(struct grub_ist_info) 包含 IST 字段；olpc_ofw_header(struct grub_olpc_ofw_header) 包含 OFW 字段；e820_table 使用 struct grub_boot_e820_entry 新类型；hdr 使用 struct grub_setup_header 新类型；padding11/ps_mouse 字段删除，由 boot_flag 替代",
+      "compatibility_reason": "linux_kernel_params 是 GRUB 与 Linux 内核之间的启动协议结构体，GRUB 写入该结构体后传递给 Linux 内核。所有字段的偏移量、类型、名称均发生变化，任何读取该结构体的代码（包括 Linux 内核的 arch/x86/boot/ 代码）都需要同步更新。旧版 Linux 内核无法正确解析新版 GRUB 填充的启动参数，可能导致内核启动失败、无法设置显示模式、无法读取内存映射表等严重问题。该变更需要 GRUB 与内核版本绑定更新。",
+      "test_recommendation": "在 QEMU 中分别使用旧版 Linux 内核和新版 Linux 内核启动，验证启动参数传递的正确性；重点测试显示模式设置、内存映射传递、EFI 启动路径；编写 sizeof/offsetof 断言确保结构体布局与 Linux 内核定义一致。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "abi_dump_and_consumer_harness",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "binary_abi_compatibility",
+        "comparison": "success",
+        "required_observation": "symbol/version manifest plus size, alignment, offset, enum, and calling ABI",
+        "input_axes": [
+          "exported symbols",
+          "symbol versions",
+          "type layouts",
+          "old binary consumer"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "ABI_CHANGE",
+      "affected_api": {
+        "name": "struct grub_boot_e820_entry (原 grub_e820_mmap)",
+        "kind": "struct_type",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "include/grub/i386/linux.h",
+        "old_lines": [
+          158,
+          163
+        ],
+        "new_lines": [
+          207,
+          212
+        ],
+        "symbol": "grub_boot_e820_entry"
+      },
+      "old_behavior": "struct grub_e820_mmap 用于表示 E820 内存映射条目，字段为 addr, size, type。该类型在 linux_kernel_params.e820_map 和 grub_e820_add_region 函数中使用。",
+      "new_behavior": "struct grub_boot_e820_entry 替代 grub_e820_mmap，字段名保持 addr/size/type 不变但结构体名称变更。同时在 linux_kernel_params 中 e820_map 改名为 e820_table，grub_e820_add_region 参数类型随之变更。",
+      "compatibility_reason": "结构体类型名称变更导致所有引用 struct grub_e820_mmap 的代码编译失败。e820_map 字段改名为 e820_table 导致访问该字段的代码需要更新。虽然字段名未变，但结构体重命名和字段重命名是典型的 API 兼容性破坏。GRUB 内部使用 find_mmap_size 和 grub_e820_add_region 进行内存映射管理，这些函数的签名变化影响模块内部编译。",
+      "test_recommendation": "编译 GRUB linux 模块确保所有引用已更新；在 QEMU 中启动 Linux 内核并检查 /sys/firmware/efi/efivars 或 dmesg 中的 E820 内存映射是否完整正确。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "abi_dump_and_consumer_harness",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "binary_abi_compatibility",
+        "comparison": "success",
+        "required_observation": "symbol/version manifest plus size, alignment, offset, enum, and calling ABI",
+        "input_axes": [
+          "exported symbols",
+          "symbol versions",
+          "type layouts",
+          "old binary consumer"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0003",
+      "finding_id": "PCA-0003",
+      "test_priority": "high",
+      "compatibility_type": "ABI_CHANGE",
+      "affected_api": {
+        "name": "struct grub_screen_info (新增), struct grub_apm_bios_info (新增), struct grub_setup_header (新增) 等子结构体",
+        "kind": "struct_type",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "include/grub/i386/linux.h",
+        "old_lines": [
+          142,
+          299
+        ],
+        "new_lines": [
+          129,
+          398
+        ],
+        "symbol": "grub_screen_info"
+      },
+      "old_behavior": "没有 struct grub_screen_info、struct grub_apm_bios_info、struct grub_ist_info、struct grub_setup_header、struct grub_sys_desc_table、struct grub_olpc_ofw_header 等独立结构体。所有字段直接嵌入 linux_kernel_params 顶层。",
+      "new_behavior": "新增多个子结构体类型：struct grub_screen_info（屏幕信息，偏移0x00-0x3f）、struct grub_apm_bios_info（APM BIOS 信息，偏移0x40）、struct grub_ist_info（IST 信息，偏移0x60）、struct grub_sys_desc_table（系统描述表，偏移0xa0）、struct grub_olpc_ofw_header（OFW 头部，偏移0xb0）、struct grub_setup_header（setup 头部，偏移0x1f1）、struct grub_edd_device_params 和 struct grub_edd_info（EDD 设备信息）。",
+      "compatibility_reason": "这些新结构体是 linux_kernel_params 重构的一部分。虽然它们是新增的抽象层次，但 linux_kernel_params 的整体布局发生变化：screen_info 中各字段的偏移量需要与 Linux 内核的 screen_info 结构体精确匹配。如果新结构体的大小、字段顺序或对齐方式与 Linux 内核不一致，将导致启动失败。此外，任何直接使用旧字段名（如 params->lfb_width）的外部代码都将编译失败。",
+      "test_recommendation": "编译并运行 Linux 内核启动测试，验证屏幕信息、APM、EDD、EFI 信息等各字段是否正确传递；在 EFI 平台上验证 EFI 启动参数传递的正确性。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "abi_dump_and_consumer_harness",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "binary_abi_compatibility",
+        "comparison": "success",
+        "required_observation": "symbol/version manifest plus size, alignment, offset, enum, and calling ABI",
+        "input_axes": [
+          "exported symbols",
+          "symbol versions",
+          "type layouts",
+          "old binary consumer"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0004",
+      "finding_id": "PCA-0004",
+      "test_priority": "high",
+      "compatibility_type": "ABI_CHANGE",
+      "affected_api": {
+        "name": "struct linux_i386_kernel_header",
+        "kind": "struct_type",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "include/grub/i386/linux.h",
+        "old_lines": [
+          158,
+          299
+        ],
+        "new_lines": [
+          153,
+          204
+        ],
+        "symbol": "linux_i386_kernel_header"
+      },
+      "old_behavior": "linux_i386_kernel_header 中有 pad1(grub_uint16_t)、initrd_addr_max(grub_uint32_t)、kernel_alignment(grub_uint32_t)、relocatable(grub_uint8_t)、cmdline_size(grub_uint32_t) 等字段。",
+      "new_behavior": "pad1 被替换为 ext_loader_ver(grub_uint8_t) 和 ext_loader_type(grub_uint8_t)。relocatable 重命名为 relocatable_kernel。新增 kernel_info_offset(grub_uint32_t) 字段。",
+      "compatibility_reason": "linux_i386_kernel_header 是 Linux 内核启动头结构体，GRUB 读取此结构体以解析内核映像的启动参数。字段类型变更(pad1 从 uint16_t 变为两个 uint8_t)和重命名(relocatable->relocatable_kernel)会影响读取这些字段的 GRUB 代码。GRUB 的 grub_cmd_linux 函数中通过 lh->relocatable 等字段访问内核头部信息。",
+      "test_recommendation": "编译 GRUB 并尝试加载不同版本 Linux 内核的 bzImage，验证 relocatable/relocatable_kernel 和 initrd_addr_max 等字段是否被正确解析。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "abi_dump_and_consumer_harness",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "binary_abi_compatibility",
+        "comparison": "success",
+        "required_observation": "symbol/version manifest plus size, alignment, offset, enum, and calling ABI",
+        "input_axes": [
+          "exported symbols",
+          "symbol versions",
+          "type layouts",
+          "old binary consumer"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0005",
+      "finding_id": "PCA-0005",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "grub_linux_setup_video",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "grub-core/loader/i386/linux.c",
+        "old_lines": [
+          234,
+          340
+        ],
+        "new_lines": [
+          234,
+          340
+        ],
+        "symbol": "grub_linux_setup_video"
+      },
+      "old_behavior": "grub_linux_setup_video 将视频信息写入 linux_kernel_params 的顶层字段：params->lfb_width, params->lfb_height, params->lfb_depth, params->have_vga, params->red_mask_size 等。这些字段在 Linux 内核启动代码中直接通过偏移量读取。",
+      "new_behavior": "grub_linux_setup_video 将视频信息写入 linux_kernel_params 的嵌套子结构字段：params->screen_info.lfb_width, params->screen_info.lfb_height, params->screen_info.lfb_depth, params->screen_info.orig_video_isVGA, params->screen_info.red_size 等。",
+      "compatibility_reason": "虽然字段语义和赋值逻辑未变，但写入的偏移量位置发生了根本变化（从顶层偏移变为 screen_info 子结构内部偏移）。这直接影响 Linux 内核读取这些字段的能力：旧版内核按旧偏移量读取将得到错误数据（可能读到其他字段的值），导致显示异常或内核启动失败。这是 GRUB-Linux 启动协议的核心兼容性问题。",
+      "test_recommendation": "在 QEMU 中分别使用旧版和新版 GRUB 启动同一内核，使用 dmesg 和 /sys/class/graphics/fb0/* 验证显示参数是否正确；重点测试 EFI GOP/VBE 显示模式。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P057/compatibility-testing"
+}

@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://patch-compatibility-utils.skill/pca-batch-runner/manifest-v1.json",
+  "title": "PCAT Batch Scan Manifest",
+  "description": "补丁批量扫描清单：描述待分析补丁集合与全局调度配置（设计方案 §5.1）",
+  "type": "object",
+  "required": ["schema_version", "cases"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "清单格式版本"
+    },
+    "global": {
+      "type": "object",
+      "description": "全局配置，全部可选，均有默认值",
+      "properties": {
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "default": 4,
+          "description": "同时运行的子 Agent 数量（硬上限 16）"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["analysis", "analysis-test"],
+          "default": "analysis",
+          "description": "analysis 仅静态分析；analysis-test 分析后串接定向测试（需 env_authorized）"
+        },
+        "timeout_sec": {
+          "type": "integer",
+          "minimum": 60,
+          "default": 3600,
+          "description": "单用例超时上限（analysis-test 模式实际生效值 ×3）"
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1,
+          "description": "失败重试次数（interrupted 不消耗）"
+        },
+        "model": {
+          "type": ["string", "null"],
+          "description": "全批统一模型（opencode --model，如 provider/model）"
+        },
+        "agent": {
+          "type": "string",
+          "default": "patch-compatibility-utils",
+          "description": "子 Agent 使用的 opencode agent 名称"
+        },
+        "output_base": {
+          "type": "string",
+          "description": "批次产物根目录，每用例写入 <output_base>/<case_id>/"
+        },
+        "repo_cache": {
+          "type": "string",
+          "description": "URL 仓库的共享克隆缓存目录"
+        },
+        "skill_dir": {
+          "type": "string",
+          "description": "patch-compatibility-utils Skill 安装目录（含 patch-compatibility-analysis/scripts/）"
+        },
+        "prompt_template": {
+          "type": "string",
+          "description": "自定义 prompt 模板文件路径（默认使用内置 templates/prompt.txt.j2）"
+        },
+        "progress_interval_sec": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 300,
+          "description": "progress.jsonl 心跳间隔秒（0 关闭）"
+        },
+        "disk_check_interval_sec": {
+          "type": "integer",
+          "minimum": 30,
+          "default": 600,
+          "description": "运行中磁盘水位检查间隔秒"
+        },
+        "disk_low_watermark_gb": {
+          "type": "number",
+          "minimum": 0,
+          "default": 20,
+          "description": "output_base 所在卷剩余空间低于该 GB 数时暂停分派"
+        },
+        "per_case_disk_estimate_gb": {
+          "type": "number",
+          "minimum": 0,
+          "default": 5,
+          "description": "预检时单用例产物磁盘占用预估（GB），用于开局警告"
+        },
+        "consecutive_fail_limit": {
+          "type": "integer",
+          "minimum": 2,
+          "default": 5,
+          "description": "连续同签名失败熔断阈值"
+        },
+        "env_authorized": {
+          "type": "boolean",
+          "default": false,
+          "description": "analysis-test 模式下的全局环境授权默认值（可被用例级覆盖）"
+        },
+        "notify": {
+          "type": "object",
+          "description": "外部推送（模式 D）",
+          "properties": {
+            "on": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["batch_done", "circuit_break", "disk_low"]
+              },
+              "default": ["batch_done", "circuit_break", "disk_low"]
+            },
+            "command": {
+              "type": "string",
+              "description": "shell 命令，支持 {{batch_id}}/{{event}}/{{counts}} 占位符"
+            }
+          },
+          "required": ["command"]
+        },
+        "report_to": {
+          "type": "object",
+          "description": "里程碑会话注入回调（模式 E），session id 由 Agent 启动时经 --report-session 传入",
+          "properties": {
+            "server": {
+              "type": "string",
+              "description": "OpenCode server 地址，如 http://localhost:4096"
+            },
+            "milestone": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "description": "按进度百分比注入的里程碑步长"
+            },
+            "every": {
+              "type": "string",
+              "description": "时间制注入间隔，如 30m / 1h（与 milestone 二选一）"
+            }
+          }
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "description": "待分析补丁列表（每项一个补丁）",
+      "items": {
+        "type": "object",
+        "required": ["id", "repo", "base_commit", "patch"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "description": "用例唯一标识，决定产物目录名 <output_base>/<id>/"
+          },
+          "repo": {
+            "type": "string",
+            "minLength": 1,
+            "description": "本地仓库路径或 git URL（URL 由调度器准备阶段克隆到 repo_cache）"
+          },
+          "base_commit": {
+            "type": "string",
+            "minLength": 1,
+            "description": "补丁基线 commit/tag/branch"
+          },
+          "patch": {
+            "type": "string",
+            "minLength": 1,
+            "description": "本地 patch/diff 文件路径（首版仅支持本地文件）"
+          },
+          "profile": {
+            "type": "string",
+            "default": "auto",
+            "description": "分析 profile，默认 auto"
+          },
+          "expected": {
+            "type": "object",
+            "description": "评测用 ground truth（可选，仅用于指标计算）",
+            "properties": {
+              "is_compatibility_change": {
+                "type": "boolean"
+              },
+              "test_priority": {
+                "type": "string",
+                "enum": ["high", "medium", "low"]
+              }
+            },
+            "required": ["is_compatibility_change"]
+          },
+          "env_authorized": {
+            "type": "boolean",
+            "default": false,
+            "description": "analysis-test 模式下该用例是否已确认无环境风险"
+          }
+        }
+      }
+    }
+  }
+}

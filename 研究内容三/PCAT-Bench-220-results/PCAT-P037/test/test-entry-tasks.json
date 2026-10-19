@@ -1,0 +1,139 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/ruby/pca-results/0d7e50/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/ruby",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/ruby/pca-results/0d7e50/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/ruby/pca-results/0d7e50",
+  "patch_id": "0d7e50a1746bfa3db2a50478d3680cd7c36ea383",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "rb_ec_exec_end_proc / rb_ec_teardown / error_handle (via rb_error_write path)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "eval.c",
+        "old_lines": [
+          147,
+          161
+        ],
+        "new_lines": [
+          147,
+          172
+        ],
+        "symbol": "rb_ec_teardown"
+      },
+      "old_behavior": "During Ruby process exit (rb_ec_teardown), if rb_vm_trap_exit() raises an exception (TAG != NONE), the trap error was silently discarded. ec->errinfo was not preserved. After EC_POP_TAG, rb_ec_exec_end_proc would run, potentially overwriting errinfo with END handler errors. EXIT trap exceptions could be lost entirely.",
+      "new_behavior": "During Ruby process exit, if rb_vm_trap_exit() raises an exception, the trap error is saved in a local trap_errinfo variable. ec->errinfo is cleared to Qnil before END procs run. After END procs complete, the trap error is reported via error_handle() and ec->errinfo is restored to trap_errinfo. This ensures EXIT handler exceptions are preserved and reported after END block handlers, without loss.",
+      "compatibility_reason": "The side effect of error reporting during Ruby process exit cleanup changes observably. Any Ruby program that registers both Signal.trap(:EXIT) and END/at_exit blocks which raise exceptions will produce different error output after this patch. Previously, EXIT handler exceptions could be silently lost; now they are always reported. END handler error output may also differ because shown_causes are shared via add_shown_cause() in eval_jump.c to prevent duplicate cause chains. This affects the externally visible diagnostic output during crash/exit reporting.",
+      "test_recommendation": "Create Ruby scripts with combinations of Signal.trap(:EXIT) raising exceptions and multiple END blocks raising exceptions. Compare before/after stderr output for correctness and completeness.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "affected_api": {
+        "name": "rb_ec_exec_end_proc / error_handle / rb_error_write / rb_ec_error_print",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "eval_jump.c",
+        "lines": [
+          114,
+          136
+        ],
+        "new_lines": [
+          113,
+          136
+        ],
+        "symbol": "rb_ec_exec_end_proc",
+        "old_lines": [
+          114,
+          132
+        ]
+      },
+      "old_behavior": "When multiple END/at_exit handlers raised exceptions, each handler's error was independently reported via error_handle() without tracking already-shown causes. This could cause duplicate cause chain output in error messages. EXIT handler errors were processed by rb_ec_teardown before END handlers, potentially being lost when END handlers also failed.",
+      "new_behavior": "END handler errors now share a common shown_causes accumulator (add_shown_cause in eval_jump.c). When an END handler raises, its errinfo is recorded as a shown cause before the next handler runs, preventing duplicate cause reporting. EXIT handler errors are now processed AFTER END handlers in rb_ec_teardown, ensuring they are visible. The error_handle_with_shown_causes function in eval_error.c accepts an external shown_causes pointer to enable this sharing.",
+      "compatibility_reason": "Exception reporting during Ruby process cleanup changes observably. Programs with multiple END blocks that chain exceptions AND an EXIT trap will see different error messages: duplicate causes are eliminated, and EXIT trap exceptions now appear in output. Test suites that assert on specific exception messages or counts during exit will be affected. The error_handle function is now a thin wrapper around error_handle_with_shown_causes, preserving the public API signature but changing internal error routing.",
+      "test_recommendation": "Run the existing test/ruby/test_exception.rb test suite and verify the new tests pass. Also create standalone Ruby programs with various combinations of END blocks and EXIT traps to validate error output completeness.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "error_or_exception_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "error_exception_stability",
+        "comparison": "error",
+        "required_observation": "errno/error code, exception type, message, and failure mode",
+        "input_axes": [
+          "each error path",
+          "invalid input",
+          "missing resource",
+          "permission",
+          "fault injection"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/ruby/pca-results/0d7e50/compatibility-testing"
+}

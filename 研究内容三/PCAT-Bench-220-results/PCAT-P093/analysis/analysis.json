@@ -1,0 +1,206 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P033/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P033",
+  "base_ref": "16e8e067516c7c35f2affd8e9d58271707611575^",
+  "base_commit": "5d1cdacd7861acbfa5ff376ce8c0c4653902c86c",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "16e8e067516c7c35f2affd8e9d58271707611575",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/golang/go/commit/16e8e067516c7c35f2affd8e9d58271707611575.patch",
+    "download_url": "https://github.com/golang/go/commit/16e8e067516c7c35f2affd8e9d58271707611575.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P033/_patch-cache/16e8e067516c.patch",
+    "commit": "16e8e067516c7c35f2affd8e9d58271707611575",
+    "base_ref_inferred": "16e8e067516c7c35f2affd8e9d58271707611575^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "golang",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 4021,
+    "patch_lines": 127,
+    "diff_added_lines": 59,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 26,
+    "churn": 61,
+    "raw_hunks": 4,
+    "candidate_hunks": 4,
+    "skipped_doc_hunks": 0,
+    "changed_files": 3,
+    "candidate_context_bytes": 6940,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "go_exported_api": 2,
+      "go_errors": 4,
+      "user_visible_output": 4,
+      "stdlib": 3,
+      "errors": 4,
+      "tests": 3
+    },
+    "candidates_json_bytes": 24358
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 4,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "golang",
+      "affected_surface": "runtime.PanicNilError.Error() - exported error message string. PanicNilError implements runtime.Error interface. Its Error() method return value is part of the error reporting contract.",
+      "affected_api": {
+        "name": "runtime.PanicNilError.Error()",
+        "kind": "public_method",
+        "language": "go"
+      },
+      "location": {
+        "file": "src/runtime/panic.go",
+        "old_lines": [
+          794,
+          794
+        ],
+        "new_lines": [
+          794,
+          794
+        ],
+        "symbol": "PanicNilError.Error"
+      },
+      "old_behavior": "PanicNilError.Error() 返回字符串 \"panic called with nil argument\"，该错误消息不符合 Go 规范中对 runtime.Error 的约定——所有 runtime 错误应以 \"runtime error:\" 为前缀。panic(nil) 的完整输出为 \"panic: panic called with nil argument\"。",
+      "new_behavior": "PanicNilError.Error() 返回字符串 \"runtime error: panic called with nil argument\"，添加了 \"runtime error:\" 前缀以正确符合 runtime.Error 接口约定。panic(nil) 的完整输出变为 \"panic: runtime error: panic called with nil argument\"。",
+      "compatibility_reason": "任何对 PanicNilError.Error() 返回值进行字符串精确匹配、子串匹配（如检查 \"runtime error:\" 前缀是否存在）或解析的代码都将受到影响。调用方如果比较错误消息以判断是否为 panic(nil) 错误，其断言将失败。Go 约定推荐使用类型断言和接口判断（而非字符串匹配）来处理错误，因此实际影响范围有限，但仍构成兼容性变更。",
+      "evidence": [
+        {
+          "file": "src/runtime/panic.go",
+          "lines": [
+            794,
+            794
+          ],
+          "snippet": "func (*PanicNilError) Error() string { return \"runtime error: panic called with nil argument\" }"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "PanicNilError 是 runtime 包中的导出类型，其 Error() 是导出方法。当用户代码调用 panic(nil) 并通过 recover() 捕获后，可通过类型断言获取 *PanicNilError 并调用其 Error() 方法。此外，panic 的完整输出包含此错误消息，对用户和日志解析器可见。",
+      "uncertainty": "Go 社区代码极少对 PanicNilError 的 Error() 字符串做精确匹配；通常使用类型断言 (runtime.Error) 来判断。字符串匹配主要影响日志/监控系统解析 panic 输出的场景。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核。此变更将 PanicNilError 的 Error() 输出对齐至 Go 规范要求的 runtime.Error 契约，是一个合规性修复。",
+      "test_recommendation": "验证 panic(nil) 输出的错误消息包含 \"runtime error:\" 前缀；验证调用 panic(nil) 后 recover() 返回值实现 runtime.Error 接口；验证对 PanicNilError.Error() 的字符串包含检查在旧代码中可能失效的场景。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/runtime/panic.go",
+            "old_lines": [
+              791,
+              797
+            ],
+            "new_lines": [
+              791,
+              797
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "go_exported_api",
+              "go_errors",
+              "user_visible_output",
+              "stdlib",
+              "errors"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "go_exported_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported Go functions, methods, types, interfaces, constants, and variables."
+              },
+              {
+                "name": "go_errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel value, wrapping, and comparison behavior."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "stdlib",
+                "test_priority": "high",
+                "public": true,
+                "description": "Go standard library"
+              },
+              {
+                "name": "errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel errors, error wrapping"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

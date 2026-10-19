@@ -1,0 +1,181 @@
+        -:    0:Source:rewrite_qsa_test.c
+        -:    0:Graph:rewrite_qsa_test.gcno
+        -:    0:Data:rewrite_qsa_test.gcda
+        -:    0:Runs:1
+        -:    1:// Synthetic harness to test the cmd_rewriterule QSA + trailing ? behavior
+        -:    2:// This isolates the config-parsing logic change to verify before/after behavior.
+        -:    3:#include <stdio.h>
+        -:    4:#include <string.h>
+        -:    5:#include <stdlib.h>
+        -:    6:
+        -:    7:// Flag constants from mod_rewrite.c (line 167, 174, 178)
+        -:    8:#define RULEFLAG_QSAPPEND           (1<<9)
+        -:    9:#define RULEFLAG_QSDISCARD          (1<<16)
+        -:   10:#define RULEFLAG_QSNONE             (1<<20)
+        -:   11:
+        -:   12:// ===== BEFORE (old/buggy) logic =====
+function apply_trailing_qmark_BEFORE called 6 returned 100% blocks executed 100%
+        6:   13:static void apply_trailing_qmark_BEFORE(unsigned int *flags) {
+        -:   14:    // Old code: unconditionally set QSNONE
+        6:   15:    *flags |= RULEFLAG_QSNONE;
+        6:   16:}
+        -:   17:
+        -:   18:// ===== AFTER (new/fixed) logic =====
+function apply_trailing_qmark_AFTER called 6 returned 100% blocks executed 100%
+        6:   19:static void apply_trailing_qmark_AFTER(unsigned int *flags) {
+        -:   20:    // New code: only set QSNONE if QSAPPEND is NOT set
+        6:   21:    if (!(*flags & RULEFLAG_QSAPPEND)) {
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+        3:   22:        *flags |= RULEFLAG_QSNONE;
+        -:   23:    }
+        6:   24:}
+        -:   25:
+        -:   26:typedef struct {
+        -:   27:    const char *desc;
+        -:   28:    unsigned int input_flags;
+        -:   29:    unsigned int expected_before;
+        -:   30:    unsigned int expected_after;
+        -:   31:    int qsnone_set_before;
+        -:   32:    int qsnone_set_after;
+        -:   33:} test_case_t;
+        -:   34:
+function main called 1 returned 100% blocks executed 77%
+        1:   35:int main(void) {
+        1:   36:    int passed = 0, failed = 0;
+        -:   37:    unsigned int result_before, result_after;
+        -:   38:
+        1:   39:    test_case_t tests[] = {
+        -:   40:        {
+        -:   41:            "trailing ? without QSA",
+        -:   42:            0,
+        -:   43:            0 | RULEFLAG_QSNONE,
+        -:   44:            0 | RULEFLAG_QSNONE,
+        -:   45:            1, 1
+        -:   46:        },
+        -:   47:        {
+        -:   48:            "trailing ? with QSA (KEY test)",
+        -:   49:            RULEFLAG_QSAPPEND,
+        -:   50:            RULEFLAG_QSAPPEND | RULEFLAG_QSNONE,  // BEFORE: QSNONE set, overriding QSA
+        -:   51:            RULEFLAG_QSAPPEND,                     // AFTER: QSNONE NOT set, QSA preserved
+        -:   52:            1, 0
+        -:   53:        },
+        -:   54:        {
+        -:   55:            "trailing ? with QSDISCARD",
+        -:   56:            RULEFLAG_QSDISCARD,
+        -:   57:            RULEFLAG_QSDISCARD | RULEFLAG_QSNONE,
+        -:   58:            RULEFLAG_QSDISCARD | RULEFLAG_QSNONE,
+        -:   59:            1, 1
+        -:   60:        },
+        -:   61:        {
+        -:   62:            "trailing ? with QSAPPEND|QSDISCARD combined",
+        -:   63:            RULEFLAG_QSAPPEND | RULEFLAG_QSDISCARD,
+        -:   64:            RULEFLAG_QSAPPEND | RULEFLAG_QSDISCARD | RULEFLAG_QSNONE,
+        -:   65:            RULEFLAG_QSAPPEND | RULEFLAG_QSDISCARD,
+        -:   66:            1, 0
+        -:   67:        },
+        -:   68:        {
+        -:   69:            "trailing ? with other flags (nocase, redirect etc)",
+        -:   70:            0x1 | 0x2 | 0x4,  // some non-QSA flags
+        -:   71:            0x1 | 0x2 | 0x4 | RULEFLAG_QSNONE,
+        -:   72:            0x1 | 0x2 | 0x4 | RULEFLAG_QSNONE,
+        -:   73:            1, 1
+        -:   74:        },
+        -:   75:        {
+        -:   76:            "trailing ? with nocase+QSA",
+        -:   77:            RULEFLAG_QSAPPEND | 0x4,
+        -:   78:            RULEFLAG_QSAPPEND | 0x4 | RULEFLAG_QSNONE,
+        -:   79:            RULEFLAG_QSAPPEND | 0x4,
+        -:   80:            1, 0
+        -:   81:        },
+        -:   82:    };
+        -:   83:
+        1:   84:    int ntests = sizeof(tests) / sizeof(tests[0]);
+        -:   85:
+        1:   86:    printf("=== PCA-0001: RewriteRule QSA + trailing ? behavior test ===\n");
+call    0 returned 100%
+        1:   87:    printf("Testing BEFORE (old: unconditional QSNONE) vs AFTER (new: QSA-aware QSNONE)\n\n");
+call    0 returned 100%
+        -:   88:
+        7:   89:    for (int i = 0; i < ntests; i++) {
+branch  0 taken 86%
+branch  1 taken 14% (fallthrough)
+        6:   90:        test_case_t *t = &tests[i];
+        -:   91:
+        -:   92:        // BEFORE
+        6:   93:        result_before = t->input_flags;
+        6:   94:        apply_trailing_qmark_BEFORE(&result_before);
+call    0 returned 100%
+        6:   95:        int qs_before = (result_before & RULEFLAG_QSNONE) ? 1 : 0;
+        -:   96:
+        -:   97:        // AFTER
+        6:   98:        result_after = t->input_flags;
+        6:   99:        apply_trailing_qmark_AFTER(&result_after);
+call    0 returned 100%
+        6:  100:        int qs_after = (result_after & RULEFLAG_QSNONE) ? 1 : 0;
+        -:  101:
+       6*:  102:        int ok_before = (result_before == t->expected_before) && (qs_before == t->qsnone_set_before);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+       6*:  103:        int ok_after  = (result_after == t->expected_after) && (qs_after == t->qsnone_set_after);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+        -:  104:
+        6:  105:        printf("Test %d: %s\n", i+1, t->desc);
+call    0 returned 100%
+        6:  106:        printf("  Input flags:   0x%08x\n", t->input_flags);
+call    0 returned 100%
+       6*:  107:        printf("  BEFORE result: 0x%08x (QSNONE=%s)\n", result_before, qs_before ? "SET" : "not set");
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+call    2 returned 100%
+        6:  108:        printf("  AFTER  result: 0x%08x (QSNONE=%s)\n", result_after, qs_after ? "SET" : "not set");
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+call    2 returned 100%
+        -:  109:
+        6:  110:        if (ok_before && ok_after) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+        6:  111:            printf("  PASS\n");
+call    0 returned 100%
+        6:  112:            passed++;
+        -:  113:        } else {
+    #####:  114:            printf("  FAIL\n");
+call    0 never executed
+    #####:  115:            if (!ok_before)
+branch  0 never executed
+branch  1 never executed
+    #####:  116:                printf("    BEFORE miscompare: expected 0x%08x, got 0x%08x\n", t->expected_before, result_before);
+call    0 never executed
+    #####:  117:            if (!ok_after)
+branch  0 never executed
+branch  1 never executed
+    #####:  118:                printf("    AFTER miscompare: expected 0x%08x, got 0x%08x\n", t->expected_after, result_after);
+call    0 never executed
+    #####:  119:            failed++;
+        -:  120:        }
+        6:  121:        printf("\n");
+call    0 returned 100%
+        -:  122:    }
+        -:  123:
+        1:  124:    printf("=== Results: %d passed, %d failed ===\n", passed, failed);
+call    0 returned 100%
+        -:  125:
+        -:  126:    // KEY assertion: QSA+trailing ? should NOT set QSNONE in the AFTER version
+        1:  127:    printf("\n=== KEY ASSERTION ===\n");
+call    0 returned 100%
+       1*:  128:    printf("Rule with QSA + trailing ?: QSNONE=%s in new code (should be: not set)\n",
+call    0 returned 100%
+        1:  129:           (tests[1].qsnone_set_after == 0) ? "NOT SET (CORRECT)" : "SET (WRONG)");
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        -:  130:
+        1:  131:    return failed > 0 ? 1 : 0;
+        -:  132:}

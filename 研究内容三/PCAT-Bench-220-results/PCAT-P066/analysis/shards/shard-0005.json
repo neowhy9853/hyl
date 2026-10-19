@@ -1,0 +1,552 @@
+{
+  "shard_id": "SHARD-0005",
+  "surface": "config_keys",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    25,
+    27,
+    29
+  ],
+  "hunk_ids": [
+    "HUNK-0030",
+    "HUNK-0032",
+    "HUNK-0034"
+  ],
+  "files": [
+    "runtime/ratelimit.c"
+  ],
+  "symbols": [
+    "CHKmalloc",
+    "output_mode",
+    "ratelimitAddConfig",
+    "scope",
+    "shared",
+    "LogError",
+    "conf",
+    "pthread_rwlock_unlock",
+    "ratelimitNewFromConfig",
+    "ratelimit_cfgs",
+    "ABORT_FINALIZE",
+    "__restrict__",
+    "ratelimit",
+    "ratelimitMsgCountWait",
+    "ratelimit_t",
+    "rsRetVal",
+    "time_t"
+  ],
+  "metrics": {
+    "hunks": 3,
+    "context_bytes": 30929
+  },
+  "candidates": [
+    {
+      "file": "runtime/ratelimit.c",
+      "old_start": 1580,
+      "old_end": 1585,
+      "new_start": 1733,
+      "new_end": 1740,
+      "context_hint": "rsRetVal ratelimitAddConfig(rsconf_t *conf,",
+      "added_lines": [
+        "    shared->scope = scope;",
+        "    shared->output_mode = output_mode;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    CHKmalloc(shared = calloc(1, sizeof(ratelimit_shared_t)));",
+        "    CHKmalloc(key = strdup(name));",
+        "    shared->name = key;",
+        "    shared->interval = interval;",
+        "    shared->burst = burst;",
+        "    shared->severity = severity;"
+      ],
+      "hunk_id": "HUNK-0030",
+      "changed_symbols": [
+        "ratelimitAddConfig",
+        "shared",
+        "scope",
+        "output_mode",
+        "CHKmalloc"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "logging",
+          "persistence_state",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ratelimitAddConfig",
+        "snippet_start_line": 1551,
+        "snippet_end_line": 1770,
+        "snippet": "            /* if (shared->per_source_lru_tail == state) - handled by outer if */\n\n            state->lru_prev = shared->per_source_lru_tail;\n            state->lru_next = NULL;\n            if (shared->per_source_lru_tail != NULL) shared->per_source_lru_tail->lru_next = state;\n            shared->per_source_lru_tail = state;\n            if (shared->per_source_lru_head == NULL) shared->per_source_lru_head = state;\n        }\n    }\n\n    if (state == NULL) {\n        pthread_mutex_unlock(&shared->per_source_mut);\n        ABORT_FINALIZE(RS_RET_OUT_OF_MEMORY);\n    }\n\n    override = (ratelimit_ps_override_t *)hashtable_search(shared->per_source_overrides, (void *)key);\n    max = (override != NULL && override->has_max) ? override->max : shared->per_source_default_max;\n    window = (override != NULL && override->has_window) ? override->window : shared->per_source_default_window;\n\n    if (max == 0 || window == 0) {\n        state->allowed++;\n    } else {\n        if (state->window_start == 0 || (tt - state->window_start) >= (time_t)window || tt < state->window_start) {\n            state->window_start = tt;\n            state->count = 0;\n        }\n        if (state->count < max) {\n            state->count++;\n            state->allowed++;\n        } else {\n            state->dropped++;\n            must_drop = 1;\n        }\n    }\n    state->last_seen = tt;\n    if (must_drop) {\n        STATSCOUNTER_INC(shared->ctrPerSourceDropped, shared->mutCtrPerSourceDropped);\n    } else {\n        STATSCOUNTER_INC(shared->ctrPerSourceAllowed, shared->mutCtrPerSourceAllowed);\n    }\n    pthread_mutex_unlock(&shared->per_source_mut);\n\n    if (must_drop) {\n        ABORT_FINALIZE(RS_RET_DISCARDMSG);\n    }\n\nfinalize_it:\n    RETiRet;\n}\n\nrsRetVal ratelimitAddConfig(rsconf_t *conf,\n                            const char *name,\n                            unsigned int interval,\n                            unsigned int burst,\n                            int severity,\n                            const char *policy_file,\n                            sbool policy_watch,\n                            const char *policy_watch_debounce,\n                            sbool per_source_enabled,\n                            const char *per_source_policy_file,\n                            const char *per_source_key_tpl_name,\n                            unsigned int per_source_max_states,\n                            unsigned int per_source_topn,\n                            sbool has_inline_policy_params,\n                            sbool has_legacy_per_source_params) {\n    DEFiRet;\n    ratelimit_shared_t *shared = NULL;\n    ratelimit_shared_t *existing_shared = NULL;\n    char *key = NULL;\n    ratelimit_ps_policy_t *per_source_policy = NULL;\n    ratelimit_policy_file_t file_policy = {0};\n    unsigned int debounce_ms = RATELIMIT_POLICY_WATCH_DEBOUNCE_DFLT_MS;\n    sbool per_source_from_policy_file = 0;\n    sbool bLocked = 0;\n    ratelimit_scope_t scope = RATELIMIT_SCOPE_INPUT;\n    ratelimit_output_mode_t output_mode = RATELIMIT_OUTPUT_MODE_DROP;\n\n\n    if (name == NULL) {\n        ABORT_FINALIZE(RS_RET_PARAM_ERROR);\n    }\n\n    if (policy_watch_debounce != NULL) {\n        CHKiRet(parseDurationMillis(policy_watch_debounce, &debounce_ms));\n    }\n\n    if (policy_file != NULL) {\n        CHKiRet(parsePolicyFile(policy_file, &file_policy));\n        if (file_policy.has_scope) scope = file_policy.scope;\n        if (file_policy.has_output_mode) output_mode = file_policy.output_mode;\n        if (file_policy.has_interval) interval = file_policy.interval;\n        if (file_policy.has_burst) burst = file_policy.burst;\n        if (file_policy.has_severity) severity = file_policy.severity;\n        if (file_policy.has_per_source) {\n            if (per_source_enabled || per_source_policy_file != NULL || per_source_key_tpl_name != NULL ||\n                per_source_max_states != 0 || per_source_topn != 0) {\n                LogError(0, RS_RET_CONFIG_ERROR,\n                         \"ratelimit: policy file '%s' contains perSource for '%s'; do not mix it with legacy \"\n                         \"perSource/perSourcePolicy/perSourceKeyTpl/maxStates/topN parameters\",\n                         policy_file, name);\n                ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n            }\n            per_source_from_policy_file = 1;\n            per_source_enabled = file_policy.per_source_enabled;\n            if (per_source_enabled) {\n                per_source_policy = file_policy.per_source_policy;\n                file_policy.per_source_policy = NULL;\n                per_source_policy_file = policy_file;\n                per_source_key_tpl_name = file_policy.per_source_key_tpl_name;\n                file_policy.per_source_key_tpl_name = NULL;\n                per_source_max_states = file_policy.per_source_max_states;\n                per_source_topn = file_policy.per_source_topn;\n            }\n        }\n    }\n\n    if (scope == RATELIMIT_SCOPE_OUTPUT) {\n        if (policy_file == NULL) {\n            LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: output policy '%s' must use a YAML policy file\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (has_inline_policy_params || has_legacy_per_source_params) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n                     \"ratelimit: output policy '%s' must define limits only in the YAML policy file\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (!file_policy.has_output_mode) {\n            LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: output policy '%s' must define mode in the YAML policy file\",\n                     name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (!file_policy.has_interval || !file_policy.has_burst) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n                     \"ratelimit: output policy '%s' must define interval and burst in the YAML policy file\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (file_policy.has_severity || file_policy.has_per_source) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n                     \"ratelimit: output policy '%s' does not support severity or perSource in this version\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (output_mode == RATELIMIT_OUTPUT_MODE_PACE && burst == 0) {\n            LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: output policy '%s' pace mode requires burst greater than zero\",\n                     name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n    } else if (file_policy.has_output_mode) {\n        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: input policy '%s' must not define output mode\", name);\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n\n    if (per_source_enabled && per_source_policy == NULL) {\n        if (per_source_policy_file == NULL) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n                     \"ratelimit: per-source rate limiting enabled but perSourcePolicy is missing for '%s'\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        CHKiRet(parsePerSourcePolicyFile(per_source_policy_file, &per_source_policy));\n    }\n\n\n    /* Logic:\n     * 1. Search for existing shared object\n     * 2. If exists:\n     *    a. If policy_file != NULL, update it (lock, update, unlock)\n     *    b. If policy_file == NULL, do nothing (read-only, keep existing)\n     * 3. If not exists:\n     *    a. Create new, fill values, insert into hashtable\n     */\n\n    pthread_rwlock_wrlock(&conf->ratelimit_cfgs.lock);\n    bLocked = 1;\n    existing_shared = (ratelimit_shared_t *)hashtable_search(conf->ratelimit_cfgs.ht, (void *)name);\n\n    if (existing_shared != NULL) {\n        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: duplicate name '%s' in current config set\", name);\n        pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n        bLocked = 0;\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n\n    /* Not found - Create New */\n    CHKmalloc(shared = calloc(1, sizeof(ratelimit_shared_t)));\n    CHKmalloc(key = strdup(name));\n    shared->name = key;\n    shared->scope = scope;\n    shared->output_mode = output_mode;\n    shared->interval = interval;\n    shared->burst = burst;\n    shared->severity = severity;\n    shared->policy_watch = policy_watch;\n    shared->policy_watch_debounce_ms = debounce_ms;\n    if (policy_file) {\n        CHKmalloc(shared->policy_file = strdup(policy_file));\n    }\n    pthread_mutex_init(&shared->mut, NULL);\n    if (per_source_enabled) {\n        iRet = ratelimitInitPerSourceShared(shared, per_source_policy, per_source_policy_file, per_source_max_states,\n                                            per_source_topn);\n        free(per_source_policy);\n        per_source_policy = NULL;\n        CHKiRet(iRet);\n        shared->per_source_policy_from_policy_file = per_source_from_policy_file;\n        if (ratelimitLookupPerSourceTemplate(conf, per_source_key_tpl_name, &shared->per_source_key_tpl,\n                                             &shared->per_source_key_tpl_default) != RS_RET_OK) {\n            if (per_source_key_tpl_name != NULL) {\n                LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: perSourceKeyTpl '%s' not found for '%s'\",\n                         per_source_key_tpl_name, name);\n            } else {\n                LogError(0, RS_RET_CONFIG_ERROR,\n                         \"ratelimit: default perSourceKeyTpl 'RSYSLOG_PerSourceKey' not found for '%s'\", name);\n            }\n            pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (per_source_key_tpl_name != NULL) {\n            CHKmalloc(shared->per_source_key_tpl_name = strdup(per_source_key_tpl_name));\n        }\n        shared->per_source_key_mode = perSourceKeyModeFromTemplate(shared->per_source_key_tpl);\n        shared->per_source_key_needs_parsing = (shared->per_source_key_mode == RL_PS_KEY_TPL);\n"
+      }
+    },
+    {
+      "file": "runtime/ratelimit.c",
+      "old_start": 1687,
+      "old_end": 1692,
+      "new_start": 1846,
+      "new_end": 1856,
+      "context_hint": "rsRetVal ratelimitNewFromConfig(",
+      "added_lines": [
+        "    if (shared->scope != scope) {",
+        "        pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);",
+        "        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit config '%s' has incompatible scope for %s\", configname, modname);",
+        "        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);",
+        "    }"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        LogError(0, RS_RET_NOT_FOUND, \"ratelimit config '%s' not found\", configname);",
+        "        ABORT_FINALIZE(RS_RET_NOT_FOUND);",
+        "    }",
+        "    pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);",
+        "",
+        "    /* We use ratelimitNew to allocate the instance, but we override the shared ptr */"
+      ],
+      "hunk_id": "HUNK-0032",
+      "changed_symbols": [
+        "ratelimitNewFromConfig",
+        "shared",
+        "scope",
+        "pthread_rwlock_unlock",
+        "conf",
+        "ratelimit_cfgs",
+        "LogError"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "output_format",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log template, property, and output formatting behavior"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "user_visible_output",
+          "logging",
+          "persistence_state",
+          "module_api",
+          "config_language",
+          "output_format",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ratelimitNewFromConfig",
+        "snippet_start_line": 1658,
+        "snippet_end_line": 1886,
+        "snippet": "                per_source_policy_file = policy_file;\n                per_source_key_tpl_name = file_policy.per_source_key_tpl_name;\n                file_policy.per_source_key_tpl_name = NULL;\n                per_source_max_states = file_policy.per_source_max_states;\n                per_source_topn = file_policy.per_source_topn;\n            }\n        }\n    }\n\n    if (scope == RATELIMIT_SCOPE_OUTPUT) {\n        if (policy_file == NULL) {\n            LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: output policy '%s' must use a YAML policy file\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (has_inline_policy_params || has_legacy_per_source_params) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n                     \"ratelimit: output policy '%s' must define limits only in the YAML policy file\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (!file_policy.has_output_mode) {\n            LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: output policy '%s' must define mode in the YAML policy file\",\n                     name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (!file_policy.has_interval || !file_policy.has_burst) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n                     \"ratelimit: output policy '%s' must define interval and burst in the YAML policy file\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (file_policy.has_severity || file_policy.has_per_source) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n                     \"ratelimit: output policy '%s' does not support severity or perSource in this version\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (output_mode == RATELIMIT_OUTPUT_MODE_PACE && burst == 0) {\n            LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: output policy '%s' pace mode requires burst greater than zero\",\n                     name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n    } else if (file_policy.has_output_mode) {\n        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: input policy '%s' must not define output mode\", name);\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n\n    if (per_source_enabled && per_source_policy == NULL) {\n        if (per_source_policy_file == NULL) {\n            LogError(0, RS_RET_CONFIG_ERROR,\n                     \"ratelimit: per-source rate limiting enabled but perSourcePolicy is missing for '%s'\", name);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        CHKiRet(parsePerSourcePolicyFile(per_source_policy_file, &per_source_policy));\n    }\n\n\n    /* Logic:\n     * 1. Search for existing shared object\n     * 2. If exists:\n     *    a. If policy_file != NULL, update it (lock, update, unlock)\n     *    b. If policy_file == NULL, do nothing (read-only, keep existing)\n     * 3. If not exists:\n     *    a. Create new, fill values, insert into hashtable\n     */\n\n    pthread_rwlock_wrlock(&conf->ratelimit_cfgs.lock);\n    bLocked = 1;\n    existing_shared = (ratelimit_shared_t *)hashtable_search(conf->ratelimit_cfgs.ht, (void *)name);\n\n    if (existing_shared != NULL) {\n        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: duplicate name '%s' in current config set\", name);\n        pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n        bLocked = 0;\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n\n    /* Not found - Create New */\n    CHKmalloc(shared = calloc(1, sizeof(ratelimit_shared_t)));\n    CHKmalloc(key = strdup(name));\n    shared->name = key;\n    shared->scope = scope;\n    shared->output_mode = output_mode;\n    shared->interval = interval;\n    shared->burst = burst;\n    shared->severity = severity;\n    shared->policy_watch = policy_watch;\n    shared->policy_watch_debounce_ms = debounce_ms;\n    if (policy_file) {\n        CHKmalloc(shared->policy_file = strdup(policy_file));\n    }\n    pthread_mutex_init(&shared->mut, NULL);\n    if (per_source_enabled) {\n        iRet = ratelimitInitPerSourceShared(shared, per_source_policy, per_source_policy_file, per_source_max_states,\n                                            per_source_topn);\n        free(per_source_policy);\n        per_source_policy = NULL;\n        CHKiRet(iRet);\n        shared->per_source_policy_from_policy_file = per_source_from_policy_file;\n        if (ratelimitLookupPerSourceTemplate(conf, per_source_key_tpl_name, &shared->per_source_key_tpl,\n                                             &shared->per_source_key_tpl_default) != RS_RET_OK) {\n            if (per_source_key_tpl_name != NULL) {\n                LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit: perSourceKeyTpl '%s' not found for '%s'\",\n                         per_source_key_tpl_name, name);\n            } else {\n                LogError(0, RS_RET_CONFIG_ERROR,\n                         \"ratelimit: default perSourceKeyTpl 'RSYSLOG_PerSourceKey' not found for '%s'\", name);\n            }\n            pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n            ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n        }\n        if (per_source_key_tpl_name != NULL) {\n            CHKmalloc(shared->per_source_key_tpl_name = strdup(per_source_key_tpl_name));\n        }\n        shared->per_source_key_mode = perSourceKeyModeFromTemplate(shared->per_source_key_tpl);\n        shared->per_source_key_needs_parsing = (shared->per_source_key_mode == RL_PS_KEY_TPL);\n    }\n\n    if (hashtable_insert(conf->ratelimit_cfgs.ht, key, shared) == 0) {\n        pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n        bLocked = 0;\n        LogError(0, RS_RET_OUT_OF_MEMORY, \"ratelimit: error inserting config into hashtable\");\n        ABORT_FINALIZE(RS_RET_OUT_OF_MEMORY);\n    }\n\n    /* shared ownership now in hashtable */\n    existing_shared = shared;\n    shared = NULL;\n    pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n    bLocked = 0;\n    CHKiRet(ratelimitRegisterWatchTargets(existing_shared));\n\nfinalize_it:\n    if (bLocked) {\n        pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n    }\n    if (shared != NULL) {\n        /* If we are here, shared was allocated but NOT inserted (error case before insert) */\n        free(shared->name); /* key was assigned to name */\n        free(shared->policy_file);\n        if (shared->per_source_overrides != NULL) {\n            hashtable_destroy(shared->per_source_overrides, 1);\n        }\n        if (shared->per_source_states != NULL) {\n            hashtable_destroy(shared->per_source_states, 1);\n        }\n        if (shared->per_source_stats != NULL) {\n            statsobj.Destruct(&shared->per_source_stats);\n        }\n        free(shared->per_source_top_ctrs);\n        free(shared->per_source_top_values);\n        if (shared->per_source_top_keys != NULL) {\n            for (unsigned int i = 0; i < shared->per_source_topn; ++i) {\n                free(shared->per_source_top_keys[i]);\n            }\n        }\n        free(shared->per_source_top_keys);\n        free(shared->per_source_key_tpl_name);\n        if (shared->per_source_enabled) {\n            pthread_mutex_destroy(&shared->per_source_mut);\n        }\n        free(shared->per_source_policy_file);\n        pthread_mutex_destroy(&shared->mut);\n        free(shared);\n    }\n    if (per_source_policy != NULL) {\n        if (per_source_policy->overrides != NULL) hashtable_destroy(per_source_policy->overrides, 1);\n        free(per_source_policy);\n    }\n    ratelimitPolicyFileDestruct(&file_policy);\n\n    RETiRet;\n}\n\nrsRetVal ratelimitNewFromConfigForScope(ratelimit_t **ppThis,\n                                        rsconf_t *conf,\n                                        const char *configname,\n                                        const char *modname,\n                                        const char *dynname,\n                                        ratelimit_scope_t scope) {\n    DEFiRet;\n    ratelimit_shared_t *shared;\n\n    if (configname == NULL || conf == NULL) {\n        ABORT_FINALIZE(RS_RET_PARAM_ERROR);\n    }\n\n    pthread_rwlock_rdlock(&conf->ratelimit_cfgs.lock);\n    shared = (ratelimit_shared_t *)hashtable_search(conf->ratelimit_cfgs.ht, (void *)configname);\n    if (shared == NULL) {\n        pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n        LogError(0, RS_RET_NOT_FOUND, \"ratelimit config '%s' not found\", configname);\n        ABORT_FINALIZE(RS_RET_NOT_FOUND);\n    }\n    if (shared->scope != scope) {\n        pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit config '%s' has incompatible scope for %s\", configname, modname);\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n    pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n\n    /* We use ratelimitNew to allocate the instance, but we override the shared ptr */\n    CHKiRet(ratelimitNew(ppThis, modname, dynname));\n\n    /* Re-pointing to the global shared object */\n    /* First, free the default one created by ratelimitNew */\n    if ((*ppThis)->bOwnsShared) {\n        pthread_mutex_destroy(&(*ppThis)->pShared->mut);\n        free((*ppThis)->pShared);\n    }\n\n    (*ppThis)->pShared = shared;\n    (*ppThis)->bOwnsShared = 0;\n\nfinalize_it:\n    RETiRet;\n}\n\nrsRetVal ratelimitNewFromConfig(\n    ratelimit_t **ppThis, rsconf_t *conf, const char *configname, const char *modname, const char *dynname) {\n    return ratelimitNewFromConfigForScope(ppThis, conf, configname, modname, dynname, RATELIMIT_SCOPE_INPUT);\n}\n\n/* generate a \"repeated n times\" message */\nstatic smsg_t *ratelimitGenRepMsg(ratelimit_t *ratelimit) {\n    smsg_t *repMsg;\n    size_t lenRepMsg;\n    uchar szRepMsg[1024];\n\n    if (ratelimit->nsupp == 1) { /* we simply use the original message! */\n        repMsg = MsgAddRef(ratelimit->pMsg);\n    } else { /* we need to duplicate, original message may still be in use in other\n"
+      }
+    },
+    {
+      "file": "runtime/ratelimit.c",
+      "old_start": 1867,
+      "old_end": 1872,
+      "new_start": 2036,
+      "new_end": 2113,
+      "context_hint": "finalize_it:",
+      "added_lines": [
+        "rsRetVal ratelimitMsgCountWait(ratelimit_t *__restrict__ const ratelimit,",
+        "                               time_t tt,",
+        "                               const char *const appname,",
+        "                               unsigned int *const wait_usec) {",
+        "    unsigned int interval;",
+        "    unsigned int burst;",
+        "    time_t resume_time;",
+        "    time_t wait_sec;",
+        "    DEFiRet;",
+        "",
+        "    if (ratelimit == NULL || wait_usec == NULL) return RS_RET_PARAM_ERROR;",
+        "    (void)appname;",
+        "    *wait_usec = 0;",
+        "",
+        "    if (ratelimit->bThreadSafe) {",
+        "        pthread_mutex_lock(&ratelimit->mut);",
+        "    }",
+        "",
+        "    interval = ratelimitSharedLoadUInt(&ratelimit->pShared->interval, &ratelimit->pShared->mut);",
+        "    burst = ratelimitSharedLoadUInt(&ratelimit->pShared->burst, &ratelimit->pShared->mut);",
+        "    if (interval == 0) goto finalize_it;",
+        "",
+        "    if (ratelimit->bNoTimeCache || tt == 0) tt = time(NULL);",
+        "    if (ratelimit->begin == 0) ratelimit->begin = tt;",
+        "",
+        "    if ((tt >= (time_t)(ratelimit->begin + interval)) || (tt < ratelimit->begin)) {",
+        "        ratelimit->begin = tt;",
+        "        ratelimit->done = 0;",
+        "        tellLostCnt(ratelimit);",
+        "    }",
+        "",
+        "    if (burst > ratelimit->done) {",
+        "        ratelimit->done++;",
+        "    } else {",
+        "        resume_time = ratelimit->begin + interval;",
+        "        wait_sec = (resume_time > tt) ? resume_time - tt : 1;",
+        "        if (wait_sec > (time_t)(UINT_MAX / 1000000U)) {",
+        "            *wait_usec = UINT_MAX;",
+        "        } else {",
+        "            *wait_usec = (unsigned int)wait_sec * 1000000U;",
+        "        }",
+        "        ABORT_FINALIZE(RS_RET_DISCARDMSG);",
+        "    }",
+        "",
+        "finalize_it:",
+        "    if (ratelimit->bThreadSafe) {",
+        "        pthread_mutex_unlock(&ratelimit->mut);",
+        "    }",
+        "    RETiRet;",
+        "}",
+        "",
+        "ratelimit_scope_t ratelimitGetScope(const ratelimit_t *ratelimit) {",
+        "    if (ratelimit == NULL || ratelimit->pShared == NULL) return RATELIMIT_SCOPE_INPUT;",
+        "    return ratelimit->pShared->scope;",
+        "}",
+        "",
+        "ratelimit_output_mode_t ratelimitGetOutputMode(const ratelimit_t *ratelimit) {",
+        "    ratelimit_output_mode_t mode;",
+        "    if (ratelimit == NULL || ratelimit->pShared == NULL) return RATELIMIT_OUTPUT_MODE_DROP;",
+        "    pthread_mutex_lock(&ratelimit->pShared->mut);",
+        "    mode = ratelimit->pShared->output_mode;",
+        "    pthread_mutex_unlock(&ratelimit->pShared->mut);",
+        "    return mode;",
+        "}",
+        "",
+        "void ratelimitForbidOutputPace(ratelimit_t *ratelimit) {",
+        "    if (ratelimit == NULL || ratelimit->pShared == NULL) return;",
+        "    pthread_mutex_lock(&ratelimit->pShared->mut);",
+        "    ratelimit->pShared->output_pace_forbidden = 1;",
+        "    pthread_mutex_unlock(&ratelimit->pShared->mut);",
+        "}",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    RETiRet;",
+        "}",
+        "",
+        "/* ratelimit a message, that means:",
+        " * - handle \"last message repeated n times\" logic",
+        " * - handle actual (discarding) rate-limiting"
+      ],
+      "hunk_id": "HUNK-0034",
+      "changed_symbols": [
+        "rsRetVal",
+        "ratelimitMsgCountWait",
+        "ratelimit_t",
+        "__restrict__",
+        "ratelimit",
+        "time_t",
+        "ABORT_FINALIZE"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "output_format",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log template, property, and output formatting behavior"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "user_visible_output",
+          "logging",
+          "network_protocol",
+          "module_api",
+          "config_language",
+          "output_format",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "free",
+        "snippet_start_line": 1838,
+        "snippet_end_line": 2143,
+        "snippet": "    if (configname == NULL || conf == NULL) {\n        ABORT_FINALIZE(RS_RET_PARAM_ERROR);\n    }\n\n    pthread_rwlock_rdlock(&conf->ratelimit_cfgs.lock);\n    shared = (ratelimit_shared_t *)hashtable_search(conf->ratelimit_cfgs.ht, (void *)configname);\n    if (shared == NULL) {\n        pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n        LogError(0, RS_RET_NOT_FOUND, \"ratelimit config '%s' not found\", configname);\n        ABORT_FINALIZE(RS_RET_NOT_FOUND);\n    }\n    if (shared->scope != scope) {\n        pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n        LogError(0, RS_RET_CONFIG_ERROR, \"ratelimit config '%s' has incompatible scope for %s\", configname, modname);\n        ABORT_FINALIZE(RS_RET_CONFIG_ERROR);\n    }\n    pthread_rwlock_unlock(&conf->ratelimit_cfgs.lock);\n\n    /* We use ratelimitNew to allocate the instance, but we override the shared ptr */\n    CHKiRet(ratelimitNew(ppThis, modname, dynname));\n\n    /* Re-pointing to the global shared object */\n    /* First, free the default one created by ratelimitNew */\n    if ((*ppThis)->bOwnsShared) {\n        pthread_mutex_destroy(&(*ppThis)->pShared->mut);\n        free((*ppThis)->pShared);\n    }\n\n    (*ppThis)->pShared = shared;\n    (*ppThis)->bOwnsShared = 0;\n\nfinalize_it:\n    RETiRet;\n}\n\nrsRetVal ratelimitNewFromConfig(\n    ratelimit_t **ppThis, rsconf_t *conf, const char *configname, const char *modname, const char *dynname) {\n    return ratelimitNewFromConfigForScope(ppThis, conf, configname, modname, dynname, RATELIMIT_SCOPE_INPUT);\n}\n\n/* generate a \"repeated n times\" message */\nstatic smsg_t *ratelimitGenRepMsg(ratelimit_t *ratelimit) {\n    smsg_t *repMsg;\n    size_t lenRepMsg;\n    uchar szRepMsg[1024];\n\n    if (ratelimit->nsupp == 1) { /* we simply use the original message! */\n        repMsg = MsgAddRef(ratelimit->pMsg);\n    } else { /* we need to duplicate, original message may still be in use in other\n              * parts of the system!  */\n        if ((repMsg = MsgDup(ratelimit->pMsg)) == NULL) {\n            DBGPRINTF(\"Message duplication failed, dropping repeat message.\\n\");\n            goto done;\n        }\n        lenRepMsg = snprintf((char *)szRepMsg, sizeof(szRepMsg), \" message repeated %d times: [%.800s]\",\n                             ratelimit->nsupp, getMSG(ratelimit->pMsg));\n        MsgReplaceMSG(repMsg, szRepMsg, lenRepMsg);\n    }\n\ndone:\n    return repMsg;\n}\n\nstatic rsRetVal doLastMessageRepeatedNTimes(ratelimit_t *ratelimit, smsg_t *pMsg, smsg_t **ppRepMsg) {\n    int bNeedUnlockMutex = 0;\n    DEFiRet;\n\n    if (ratelimit->bThreadSafe) {\n        pthread_mutex_lock(&ratelimit->mut);\n        bNeedUnlockMutex = 1;\n    }\n\n    if (ratelimit->pMsg != NULL && getMSGLen(pMsg) == getMSGLen(ratelimit->pMsg) &&\n        !ustrcmp(getMSG(pMsg), getMSG(ratelimit->pMsg)) && !strcmp(getHOSTNAME(pMsg), getHOSTNAME(ratelimit->pMsg)) &&\n        !strcmp(getPROCID(pMsg, LOCK_MUTEX), getPROCID(ratelimit->pMsg, LOCK_MUTEX)) &&\n        !strcmp(getAPPNAME(pMsg, LOCK_MUTEX), getAPPNAME(ratelimit->pMsg, LOCK_MUTEX))) {\n        ratelimit->nsupp++;\n        DBGPRINTF(\"msg repeated %d times\\n\", ratelimit->nsupp);\n        /* use current message, so we have the new timestamp\n         * (means we need to discard previous one) */\n        msgDestruct(&ratelimit->pMsg);\n        ratelimit->pMsg = pMsg;\n        ABORT_FINALIZE(RS_RET_DISCARDMSG);\n    } else { /* new message, do \"repeat processing\" & save it */\n        if (ratelimit->pMsg != NULL) {\n            if (ratelimit->nsupp > 0) {\n                *ppRepMsg = ratelimitGenRepMsg(ratelimit);\n                ratelimit->nsupp = 0;\n            }\n            msgDestruct(&ratelimit->pMsg);\n        }\n        ratelimit->pMsg = MsgAddRef(pMsg);\n    }\n\nfinalize_it:\n    if (bNeedUnlockMutex) pthread_mutex_unlock(&ratelimit->mut);\n    RETiRet;\n}\n\n\n/* helper: tell how many messages we lost due to linux-like ratelimiting */\nstatic void tellLostCnt(ratelimit_t *ratelimit) {\n    uchar msgbuf[1024];\n\n    if (ratelimit->missed) {\n        snprintf((char *)msgbuf, sizeof(msgbuf),\n                 \"%s: %u messages lost due to rate-limiting (%u allowed within %u seconds)\", ratelimit->name,\n                 ratelimit->missed, ratelimitSharedLoadUInt(&ratelimit->pShared->burst, &ratelimit->pShared->mut),\n                 ratelimitSharedLoadUInt(&ratelimit->pShared->interval, &ratelimit->pShared->mut));\n        ratelimit->missed = 0;\n        logmsgInternal(RS_RET_RATE_LIMITED, LOG_SYSLOG | LOG_INFO, msgbuf, 0);\n    }\n}\n\n/* Linux-like ratelimiting, modelled after the linux kernel\n * returns 1 if message is within rate limit and shall be\n * processed, 0 otherwise.\n * This implementation is NOT THREAD-SAFE and must not\n * be called concurrently.\n */\nstatic int ATTR_NONNULL()\n    withinRatelimit(ratelimit_t *__restrict__ const ratelimit, time_t tt, const char *const appname) {\n    int ret;\n    uchar msgbuf[1024];\n\n    if (ratelimit->bThreadSafe) {\n        pthread_mutex_lock(&ratelimit->mut);\n    }\n\n    unsigned int interval = ratelimitSharedLoadUInt(&ratelimit->pShared->interval, &ratelimit->pShared->mut);\n    unsigned int burst = ratelimitSharedLoadUInt(&ratelimit->pShared->burst, &ratelimit->pShared->mut);\n\n    if (interval == 0) {\n        ret = 1;\n        goto finalize_it;\n    }\n\n    /* we primarily need \"NoTimeCache\" mode for imjournal, as it\n     * sets the message generation time to the journal timestamp.\n     * As such, we do not get a proper indication of the actual\n     * message rate. To prevent this, we need to query local\n     * system time ourselvs.\n     */\n    if (ratelimit->bNoTimeCache) tt = time(NULL);\n\n\n    /* assert(burst != 0); -- burst can be 0 for block-all policy */\n\n\n    if (ratelimit->begin == 0) ratelimit->begin = tt;\n\n    /* resume if we go out of time window or if time has gone backwards */\n    if ((tt > (time_t)(ratelimit->begin + interval)) || (tt < ratelimit->begin)) {\n        ratelimit->begin = 0;\n        ratelimit->done = 0;\n        tellLostCnt(ratelimit);\n    }\n\n    /* do actual limit check */\n    if (burst > ratelimit->done) {\n        ratelimit->done++;\n        ret = 1;\n    } else {\n        ratelimit->missed++;\n        if (ratelimit->missed == 1) {\n            snprintf((char *)msgbuf, sizeof(msgbuf), \"%s from <%s>: begin to drop messages due to rate-limiting\",\n                     ratelimit->name, appname);\n            logmsgInternal(RS_RET_RATE_LIMITED, LOG_SYSLOG | LOG_INFO, msgbuf, 0);\n        }\n        ret = 0;\n    }\n\nfinalize_it:\n    if (ratelimit->bThreadSafe) {\n        pthread_mutex_unlock(&ratelimit->mut);\n    }\n\n    return ret;\n}\n\n/* ratelimit a message based on message count\n * - handles only rate-limiting\n * This function returns RS_RET_OK, if the caller shall process\n * the message regularly and RS_RET_DISCARD if the caller must\n * discard the message. The caller should also discard the message\n * if another return status occurs.\n */\nrsRetVal ratelimitMsgCount(ratelimit_t *__restrict__ const ratelimit, time_t tt, const char *const appname) {\n    DEFiRet;\n    if (ratelimitSharedLoadUInt(&ratelimit->pShared->interval, &ratelimit->pShared->mut)) {\n        if (withinRatelimit(ratelimit, tt, appname) == 0) {\n            ABORT_FINALIZE(RS_RET_DISCARDMSG);\n        }\n    }\nfinalize_it:\n    if (Debug) {\n        if (iRet == RS_RET_DISCARDMSG) DBGPRINTF(\"message discarded by ratelimiting\\n\");\n    }\n    RETiRet;\n}\n\nrsRetVal ratelimitMsgCountWait(ratelimit_t *__restrict__ const ratelimit,\n                               time_t tt,\n                               const char *const appname,\n                               unsigned int *const wait_usec) {\n    unsigned int interval;\n    unsigned int burst;\n    time_t resume_time;\n    time_t wait_sec;\n    DEFiRet;\n\n    if (ratelimit == NULL || wait_usec == NULL) return RS_RET_PARAM_ERROR;\n    (void)appname;\n    *wait_usec = 0;\n\n    if (ratelimit->bThreadSafe) {\n        pthread_mutex_lock(&ratelimit->mut);\n    }\n\n    interval = ratelimitSharedLoadUInt(&ratelimit->pShared->interval, &ratelimit->pShared->mut);\n    burst = ratelimitSharedLoadUInt(&ratelimit->pShared->burst, &ratelimit->pShared->mut);\n    if (interval == 0) goto finalize_it;\n\n    if (ratelimit->bNoTimeCache || tt == 0) tt = time(NULL);\n    if (ratelimit->begin == 0) ratelimit->begin = tt;\n\n    if ((tt >= (time_t)(ratelimit->begin + interval)) || (tt < ratelimit->begin)) {\n        ratelimit->begin = tt;\n        ratelimit->done = 0;\n        tellLostCnt(ratelimit);\n    }\n\n    if (burst > ratelimit->done) {\n        ratelimit->done++;\n    } else {\n        resume_time = ratelimit->begin + interval;\n        wait_sec = (resume_time > tt) ? resume_time - tt : 1;\n        if (wait_sec > (time_t)(UINT_MAX / 1000000U)) {\n            *wait_usec = UINT_MAX;\n        } else {\n            *wait_usec = (unsigned int)wait_sec * 1000000U;\n        }\n        ABORT_FINALIZE(RS_RET_DISCARDMSG);\n    }\n\nfinalize_it:\n    if (ratelimit->bThreadSafe) {\n        pthread_mutex_unlock(&ratelimit->mut);\n    }\n    RETiRet;\n}\n\nratelimit_scope_t ratelimitGetScope(const ratelimit_t *ratelimit) {\n    if (ratelimit == NULL || ratelimit->pShared == NULL) return RATELIMIT_SCOPE_INPUT;\n    return ratelimit->pShared->scope;\n}\n\nratelimit_output_mode_t ratelimitGetOutputMode(const ratelimit_t *ratelimit) {\n    ratelimit_output_mode_t mode;\n    if (ratelimit == NULL || ratelimit->pShared == NULL) return RATELIMIT_OUTPUT_MODE_DROP;\n    pthread_mutex_lock(&ratelimit->pShared->mut);\n    mode = ratelimit->pShared->output_mode;\n    pthread_mutex_unlock(&ratelimit->pShared->mut);\n    return mode;\n}\n\nvoid ratelimitForbidOutputPace(ratelimit_t *ratelimit) {\n    if (ratelimit == NULL || ratelimit->pShared == NULL) return;\n    pthread_mutex_lock(&ratelimit->pShared->mut);\n    ratelimit->pShared->output_pace_forbidden = 1;\n    pthread_mutex_unlock(&ratelimit->pShared->mut);\n}\n\n/* ratelimit a message, that means:\n * - handle \"last message repeated n times\" logic\n * - handle actual (discarding) rate-limiting\n * This function returns RS_RET_OK, if the caller shall process\n * the message regularly and RS_RET_DISCARD if the caller must\n * discard the message. The caller should also discard the message\n * if another return status occurs. This places some burden on the\n * caller logic, but provides best performance. Demanding this\n * cooperative mode can enable a faulty caller to thrash up part\n * of the system, but we accept that risk (a faulty caller can\n * always do all sorts of evil, so...)\n * If *ppRepMsg != NULL on return, the caller must enqueue that\n * message before the original message.\n */\nrsRetVal ATTR_NONNULL(1, 2, 3)\n    ratelimitMsg(ratelimit_t *__restrict__ const ratelimit, smsg_t *pMsg, smsg_t **ppRepMsg) {\n    DEFiRet;\n    rsRetVal localRet;\n    int severity = 0;\n    unsigned int interval;\n    int threshold;\n\n    assert(ratelimit != NULL);\n    assert(pMsg != NULL);\n    assert(ppRepMsg != NULL);\n    *ppRepMsg = NULL;\n\n    interval = ratelimitSharedLoadUInt(&ratelimit->pShared->interval, &ratelimit->pShared->mut);\n    threshold = ratelimitSharedLoadSeverity(&ratelimit->pShared->severity, &ratelimit->pShared->mut);\n\n    if (runConf->globals.bReduceRepeatMsgs || threshold > 0) {\n        /* consider early parsing only if really needed */\n        if ((pMsg->msgFlags & NEEDS_PARSING) != 0) {\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

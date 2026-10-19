@@ -1,0 +1,999 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P029/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P029/patch.diff",
+  "profile": "cpython",
+  "summary": {
+    "total_changed_files": 3,
+    "changed_files": [
+      "Misc/NEWS.d/next/Library/2026-06-11-10-00-00.gh-issue-119710.Qz7Kp2.rst",
+      "Lib/asyncio/base_subprocess.py",
+      "Lib/test/test_asyncio/test_subprocess.py"
+    ],
+    "total_hunks": 9,
+    "public_api_hunks": 6,
+    "patch_metrics": {
+      "patch_bytes": 8135,
+      "patch_lines": 184,
+      "diff_added_lines": 53,
+      "diff_deleted_lines": 47,
+      "diff_context_lines": 54,
+      "churn": 100,
+      "raw_hunks": 9,
+      "candidate_hunks": 9,
+      "skipped_doc_hunks": 0,
+      "changed_files": 3,
+      "candidate_context_bytes": 18242,
+      "public_candidate_hunks": 6,
+      "surface_counts": {
+        "python_public_api": 6,
+        "python_exceptions": 4,
+        "user_visible_output": 2,
+        "python_stdlib": 6,
+        "exceptions": 4,
+        "callbacks": 2,
+        "tests": 2
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "Lib/asyncio/base_subprocess.py",
+      "old_start": 26,
+      "old_end": 32,
+      "new_start": 26,
+      "new_end": 31,
+      "context_hint": "def __init__(self, loop, protocol, args, shell,",
+      "added_lines": [],
+      "deleted_lines": [
+        "        self._pipes_connected = False"
+      ],
+      "context_lines": [
+        "        self._pending_calls = collections.deque()",
+        "        self._pipes = {}",
+        "        self._finished = False",
+        "",
+        "        if stdin == subprocess.PIPE:",
+        "            self._pipes[0] = None"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "__init__",
+        "self",
+        "_pipes_connected",
+        "False"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_public_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Public Python module, class, function, method, and attribute behavior."
+          },
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "python_stdlib",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Python standard library public API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and message changes"
+          }
+        ],
+        "surface_reasons": [
+          "python_public_api",
+          "python_exceptions",
+          "user_visible_output",
+          "python_stdlib",
+          "exceptions"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "__init__",
+        "snippet_start_line": 1,
+        "snippet_end_line": 61,
+        "snippet": "import collections\nimport subprocess\nimport warnings\nimport os\nimport signal\nimport sys\n\nfrom . import protocols\nfrom . import transports\nfrom .log import logger\n\n\nclass BaseSubprocessTransport(transports.SubprocessTransport):\n\n    def __init__(self, loop, protocol, args, shell,\n                 stdin, stdout, stderr, bufsize,\n                 waiter=None, extra=None, **kwargs):\n        super().__init__(extra)\n        self._closed = False\n        self._protocol = protocol\n        self._loop = loop\n        self._proc = None\n        self._pid = None\n        self._returncode = None\n        self._exit_waiters = []\n        self._pending_calls = collections.deque()\n        self._pipes = {}\n        self._finished = False\n\n        if stdin == subprocess.PIPE:\n            self._pipes[0] = None\n        if stdout == subprocess.PIPE:\n            self._pipes[1] = None\n        if stderr == subprocess.PIPE:\n            self._pipes[2] = None\n\n        # Create the child process: set the _proc attribute\n        try:\n            self._start(args=args, shell=shell, stdin=stdin, stdout=stdout,\n                        stderr=stderr, bufsize=bufsize, **kwargs)\n        except:\n            self.close()\n            raise\n\n        self._pid = self._proc.pid\n        self._extra['subprocess'] = self._proc\n\n        if self._loop.get_debug():\n            if isinstance(args, (bytes, str)):\n                program = args\n            else:\n                program = args[0]\n            logger.debug('process %r created: pid %s',\n                         program, self._pid)\n\n        self._loop.create_task(self._connect_pipes(waiter))\n\n    def __repr__(self):\n        info = [self.__class__.__name__]\n        if self._closed:\n            info.append('closed')\n"
+      }
+    },
+    {
+      "file": "Lib/asyncio/base_subprocess.py",
+      "old_start": 214,
+      "old_end": 220,
+      "new_start": 213,
+      "new_end": 218,
+      "context_hint": "async def _connect_pipes(self, waiter):",
+      "added_lines": [],
+      "deleted_lines": [
+        "            self._pipes_connected = True"
+      ],
+      "context_lines": [
+        "        else:",
+        "            if waiter is not None and not waiter.cancelled():",
+        "                waiter.set_result(None)",
+        "",
+        "    def _call(self, cb, *data):",
+        "        if self._pending_calls is not None:"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "_connect_pipes",
+        "self",
+        "_pipes_connected",
+        "True",
+        "kill"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_public_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Public Python module, class, function, method, and attribute behavior."
+          },
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          },
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Callback types and callback invocation semantics."
+          },
+          {
+            "name": "python_stdlib",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Python standard library public API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and message changes"
+          }
+        ],
+        "surface_reasons": [
+          "python_public_api",
+          "python_exceptions",
+          "callbacks",
+          "python_stdlib",
+          "exceptions"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "_connect_pipes",
+        "snippet_start_line": 185,
+        "snippet_end_line": 248,
+        "snippet": "                _, pipe = await loop.connect_write_pipe(\n                    lambda: WriteSubprocessPipeProto(self, 0),\n                    proc.stdin)\n                self._pipes[0] = pipe\n\n            if proc.stdout is not None:\n                _, pipe = await loop.connect_read_pipe(\n                    lambda: ReadSubprocessPipeProto(self, 1),\n                    proc.stdout)\n                self._pipes[1] = pipe\n\n            if proc.stderr is not None:\n                _, pipe = await loop.connect_read_pipe(\n                    lambda: ReadSubprocessPipeProto(self, 2),\n                    proc.stderr)\n                self._pipes[2] = pipe\n\n            assert self._pending_calls is not None\n\n            loop.call_soon(self._protocol.connection_made, self)\n            for callback, data in self._pending_calls:\n                loop.call_soon(callback, *data)\n            self._pending_calls = None\n        except (SystemExit, KeyboardInterrupt):\n            raise\n        except BaseException as exc:\n            if waiter is not None and not waiter.cancelled():\n                waiter.set_exception(exc)\n        else:\n            if waiter is not None and not waiter.cancelled():\n                waiter.set_result(None)\n\n    def _call(self, cb, *data):\n        if self._pending_calls is not None:\n            self._pending_calls.append((cb, data))\n        else:\n            self._loop.call_soon(cb, *data)\n\n    def _pipe_connection_lost(self, fd, exc):\n        self._call(self._protocol.pipe_connection_lost, fd, exc)\n        self._try_finish()\n\n    def _pipe_data_received(self, fd, data):\n        self._call(self._protocol.pipe_data_received, fd, data)\n\n    def _process_exited(self, returncode):\n        assert returncode is not None, returncode\n        assert self._returncode is None, self._returncode\n        if self._loop.get_debug():\n            logger.info('%r exited with return code %r', self, returncode)\n        self._returncode = returncode\n\n        if self._proc.returncode is None:\n            # asyncio uses a child watcher: copy the status into the Popen\n            # object. On Python 3.6, it is required to avoid a ResourceWarning.\n            self._proc.returncode = returncode\n        self._call(self._protocol.process_exited)\n\n        self._try_finish()\n\n        # gh-119710: Wake up futures waiting for wait() as soon as the process\n        # exits.\n        for waiter in self._exit_waiters:\n            if not waiter.done():\n"
+      }
+    },
+    {
+      "file": "Lib/asyncio/base_subprocess.py",
+      "old_start": 235,
+      "old_end": 240,
+      "new_start": 233,
+      "new_end": 239,
+      "context_hint": "def _process_exited(self, returncode):",
+      "added_lines": [
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        if self._loop.get_debug():",
+        "            logger.info('%r exited with return code %r', self, returncode)",
+        "        self._returncode = returncode",
+        "        if self._proc.returncode is None:",
+        "            # asyncio uses a child watcher: copy the status into the Popen",
+        "            # object. On Python 3.6, it is required to avoid a ResourceWarning."
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "_process_exited"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_public_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Public Python module, class, function, method, and attribute behavior."
+          },
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          },
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Callback types and callback invocation semantics."
+          },
+          {
+            "name": "python_stdlib",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Python standard library public API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and message changes"
+          }
+        ],
+        "surface_reasons": [
+          "python_public_api",
+          "python_exceptions",
+          "callbacks",
+          "python_stdlib",
+          "exceptions"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "_process_exited",
+        "snippet_start_line": 206,
+        "snippet_end_line": 269,
+        "snippet": "                loop.call_soon(callback, *data)\n            self._pending_calls = None\n        except (SystemExit, KeyboardInterrupt):\n            raise\n        except BaseException as exc:\n            if waiter is not None and not waiter.cancelled():\n                waiter.set_exception(exc)\n        else:\n            if waiter is not None and not waiter.cancelled():\n                waiter.set_result(None)\n\n    def _call(self, cb, *data):\n        if self._pending_calls is not None:\n            self._pending_calls.append((cb, data))\n        else:\n            self._loop.call_soon(cb, *data)\n\n    def _pipe_connection_lost(self, fd, exc):\n        self._call(self._protocol.pipe_connection_lost, fd, exc)\n        self._try_finish()\n\n    def _pipe_data_received(self, fd, data):\n        self._call(self._protocol.pipe_data_received, fd, data)\n\n    def _process_exited(self, returncode):\n        assert returncode is not None, returncode\n        assert self._returncode is None, self._returncode\n        if self._loop.get_debug():\n            logger.info('%r exited with return code %r', self, returncode)\n        self._returncode = returncode\n\n        if self._proc.returncode is None:\n            # asyncio uses a child watcher: copy the status into the Popen\n            # object. On Python 3.6, it is required to avoid a ResourceWarning.\n            self._proc.returncode = returncode\n        self._call(self._protocol.process_exited)\n\n        self._try_finish()\n\n        # gh-119710: Wake up futures waiting for wait() as soon as the process\n        # exits.\n        for waiter in self._exit_waiters:\n            if not waiter.done():\n                waiter.set_result(returncode)\n        self._exit_waiters = None\n\n    async def _wait(self):\n        \"\"\"Wait until the process exit and return the process return code.\n\n        This method is a coroutine.\"\"\"\n        if self._returncode is not None:\n            return self._returncode\n\n        waiter = self._loop.create_future()\n        self._exit_waiters.append(waiter)\n        return await waiter\n\n    def _try_finish(self):\n        assert not self._finished\n        if self._returncode is None:\n            return\n\n        if all(p is not None and p.disconnected\n               for p in self._pipes.values()):\n"
+      }
+    },
+    {
+      "file": "Lib/asyncio/base_subprocess.py",
+      "old_start": 243,
+      "old_end": 248,
+      "new_start": 242,
+      "new_end": 254,
+      "context_hint": "def _process_exited(self, returncode):",
+      "added_lines": [
+        "        # gh-119710: Wake up futures waiting for wait() as soon as the process",
+        "        # exits.",
+        "        for waiter in self._exit_waiters:",
+        "            if not waiter.done():",
+        "                waiter.set_result(returncode)",
+        "        self._exit_waiters = None",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "        self._try_finish()",
+        "",
+        "    async def _wait(self):",
+        "        \"\"\"Wait until the process exit and return the process return code.",
+        ""
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "_process_exited",
+        "gh",
+        "Wake",
+        "up",
+        "futures",
+        "waiting"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_public_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Public Python module, class, function, method, and attribute behavior."
+          },
+          {
+            "name": "python_stdlib",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Python standard library public API"
+          }
+        ],
+        "surface_reasons": [
+          "python_public_api",
+          "python_stdlib"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "_process_exited",
+        "snippet_start_line": 214,
+        "snippet_end_line": 284,
+        "snippet": "            if waiter is not None and not waiter.cancelled():\n                waiter.set_result(None)\n\n    def _call(self, cb, *data):\n        if self._pending_calls is not None:\n            self._pending_calls.append((cb, data))\n        else:\n            self._loop.call_soon(cb, *data)\n\n    def _pipe_connection_lost(self, fd, exc):\n        self._call(self._protocol.pipe_connection_lost, fd, exc)\n        self._try_finish()\n\n    def _pipe_data_received(self, fd, data):\n        self._call(self._protocol.pipe_data_received, fd, data)\n\n    def _process_exited(self, returncode):\n        assert returncode is not None, returncode\n        assert self._returncode is None, self._returncode\n        if self._loop.get_debug():\n            logger.info('%r exited with return code %r', self, returncode)\n        self._returncode = returncode\n\n        if self._proc.returncode is None:\n            # asyncio uses a child watcher: copy the status into the Popen\n            # object. On Python 3.6, it is required to avoid a ResourceWarning.\n            self._proc.returncode = returncode\n        self._call(self._protocol.process_exited)\n\n        self._try_finish()\n\n        # gh-119710: Wake up futures waiting for wait() as soon as the process\n        # exits.\n        for waiter in self._exit_waiters:\n            if not waiter.done():\n                waiter.set_result(returncode)\n        self._exit_waiters = None\n\n    async def _wait(self):\n        \"\"\"Wait until the process exit and return the process return code.\n\n        This method is a coroutine.\"\"\"\n        if self._returncode is not None:\n            return self._returncode\n\n        waiter = self._loop.create_future()\n        self._exit_waiters.append(waiter)\n        return await waiter\n\n    def _try_finish(self):\n        assert not self._finished\n        if self._returncode is None:\n            return\n\n        if all(p is not None and p.disconnected\n               for p in self._pipes.values()):\n            self._finished = True\n            self._call(self._call_connection_lost, None)\n\n    def _call_connection_lost(self, exc):\n        try:\n            self._protocol.connection_lost(exc)\n        finally:\n            self._loop = None\n            self._proc = None\n            self._protocol = None\n\n\nclass WriteSubprocessPipeProto(protocols.BaseProtocol):\n\n    def __init__(self, proc, fd):\n"
+      }
+    },
+    {
+      "file": "Lib/asyncio/base_subprocess.py",
+      "old_start": 258,
+      "old_end": 272,
+      "new_start": 264,
+      "new_end": 270,
+      "context_hint": "def _try_finish(self):",
+      "added_lines": [
+        ""
+      ],
+      "deleted_lines": [
+        "        if not self._pipes_connected:",
+        "            # self._pipes_connected can be False if not all pipes were connected",
+        "            # because either the process failed to start or the self._connect_pipes task",
+        "            # got cancelled. In this broken state we consider all pipes disconnected and",
+        "            # to avoid hanging forever in self._wait as otherwise _exit_waiters",
+        "            # would never be woken up, we wake them up here.",
+        "            for waiter in self._exit_waiters:",
+        "                if not waiter.done():",
+        "                    waiter.set_result(self._returncode)"
+      ],
+      "context_lines": [
+        "        assert not self._finished",
+        "        if self._returncode is None:",
+        "            return",
+        "        if all(p is not None and p.disconnected",
+        "               for p in self._pipes.values()):",
+        "            self._finished = True"
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "_try_finish",
+        "not",
+        "self",
+        "_pipes_connected",
+        "can",
+        "be"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_public_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Public Python module, class, function, method, and attribute behavior."
+          },
+          {
+            "name": "python_stdlib",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Python standard library public API"
+          }
+        ],
+        "surface_reasons": [
+          "python_public_api",
+          "python_stdlib"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "_try_finish",
+        "snippet_start_line": 229,
+        "snippet_end_line": 300,
+        "snippet": "\n    def _process_exited(self, returncode):\n        assert returncode is not None, returncode\n        assert self._returncode is None, self._returncode\n        if self._loop.get_debug():\n            logger.info('%r exited with return code %r', self, returncode)\n        self._returncode = returncode\n\n        if self._proc.returncode is None:\n            # asyncio uses a child watcher: copy the status into the Popen\n            # object. On Python 3.6, it is required to avoid a ResourceWarning.\n            self._proc.returncode = returncode\n        self._call(self._protocol.process_exited)\n\n        self._try_finish()\n\n        # gh-119710: Wake up futures waiting for wait() as soon as the process\n        # exits.\n        for waiter in self._exit_waiters:\n            if not waiter.done():\n                waiter.set_result(returncode)\n        self._exit_waiters = None\n\n    async def _wait(self):\n        \"\"\"Wait until the process exit and return the process return code.\n\n        This method is a coroutine.\"\"\"\n        if self._returncode is not None:\n            return self._returncode\n\n        waiter = self._loop.create_future()\n        self._exit_waiters.append(waiter)\n        return await waiter\n\n    def _try_finish(self):\n        assert not self._finished\n        if self._returncode is None:\n            return\n\n        if all(p is not None and p.disconnected\n               for p in self._pipes.values()):\n            self._finished = True\n            self._call(self._call_connection_lost, None)\n\n    def _call_connection_lost(self, exc):\n        try:\n            self._protocol.connection_lost(exc)\n        finally:\n            self._loop = None\n            self._proc = None\n            self._protocol = None\n\n\nclass WriteSubprocessPipeProto(protocols.BaseProtocol):\n\n    def __init__(self, proc, fd):\n        self.proc = proc\n        self.fd = fd\n        self.pipe = None\n        self.disconnected = False\n\n    def connection_made(self, transport):\n        self.pipe = transport\n\n    def __repr__(self):\n        return f'<{self.__class__.__name__} fd={self.fd} pipe={self.pipe!r}>'\n\n    def connection_lost(self, exc):\n        self.disconnected = True\n        self.proc._pipe_connection_lost(self.fd, exc)\n        self.proc = None\n\n"
+      }
+    },
+    {
+      "file": "Lib/asyncio/base_subprocess.py",
+      "old_start": 276,
+      "old_end": 286,
+      "new_start": 274,
+      "new_end": 279,
+      "context_hint": "def _call_connection_lost(self, exc):",
+      "added_lines": [],
+      "deleted_lines": [
+        "            # wake up futures waiting for wait()",
+        "            for waiter in self._exit_waiters:",
+        "                if not waiter.done():",
+        "                    waiter.set_result(self._returncode)",
+        "            self._exit_waiters = None"
+      ],
+      "context_lines": [
+        "        try:",
+        "            self._protocol.connection_lost(exc)",
+        "        finally:",
+        "            self._loop = None",
+        "            self._proc = None",
+        "            self._protocol = None"
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "_call_connection_lost",
+        "wake",
+        "up",
+        "futures",
+        "waiting",
+        "wait"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_public_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Public Python module, class, function, method, and attribute behavior."
+          },
+          {
+            "name": "python_stdlib",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Python standard library public API"
+          }
+        ],
+        "surface_reasons": [
+          "python_public_api",
+          "python_stdlib"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "_call_connection_lost",
+        "snippet_start_line": 247,
+        "snippet_end_line": 309,
+        "snippet": "        for waiter in self._exit_waiters:\n            if not waiter.done():\n                waiter.set_result(returncode)\n        self._exit_waiters = None\n\n    async def _wait(self):\n        \"\"\"Wait until the process exit and return the process return code.\n\n        This method is a coroutine.\"\"\"\n        if self._returncode is not None:\n            return self._returncode\n\n        waiter = self._loop.create_future()\n        self._exit_waiters.append(waiter)\n        return await waiter\n\n    def _try_finish(self):\n        assert not self._finished\n        if self._returncode is None:\n            return\n\n        if all(p is not None and p.disconnected\n               for p in self._pipes.values()):\n            self._finished = True\n            self._call(self._call_connection_lost, None)\n\n    def _call_connection_lost(self, exc):\n        try:\n            self._protocol.connection_lost(exc)\n        finally:\n            self._loop = None\n            self._proc = None\n            self._protocol = None\n\n\nclass WriteSubprocessPipeProto(protocols.BaseProtocol):\n\n    def __init__(self, proc, fd):\n        self.proc = proc\n        self.fd = fd\n        self.pipe = None\n        self.disconnected = False\n\n    def connection_made(self, transport):\n        self.pipe = transport\n\n    def __repr__(self):\n        return f'<{self.__class__.__name__} fd={self.fd} pipe={self.pipe!r}>'\n\n    def connection_lost(self, exc):\n        self.disconnected = True\n        self.proc._pipe_connection_lost(self.fd, exc)\n        self.proc = None\n\n    def pause_writing(self):\n        self.proc._protocol.pause_writing()\n\n    def resume_writing(self):\n        self.proc._protocol.resume_writing()\n\n\nclass ReadSubprocessPipeProto(WriteSubprocessPipeProto,\n                              protocols.Protocol):\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_asyncio/test_subprocess.py",
+      "old_start": 112,
+      "old_end": 148,
+      "new_start": 112,
+      "new_end": 117,
+      "context_hint": "def test_subprocess_repr(self):",
+      "added_lines": [],
+      "deleted_lines": [
+        "    def test_proc_exited_no_invalid_state_error_on_exit_waiters(self):",
+        "        # gh-145541: when _connect_pipes hasn't completed (so",
+        "        # _pipes_connected is False) and the process exits, _try_finish()",
+        "        # sets the result on exit waiters. Then _call_connection_lost() must",
+        "        # not call set_result() again on the same waiters.",
+        "        self.loop.set_exception_handler(",
+        "            lambda loop, context: self.fail(",
+        "                f\"unexpected exception: {context}\")",
+        "        )",
+        "        waiter = self.loop.create_future()",
+        "        transport, protocol = self.create_transport(waiter)",
+        "",
+        "        # Simulate a waiter registered via _wait() before the process exits.",
+        "        exit_waiter = self.loop.create_future()",
+        "        transport._exit_waiters.append(exit_waiter)",
+        "",
+        "        # _connect_pipes hasn't completed, so _pipes_connected is False.",
+        "        self.assertFalse(transport._pipes_connected)",
+        "",
+        "        # Simulate process exit. _try_finish() will set the result on",
+        "        # exit_waiter because _pipes_connected is False, and then schedule",
+        "        # _call_connection_lost() because _pipes is empty (vacuously all",
+        "        # disconnected). _call_connection_lost() must skip exit_waiter",
+        "        # because it's already done.",
+        "        transport._process_exited(6)",
+        "        self.loop.run_until_complete(waiter)",
+        "",
+        "        self.assertEqual(exit_waiter.result(), 6)",
+        "",
+        "        transport.close()",
+        ""
+      ],
+      "context_lines": [
+        "        )",
+        "        transport.close()",
+        "",
+        "",
+        "class SubprocessMixin:",
+        ""
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "test_subprocess_repr",
+        "def",
+        "test_proc_exited_no_invalid_state_error_on_exit_waiters",
+        "self",
+        "gh",
+        "when"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and message changes"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "python_exceptions",
+          "user_visible_output",
+          "exceptions"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "test_subprocess_repr",
+        "snippet_start_line": 83,
+        "snippet_end_line": 147,
+        "snippet": "\n        # methods must raise ProcessLookupError if the process exited\n        self.assertRaises(ProcessLookupError,\n                          transport.send_signal, signal.SIGTERM)\n        self.assertRaises(ProcessLookupError, transport.terminate)\n        self.assertRaises(ProcessLookupError, transport.kill)\n\n        transport.close()\n\n    def test_subprocess_repr(self):\n        waiter = self.loop.create_future()\n        transport, protocol = self.create_transport(waiter)\n        transport._process_exited(6)\n        self.loop.run_until_complete(waiter)\n\n        self.assertEqual(\n            repr(transport),\n            \"<TestSubprocessTransport pid=-1 returncode=6>\"\n        )\n        transport._returncode = None\n        self.assertEqual(\n            repr(transport),\n            \"<TestSubprocessTransport pid=-1 running>\"\n        )\n        transport._pid = None\n        transport._returncode = None\n        self.assertEqual(\n            repr(transport),\n            \"<TestSubprocessTransport not started>\"\n        )\n        transport.close()\n\n\nclass SubprocessMixin:\n\n    def test_stdin_stdout(self):\n        args = PROGRAM_CAT\n\n        async def run(data):\n            proc = await asyncio.create_subprocess_exec(\n                *args,\n                stdin=subprocess.PIPE,\n                stdout=subprocess.PIPE,\n            )\n\n            # feed data\n            proc.stdin.write(data)\n            await proc.stdin.drain()\n            proc.stdin.close()\n\n            # get output and exitcode\n            data = await proc.stdout.read()\n            exitcode = await proc.wait()\n            return (exitcode, data)\n\n        task = run(b'some data')\n        task = asyncio.wait_for(task, 60.0)\n        exitcode, stdout = self.loop.run_until_complete(task)\n        self.assertEqual(exitcode, 0)\n        self.assertEqual(stdout, b'some data')\n\n    def test_communicate(self):\n        args = PROGRAM_CAT\n\n        async def run(data):\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_asyncio/test_subprocess.py",
+      "old_start": 436,
+      "old_end": 441,
+      "new_start": 405,
+      "new_end": 450,
+      "context_hint": "async def len_message(message):",
+      "added_lines": [
+        "    def test_wait_even_if_pipe_is_open(self):",
+        "        # gh-119710: Process.wait() must return once the process exits even",
+        "        # if its stdout pipe is inherited by a grandchild that keeps it open,",
+        "        # so the pipe never reaches EOF. Otherwise wait() hangs forever",
+        "        # despite the returncode being known.",
+        "",
+        "        async def run():",
+        "            # The grandchild inherits the child's stdin and stdout pipes and",
+        "            # keeps both open after the child is killed.  It writes \"ready\"",
+        "            # so we know it has started, and exits once its stdin hits EOF.",
+        "            code = textwrap.dedent(\"\"\"\\",
+        "                import subprocess, sys",
+        "                subprocess.run([sys.executable, \"-c\",",
+        "                    \"import sys; sys.stdout.write('ready');\"",
+        "                    \" sys.stdout.flush(); sys.stdin.read()\"])",
+        "                \"\"\")",
+        "",
+        "            proc = await asyncio.create_subprocess_exec(",
+        "                sys.executable, \"-c\", code,",
+        "                stdin=subprocess.PIPE,",
+        "                stdout=subprocess.PIPE,",
+        "            )",
+        "            try:",
+        "                wait_proc = asyncio.create_task(proc.wait())",
+        "                # Wait until the grandchild holds the inherited pipes; this",
+        "                # also lets the wait() task register its waiter.",
+        "                await proc.stdout.readexactly(5)",
+        "                proc.kill()",
+        "                returncode = await asyncio.wait_for(",
+        "                    wait_proc, timeout=support.SHORT_TIMEOUT)",
+        "                if sys.platform == 'win32':",
+        "                    self.assertIsInstance(returncode, int)",
+        "                else:",
+        "                    self.assertEqual(-signal.SIGKILL, returncode)",
+        "            finally:",
+        "                proc.stdin.close()  # let the grandchild exit",
+        "                await proc.stdout.read()",
+        "",
+        "        self.loop.run_until_complete(run())",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        self.assertEqual(output.rstrip(), b'3')",
+        "        self.assertEqual(exitcode, 0)",
+        "",
+        "    def test_empty_input(self):",
+        "",
+        "        async def empty_input():"
+      ],
+      "hunk_id": "HUNK-0008",
+      "changed_symbols": [
+        "len_message",
+        "def",
+        "test_wait_even_if_pipe_is_open",
+        "self",
+        "gh",
+        "Process",
+        "test_stdin_not_inheritable"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          }
+        ],
+        "surface_reasons": [
+          "tests"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "len_message",
+        "snippet_start_line": 407,
+        "snippet_end_line": 480,
+        "snippet": "\n    def test_wait_even_if_pipe_is_open(self):\n        # gh-119710: Process.wait() must return once the process exits even\n        # if its stdout pipe is inherited by a grandchild that keeps it open,\n        # so the pipe never reaches EOF. Otherwise wait() hangs forever\n        # despite the returncode being known.\n\n        async def run():\n            # The grandchild inherits the child's stdin and stdout pipes and\n            # keeps both open after the child is killed.  It writes \"ready\"\n            # so we know it has started, and exits once its stdin hits EOF.\n            code = textwrap.dedent(\"\"\"\\\n                import subprocess, sys\n                subprocess.run([sys.executable, \"-c\",\n                    \"import sys; sys.stdout.write('ready');\"\n                    \" sys.stdout.flush(); sys.stdin.read()\"])\n                \"\"\")\n\n            proc = await asyncio.create_subprocess_exec(\n                sys.executable, \"-c\", code,\n                stdin=subprocess.PIPE,\n                stdout=subprocess.PIPE,\n            )\n            try:\n                wait_proc = asyncio.create_task(proc.wait())\n                # Wait until the grandchild holds the inherited pipes; this\n                # also lets the wait() task register its waiter.\n                await proc.stdout.readexactly(5)\n                proc.kill()\n                returncode = await asyncio.wait_for(\n                    wait_proc, timeout=support.SHORT_TIMEOUT)\n                if sys.platform == 'win32':\n                    self.assertIsInstance(returncode, int)\n                else:\n                    self.assertEqual(-signal.SIGKILL, returncode)\n            finally:\n                proc.stdin.close()  # let the grandchild exit\n                await proc.stdout.read()\n\n        self.loop.run_until_complete(run())\n\n    def test_empty_input(self):\n\n        async def empty_input():\n            code = 'import sys; data = sys.stdin.read(); print(len(data))'\n            proc = await asyncio.create_subprocess_exec(\n                sys.executable, '-c', code,\n                stdin=asyncio.subprocess.PIPE,\n                stdout=asyncio.subprocess.PIPE,\n                stderr=asyncio.subprocess.PIPE,\n                close_fds=False,\n            )\n            stdout, stderr = await proc.communicate(b'')\n            exitcode = await proc.wait()\n            return (stdout, exitcode)\n\n        output, exitcode = self.loop.run_until_complete(empty_input())\n        self.assertEqual(output.rstrip(), b'0')\n        self.assertEqual(exitcode, 0)\n\n    def test_devnull_input(self):\n\n        async def empty_input():\n            code = 'import sys; data = sys.stdin.read(); print(len(data))'\n            proc = await asyncio.create_subprocess_exec(\n                sys.executable, '-c', code,\n                stdin=asyncio.subprocess.DEVNULL,\n                stdout=asyncio.subprocess.PIPE,\n                stderr=asyncio.subprocess.PIPE,\n                close_fds=False,\n            )\n            stdout, stderr = await proc.communicate()\n            exitcode = await proc.wait()\n            return (stdout, exitcode)\n"
+      }
+    },
+    {
+      "file": "Misc/NEWS.d/next/Library/2026-06-11-10-00-00.gh-issue-119710.Qz7Kp2.rst",
+      "old_start": 0,
+      "old_end": -1,
+      "new_start": 1,
+      "new_end": 4,
+      "context_hint": "",
+      "added_lines": [
+        "Fix :mod:`asyncio` subprocess :meth:`~asyncio.subprocess.Process.wait`",
+        "hanging when the process has exited but one of its pipes is kept open by an",
+        "inherited child process (so the pipe never reaches EOF). ``wait()`` now",
+        "returns as soon as the process exits, regardless of the pipes' state."
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        ""
+      ],
+      "hunk_id": "HUNK-0009",
+      "changed_symbols": [
+        "Fix",
+        "mod",
+        "asyncio",
+        "subprocess",
+        "meth",
+        "Process"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 1,
+        "snippet_end_line": 4,
+        "snippet": "Fix :mod:`asyncio` subprocess :meth:`~asyncio.subprocess.Process.wait`\nhanging when the process has exited but one of its pipes is kept open by an\ninherited child process (so the pipe never reaches EOF). ``wait()`` now\nreturns as soon as the process exits, regardless of the pipes' state.\n"
+      }
+    }
+  ]
+}

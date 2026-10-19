@@ -1,0 +1,454 @@
+{
+  "shard_id": "SHARD-0005",
+  "surface": "config_keys",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    17,
+    16,
+    18,
+    25
+  ],
+  "hunk_ids": [
+    "HUNK-0019",
+    "HUNK-0018",
+    "HUNK-0020",
+    "HUNK-0027"
+  ],
+  "files": [
+    "fetch-pack.c",
+    "fetch-pack.h"
+  ],
+  "symbols": [
+    "add_oids_to_set",
+    "args",
+    "filter_refs",
+    "negotiation_include_oids",
+    "negotiation_include_tips",
+    "ref",
+    "OIDSET_INIT",
+    "_",
+    "oidset",
+    "seen_ack",
+    "trace2_region_enter_printf",
+    "acked_commits",
+    "negotiate_using_fetch",
+    "oid_array"
+  ],
+  "metrics": {
+    "hunks": 4,
+    "context_bytes": 13865
+  },
+  "candidates": [
+    {
+      "file": "fetch-pack.c",
+      "old_start": 1729,
+      "old_end": 1734,
+      "new_start": 1787,
+      "new_end": 1794,
+      "context_hint": "static struct ref *do_fetch_pack_v2(struct fetch_pack_args *args,",
+      "added_lines": [
+        "\t\t\tadd_oids_to_set(args->negotiation_include_tips,",
+        "\t\t\t\t\t&negotiation_include_oids);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\t\t\tstate = FETCH_SEND_REQUEST;",
+        "",
+        "\t\t\tmark_tips(negotiator, args->negotiation_restrict_tips);",
+        "\t\t\tfor_each_cached_alternate(negotiator,",
+        "\t\t\t\t\t\t  insert_one_alternate_object);",
+        "\t\t\tbreak;"
+      ],
+      "hunk_id": "HUNK-0019",
+      "changed_symbols": [
+        "ref",
+        "add_oids_to_set",
+        "args",
+        "negotiation_include_tips",
+        "negotiation_include_oids",
+        "filter_refs"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "wire_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Repository wire protocol and capability behavior"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "user_visible_output",
+          "wire_protocol"
+        ],
+        "profile": "git",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ref",
+        "snippet_start_line": 1700,
+        "snippet_end_line": 1824,
+        "snippet": "{\n\tcheck_stateless_delimiter(stateless_rpc, reader,\n\t\t\t\t  _(\"git fetch-pack: expected response end packet\"));\n}\n\nstatic struct ref *do_fetch_pack_v2(struct fetch_pack_args *args,\n\t\t\t\t    int fd[2],\n\t\t\t\t    const struct ref *orig_ref,\n\t\t\t\t    struct ref **sought, int nr_sought,\n\t\t\t\t    struct oid_array *shallows,\n\t\t\t\t    struct shallow_info *si,\n\t\t\t\t    struct string_list *pack_lockfiles)\n{\n\tstruct repository *r = the_repository;\n\tstruct ref *ref = copy_ref_list(orig_ref);\n\tenum fetch_state state = FETCH_CHECK_LOCAL;\n\tstruct oidset common = OIDSET_INIT;\n\tstruct oidset negotiation_include_oids = OIDSET_INIT;\n\tstruct packet_reader reader;\n\tint in_vain = 0, negotiation_started = 0;\n\tint negotiation_round = 0;\n\tint haves_to_send = INITIAL_FLUSH;\n\tstruct fetch_negotiator negotiator_alloc;\n\tstruct fetch_negotiator *negotiator;\n\tint seen_ack = 0;\n\tstruct object_id common_oid;\n\tint received_ready = 0;\n\tstruct string_list packfile_uris = STRING_LIST_INIT_DUP;\n\tint i;\n\tstruct strvec index_pack_args = STRVEC_INIT;\n\tconst char *promisor_remote_config;\n\n\tif (server_feature_v2(\"promisor-remote\", &promisor_remote_config))\n\t\tpromisor_remote_reply(promisor_remote_config, NULL);\n\n\tif (args->filter_options.choice == LOFC_AUTO) {\n\t\tstruct strbuf errbuf = STRBUF_INIT;\n\t\tchar *constructed_filter = promisor_remote_construct_filter(r);\n\n\t\tlist_objects_filter_release(&args->filter_options);\n\t\t/* Disallow 'auto' as a result of the resolution of this 'auto' filter below */\n\t\targs->filter_options.allow_auto_filter = 0;\n\n\t\tif (constructed_filter &&\n\t\t    gently_parse_list_objects_filter(&args->filter_options,\n\t\t\t\t\t\t     constructed_filter,\n\t\t\t\t\t\t     &errbuf))\n\t\t\tdie(_(\"couldn't resolve 'auto' filter '%s': %s\"),\n\t\t\t    constructed_filter, errbuf.buf);\n\n\t\tfree(constructed_filter);\n\t\tstrbuf_release(&errbuf);\n\t}\n\n\tnegotiator = &negotiator_alloc;\n\tif (args->refetch)\n\t\tfetch_negotiator_init_noop(negotiator);\n\telse\n\t\tfetch_negotiator_init(r, negotiator);\n\n\tpacket_reader_init(&reader, fd[0], NULL, 0,\n\t\t\t   PACKET_READ_CHOMP_NEWLINE |\n\t\t\t   PACKET_READ_DIE_ON_ERR_PACKET);\n\tif (git_env_bool(\"GIT_TEST_SIDEBAND_ALL\", 1) &&\n\t    server_supports_feature(\"fetch\", \"sideband-all\", 0)) {\n\t\treader.use_sideband = 1;\n\t\treader.me = \"fetch-pack\";\n\t}\n\n\twhile (state != FETCH_DONE) {\n\t\tswitch (state) {\n\t\tcase FETCH_CHECK_LOCAL:\n\t\t\tsort_ref_list(&ref, ref_compare_name);\n\t\t\tQSORT(sought, nr_sought, cmp_ref_by_name);\n\n\t\t\t/* v2 supports these by default */\n\t\t\tallow_unadvertised_object_request |= ALLOW_REACHABLE_SHA1;\n\t\t\tuse_sideband = 2;\n\t\t\tif (args->depth > 0 || args->deepen_since || args->deepen_not)\n\t\t\t\targs->deepen = 1;\n\n\t\t\t/* Filter 'ref' by 'sought' and those that aren't local */\n\t\t\tmark_complete_and_common_ref(negotiator, args, &ref);\n\t\t\tfilter_refs(args, &ref, sought, nr_sought);\n\t\t\tif (!args->refetch && everything_local(args, &ref))\n\t\t\t\tstate = FETCH_DONE;\n\t\t\telse\n\t\t\t\tstate = FETCH_SEND_REQUEST;\n\n\t\t\tmark_tips(negotiator, args->negotiation_restrict_tips);\n\t\t\tadd_oids_to_set(args->negotiation_include_tips,\n\t\t\t\t\t&negotiation_include_oids);\n\t\t\tfor_each_cached_alternate(negotiator,\n\t\t\t\t\t\t  insert_one_alternate_object);\n\t\t\tbreak;\n\t\tcase FETCH_SEND_REQUEST:\n\t\t\tif (!negotiation_started) {\n\t\t\t\tnegotiation_started = 1;\n\t\t\t\ttrace2_region_enter(\"fetch-pack\",\n\t\t\t\t\t\t    \"negotiation_v2\",\n\t\t\t\t\t\t    the_repository);\n\t\t\t}\n\t\t\tnegotiation_round++;\n\t\t\ttrace2_region_enter_printf(\"negotiation_v2\", \"round\",\n\t\t\t\t\t\t   the_repository, \"%d\",\n\t\t\t\t\t\t   negotiation_round);\n\t\t\tif (send_fetch_request(negotiator, fd[1], args, ref,\n\t\t\t\t\t       &common,\n\t\t\t\t\t       &haves_to_send, &in_vain,\n\t\t\t\t\t       reader.use_sideband,\n\t\t\t\t\t       seen_ack,\n\t\t\t\t\t       &negotiation_include_oids)) {\n\t\t\t\ttrace2_region_leave_printf(\"negotiation_v2\", \"round\",\n\t\t\t\t\t\t\t   the_repository, \"%d\",\n\t\t\t\t\t\t\t   negotiation_round);\n\t\t\t\tstate = FETCH_GET_PACK;\n\t\t\t}\n\t\t\telse\n\t\t\t\tstate = FETCH_PROCESS_ACKS;\n\t\t\tbreak;\n\t\tcase FETCH_PROCESS_ACKS:\n\t\t\t/* Process ACKs/NAKs */\n\t\t\tprocess_section_header(&reader, \"acknowledgments\", 0);\n\t\t\twhile (process_ack(negotiator, &reader, &common_oid,\n\t\t\t\t\t   &received_ready)) {\n"
+      }
+    },
+    {
+      "file": "fetch-pack.c",
+      "old_start": 1657,
+      "old_end": 1662,
+      "new_start": 1714,
+      "new_end": 1720,
+      "context_hint": "static struct ref *do_fetch_pack_v2(struct fetch_pack_args *args,",
+      "added_lines": [
+        "\tstruct oidset negotiation_include_oids = OIDSET_INIT;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\tstruct ref *ref = copy_ref_list(orig_ref);",
+        "\tenum fetch_state state = FETCH_CHECK_LOCAL;",
+        "\tstruct oidset common = OIDSET_INIT;",
+        "\tstruct packet_reader reader;",
+        "\tint in_vain = 0, negotiation_started = 0;",
+        "\tint negotiation_round = 0;"
+      ],
+      "hunk_id": "HUNK-0018",
+      "changed_symbols": [
+        "ref",
+        "oidset",
+        "negotiation_include_oids",
+        "OIDSET_INIT",
+        "_"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "wire_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Repository wire protocol and capability behavior"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "user_visible_output",
+          "wire_protocol"
+        ],
+        "profile": "git",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ref",
+        "snippet_start_line": 1628,
+        "snippet_end_line": 1750,
+        "snippet": "\t} else if (shallows->nr) {\n\t\t/*\n\t\t * Treat these as shallow lines caused by the remote being\n\t\t * shallow. In v0, remote refs that reach these objects are\n\t\t * rejected (unless --update-shallow is set); do the same.\n\t\t */\n\t\tprepare_shallow_info(si, shallows);\n\t\tif (si->nr_ours || si->nr_theirs) {\n\t\t\tif (args->reject_shallow_remote)\n\t\t\t\tdie(_(\"source repository is shallow, reject to clone.\"));\n\t\t\talternate_shallow_file =\n\t\t\t\tsetup_temporary_shallow(si->shallow);\n\t\t} else\n\t\t\talternate_shallow_file = NULL;\n\t} else {\n\t\talternate_shallow_file = NULL;\n\t}\n}\n\nstatic int cmp_name_ref(const void *name, const void *ref)\n{\n\treturn strcmp(name, (*(struct ref **)ref)->name);\n}\n\nstatic void receive_wanted_refs(struct packet_reader *reader,\n\t\t\t\tstruct ref **sought, int nr_sought)\n{\n\tprocess_section_header(reader, \"wanted-refs\", 0);\n\twhile (packet_reader_read(reader) == PACKET_READ_NORMAL) {\n\t\tstruct object_id oid;\n\t\tconst char *end;\n\t\tstruct ref **found;\n\n\t\tif (parse_oid_hex(reader->line, &oid, &end) || *end++ != ' ')\n\t\t\tdie(_(\"expected wanted-ref, got '%s'\"), reader->line);\n\n\t\tfound = bsearch(end, sought, nr_sought, sizeof(*sought),\n\t\t\t\tcmp_name_ref);\n\t\tif (!found)\n\t\t\tdie(_(\"unexpected wanted-ref: '%s'\"), reader->line);\n\t\toidcpy(&(*found)->old_oid, &oid);\n\t}\n\n\tif (reader->status != PACKET_READ_DELIM)\n\t\tdie(_(\"error processing wanted refs: %d\"), reader->status);\n}\n\nstatic void receive_packfile_uris(struct packet_reader *reader,\n\t\t\t\t  struct string_list *uris)\n{\n\tprocess_section_header(reader, \"packfile-uris\", 0);\n\twhile (packet_reader_read(reader) == PACKET_READ_NORMAL) {\n\t\tif (reader->pktlen < the_hash_algo->hexsz ||\n\t\t    reader->line[the_hash_algo->hexsz] != ' ')\n\t\t\tdie(\"expected '<hash> <uri>', got: %s\", reader->line);\n\n\t\tstring_list_append(uris, reader->line);\n\t}\n\tif (reader->status != PACKET_READ_DELIM)\n\t\tdie(\"expected DELIM\");\n}\n\nenum fetch_state {\n\tFETCH_CHECK_LOCAL = 0,\n\tFETCH_SEND_REQUEST,\n\tFETCH_PROCESS_ACKS,\n\tFETCH_GET_PACK,\n\tFETCH_DONE,\n};\n\nstatic void do_check_stateless_delimiter(int stateless_rpc,\n\t\t\t\t\t struct packet_reader *reader)\n{\n\tcheck_stateless_delimiter(stateless_rpc, reader,\n\t\t\t\t  _(\"git fetch-pack: expected response end packet\"));\n}\n\nstatic struct ref *do_fetch_pack_v2(struct fetch_pack_args *args,\n\t\t\t\t    int fd[2],\n\t\t\t\t    const struct ref *orig_ref,\n\t\t\t\t    struct ref **sought, int nr_sought,\n\t\t\t\t    struct oid_array *shallows,\n\t\t\t\t    struct shallow_info *si,\n\t\t\t\t    struct string_list *pack_lockfiles)\n{\n\tstruct repository *r = the_repository;\n\tstruct ref *ref = copy_ref_list(orig_ref);\n\tenum fetch_state state = FETCH_CHECK_LOCAL;\n\tstruct oidset common = OIDSET_INIT;\n\tstruct oidset negotiation_include_oids = OIDSET_INIT;\n\tstruct packet_reader reader;\n\tint in_vain = 0, negotiation_started = 0;\n\tint negotiation_round = 0;\n\tint haves_to_send = INITIAL_FLUSH;\n\tstruct fetch_negotiator negotiator_alloc;\n\tstruct fetch_negotiator *negotiator;\n\tint seen_ack = 0;\n\tstruct object_id common_oid;\n\tint received_ready = 0;\n\tstruct string_list packfile_uris = STRING_LIST_INIT_DUP;\n\tint i;\n\tstruct strvec index_pack_args = STRVEC_INIT;\n\tconst char *promisor_remote_config;\n\n\tif (server_feature_v2(\"promisor-remote\", &promisor_remote_config))\n\t\tpromisor_remote_reply(promisor_remote_config, NULL);\n\n\tif (args->filter_options.choice == LOFC_AUTO) {\n\t\tstruct strbuf errbuf = STRBUF_INIT;\n\t\tchar *constructed_filter = promisor_remote_construct_filter(r);\n\n\t\tlist_objects_filter_release(&args->filter_options);\n\t\t/* Disallow 'auto' as a result of the resolution of this 'auto' filter below */\n\t\targs->filter_options.allow_auto_filter = 0;\n\n\t\tif (constructed_filter &&\n\t\t    gently_parse_list_objects_filter(&args->filter_options,\n\t\t\t\t\t\t     constructed_filter,\n\t\t\t\t\t\t     &errbuf))\n\t\t\tdie(_(\"couldn't resolve 'auto' filter '%s': %s\"),\n\t\t\t    constructed_filter, errbuf.buf);\n\n\t\tfree(constructed_filter);\n"
+      }
+    },
+    {
+      "file": "fetch-pack.c",
+      "old_start": 1747,
+      "old_end": 1753,
+      "new_start": 1807,
+      "new_end": 1814,
+      "context_hint": "static struct ref *do_fetch_pack_v2(struct fetch_pack_args *args,",
+      "added_lines": [
+        "\t\t\t\t\t       seen_ack,",
+        "\t\t\t\t\t       &negotiation_include_oids)) {"
+      ],
+      "deleted_lines": [
+        "\t\t\t\t\t       seen_ack)) {"
+      ],
+      "context_lines": [
+        "\t\t\t\t\t       &common,",
+        "\t\t\t\t\t       &haves_to_send, &in_vain,",
+        "\t\t\t\t\t       reader.use_sideband,",
+        "\t\t\t\ttrace2_region_leave_printf(\"negotiation_v2\", \"round\",",
+        "\t\t\t\t\t\t\t   the_repository, \"%d\",",
+        "\t\t\t\t\t\t\t   negotiation_round);"
+      ],
+      "hunk_id": "HUNK-0020",
+      "changed_symbols": [
+        "ref",
+        "seen_ack",
+        "negotiation_include_oids",
+        "trace2_region_enter_printf"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "wire_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Repository wire protocol and capability behavior"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "user_visible_output",
+          "wire_protocol"
+        ],
+        "profile": "git",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ref",
+        "snippet_start_line": 1718,
+        "snippet_end_line": 1844,
+        "snippet": "\tstruct packet_reader reader;\n\tint in_vain = 0, negotiation_started = 0;\n\tint negotiation_round = 0;\n\tint haves_to_send = INITIAL_FLUSH;\n\tstruct fetch_negotiator negotiator_alloc;\n\tstruct fetch_negotiator *negotiator;\n\tint seen_ack = 0;\n\tstruct object_id common_oid;\n\tint received_ready = 0;\n\tstruct string_list packfile_uris = STRING_LIST_INIT_DUP;\n\tint i;\n\tstruct strvec index_pack_args = STRVEC_INIT;\n\tconst char *promisor_remote_config;\n\n\tif (server_feature_v2(\"promisor-remote\", &promisor_remote_config))\n\t\tpromisor_remote_reply(promisor_remote_config, NULL);\n\n\tif (args->filter_options.choice == LOFC_AUTO) {\n\t\tstruct strbuf errbuf = STRBUF_INIT;\n\t\tchar *constructed_filter = promisor_remote_construct_filter(r);\n\n\t\tlist_objects_filter_release(&args->filter_options);\n\t\t/* Disallow 'auto' as a result of the resolution of this 'auto' filter below */\n\t\targs->filter_options.allow_auto_filter = 0;\n\n\t\tif (constructed_filter &&\n\t\t    gently_parse_list_objects_filter(&args->filter_options,\n\t\t\t\t\t\t     constructed_filter,\n\t\t\t\t\t\t     &errbuf))\n\t\t\tdie(_(\"couldn't resolve 'auto' filter '%s': %s\"),\n\t\t\t    constructed_filter, errbuf.buf);\n\n\t\tfree(constructed_filter);\n\t\tstrbuf_release(&errbuf);\n\t}\n\n\tnegotiator = &negotiator_alloc;\n\tif (args->refetch)\n\t\tfetch_negotiator_init_noop(negotiator);\n\telse\n\t\tfetch_negotiator_init(r, negotiator);\n\n\tpacket_reader_init(&reader, fd[0], NULL, 0,\n\t\t\t   PACKET_READ_CHOMP_NEWLINE |\n\t\t\t   PACKET_READ_DIE_ON_ERR_PACKET);\n\tif (git_env_bool(\"GIT_TEST_SIDEBAND_ALL\", 1) &&\n\t    server_supports_feature(\"fetch\", \"sideband-all\", 0)) {\n\t\treader.use_sideband = 1;\n\t\treader.me = \"fetch-pack\";\n\t}\n\n\twhile (state != FETCH_DONE) {\n\t\tswitch (state) {\n\t\tcase FETCH_CHECK_LOCAL:\n\t\t\tsort_ref_list(&ref, ref_compare_name);\n\t\t\tQSORT(sought, nr_sought, cmp_ref_by_name);\n\n\t\t\t/* v2 supports these by default */\n\t\t\tallow_unadvertised_object_request |= ALLOW_REACHABLE_SHA1;\n\t\t\tuse_sideband = 2;\n\t\t\tif (args->depth > 0 || args->deepen_since || args->deepen_not)\n\t\t\t\targs->deepen = 1;\n\n\t\t\t/* Filter 'ref' by 'sought' and those that aren't local */\n\t\t\tmark_complete_and_common_ref(negotiator, args, &ref);\n\t\t\tfilter_refs(args, &ref, sought, nr_sought);\n\t\t\tif (!args->refetch && everything_local(args, &ref))\n\t\t\t\tstate = FETCH_DONE;\n\t\t\telse\n\t\t\t\tstate = FETCH_SEND_REQUEST;\n\n\t\t\tmark_tips(negotiator, args->negotiation_restrict_tips);\n\t\t\tadd_oids_to_set(args->negotiation_include_tips,\n\t\t\t\t\t&negotiation_include_oids);\n\t\t\tfor_each_cached_alternate(negotiator,\n\t\t\t\t\t\t  insert_one_alternate_object);\n\t\t\tbreak;\n\t\tcase FETCH_SEND_REQUEST:\n\t\t\tif (!negotiation_started) {\n\t\t\t\tnegotiation_started = 1;\n\t\t\t\ttrace2_region_enter(\"fetch-pack\",\n\t\t\t\t\t\t    \"negotiation_v2\",\n\t\t\t\t\t\t    the_repository);\n\t\t\t}\n\t\t\tnegotiation_round++;\n\t\t\ttrace2_region_enter_printf(\"negotiation_v2\", \"round\",\n\t\t\t\t\t\t   the_repository, \"%d\",\n\t\t\t\t\t\t   negotiation_round);\n\t\t\tif (send_fetch_request(negotiator, fd[1], args, ref,\n\t\t\t\t\t       &common,\n\t\t\t\t\t       &haves_to_send, &in_vain,\n\t\t\t\t\t       reader.use_sideband,\n\t\t\t\t\t       seen_ack,\n\t\t\t\t\t       &negotiation_include_oids)) {\n\t\t\t\ttrace2_region_leave_printf(\"negotiation_v2\", \"round\",\n\t\t\t\t\t\t\t   the_repository, \"%d\",\n\t\t\t\t\t\t\t   negotiation_round);\n\t\t\t\tstate = FETCH_GET_PACK;\n\t\t\t}\n\t\t\telse\n\t\t\t\tstate = FETCH_PROCESS_ACKS;\n\t\t\tbreak;\n\t\tcase FETCH_PROCESS_ACKS:\n\t\t\t/* Process ACKs/NAKs */\n\t\t\tprocess_section_header(&reader, \"acknowledgments\", 0);\n\t\t\twhile (process_ack(negotiator, &reader, &common_oid,\n\t\t\t\t\t   &received_ready)) {\n\t\t\t\tin_vain = 0;\n\t\t\t\tseen_ack = 1;\n\t\t\t\toidset_insert(&common, &common_oid);\n\t\t\t}\n\t\t\ttrace2_region_leave_printf(\"negotiation_v2\", \"round\",\n\t\t\t\t\t\t   the_repository, \"%d\",\n\t\t\t\t\t\t   negotiation_round);\n\t\t\tif (received_ready) {\n\t\t\t\t/*\n\t\t\t\t * Don't check for response delimiter; get_pack() will\n\t\t\t\t * read the rest of this response.\n\t\t\t\t */\n\t\t\t\tstate = FETCH_GET_PACK;\n\t\t\t} else {\n\t\t\t\tdo_check_stateless_delimiter(args->stateless_rpc, &reader);\n\t\t\t\tstate = FETCH_SEND_REQUEST;\n\t\t\t}\n\t\t\tbreak;\n\t\tcase FETCH_GET_PACK:\n\t\t\ttrace2_region_leave(\"fetch-pack\",\n"
+      }
+    },
+    {
+      "file": "fetch-pack.h",
+      "old_start": 93,
+      "old_end": 99,
+      "new_start": 94,
+      "new_end": 101,
+      "context_hint": "void negotiate_using_fetch(const struct oid_array *negotiation_restrict_tips,",
+      "added_lines": [
+        "\t\t\t   struct oidset *acked_commits,",
+        "\t\t\t   const struct oid_array *negotiation_include_tips);"
+      ],
+      "deleted_lines": [
+        "\t\t\t   struct oidset *acked_commits);"
+      ],
+      "context_lines": [
+        "\t\t\t   const struct string_list *server_options,",
+        "\t\t\t   int stateless_rpc,",
+        "\t\t\t   int fd[],",
+        "",
+        "/*",
+        " * Print an appropriate error message for each sought ref that wasn't"
+      ],
+      "hunk_id": "HUNK-0027",
+      "changed_symbols": [
+        "oid_array",
+        "oidset",
+        "acked_commits",
+        "negotiation_include_tips",
+        "negotiate_using_fetch"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "wire_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Repository wire protocol and capability behavior"
+          },
+          {
+            "name": "public_library_headers",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Headers used by Git builtins and external integrations"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "user_visible_output",
+          "wire_protocol",
+          "public_library_headers"
+        ],
+        "profile": "git",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "oid_array",
+        "snippet_start_line": 64,
+        "snippet_end_line": 122,
+        "snippet": "\t * This is different from check_self_contained_and_connected\n\t * in that the former allows existing objects in the\n\t * repository to satisfy connectivity needs, whereas the\n\t * latter doesn't.\n\t */\n\tunsigned connectivity_checked:1;\n};\n\n/*\n * sought represents remote references that should be updated from.\n * On return, the names that were found on the remote will have been\n * marked as such.\n */\nstruct ref *fetch_pack(struct fetch_pack_args *args,\n\t\t       int fd[],\n\t\t       const struct ref *ref,\n\t\t       struct ref **sought,\n\t\t       int nr_sought,\n\t\t       struct oid_array *shallow,\n\t\t       struct string_list *pack_lockfiles,\n\t\t       enum protocol_version version);\n\n/*\n * Execute the --negotiate-only mode of \"git fetch\", adding all known common\n * commits to acked_commits.\n *\n * In the capability advertisement that has happened prior to invoking this\n * function, the \"wait-for-done\" capability must be present.\n */\nvoid negotiate_using_fetch(const struct oid_array *negotiation_restrict_tips,\n\t\t\t   const struct string_list *server_options,\n\t\t\t   int stateless_rpc,\n\t\t\t   int fd[],\n\t\t\t   struct oidset *acked_commits,\n\t\t\t   const struct oid_array *negotiation_include_tips);\n\n/*\n * Print an appropriate error message for each sought ref that wasn't\n * matched.  Return 0 if all sought refs were matched, otherwise 1.\n */\nint report_unmatched_refs(struct ref **sought, int nr_sought);\n\n/*\n * Return true if checks for broken objects in received pack are required.\n */\nint fetch_pack_fsck_objects(void);\n\n/*\n * Check if the provided config variable pertains to fetch fsck and if so append\n * the configuration to the provided strbuf.\n *\n * When a fetch fsck config option is successfully processed the function\n * returns 0. If the provided config option is unrelated to fetch fsck, 1 is\n * returned. Errors return -1.\n */\nint fetch_pack_fsck_config(const char *var, const char *value,\n\t\t\t   struct strbuf *msg_types);\n\n#endif\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

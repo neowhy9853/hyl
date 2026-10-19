@@ -1,0 +1,332 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/haproxy",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/074879/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/074879",
+  "base_ref": "HEAD",
+  "base_commit": "0748799ad18db4eeb72b33b30c5e0c420a8216ea",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "0748799ad18db4eeb72b33b30c5e0c420a8216ea",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/0748799.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "haproxy",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 8165,
+    "patch_lines": 227,
+    "diff_added_lines": 38,
+    "diff_deleted_lines": 32,
+    "diff_context_lines": 104,
+    "churn": 70,
+    "raw_hunks": 12,
+    "candidate_hunks": 10,
+    "skipped_doc_hunks": 2,
+    "changed_files": 3,
+    "candidate_context_bytes": 18797,
+    "public_candidate_hunks": 10,
+    "surface_counts": {
+      "public_headers": 1,
+      "config": 4,
+      "struct_layout": 1,
+      "protocol_behavior": 8,
+      "network_protocol": 9,
+      "runtime_api": 2,
+      "config_keys": 1,
+      "user_visible_output": 4,
+      "protocol": 7,
+      "persistence_state": 4,
+      "callbacks": 1,
+      "plugin_api": 1
+    },
+    "candidates_json_bytes": 57826
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 10,
+    "compatibility_changes": 2,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 2
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "haproxy",
+      "affected_surface": "Lua HTTP client API - public Lua scripting interface",
+      "affected_api": {
+        "name": "hlua_httpclient_send",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/http_client.c",
+        "old_lines": [
+          1869,
+          1875
+        ],
+        "new_lines": [
+          1876,
+          1882
+        ],
+        "symbol": "hlua_httpclient_send"
+      },
+      "old_behavior": "hlua_httpclient_send() checked if the httpclient was already started via httpclient_started() and threw 'httpclient instance cannot be reused. It must process at most one request' error. The validation block enforced that each core.httpclient() instance could process at most one request.",
+      "new_behavior": "hlua_httpclient_send() no longer checks for prior usage. Instead, it calls hlua_httpclient_new(L) to create a new HTTPClientRequest object on each invocation, replaces the factory at stack index 1 with the new request object, then creates the internal httpclient via httpclient_new(). Multiple requests on the same httpclient instance now succeed instead of erroring.",
+      "compatibility_reason": "The Lua HTTP client API contract changed: previously a single httpclient instance could process at most one request, enforced by a runtime error. Now the same instance can issue multiple sequential requests. Existing scripts that create a new core.httpclient() per request continue to work unchanged. Scripts that accidentally reused an instance previously errored but now succeed. No existing working script breaks, but the error contract is relaxed.",
+      "evidence": [
+        {
+          "file": "src/http_client.c",
+          "lines": [
+            1869,
+            1875
+          ],
+          "snippet": "/* OLD code removed */\n/* An HTTPclient instance must never process more that one request. So\n * at this stage, it must never have been started.\n */\nif (httpclient_started(hlua_hc->hc))\n    WILL_LJMP(luaL_error(L, \"httpclient instance cannot be reused. It must process at most one request\"));"
+        },
+        {
+          "file": "src/http_client.c",
+          "lines": [
+            1876,
+            1882
+          ],
+          "snippet": "/* NEW code added */\n/* Create the internal httpclient request object and replace the factory at index 1 */\nhlua_httpclient_new(L);\nlua_replace(L, 1);\nhlua_hc->hc = httpclient_new(hlua, 0, IST_NULL);\nif (!hlua_hc->hc)\n    WILL_LJMP(luaL_error(L, \"out of memory\"));"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The hlua_httpclient_send() function is the core implementation of the public Lua HTTP client API methods (get, post, put, delete, head). These methods are documented in the HAProxy Lua API documentation (doc/lua-api/index.rst). The error contract relaxation is externally observable by any Lua script using the httpclient API - previously reusing an instance caused a Lua error, now it succeeds silently.",
+      "uncertainty": "Low. The old guard code explicitly prevented reuse with a runtime error that was clearly visible to Lua callers. Its removal is a definitive behavioral change. The only uncertainty is whether any real-world deployment depends on this specific error message (extremely unlikely since it represents a failure path).",
+      "manual_review_required": false,
+      "recommended_review": "Verify that the new factory pattern correctly creates a new HTTPClientRequest per request and that resources are properly garbage-collected. Confirm that the deferral of httpclient creation does not introduce resource leaks when factory objects are abandoned without making any request.",
+      "test_recommendation": "Low priority: write a Lua script that issues multiple sequential requests (get, post, put) from a single core.httpclient() instance and verify all succeed. Also verify that per-request core.httpclient() pattern still works. The existing reg-test (lua_httpclient.lua) already covers the multi-request pattern.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0010",
+            "file": "src/http_client.c",
+            "old_lines": [
+              1869,
+              1881
+            ],
+            "new_lines": [
+              1876,
+              1890
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "protocol",
+              "network_protocol",
+              "protocol_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol behavior"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "Proxy protocol, HTTP/TCP/TLS/QUIC behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.8,
+      "package_profile": "haproxy",
+      "affected_surface": "Lua HTTP client constructor - core.httpclient() public API",
+      "affected_api": {
+        "name": "hlua_http_client_init_state / hlua_httpclient_factory_new",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/http_client.c",
+        "old_lines": [
+          2023,
+          2030
+        ],
+        "new_lines": [
+          2041,
+          2051
+        ],
+        "symbol": "hlua_http_client_init_state"
+      },
+      "old_behavior": "core.httpclient() invoked hlua_httpclient_new which immediately created a full HTTPClient instance: allocated an hlua_httpclient struct, created a userdata, called httpclient_new() to initialize the internal HTTP client (appending it to hlua->hc_list), and set the HTTPClient metatable (class_httpclient_ref). The GC handler (__gc with hlua_httpclient_gc) was registered on the HTTPClient metatable.",
+      "new_behavior": "core.httpclient() invokes hlua_httpclient_factory_new which creates a lightweight factory table with the HTTPClient metatable (class_httpclient_ref) but no internal httpclient. Actual HTTP client initialization (hlua_httpclient_new) is deferred to the first request method call (get/post/put/etc.) via hlua_httpclient_send(). The GC handler (__gc) has been moved from the HTTPClient metatable to the new HTTPClientRequest metatable (class_httpclient_request_ref).",
+      "compatibility_reason": "The core.httpclient() constructor behavior changed: previously it eagerly initialized a full HTTP client at construction time; now it creates a lazy factory. For consumers that call a request method immediately after construction, the observable behavior is identical. However, the side effects at construction time differ: (1) old code could fail at construction time (httpclient_new OOM), new code defers that failure to request time; (2) old code registered the hc in hlua->hc_list at construction, new code does so at request time; (3) old code eagerly allocated resources at construction, new code does not. These differences are transparent under normal use patterns but could affect error handling ordering and resource lifecycle observability.",
+      "evidence": [
+        {
+          "file": "src/http_client.c",
+          "lines": [
+            2023,
+            2029
+          ],
+          "snippet": "/* OLD: hlua_http_client_init_state registered core.httpclient as hlua_httpclient_new */\n/* Register the garbage collector entry. */\nlua_pushstring(L, \"__gc\");\nlua_pushcclosure(L, hlua_httpclient_gc, 0);\nlua_settable(L, -3); /* Push the last 2 entries in the table at index -3 */\nhlua_class_function(L, \"httpclient\", hlua_httpclient_new);"
+        },
+        {
+          "file": "src/http_client.c",
+          "lines": [
+            2041,
+            2051
+          ],
+          "snippet": "/* NEW: hlua_http_client_init_state registers core.httpclient as hlua_httpclient_factory_new */\n/* Register HTTPClientRequest */\nlua_newtable(L);\n/* Register the garbage collector entry. */\nlua_pushstring(L, \"__gc\");\nlua_pushcclosure(L, hlua_httpclient_gc, 0);\nlua_settable(L, -3);\nclass_httpclient_request_ref = hlua_register_metatable(L, CLASS_HTTPCLIENT_REQ);\n/* Register HTTPClient */\nlua_newtable(L);\n...\nclass_httpclient_ref = hlua_register_metatable(L, CLASS_HTTPCLIENT);\n...\nhlua_class_function(L, \"httpclient\", hlua_httpclient_factory_new);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "core.httpclient() is a documented public Lua API entry point. The change in constructor behavior (eager vs lazy initialization) affects any Lua script that uses the httpclient API, even if the observable outcome under normal conditions is identical. The change in resource lifecycle and error timing is externally observable under edge cases (e.g., OOM during httpclient creation, or scripts that create an httpclient but never make requests).",
+      "uncertainty": "Low-to-medium. The behavioral change is clear from the code, but the practical impact is minimal because: (1) the API method signatures and request handling paths are unchanged; (2) most scripts call a request method immediately after construction; (3) the commit explicitly aims for backward compatibility. The GC metatable migration (from HTTPClient to HTTPClientRequest) could theoretically affect scripts that hold references to the returned factory object across yield points, but this matches the intended new architecture.",
+      "manual_review_required": false,
+      "recommended_review": "Review the new factory pattern for resource leak edge cases: (1) factory objects that go out of scope without making any request should have no resources to leak (confirmed by code inspection); (2) verify that the hlua->hc_list management still correctly tracks all active request objects (confirmed: hlua_httpclient_new appends to hc_list). Verify that error message wording changes are acceptable.",
+      "test_recommendation": "Low priority: test that core.httpclient() returns a usable object with all expected methods (get, post, put, delete, head). Test that creating an httpclient without making a request does not leak resources (requires memory profiling). Existing reg-test (lua_httpclient.lua) validates multi-request pattern.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0012",
+            "file": "src/http_client.c",
+            "old_lines": [
+              2023,
+              2039
+            ],
+            "new_lines": [
+              2041,
+              2051
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "protocol",
+              "network_protocol",
+              "persistence_state",
+              "protocol_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol behavior"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "Proxy protocol, HTTP/TCP/TLS/QUIC behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

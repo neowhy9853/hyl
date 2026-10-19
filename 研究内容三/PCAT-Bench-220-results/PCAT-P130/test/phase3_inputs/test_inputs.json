@@ -1,0 +1,118 @@
+{
+  "generated_by": "pca-test-entry-generator",
+  "source_findings": ["PCA-0001", "PCA-0002"],
+  "total_inputs_planned": 10,
+  "inputs_executed": 0,
+  "inputs": [
+    {
+      "input_id": "I1",
+      "finding_id": "PCA-0001",
+      "target_lines": ["server/mpm/event/event.c:1142-1160"],
+      "branch_targeted": "switch case OK: CONN_STATE_PROCESSING -> CONN_STATE_LINGER",
+      "input_type": "http_request",
+      "command": "curl http://localhost:8080/test_ok_processing",
+      "expected_output": "Connection immediately closed after response (lingering close)",
+      "reachability_signal": "GCOV: server/mpm/event/event.c line 1147-1149 covered (OK + CONN_STATE_PROCESSING -> LINGER)",
+      "setup_required": "Build httpd with event MPM + GCOV; test module returning OK with CONN_STATE_PROCESSING"
+    },
+    {
+      "input_id": "I2",
+      "finding_id": "PCA-0001",
+      "target_lines": ["server/mpm/event/event.c:1155-1158"],
+      "branch_targeted": "switch case AGAIN: CONN_STATE_PROCESSING -> rc = OK",
+      "input_type": "http_request",
+      "command": "curl http://localhost:8080/test_again_processing",
+      "expected_output": "Connection kept alive, MPM waits for I/O readiness per CONN_SENSE",
+      "reachability_signal": "GCOV: server/mpm/event/event.c line 1156-1157 covered (AGAIN -> rc = OK)",
+      "setup_required": "Same as I1; test module returning AGAIN(-4) with CONN_STATE_PROCESSING"
+    },
+    {
+      "input_id": "I3",
+      "finding_id": "PCA-0001",
+      "target_lines": ["server/mpm/event/event.c:1143-1145"],
+      "branch_targeted": "switch case DONE: rc = OK; fall through to OK case",
+      "input_type": "http_request",
+      "command": "curl http://localhost:8080/test_done",
+      "expected_output": "DONE treated same as OK (mapped to OK)",
+      "reachability_signal": "GCOV: server/mpm/event/event.c line 1143 covered (DONE -> rc = OK)",
+      "setup_required": "Same; test module returning DONE(-2) from process_connection hook"
+    },
+    {
+      "input_id": "I4",
+      "finding_id": "PCA-0001",
+      "target_lines": ["server/mpm/event/event.c:1162-1168"],
+      "branch_targeted": "Error path: rc != OK or unexpected state -> CONN_STATE_LINGER",
+      "input_type": "http_request",
+      "command": "curl http://localhost:8080/test_error",
+      "expected_output": "Connection forcibly closed with linger, APLOGNO(10111) log message",
+      "reachability_signal": "GCOV: server/mpm/event/event.c line 1162-1168 covered (error handling)",
+      "setup_required": "Same; test module returning DECLINED(-1) or unexpected values"
+    },
+    {
+      "input_id": "I5",
+      "finding_id": "PCA-0001",
+      "target_lines": ["server/mpm/event/event.c:1104-1106"],
+      "branch_targeted": "Write completion path: CONN_STATE_WRITE_COMPLETION -> from_wc_q = 1",
+      "input_type": "http_request",
+      "command": "curl http://localhost:8080/test_write_comp",
+      "expected_output": "Normal write completion flow, connection transitions to keepalive or linger",
+      "reachability_signal": "GCOV: server/mpm/event/event.c line 1104-1106 covered (WRITE_COMPLETION)",
+      "setup_required": "Same; test module returning with CONN_STATE_WRITE_COMPLETION"
+    },
+    {
+      "input_id": "I6",
+      "finding_id": "PCA-0002",
+      "target_lines": ["modules/http2/h2_c1.c:239-247"],
+      "branch_targeted": "#ifdef AP_MPMQ_CAN_AGAIN + mpm_can_again -> AGAIN return",
+      "input_type": "http2_request",
+      "command": "curl --http2 -k https://localhost:8443/large_download",
+      "expected_output": "HTTP/2 session returns AGAIN to MPM, conn stays in processing state",
+      "reachability_signal": "GCOV: modules/http2/h2_c1.c line 244-247 covered (AGAIN return path)",
+      "setup_required": "Build httpd with mod_http2 + nghttp2 + GCOV; SSL certs for HTTPS/2"
+    },
+    {
+      "input_id": "I7",
+      "finding_id": "PCA-0002",
+      "target_lines": ["modules/http2/h2_c1.c:257-259"],
+      "branch_targeted": "Compatibility fallback: clogging_input_filters = 1",
+      "input_type": "http2_request",
+      "command": "Use build without AP_MPMQ_CAN_AGAIN define or MPM that doesn't advertise support",
+      "expected_output": "h2_c1 uses CONN_STATE_WRITE_COMPLETION + clogging_input_filters fallback",
+      "reachability_signal": "GCOV: modules/http2/h2_c1.c line 257-259 covered (compat fallback)",
+      "setup_required": "Build httpd with mod_http2 but without event MPM AGAIN capability"
+    },
+    {
+      "input_id": "I8",
+      "finding_id": "PCA-0002",
+      "target_lines": ["modules/http2/h2_c1.c:212-213"],
+      "branch_targeted": "status != APR_SUCCESS -> error logging and close",
+      "input_type": "http2_request",
+      "command": "Trigger a non-EOF error in h2_session_process (e.g. APR_EGAIN)",
+      "expected_output": "Connection logged and closed on non-EOF error status",
+      "reachability_signal": "GCOV: modules/http2/h2_c1.c line 212-213 covered (error handling)",
+      "setup_required": "Same; artificially induce APR_EGAIN or other non-success returns"
+    },
+    {
+      "input_id": "I9",
+      "finding_id": "PCA-0002",
+      "target_lines": ["modules/http2/h2_c1.c:177-180"],
+      "branch_targeted": "#ifdef AP_MPMQ_CAN_AGAIN + async_mpm query in h2_c1_child_init",
+      "input_type": "server_startup",
+      "command": "httpd -X (server startup triggers child_init)",
+      "expected_output": "mpm_can_again initialized correctly based on ap_mpm_query result",
+      "reachability_signal": "GCOV: modules/http2/h2_c1.c line 177-180 covered (CAN_AGAIN query)",
+      "setup_required": "Start httpd with event MPM and mod_http2; check mpm_can_again value"
+    },
+    {
+      "input_id": "I10",
+      "finding_id": "PCA-0002",
+      "target_lines": ["modules/http2/h2_c1.c:305-308"],
+      "branch_targeted": "h2_c1_hook_process_connection return value propagation",
+      "input_type": "http2_request",
+      "command": "curl --http2 -k https://localhost:8443/ (trigger h2_c1_hook_process_connection)",
+      "expected_output": "Return value from h2_c1_run propagated to MPM (not always OK)",
+      "reachability_signal": "GCOV: modules/http2/h2_c1.c line 308 covered (return h2_c1_run)",
+      "setup_required": "Same as I6"
+    }
+  ]
+}

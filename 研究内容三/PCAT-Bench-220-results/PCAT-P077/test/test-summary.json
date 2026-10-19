@@ -1,0 +1,169 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/openldap/pca-results/f6ae8e/analysis.json",
+  "patch_id": "f6ae8ef451f38e3f2f3ec6fc43cc8806ecfe125a",
+  "result_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/f6ae8e/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/openldap",
+    "base_commit": "18403607b96254ba7556b64961465ff5bd0af03e",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/openldap/pca-results/f6ae8e/_worktrees/patched",
+    "package_profile": "openldap"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc (Ubuntu 11.4.0) 13.0",
+    "optimization": "-O0 -g --coverage",
+    "coverage_tool": "gcov (GCC) 13.0",
+    "notes": [
+      "Build configured with --enable-slapd=yes --enable-mdb=yes --enable-balancer=yes --with-tls=openssl --with-cyrus-sasl=yes",
+      "Before binary built at parent commit 18403607b9 (correct base before patch)",
+      "After binary built at patched worktree (f6ae8e applied)",
+      "Sandbox denies IPv4 socket bind (EPERM); daemon runtime tests not possible",
+      "Config check mode (-t) and gdb variable inspection used as alternative"
+    ]
+  },
+  "summary": {
+    "findings_total": 2,
+    "findings_targeted": 2,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 3,
+    "inputs_executed": 3,
+    "contracts_total": 3,
+    "contracts_passed": 3,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 3,
+    "patch_lines_covered": 3,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "status": "passed",
+      "target_location": {
+        "file": "servers/lloadd/lload.h",
+        "new_lines": [187, 190],
+        "symbol": "LLOAD_FEATURES_DEFAULT"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/PCA-0001/run_config_test.sh",
+          "run_command": "bash test-entry-work/PCA-0001/run_config_test.sh",
+          "expected_signal": "Config check succeeded for enable/disable/feature keywords; gdb shows lload_features=0 (BEFORE) vs LLOAD_FEATURE_PROXYAUTHZ (AFTER)",
+          "reachability_signal": "gcov confirms config_feature() switch/case executed 3x; *fp|=mask and lload_features recalculation executed 3x"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "proxyauthz_default_off_on_change",
+          "status": "passed",
+          "detail": "BEFORE: lload_features=0 (gdb $1=0). AFTER: lload_features=LLOAD_FEATURE_PROXYAUTHZ (gdb $1=LLOAD_FEATURE_PROXYAUTHZ). Behavioral change confirmed: proxyauthz default changed from OFF to ON."
+        },
+        {
+          "contract_id": "enable_keyword_parsing",
+          "status": "passed",
+          "detail": "'enable proxyauthz' in config: config check succeeded (AFTER binary). Coverage confirms CFG_FEATURE_ENABLE branch executed 2x."
+        },
+        {
+          "contract_id": "disable_keyword_parsing",
+          "status": "passed",
+          "detail": "'disable proxyauthz' in config: config check succeeded (AFTER binary). Coverage confirms CFG_FEATURE_DISABLE branch executed 1x."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 3,
+        "covered_lines": 3,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [
+        {
+          "input_id": "B1",
+          "diff_type": "SIDE_EFFECT_CHANGE",
+          "before": "lload_features = 0 at main() entry; proxyauthz feature OFF by default",
+          "after": "lload_features = LLOAD_FEATURE_PROXYAUTHZ at main() entry; proxyauthz feature ON by default",
+          "evidence": "gdb output: BEFORE (parent 18403607b9) $1=0, AFTER (patched f6ae8e) $1=LLOAD_FEATURE_PROXYAUTHZ. gcov: config.c lines 2116, 2119, 2120, 2122, 2124, 2125, 2131, 2135-2139, 2155, 2162, 2174, 2188 all executed. Run config files: config_enable_only.conf, config_disable_only.conf, config_feature_only.conf all pass config check."
+        }
+      ],
+      "notes": [
+        "Runtime LDAP traffic testing (verifying actual Proxy Authorization control on the wire) blocked: sandbox denies IPv4 socket bind (EPERM)",
+        "Config parsing tests completed successfully using -t (config check) mode",
+        "Variable inspection via gdb confirms the default value change",
+        "gcov coverage of config_feature() function confirms new code paths executed",
+        "Config tests performed: enable (pass), disable (pass), feature (legacy, pass), unknown feature (correctly rejected)"
+      ]
+    },
+    {
+      "finding_id": "PCA-0002",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "medium",
+      "status": "not_run",
+      "target_location": {
+        "file": "servers/lloadd/config.c",
+        "new_lines": [398, 425],
+        "symbol": "config_back_cf_table"
+      },
+      "entries": [],
+      "contracts": [],
+      "coverage": {
+        "executable_lines": 0,
+        "covered_lines": 0,
+        "uncovered_lines": [],
+        "rate": 0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "MEDIUM priority finding excluded from testing by --min-priority high filter",
+        "Schema round-trip testing (cn=config LDIF export/import) requires a running slapd instance, blocked by IPv4 socket restrictions",
+        "Attribute name aliasing (olcBkLloadFeature as alias of olcBkLloadFeatureEnable) ensures backward compatibility for existing LDIF entries"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "EPERM_socket_bind",
+      "reason": "Workspace sandbox denies IPv4 socket bind (errno=13 EPERM). lloadd daemon runtime tests requiring network access cannot execute.",
+      "required_action": "Run dynamic daemon tests (proxyauthz control on the wire) in a socket-capable container or VM."
+    },
+    {
+      "scope": "finding",
+      "id": "PCA-0002",
+      "reason": "MEDIUM priority finding excluded by --min-priority high filter. Schema round-trip cn=config LDIF testing also requires socket-capable slapd instance.",
+      "required_action": "If schema attribute compatibility is a concern, run cn=config LDIF round-trip tests with old olcBkLloadFeature attribute name in a socket-capable environment."
+    }
+  ],
+  "artifacts": {
+    "impact_map": "compatibility-testing/phase1_impact/",
+    "test_entry_tasks": "compatibility-testing/test-entry-tasks.json",
+    "test_entries": "compatibility-testing/test-entry-work/test-entries.json",
+    "test_inputs": "compatibility-testing/phase3_inputs/",
+    "execution_results": "compatibility-testing/phase4_execution/corrected_config_test.txt",
+    "contract_summary": "compatibility-testing/phase4_execution/",
+    "coverage_data": "compatibility-testing/coverage_data/",
+    "report": "compatibility-testing/COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "The patch changes the default lloadd feature set: proxyauthz is now enabled by default (LLOAD_FEATURE_PROXYAUTHZ via LLOAD_FEATURES_DEFAULT). Previously lload_features was zero-initialized (no features). This SIDE_EFFECT_CHANGE is confirmed by gdb variable inspection (BEFORE: $1=0, AFTER: $1=LLOAD_FEATURE_PROXYAUTHZ), gcov coverage (config_feature function switch/case executed 3x, new default initialization confirmed), and config parsing tests (enable/disable/feature keywords all work correctly). Deployments that rely on proxyauthz being OFF by default will experience a behavioral change: the Proxy Authorization control will now be sent to backend servers on every proxied operation. Backend servers that do not support this control may reject operations if the control is marked critical. Additionally, SASL-bind deployments now require backend servers to support the Who Am I? extended operation. A MEDIUM-priority finding (config schema attribute rename) was not tested per priority filter. Runtime LDAP traffic testing blocked by sandbox socket restriction.",
+    "recommended_actions": [
+      "Review all existing lloadd deployments: if backend servers do not support Proxy Authorization control, add 'disable proxyauthz' to lloadd configs",
+      "For SASL-bind deployments, verify backend servers support the LDAP Who Am I? extended operation",
+      "Run runtime LDAP traffic tests in a socket-capable container/VM to verify actual control-on-wire behavior",
+      "Consider testing PCA-0002 (config schema attribute rename) if using automation that generates cn=config LDIF entries"
+    ]
+  }
+}

@@ -1,0 +1,480 @@
+{
+  "shard_id": "SHARD-0002",
+  "surface": "config_keys",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    6,
+    3,
+    2
+  ],
+  "hunk_ids": [
+    "HUNK-0011",
+    "HUNK-0008",
+    "HUNK-0007"
+  ],
+  "files": [
+    "runtime/action.c"
+  ],
+  "symbols": [
+    "ATTR_NONNULL",
+    "actionCheckOutputRatelimit",
+    "actionCommitted",
+    "actionSetState",
+    "action_t",
+    "pAction",
+    "rsRetVal",
+    "CHKmalloc",
+    "NULL",
+    "actionConstruct",
+    "pThis",
+    "pszRatelimitName",
+    "ratelimiter",
+    "actionDestruct",
+    "free",
+    "qqueueDestruct",
+    "ratelimitDestruct"
+  ],
+  "metrics": {
+    "hunks": 3,
+    "context_bytes": 9044
+  },
+  "candidates": [
+    {
+      "file": "runtime/action.c",
+      "old_start": 705,
+      "old_end": 710,
+      "new_start": 742,
+      "new_end": 786,
+      "context_hint": "static void actionCommitted(action_t *const pThis, wti_t *const pWti) {",
+      "added_lines": [
+        "static rsRetVal ATTR_NONNULL() actionCheckOutputRatelimit(action_t *const pAction, wti_t *const pWti) {",
+        "    unsigned int wait_usec;",
+        "    unsigned int sleep_usec;",
+        "    ratelimit_output_mode_t mode;",
+        "    DEFiRet;",
+        "",
+        "    if (pAction->ratelimiter == NULL) FINALIZE;",
+        "",
+        "    mode = ratelimitGetOutputMode(pAction->ratelimiter);",
+        "    if (mode == RATELIMIT_OUTPUT_MODE_DROP) {",
+        "        iRet = ratelimitMsgCount(pAction->ratelimiter, NO_TIME_PROVIDED, (char *)pAction->pszName);",
+        "        if (iRet == RS_RET_OK) {",
+        "            STATSCOUNTER_INC(pAction->ctrRateLimitAllowed, pAction->mutCtrRateLimitAllowed);",
+        "        } else if (iRet == RS_RET_DISCARDMSG) {",
+        "            STATSCOUNTER_INC(pAction->ctrRateLimitDropped, pAction->mutCtrRateLimitDropped);",
+        "        }",
+        "        FINALIZE;",
+        "    }",
+        "",
+        "    for (;;) {",
+        "        wait_usec = 0;",
+        "        iRet = ratelimitMsgCountWait(pAction->ratelimiter, NO_TIME_PROVIDED, (char *)pAction->pszName, &wait_usec);",
+        "        if (iRet == RS_RET_OK) {",
+        "            STATSCOUNTER_INC(pAction->ctrRateLimitAllowed, pAction->mutCtrRateLimitAllowed);",
+        "            FINALIZE;",
+        "        }",
+        "        if (iRet != RS_RET_DISCARDMSG) FINALIZE;",
+        "        if (wtiIsShutdownImmediate(pWti)) {",
+        "            ABORT_FINALIZE(RS_RET_FORCE_TERM);",
+        "        }",
+        "        sleep_usec = wait_usec > 1000000U ? 1000000U : wait_usec;",
+        "        STATSCOUNTER_INC(pAction->ctrRateLimitPaced, pAction->mutCtrRateLimitPaced);",
+        "        STATSCOUNTER_ADD(pAction->ctrRateLimitPacedUsec, pAction->mutCtrRateLimitPacedUsec, sleep_usec);",
+        "        srSleep(sleep_usec / 1000000U, sleep_usec % 1000000U);",
+        "    }",
+        "",
+        "finalize_it:",
+        "    RETiRet;",
+        "}"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    actionSetState(pThis, __func__, pWti, ACT_STATE_RDY);",
+        "}",
+        "",
+        "",
+        "/* set action state according to external state file (if configured)",
+        " */"
+      ],
+      "hunk_id": "HUNK-0011",
+      "changed_symbols": [
+        "actionCommitted",
+        "rsRetVal",
+        "ATTR_NONNULL",
+        "actionCheckOutputRatelimit",
+        "action_t",
+        "pAction",
+        "actionSetState"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "user_visible_output",
+          "persistence_state",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "actionCommitted",
+        "snippet_start_line": 676,
+        "snippet_end_line": 816,
+        "snippet": "            return (uchar *)\"ERROR/UNKNWON\";\n    }\n}\n\n\n/* returns a suitable return code based on action state\n * rgerhards, 2009-05-07\n */\nstatic rsRetVal getReturnCode(action_t *const pThis, wti_t *const pWti) {\n    DEFiRet;\n\n    switch (getActionState(pWti, pThis)) {\n        case ACT_STATE_RDY:\n            iRet = RS_RET_OK;\n            break;\n        case ACT_STATE_ITX:\n            if (pWti->actWrkrInfo[pThis->iActionNbr].bHadAutoCommit) {\n                pWti->actWrkrInfo[pThis->iActionNbr].bHadAutoCommit = 0; /* auto-reset */\n                iRet = RS_RET_PREVIOUS_COMMITTED;\n            } else {\n                iRet = RS_RET_DEFER_COMMIT;\n            }\n            break;\n        case ACT_STATE_RTRY:\n            iRet = RS_RET_SUSPENDED;\n            break;\n        case ACT_STATE_SUSP:\n            iRet = RS_RET_ACTION_FAILED;\n            break;\n        case ACT_STATE_DATAFAIL:\n            iRet = RS_RET_DATAFAIL;\n            break;\n        case ACT_STATE_DISABLED:\n            iRet = RS_RET_DISABLE_ACTION;\n            break;\n        default:\n            DBGPRINTF(\"Invalid action engine state %u, program error\\n\", getActionState(pWti, pThis));\n            iRet = RS_RET_ERR;\n            break;\n    }\n\n    RETiRet;\n}\n\n\n/* set the action to a new state\n * rgerhards, 2007-08-02\n */\nstatic void actionSetState(action_t *const pThis, const char *const callerName, wti_t *const pWti, uint8_t newState) {\n    setActionState(pWti, pThis, newState);\n    DBGPRINTF(\"action[%s] transitioned to state: %s (caller %s)\\n\", pThis->pszName, getActStateName(pThis, pWti),\n              callerName);\n}\n\nstatic void actionDisableForWorker(action_t *const pThis, wti_t *const pWti) {\n    actionDisable(pThis);\n    if (pWti != NULL && getActionState(pWti, pThis) != ACT_STATE_DISABLED) {\n        actionSetState(pThis, __func__, pWti, ACT_STATE_DISABLED);\n    }\n}\n\n/* Handles the transient commit state. So far, this is\n * mostly a dummy...\n * rgerhards, 2007-08-02\n */\nstatic void actionCommitted(action_t *const pThis, wti_t *const pWti) {\n    actionSetState(pThis, __func__, pWti, ACT_STATE_RDY);\n}\n\nstatic rsRetVal ATTR_NONNULL() actionCheckOutputRatelimit(action_t *const pAction, wti_t *const pWti) {\n    unsigned int wait_usec;\n    unsigned int sleep_usec;\n    ratelimit_output_mode_t mode;\n    DEFiRet;\n\n    if (pAction->ratelimiter == NULL) FINALIZE;\n\n    mode = ratelimitGetOutputMode(pAction->ratelimiter);\n    if (mode == RATELIMIT_OUTPUT_MODE_DROP) {\n        iRet = ratelimitMsgCount(pAction->ratelimiter, NO_TIME_PROVIDED, (char *)pAction->pszName);\n        if (iRet == RS_RET_OK) {\n            STATSCOUNTER_INC(pAction->ctrRateLimitAllowed, pAction->mutCtrRateLimitAllowed);\n        } else if (iRet == RS_RET_DISCARDMSG) {\n            STATSCOUNTER_INC(pAction->ctrRateLimitDropped, pAction->mutCtrRateLimitDropped);\n        }\n        FINALIZE;\n    }\n\n    for (;;) {\n        wait_usec = 0;\n        iRet = ratelimitMsgCountWait(pAction->ratelimiter, NO_TIME_PROVIDED, (char *)pAction->pszName, &wait_usec);\n        if (iRet == RS_RET_OK) {\n            STATSCOUNTER_INC(pAction->ctrRateLimitAllowed, pAction->mutCtrRateLimitAllowed);\n            FINALIZE;\n        }\n        if (iRet != RS_RET_DISCARDMSG) FINALIZE;\n        if (wtiIsShutdownImmediate(pWti)) {\n            ABORT_FINALIZE(RS_RET_FORCE_TERM);\n        }\n        sleep_usec = wait_usec > 1000000U ? 1000000U : wait_usec;\n        STATSCOUNTER_INC(pAction->ctrRateLimitPaced, pAction->mutCtrRateLimitPaced);\n        STATSCOUNTER_ADD(pAction->ctrRateLimitPacedUsec, pAction->mutCtrRateLimitPacedUsec, sleep_usec);\n        srSleep(sleep_usec / 1000000U, sleep_usec % 1000000U);\n    }\n\nfinalize_it:\n    RETiRet;\n}\n\n/* set action state according to external state file (if configured)\n */\nstatic rsRetVal ATTR_NONNULL() checkExternalStateFile(action_t *const pThis, wti_t *const pWti) {\n    char filebuf[1024];\n    int fd = -1;\n    int r;\n    DEFiRet;\n\n    DBGPRINTF(\"checking external state file\\n\");\n\n    if (pThis->pszExternalStateFile == NULL) {\n        FINALIZE;\n    }\n\n    fd = open(pThis->pszExternalStateFile, O_RDONLY | O_CLOEXEC);\n    if (fd == -1) {\n        dbgprintf(\"could not read external state file\\n\");\n        FINALIZE;\n    }\n\n    r = read(fd, filebuf, sizeof(filebuf) - 1);\n    if (r < 1) {\n        dbgprintf(\"checkExternalStateFile read() returned %d\\n\", r);\n        FINALIZE;\n    }\n\n    filebuf[r] = '\\0';\n    dbgprintf(\"external state file content: '%s'\\n\", filebuf);\n    /* trim trailing whitespace */\n    for (int j = r - 1; j > 0; --j) {\n        if (filebuf[j] == '\\n' || filebuf[j] == '\\t' || filebuf[j] == ' ') {\n            filebuf[j] = '\\0';\n"
+      }
+    },
+    {
+      "file": "runtime/action.c",
+      "old_start": 371,
+      "old_end": 376,
+      "new_start": 375,
+      "new_end": 382,
+      "context_hint": "rsRetVal actionConstruct(action_t **ppThis) {",
+      "added_lines": [
+        "    pThis->pszRatelimitName = NULL;",
+        "    pThis->ratelimiter = NULL;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    pThis->maxErrFileSize = 0;",
+        "    pThis->currentErrFileSize = 0;",
+        "    pThis->pszExternalStateFile = NULL;",
+        "    pThis->fdErrFile = -1;",
+        "    pThis->bWriteAllMarkMsgs = 1;",
+        "    pThis->iExecEveryNthOccur = 0;"
+      ],
+      "hunk_id": "HUNK-0008",
+      "changed_symbols": [
+        "actionConstruct",
+        "pThis",
+        "pszRatelimitName",
+        "NULL",
+        "ratelimiter",
+        "CHKmalloc"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "user_visible_output",
+          "logging",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "actionConstruct",
+        "snippet_start_line": 342,
+        "snippet_end_line": 412,
+        "snippet": "finalize_it:\n    free(pThis);\n    RETiRet;\n}\n\n\n/* Disable action, this means it will never again be usable\n * until rsyslog is reloaded. Use only as a last resort, but\n * depends on output module.\n * rgerhards, 2007-08-02\n */\nstatic inline void actionDisable(action_t *__restrict__ const pThis) {\n    actionStoreDisabled(pThis, 1);\n}\n\n\n/* create a new action descriptor object\n * rgerhards, 2007-08-01\n * Note that it is vital to set proper initial values as the v6 config\n * system depends on these!\n */\nrsRetVal actionConstruct(action_t **ppThis) {\n    DEFiRet;\n    action_t *pThis;\n\n    assert(ppThis != NULL);\n\n    CHKmalloc(pThis = (action_t *)calloc(1, sizeof(action_t)));\n    pThis->iResumeInterval = 30;\n    pThis->iResumeIntervalMax = 1800; /* max interval default is half an hour */\n    pThis->iResumeRetryCount = 0;\n    pThis->pszName = NULL;\n    pThis->pszErrFile = NULL;\n    pThis->maxErrFileSize = 0;\n    pThis->currentErrFileSize = 0;\n    pThis->pszExternalStateFile = NULL;\n    pThis->pszRatelimitName = NULL;\n    pThis->ratelimiter = NULL;\n    pThis->fdErrFile = -1;\n    pThis->bWriteAllMarkMsgs = 1;\n    pThis->iExecEveryNthOccur = 0;\n    pThis->iExecEveryNthOccurTO = 0;\n    pThis->iSecsExecOnceInterval = 0;\n    pThis->bExecWhenPrevSusp = 0;\n    pThis->bRepMsgHasMsg = 0;\n    pThis->bDisabled = 0;\n    pThis->isTransactional = 0;\n    pThis->bReportSuspension = -1; /* indicate \"not yet set\" */\n    pThis->bReportSuspensionCont = -1; /* indicate \"not yet set\" */\n    pThis->bCopyMsg = 0;\n    pThis->tLastOccur = datetime.GetTime(NULL); /* done once per action on startup only */\n    pThis->iActionNbr = loadConf->actions.iActionNbr;\n    pthread_mutex_init(&pThis->mutErrFile, NULL);\n    pthread_mutex_init(&pThis->mutAction, NULL);\n    pthread_mutex_init(&pThis->mutWrkrDataTable, NULL);\n    INIT_ATOMIC_HELPER_MUT(pThis->mutCAS);\n\n    /* indicate we have a new action */\n    loadConf->actions.iActionNbr++;\n\nfinalize_it:\n    *ppThis = pThis;\n    RETiRet;\n}\n\n\nstatic rsRetVal actionRegisterName(action_t *const pThis) {\n    DEFiRet;\n    size_t i;\n    char *name = NULL;\n    char **names = NULL;\n"
+      }
+    },
+    {
+      "file": "runtime/action.c",
+      "old_start": 317,
+      "old_end": 328,
+      "new_start": 319,
+      "new_end": 332,
+      "context_hint": "rsRetVal actionDestruct(action_t *const pThis) {",
+      "added_lines": [
+        "    if (pThis->ratelimiter != NULL) ratelimitDestruct(pThis->ratelimiter);",
+        "    free(pThis->pszRatelimitName);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "     */",
+        "    if (pThis->statsobj != NULL) statsobj.Destruct(&pThis->statsobj);",
+        "",
+        "    if (pThis->fdErrFile != -1) close(pThis->fdErrFile);",
+        "    pthread_mutex_destroy(&pThis->mutErrFile);",
+        "    pthread_mutex_destroy(&pThis->mutAction);",
+        "    pthread_mutex_destroy(&pThis->mutWrkrDataTable);",
+        "    free((void *)pThis->pszErrFile);",
+        "    free((void *)pThis->pszExternalStateFile);",
+        "    free(pThis->pszName);",
+        "    nvlstDestruct(pThis->pSyntaxLst);",
+        "    free(pThis->ppTpl);"
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "actionDestruct",
+        "pThis",
+        "ratelimiter",
+        "NULL",
+        "ratelimitDestruct",
+        "free",
+        "qqueueDestruct"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "user_visible_output",
+          "logging",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "actionDestruct",
+        "snippet_start_line": 288,
+        "snippet_end_line": 362,
+        "snippet": "    int freeSpot;\n    for (freeSpot = 0; freeSpot < pThis->wrkrDataTableSize; ++freeSpot) {\n        if (pThis->wrkrDataTable[freeSpot] != NULL) {\n            pThis->pMod->mod.om.freeWrkrInstance(pThis->wrkrDataTable[freeSpot]);\n            pThis->wrkrDataTable[freeSpot] = NULL;\n        }\n    }\n    free(pThis->wrkrDataTable);\n    return;\n}\n\n/* destructs an action descriptor object\n * rgerhards, 2007-08-01\n */\nrsRetVal actionDestruct(action_t *const pThis) {\n    DEFiRet;\n    assert(pThis != NULL);\n\n    if (!strcmp((char *)modGetName(pThis->pMod), \"builtin:omdiscard\")) {\n        /* discard actions will be optimized out */\n        nvlstDestruct(pThis->pSyntaxLst);\n        pThis->pSyntaxLst = NULL;\n        FINALIZE;\n    }\n\n    if (pThis->pQueue != NULL) {\n        qqueueDestruct(&pThis->pQueue);\n    }\n\n    /* destroy stats object, if we have one (may not always be\n     * be the case, e.g. if turned off)\n     */\n    if (pThis->statsobj != NULL) statsobj.Destruct(&pThis->statsobj);\n\n    if (pThis->ratelimiter != NULL) ratelimitDestruct(pThis->ratelimiter);\n    if (pThis->fdErrFile != -1) close(pThis->fdErrFile);\n    pthread_mutex_destroy(&pThis->mutErrFile);\n    pthread_mutex_destroy(&pThis->mutAction);\n    pthread_mutex_destroy(&pThis->mutWrkrDataTable);\n    free((void *)pThis->pszErrFile);\n    free((void *)pThis->pszExternalStateFile);\n    free(pThis->pszRatelimitName);\n    free(pThis->pszName);\n    nvlstDestruct(pThis->pSyntaxLst);\n    free(pThis->ppTpl);\n    free(pThis->peParamPassing);\n    freeWrkrDataTable(pThis);\n\n    /* The module's instance data must be freed after the worker data table,\n     * as workers may need to access the shared module data during their\n     * cleanup.\n     */\n    if (pThis->pModData != NULL) pThis->pMod->freeInstance(pThis->pModData);\n\nfinalize_it:\n    free(pThis);\n    RETiRet;\n}\n\n\n/* Disable action, this means it will never again be usable\n * until rsyslog is reloaded. Use only as a last resort, but\n * depends on output module.\n * rgerhards, 2007-08-02\n */\nstatic inline void actionDisable(action_t *__restrict__ const pThis) {\n    actionStoreDisabled(pThis, 1);\n}\n\n\n/* create a new action descriptor object\n * rgerhards, 2007-08-01\n * Note that it is vital to set proper initial values as the v6 config\n * system depends on these!\n */\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

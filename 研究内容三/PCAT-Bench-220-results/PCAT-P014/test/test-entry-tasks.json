@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P014/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/cpython",
+  "analysis_repo": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P014/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P014",
+  "patch_id": "7de4fcd44585f572acbcee23f5c7018b2b3f0983",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "xml.etree.ElementTree.Element.itertext",
+        "kind": "public_method",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "Modules/_elementtree.c",
+        "old_lines": [
+          2297,
+          2303
+        ],
+        "new_lines": [
+          2297,
+          2307
+        ],
+        "symbol": "elementiter_next"
+      },
+      "old_behavior": "When elementiter_next is called with gettext=1 (i.e., from itertext() on an Element), the function unconditionally calls element_get_text() on the current element and yields its text via the gettext path. For Comment and ProcessingInstruction elements (whose tag field is a function object rather than None or a Unicode string), this incorrectly returns their text content as part of itertext().",
+      "new_behavior": "When elementiter_next is called with gettext=1, a guard check has been added before element_get_text(): if elem->tag is not Py_None and is not a Unicode string, the element is skipped (Py_DECREF + continue). This aligns the C implementation with the Python fallback in ElementTree.py::itertext(), which already skips non-string, non-None tagged elements. Comment and PI elements are thus excluded from itertext() output.",
+      "compatibility_reason": "Element.itertext() is a public Python standard library method. The C implementation previously emitted text for Comment and ProcessingInstruction elements, while the Python fallback already skipped them. This patch fixes the inconsistency but changes observable output: any user code that relies on itertext() returning text content from Comment or PI children will see different results (those texts are now omitted). The python_public_api surface in the effective profile lists 'public Python class method' as high test_priority. The change is a bug fix (see NEWS entry gh-issue-149571), but produces a detectable behavior change in a public API.",
+      "test_recommendation": "Run test_xml_etree::ElementIterTest::test_comment and test_processinginstruction. Verify that ''.join(e.itertext()) returns 'beforeafter' (excluding comment/PI text) for an element containing Comment/PI children. Also verify that comment.itertext() and pi.itertext() return empty strings. Run the broader test suite test_xml_etree to confirm no regressions. Consider fuzzing with XML containing mixed Comment/PI/element content.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P014/compatibility-testing"
+}

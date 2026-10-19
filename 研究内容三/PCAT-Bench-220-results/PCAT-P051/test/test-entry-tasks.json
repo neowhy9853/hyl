@@ -1,0 +1,196 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnf/pca-results/017bba/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/dnf",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnf/pca-results/017bba/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnf/pca-results/017bba",
+  "patch_id": "017bbab0a253d84978f645cd358cdeb63e9ecb18",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "OptionParser._add_general_options",
+        "kind": "cli_command",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "dnf/cli/option_parser.py",
+        "old_lines": [
+          199,
+          204
+        ],
+        "new_lines": [
+          199,
+          210
+        ],
+        "symbol": "OptionParser._add_general_options"
+      },
+      "old_behavior": "No --releasever-major or --releasever-minor CLI options existed. Users could only override $releasever via --releasever.",
+      "new_behavior": "Two new CLI options --releasever-major and --releasever-minor allow overriding $releasever_major and $releasever_minor variables independently.",
+      "compatibility_reason": "New CLI options are additive and backward-compatible (default=None). However, they introduce new public CLI surface that could conflict with custom wrapper scripts or plugin argument names, and the releasever_major/minor config values can now be set independently of --releasever, changing the semantics of variable substitution in repo files.",
+      "test_recommendation": "Test that --releasever-major and --releasever-minor correctly override $releasever_major and $releasever_minor in repo variable substitution. Test interaction with --releasever (e.g., --releasever=40 --releasever-major=5 should set releasever=40, releasever_major=5, releasever_minor=detected). Test with --releasever=/ (detect from root).",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "low",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "affected_api": {
+        "name": "Cli._read_conf_file",
+        "kind": "exported_function",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "dnf/cli/cli.py",
+        "old_lines": [
+          953,
+          959
+        ],
+        "new_lines": [
+          953,
+          959
+        ],
+        "symbol": "Cli._read_conf_file"
+      },
+      "old_behavior": "_read_conf_file(self, releasever=None) - called as self._read_conf_file(opts.releasever) passing 1 argument.",
+      "new_behavior": "_read_conf_file(self, releasever=None, releasever_major=None, releasever_minor=None) - called as self._read_conf_file(opts.releasever, opts.releasever_major, opts.releasever_minor) passing 3 arguments.",
+      "compatibility_reason": "The call site in Cli.configure() now passes 3 positional arguments. Any plugin or subclass that overrides _read_conf_file with the old signature (self, releasever=None) will receive a TypeError at runtime when configure() calls _read_conf_file with 3 arguments. Although _read_conf_file is _-prefixed (private by convention), DNF's plugin architecture allows plugins to interact with the Cli class.",
+      "test_recommendation": "Create a minimal test harness that subclasses Cli, overrides _read_conf_file with old signature, and verifies that configure() call does not raise TypeError. This validates the practical compatibility impact.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "downstream_compile_link_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "api_signature_compatibility",
+        "comparison": "success",
+        "required_observation": "old downstream source compiles and links against both versions",
+        "input_axes": [
+          "old declarations",
+          "language modes",
+          "compiler flags",
+          "link modes"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0003",
+      "finding_id": "PCA-0003",
+      "test_priority": "low",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "Cli._read_conf_file",
+        "kind": "exported_function",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "dnf/cli/cli.py",
+        "old_lines": [
+          981,
+          998
+        ],
+        "new_lines": [
+          981,
+          1003
+        ],
+        "symbol": "Cli._read_conf_file"
+      },
+      "old_behavior": "conf.releasever, conf.releasever_major, conf.releasever_minor were only set when releasever is not None after detection. Conditional assignment via if-blocks.",
+      "new_behavior": "conf.releasever, conf.releasever_major, conf.releasever_minor are always assigned using or_else priority helper: CLI value > auto-detected > existing config value.",
+      "compatibility_reason": "The restructuring is functionally equivalent for all backward-compatible input combinations. Both code paths produce identical config values in all existing usage scenarios. The only net-new behavior is when --releasever-major or --releasever-minor are explicitly provided (covered by PCA-0001).",
+      "test_recommendation": "Covered by PCA-0001 testing. No additional standalone testing needed for this restructuring.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/dnf/pca-results/017bba/compatibility-testing"
+}

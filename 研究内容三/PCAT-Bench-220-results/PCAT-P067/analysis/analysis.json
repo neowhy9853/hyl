@@ -1,0 +1,797 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/rsyslog",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/8aa55f/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/8aa55f",
+  "base_ref": "7491a61090ec7e78fb2910ca9a104c96fae468ee",
+  "base_commit": "7491a61090ec7e78fb2910ca9a104c96fae468ee",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "8aa55fd776d35f6d475a2fd5b5d9dcf8864c9f8a",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/8aa55fd/patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "rsyslog",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "hard threshold exceeded",
+    "patch_lines=1367 >= 1000",
+    "raw_hunks=75 >= 45",
+    "candidate_hunks=60 >= 40",
+    "candidate_context_bytes=232301 >= 180000",
+    "candidates_json_bytes=514629 >= 180000"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 60663,
+    "patch_lines": 1367,
+    "diff_added_lines": 687,
+    "diff_deleted_lines": 37,
+    "diff_context_lines": 465,
+    "churn": 724,
+    "raw_hunks": 75,
+    "candidate_hunks": 60,
+    "skipped_doc_hunks": 15,
+    "changed_files": 10,
+    "candidate_context_bytes": 232301,
+    "public_candidate_hunks": 52,
+    "surface_counts": {
+      "user_visible_output": 46,
+      "logging": 21,
+      "config_language": 47,
+      "output_format": 32,
+      "daemon_interfaces": 56,
+      "config_keys": 29,
+      "plugin_api": 41,
+      "module_api": 48,
+      "daemon_control": 17,
+      "callbacks": 1,
+      "network_protocol": 23,
+      "persistence_state": 17,
+      "ioctl_netlink_consumers": 4,
+      "ioctl_netlink": 4,
+      "syscall_wrappers": 1,
+      "public_headers": 4,
+      "tests": 8,
+      "environment_variables": 1,
+      "env_vars": 1
+    },
+    "candidates_json_bytes": 514629
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 20
+  },
+  "summary": {
+    "total_changed_files": 10,
+    "total_candidates": 60,
+    "compatibility_changes": 4,
+    "high_priority": 1,
+    "medium_priority": 2,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "rsyslog",
+      "affected_surface": "Module interface function table",
+      "affected_api": {
+        "name": "net_interface",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "runtime/net.h",
+        "old_lines": [
+          148,
+          240
+        ],
+        "new_lines": [
+          148,
+          245
+        ],
+        "symbol": "BEGINinterface(net) / netCURR_IF_VERSION"
+      },
+      "old_behavior": "Interface version v11 exported from lmnet.so",
+      "new_behavior": "Interface version v12 with 3 new vtable entries (addAllowedSenderEntry, DestructAllowedSenders, isAllowedSenderList) inserted in the middle of the function pointer table",
+      "compatibility_reason": "Any rsyslog loadable module compiled against interface v11 will fail the runtime version check (pIf->ifVersion != netCURR_IF_VERSION -> RS_RET_INTERFACE_NOT_SUPPORTED) when loaded against the v12 runtime. External plugins and dynamically loaded modules must be recompiled against the new headers.",
+      "evidence": [
+        {
+          "file": "runtime/net.h",
+          "lines": [
+            148,
+            156
+          ],
+          "snippet": "rsRetVal (*addAllowedSenderEntry)(struct AllowedSenders **ppRoot, struct AllowedSenders **ppLast, uchar *pszAllowedSender);\nvoid (*DestructAllowedSenders)(struct AllowedSenders **ppRoot);"
+        },
+        {
+          "file": "runtime/net.h",
+          "lines": [
+            168,
+            175
+          ],
+          "snippet": "int (*isAllowedSenderList)(struct AllowedSenders *pAllowRoot, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS);"
+        },
+        {
+          "file": "runtime/net.h",
+          "lines": [
+            237,
+            237
+          ],
+          "snippet": "#define netCURR_IF_VERSION 12 /* increment whenever you change the interface structure! */"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "runtime/net.h is a public header installed with the rsyslog development package; the interface version is checked by all modules using the net interface; version mismatch causes graceful failure",
+      "uncertainty": "Low - the interface version change is explicit and version-gated. The new entries are inserted between existing ones, shifting all subsequent offsets.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that all external plugins/modules referencing the net interface are recompiled against the new headers",
+      "test_recommendation": "Compile a test module against the old v11 interface headers and verify it gracefully fails with RS_RET_INTERFACE_NOT_SUPPORTED when loaded against the v12 runtime",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 3 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 3,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0064",
+            "file": "runtime/net.h",
+            "old_lines": [
+              148,
+              153
+            ],
+            "new_lines": [
+              148,
+              156
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "daemon_control",
+              "module_api",
+              "config_language",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "daemon_control",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control, metrics, and administration interfaces."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0065",
+            "file": "runtime/net.h",
+            "old_lines": [
+              165,
+              170
+            ],
+            "new_lines": [
+              168,
+              175
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "user_visible_output",
+              "network_protocol",
+              "daemon_control",
+              "module_api",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "daemon_control",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control, metrics, and administration interfaces."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0066",
+            "file": "runtime/net.h",
+            "old_lines": [
+              229,
+              235
+            ],
+            "new_lines": [
+              234,
+              240
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "user_visible_output",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 3 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "rsyslog",
+      "affected_surface": "Public header struct layout",
+      "affected_api": {
+        "name": "tcpLstnParams_s",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "runtime/tcpsrv.h",
+        "old_lines": [
+          64,
+          69
+        ],
+        "new_lines": [
+          64,
+          71
+        ],
+        "symbol": "tcpLstnParams_s"
+      },
+      "old_behavior": "tcpLstnParams_s struct has 13 fields ending with pszRatelimitName",
+      "new_behavior": "tcpLstnParams_s struct has 15 fields: pAllowedSenderRoot and bUseLegacyAllowedSender appended at the end. The struct size increases by sizeof(pointer) + sizeof(sbool).",
+      "compatibility_reason": "The tcpLstnParams_s struct defined in runtime/tcpsrv.h is part of the rsyslog runtime public API. The struct is allocated by callers (imtcp, imudp modules) and passed by pointer to tcpsrv via configureTCPListen(). Any code that sizeof() or manually allocates this struct must be recompiled. The struct is used as an opaque parameter in most cases, but external modules that directly access its fields or allocate it statically will observe ABI incompatibility.",
+      "evidence": [
+        {
+          "file": "runtime/tcpsrv.h",
+          "lines": [
+            67,
+            68
+          ],
+          "snippet": "struct AllowedSenders *pAllowedSenderRoot; /**< source-address ACL list */\n    sbool bUseLegacyAllowedSender; /**< if true, use protocol-global legacy ACLs */"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "runtime/tcpsrv.h is a public header in the runtime library; tcpLstnParams_s is documented as caller-allocated struct with ownership transfer to tcpsrv",
+      "uncertainty": "Medium - the fields are appended at the end of the struct, which reduces binary breakage risk. However the struct is in a public installed header and sizeof changes.",
+      "manual_review_required": true,
+      "recommended_review": "Verify that no external consumers of the tcpsrv API directly access tcpLstnParams_s fields or allocate the struct statically",
+      "test_recommendation": "Write a minimal test that allocates tcpLstnParams_t, passes it to configureTCPListen, and verifies the new fields are properly handled",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0067",
+            "file": "runtime/tcpsrv.h",
+            "old_lines": [
+              64,
+              69
+            ],
+            "new_lines": [
+              64,
+              71
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "config_keys",
+              "user_visible_output",
+              "logging",
+              "network_protocol",
+              "module_api",
+              "config_language",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ABI_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.98,
+      "package_profile": "rsyslog",
+      "affected_surface": "Configuration language",
+      "affected_api": {
+        "name": "allowedsender",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "plugins/imtcp/imtcp.c",
+        "old_lines": [
+          252,
+          257
+        ],
+        "new_lines": [
+          258,
+          264
+        ],
+        "symbol": "modpdescr / inppdescr"
+      },
+      "old_behavior": "imtcp and imudp modules only consulted the legacy protocol-wide $AllowedSender directive for source address ACL filtering",
+      "new_behavior": "imtcp and imudp modules accept a new \"allowedsender\" array parameter at both module level and input instance level. Module-level lists act as defaults for inputs. Input-level lists override the module default. Empty YAML arrays are rejected with RS_RET_INVALID_PARAMS instead of silently clearing filtering. When allowedsender is absent, legacy $AllowedSender behavior is fully preserved.",
+      "compatibility_reason": "This is an additive config language extension. Existing configs without the allowedsender parameter continue to work identically. The change is backward compatible but introduces new config syntax and new error messages for empty arrays.",
+      "evidence": [
+        {
+          "file": "plugins/imtcp/imtcp.c",
+          "lines": [
+            258,
+            264
+          ],
+          "snippet": "{\"allowedsender\", eCmdHdlrArray, 0}"
+        },
+        {
+          "file": "plugins/imudp/imudp.c",
+          "lines": [
+            178,
+            185
+          ],
+          "snippet": "{\"allowedsender\", eCmdHdlrArray, 0}"
+        },
+        {
+          "file": "plugins/imtcp/imtcp.c",
+          "lines": [
+            932,
+            945
+          ],
+          "snippet": "if (pvals[i].val.d.ar == NULL || pvals[i].val.d.ar->nmemb == 0) {\n                LogError(0, RS_RET_INVALID_PARAMS, \"imtcp: allowedSender array must not be empty\");\n                ABORT_FINALIZE(RS_RET_INVALID_PARAMS);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Configuration keys define the user-visible rsyslog.conf and YAML config language surface",
+      "uncertainty": "Low - new parameter is purely additive with explicit legacy path preservation",
+      "manual_review_required": false,
+      "recommended_review": "Document the new allowedsender parameter and its interaction with legacy $AllowedSender directive",
+      "test_recommendation": "Run the dedicated test scripts: allowed-sender-modern.sh, yaml-allowed-sender-modern.sh, allowed-sender-empty-array.sh",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0022",
+            "file": "plugins/imtcp/imtcp.c",
+            "old_lines": [
+              252,
+              257
+            ],
+            "new_lines": [
+              258,
+              264
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "plugin_api",
+              "module_api",
+              "config_language",
+              "output_format",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "output_format",
+                "test_priority": "high",
+                "public": true,
+                "description": "Log template, property, and output formatting behavior"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.75,
+      "package_profile": "rsyslog",
+      "affected_surface": "Runtime ACL dispatch in receive paths",
+      "affected_api": {
+        "name": "processPacket (imudp) / isPermittedHost (imtcp)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "plugins/imudp/imudp.c",
+        "old_lines": [
+          541,
+          547
+        ],
+        "new_lines": [
+          566,
+          576
+        ],
+        "symbol": "processPacket"
+      },
+      "old_behavior": "processPacket unconditionally called net.isAllowedSender2() for ACL checking, which used the legacy global $AllowedSender list",
+      "new_behavior": "processPacket conditionally dispatches to either net.isAllowedSender2() (legacy path when bUseLegacyAllowedSender=1) or net.isAllowedSenderList() (modern path with per-instance pAllowedSenderRoot). ACL caching is now invalidated per-listener in addition to per-sender address.",
+      "compatibility_reason": "The receive-path ACL dispatch logic changed. For existing configs without allowedsender, bUseLegacyAllowedSender defaults to true preserving legacy behavior. However, ACL caching semantics changed (cache invalidation per-listener) which affects how often ACL re-evaluation occurs in multi-listener setups.",
+      "evidence": [
+        {
+          "file": "plugins/imudp/imudp.c",
+          "lines": [
+            569,
+            573
+          ],
+          "snippet": "if (lstn->bUseLegacyAllowedSender) {\n                *pbIsPermitted = net.isAllowedSender2(...);\n            } else {\n                *pbIsPermitted = net.isAllowedSenderList(lstn->pAllowedSenderRoot, ...);\n            }"
+        },
+        {
+          "file": "plugins/imtcp/imtcp.c",
+          "lines": [
+            518,
+            527
+          ],
+          "snippet": "if (cnf_params != NULL && !cnf_params->bUseLegacyAllowedSender) {\n        return net.isAllowedSenderList(cnf_params->pAllowedSenderRoot, ...);\n    }\n    return net.isAllowedSender2(...);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "ACL enforcement affects which syslog messages are accepted/rejected, directly impacting network security policy",
+      "uncertainty": "Medium - default preserves legacy, but edge cases with mixed legacy+modern configs may interact unexpectedly",
+      "manual_review_required": true,
+      "recommended_review": "Verify ACL behavior in configurations using both legacy $AllowedSender and new allowedsender simultaneously",
+      "test_recommendation": "Run allowed-sender-modern.sh and existing legacy allowed-sender-*.sh tests to confirm no regression",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0042",
+            "file": "plugins/imudp/imudp.c",
+            "old_lines": [
+              541,
+              547
+            ],
+            "new_lines": [
+              566,
+              576
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "network_protocol",
+              "daemon_control",
+              "persistence_state",
+              "module_api",
+              "config_language",
+              "output_format",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "daemon_control",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control, metrics, and administration interfaces."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "output_format",
+                "test_priority": "high",
+                "public": true,
+                "description": "Log template, property, and output formatting behavior"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

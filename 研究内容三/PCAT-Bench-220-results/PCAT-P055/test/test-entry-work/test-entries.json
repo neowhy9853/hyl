@@ -1,0 +1,72 @@
+{
+  "generated_at": "2026-07-23T12:00:00Z",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnf/pca-results/eabf33/analysis.json",
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/dnf/pca-results/eabf33/compatibility-testing",
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "api_harness",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0001/verify_exception.py",
+      "build_command": "cmake -S . -B build -DPYTHON_DESIRED=/usr/bin/python3 -DPYTHON_INSTALL_DIR=stage && cmake --build build",
+      "run_command": "DNF_SRC_DIR=<analysis_repo>/dnf /usr/bin/python3 test-entry-work/PCA-0001/verify_exception.py",
+      "target_location": {
+        "file": "dnf/base.py",
+        "new_lines": [2665, 2671],
+        "symbol": "Base._get_key_for_package"
+      },
+      "reachability_signal": "All 5 tests pass, confirming InvalidInstalledGPGKeyError is importable, is Error subclass, can be caught by except Error, preserves message, and is distinguishable from Error",
+      "expected_signal": "exit code 0 with 'All 5 tests PASSED'",
+      "execution": {
+        "cwd": "result_dir",
+        "timeout_seconds": 30,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Python-level exception class verification: import, subclass check, except-parent compatibility, message preservation, type name differentiation",
+      "contract_probe": {
+        "probe_id": "error_exception_stability",
+        "before_command": "DNF_SRC_DIR=/tmp/pca-dnf-before/dnf /usr/bin/python3 -c 'from dnf.exceptions import Error; e=Error(\"test\"); print(type(e).__name__)'",
+        "after_command": "DNF_SRC_DIR=<analysis_repo>/dnf /usr/bin/python3 -c 'from dnf.exceptions import Error, InvalidInstalledGPGKeyError; e=InvalidInstalledGPGKeyError(\"test\"); print(\"type:\", type(e).__name__, \"| parent:\", Error.__name__)'",
+        "comparison": "error",
+        "cwd": "result_dir",
+        "timeout_seconds": 15,
+        "tolerance_percent": 0
+      },
+      "limitations": "Tests exception class semantics only. Full integration test requires triggering actual GPG key verification (needs libdnf/hawkey/rpm bindings)."
+    },
+    {
+      "finding_id": "PCA-0002",
+      "entry_id": "PCA-TE-0002",
+      "entry_kind": "cli_command",
+      "status": "needs_env",
+      "artifact_path": "",
+      "build_command": "",
+      "run_command": "/usr/bin/dnf install --setopt=gpgcheck=1 <package-with-expired-key>",
+      "target_location": {
+        "file": "dnf/cli/cli.py",
+        "new_lines": [367, 375],
+        "symbol": "BaseCli.gpgsigcheck"
+      },
+      "reachability_signal": "logger.info output contains 'Try to add --enableplugin=expired-pgp-keys' when an installed GPG key is expired",
+      "expected_signal": "The additional info message about expired-pgp-keys plugin appears in stderr/log output after critical error messages and before 'GPG check FAILED'",
+      "execution": {
+        "cwd": "",
+        "timeout_seconds": 120,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Set up a DNF repository with an expired GPG key and attempt to install a package from it. Requires full DNF system integration.",
+      "contract_probe": {
+        "probe_id": "output_format_stability",
+        "command": "",
+        "before_command": "",
+        "after_command": "",
+        "comparison": "exact",
+        "cwd": "",
+        "timeout_seconds": 0,
+        "tolerance_percent": 0
+      },
+      "limitations": "needs_env: Requires libdnf, hawkey, librepo, rpm Python bindings, an expired GPG key fixture, and a configured DNF repository. None of these system packages are installed on this host per AGENTS.md host check."
+    }
+  ]
+}

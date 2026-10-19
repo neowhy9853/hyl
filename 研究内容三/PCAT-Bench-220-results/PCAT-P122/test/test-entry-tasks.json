@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P062/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P062/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P062",
+  "patch_id": "56ccc5ed569869fd735074ccebeaa7aab058342d",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "GRUB_OS_PROBER_SKIP_LIST",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "util/grub.d/30_os-prober.in",
+        "old_lines": [
+          117,
+          135
+        ],
+        "new_lines": [
+          117,
+          142
+        ],
+        "symbol": "GRUB_OS_PROBER_SKIP_LIST"
+      },
+      "old_behavior": "GRUB_OS_PROBER_SKIP_LIST 匹配使用 \\b 单词边界正则表达式，这意味着 UUID 中包含的 '-' 和 '@' 被视为非单词字符边界，导致部分 UUID 匹配的误报（例如 '12345678-...' 中的前8个字符可能因 \\b 边界误匹配其他条目）。非 EFI bootloader 条目必须使用 '<UUID>@<DEVICE>' 格式才能跳过，仅使用 '<UUID>' 不会生效。",
+      "new_behavior": "匹配使用显式的空格、逗号、分号作为分隔符（SPACE='[[:space:],;]'），并通过首尾添加空格锚定来防止部分匹配。非 EFI bootloader 条目仅需 '<UUID>' 即可跳过（与文档描述一致）。同时向后兼容接受 '<UUID>@/dev/*' 格式（会输出弃用警告），逗号和分号也可作为分隔符使用。",
+      "compatibility_reason": "该配置变量的解析语义发生了实质性变化：(1) 分隔符从任意非单词字符变为仅空格/逗号/分号，使用逗号分隔 UUID 的现有配置将正常工作而非误判为部分匹配；(2) 非 EFI 系统上仅使用 UUID（无 @device 后缀）的配置从“静默无效”变为“正确生效”，可能导致以前未被跳过的条目现在被跳过；(3) 部分 UUID 匹配的误报被消除，某些以前被错误跳过的条目现在会正常显示。此变更直接影响 grub-mkconfig 生成的引导菜单。",
+      "test_recommendation": "设置 GRUB_OS_PROBER_SKIP_LIST 包含多个 UUID（使用空格、逗号、分号分隔），运行 grub-mkconfig 验证对应的 os-prober 条目被正确跳过而不存在部分匹配误报或漏报。测试非 EFI 场景下仅 UUID 条目的功能正确性。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P062/compatibility-testing"
+}

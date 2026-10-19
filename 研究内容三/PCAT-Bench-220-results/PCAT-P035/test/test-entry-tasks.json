@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/ruby/pca-results/632838/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/ruby",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/ruby/pca-results/632838/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/ruby/pca-results/632838",
+  "patch_id": "6328380a3a83713ff6f55eec772358aadd2f9014",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "Time.xmlschema / Time.iso8601 / Time.rfc3339",
+        "kind": "public_method",
+        "language": "ruby"
+      },
+      "target_location": {
+        "file": "lib/time.rb",
+        "old_lines": [
+          670,
+          676
+        ],
+        "new_lines": [
+          670,
+          676
+        ],
+        "symbol": "Time._xmlschema"
+      },
+      "old_behavior": "Time.xmlschema (and its aliases Time.iso8601, Time.rfc3339) passes the raw time string argument directly to internal constructor new(time). When the input string contains leading or trailing whitespace (space, tab, etc.), the regex pattern match succeeds (the pattern has \\A\\s*...\\s*\\z anchors), but the underlying new(time) call receives the whitespace-padded string and either raises ArgumentError or produces incorrect/unexpected Time object.",
+      "new_behavior": "Time.xmlschema (and aliases) calls time.strip on the input string before passing it to new(). Leading and trailing whitespace (spaces, tabs, etc.) are removed, and the cleaned string is correctly parsed into the expected Time object.",
+      "compatibility_reason": "The input contract of Time.xmlschema, Time.iso8601, and Time.rfc3339 has been relaxed. Strings with leading/trailing whitespace that previously caused an ArgumentError (or incorrect parsing) are now silently accepted and correctly parsed. Code that manually strips whitespace before these calls is now redundant (no functional breakage, but the error path changed). More importantly, code that depended on the ArgumentError being raised for whitespace-padded inputs will now silently get a Time object instead, potentially masking bugs. This affects all callers of these three public class methods on Time.",
+      "test_recommendation": "Write directed tests for Time.xmlschema, Time.iso8601, and Time.rfc3339 with various leading/trailing whitespace patterns: spaces, tabs, mixed whitespace, edge cases like entirely whitespace strings. Verify old behavior (ArgumentError for whitespace-padded) vs new behavior (correct parsing).",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/ruby/pca-results/632838/compatibility-testing"
+}

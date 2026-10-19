@@ -1,0 +1,171 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/83e7f3/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/83e7f3",
+  "base_ref": "7dd898a92ddc2318c3516c06fb6769c3e64216ed",
+  "base_commit": "7dd898a92ddc2318c3516c06fb6769c3e64216ed",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "83e7f3bd2bac934c21f39175b965c37810a41ea5",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca-patch-83e7f3.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "git",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1454,
+    "patch_lines": 50,
+    "diff_added_lines": 0,
+    "diff_deleted_lines": 20,
+    "diff_context_lines": 8,
+    "churn": 20,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 2199,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "public_library_headers": 1
+    },
+    "candidates_json_bytes": 5780
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "git",
+      "affected_surface": "public header commit.h — public inline compatibility wrappers removed",
+      "affected_api": {
+        "name": "copy_commit_list / reverse_commit_list / free_commit_list",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "commit.h",
+        "old_lines": [
+          203,
+          227
+        ],
+        "new_lines": [
+          203,
+          208
+        ],
+        "symbol": "copy_commit_list, reverse_commit_list, free_commit_list"
+      },
+      "old_behavior": "struct commit_list *copy_commit_list(struct commit_list *l) — deprecated inline wrapper that delegated to commit_list_copy(l); struct commit_list *reverse_commit_list(struct commit_list *l) — deprecated inline wrapper that delegated to commit_list_reverse(l); void free_commit_list(struct commit_list *l) — deprecated inline wrapper that delegated to commit_list_free(l). The functions were declared static inline in public header commit.h with a deprecation notice stating removal after Git 2.53.",
+      "new_behavior": "The three deprecated inline wrapper functions are removed. Callers must use the long-form names commit_list_copy(), commit_list_reverse(), and commit_list_free() directly, which are still declared in commit.h at lines 199, 202, and 204 respectively.",
+      "compatibility_reason": "Any downstream code that includes commit.h and still calls the deprecated one-letter-form wrappers (copy_commit_list, reverse_commit_list, free_commit_list) will fail to compile after this change. The functions were explicitly deprecated with a planned removal timeline and were only provided as compatibility shims for in-flight upstream topics. Internal Git codebase has already been migrated in ancestor commit 7dd898a92 ('*: replace deprecated free_commit_list'), so only external consumers of Git's library headers are affected.",
+      "evidence": [
+        {
+          "file": "commit.h",
+          "lines": [
+            203,
+            227
+          ],
+          "snippet": "/*\n * Deprecated compatibility functions for `struct commit_list`, to be removed\n * once Git 2.53 is released.\n */\nstatic inline struct commit_list *copy_commit_list(struct commit_list *l)\n{\n\treturn commit_list_copy(l);\n}\n\nstatic inline struct commit_list *reverse_commit_list(struct commit_list *l)\n{\n\treturn commit_list_reverse(l);\n}\n\nstatic inline void free_commit_list(struct commit_list *l)\n{\n\tcommit_list_free(l);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "commit.h is a public header in Git's include path. The git package profile classifies '*.h' (excluding t/**) as public_library_headers — 'Headers used by Git builtins and external integrations'. External consumers of libgit.a or direct header inclusion may still reference these deprecated wrappers, and their removal constitutes a compile-time API breakage.",
+      "uncertainty": "Low. The functions were explicitly documented as deprecated and scheduled for removal. No remaining call sites exist in-tree (verified via git grep on base commit 7dd898a which migrated all internal usages). The only uncertainty is whether external consumers outside this repository still depend on them.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that no external Git plugin, git-submodule, or libgit consumer in the distribution depends on copy_commit_list, reverse_commit_list, or free_commit_list. The upstream Git tree has no remaining call sites.",
+      "test_recommendation": "Verify that the existing replacement names (commit_list_copy, commit_list_reverse, commit_list_free) are correctly declared and available at the same header location. Run a compile test to ensure no transitive header inclusion breaks.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=medium from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "commit.h",
+            "old_lines": [
+              203,
+              227
+            ],
+            "new_lines": [
+              203,
+              208
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_library_headers"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "public_library_headers",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Headers used by Git builtins and external integrations"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=medium from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

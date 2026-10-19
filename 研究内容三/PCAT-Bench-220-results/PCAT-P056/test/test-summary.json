@@ -1,0 +1,139 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P056/analysis.json",
+  "patch_id": "7d5fbe7da380135a70ab7b7f3f117cc870207503",
+  "result_dir": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P056/compatibility-testing",
+  "status": "passed",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+    "analysis_repo": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P056/_worktrees/patched",
+    "base_commit": "ded935be3708f7df2c836046bd73b373a1dc40ac",
+    "package_profile": "dnsmasq"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc-13",
+    "optimization": "-O0",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Build flags: -Wall -W -O0 -g -fprofile-arcs -ftest-coverage",
+      "Link flags: --coverage",
+      "Build opts: -DNO_DBUS -DNO_DNSSEC -DNO_IDN -DNO_CONNTRACK -DNO_LUASCRIPT -DNO_NFTSET -DNO_UBUS",
+      "Network: loopback only, non-root",
+      "Upstream DNS: systemd-resolved on 127.0.0.53"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 6,
+    "inputs_executed": 6,
+    "contracts_total": 5,
+    "contracts_passed": 5,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 6,
+    "patch_lines_covered": 6,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "high",
+      "status": "passed",
+      "target_location": {
+        "file": "src/edns0.c",
+        "new_lines": [265, 279],
+        "symbol": "edns0_needs_mac"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "compatibility-testing/test-entry-work/PCA-0001",
+          "run_command": "src/dnsmasq -C dnsmasq.conf (daemon mode) + TCP DNS queries via Python socket",
+          "expected_signal": "gcov confirms edns0_needs_mac called, arp.c child cache path active, dnsmasq.c do_tcp_connection calls edns0_needs_mac before fork",
+          "reachability_signal": "edns0.c:271 (2 hits), arp.c:119 (4 hits), arp.c:149 (3 hits), dnsmasq.c:2130 (2 hits)"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "edns0_needs_mac_defined_and_called",
+          "status": "passed",
+          "detail": "edns0_needs_mac() defined in edns0.c lines 271-275 and called from do_tcp_connection (dnsmasq.c:2130) 2 times in daemon mode TCP queries"
+        },
+        {
+          "contract_id": "arp_cache_child_process_optimization",
+          "status": "passed",
+          "detail": "find_mac() now checks daemon->pipe_to_parent != -1 to use cache instead of netlink: condition at arp.c:119 executed 4 times, early return at arp.c:149 executed 3 times"
+        },
+        {
+          "contract_id": "child_process_skips_netlink",
+          "status": "passed",
+          "detail": "Child process (daemon->pipe_to_parent != -1) returns 0 immediately when MAC not in cache, avoids netlink failure. arp.c:149-150 executed 3 times"
+        },
+        {
+          "contract_id": "do_tcp_connection_prepopulates_cache",
+          "status": "passed",
+          "detail": "do_tcp_connection() calls edns0_needs_mac(&tcp_addr, now) at dnsmasq.c:2130 before fork, executed 2 times via daemon mode TCP queries"
+        },
+        {
+          "contract_id": "edns0_needs_mac_checks_options",
+          "status": "passed",
+          "detail": "edns0_needs_mac() checks OPT_MAC_B64||OPT_MAC_HEX||OPT_ADD_MAC at edns0.c:273, executed 2 times"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 6,
+        "covered_lines": 6,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [
+        {
+          "input_id": "tcp_dns_query_add_mac_daemon",
+          "diff_type": "OUTPUT_FORMAT_CHANGE",
+          "before": "TCP 模式下子进程无 netlink socket, find_mac() 静默失败, DNS 响应中不包含客户端 MAC 地址的 EDNS0 选项",
+          "after": "父进程在 fork() 前调用 edns0_needs_mac() 预填充 ARP 缓存; 子进程从缓存中查找 MAC 地址, DNS 响应中按配置包含 EDNS0 MAC 选项",
+          "evidence": "gcov: edns0.c:271 (2 hits), arp.c:119 (4 hits), arp.c:149 (3 hits), dnsmasq.c:2130 (2 hits)"
+        }
+      ],
+      "notes": [
+        "Full end-to-end verification of EDNS0 MAC option presence in TCP forwarded queries requires multi-interface or non-localhost ARP entries",
+        "All patched code paths confirmed executed via gcov coverage analysis in daemon mode",
+        "Before binary (baseline) arp.c coverage: 4.04% (child process cannot use cache, falls through to netlink which fails)",
+        "After binary (patched) arp.c coverage: 68.32% (cache path active, child process returns early without netlink)"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "compatibility-testing/test-entry-work/test-entries.json",
+    "test_entry_tasks": "compatibility-testing/test-entry-tasks.json",
+    "test_entries": "compatibility-testing/test-entry-work/test-entries.json",
+    "test_inputs": "compatibility-testing/phase3_inputs/test_inputs.json",
+    "execution_results": "compatibility-testing/test-entry-work/PCA-0001/reproducer.sh",
+    "contract_summary": "compatibility-testing/test-summary.json",
+    "coverage_data": "compatibility-testing/patch_line_coverage.txt",
+    "report": "compatibility-testing/COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "补丁改变了 TCP 模式 DNS 响应的输出格式: 当配置 --add-mac / --add-mac-hex / --add-mac-b64 时, TCP 响应中将新增 EDNS0 MAC 选项。此前该选项因子进程无 netlink socket 而静默缺失。补丁通过父进程预填充 ARP 缓存解决此问题。所有补丁代码路径均被 gcov 覆盖率分析确认执行。",
+    "recommended_actions": [
+      "在具备多网卡或非 localhost ARP 表项的环境中, 使用 dig +tcp 验证 EDNS0 MAC 选项在 TCP 响应中的具体内容",
+      "检查是否有客户端或工具依赖 TCP 模式 DNS 响应中不包含 MAC 选项的行为",
+      "考虑在测试套件中添加 TCP 模式 --add-mac 的回归测试"
+    ]
+  }
+}

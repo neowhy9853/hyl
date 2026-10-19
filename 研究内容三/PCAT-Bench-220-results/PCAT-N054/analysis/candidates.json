@@ -1,0 +1,436 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/742a78/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/742a78/patch.diff",
+  "profile": "rsyslog",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "tests/segmented-da-idle-dematerialize.sh"
+    ],
+    "total_hunks": 3,
+    "public_api_hunks": 0,
+    "patch_metrics": {
+      "patch_bytes": 2538,
+      "patch_lines": 67,
+      "diff_added_lines": 6,
+      "diff_deleted_lines": 9,
+      "diff_context_lines": 22,
+      "churn": 15,
+      "raw_hunks": 3,
+      "candidate_hunks": 3,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 5626,
+      "public_candidate_hunks": 0,
+      "surface_counts": {
+        "tests": 3,
+        "user_visible_output": 3,
+        "plugin_api": 3,
+        "logging": 3,
+        "persistence_state": 3,
+        "daemon_interfaces": 3,
+        "output_format": 2
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "tests/segmented-da-idle-dematerialize.sh",
+      "old_start": 4,
+      "old_end": 9,
+      "new_start": 4,
+      "new_end": 12,
+      "context_hint": "",
+      "added_lines": [
+        "# The reset probe uses a 3-second timeout, injects after 1 second, and checks",
+        "# 2.25 seconds later: the check is past the original deadline but still 750 ms",
+        "# before the reset deadline, leaving a substantial scheduler margin under SAN."
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "# filesystem oracle proves lazy creation, grace-period dematerialization, and",
+        "# transparent rematerialization; exact sequence output proves no loss or",
+        "# reordering. The impstats oracle proves the final child worker terminated.",
+        ". ${srcdir:=.}/diag.sh init",
+        "",
+        "export NUMMESSAGES=4000"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "The",
+        "reset",
+        "probe",
+        "uses",
+        "a",
+        "second"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output",
+          "plugin_api",
+          "logging",
+          "persistence_state",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 1,
+        "snippet_end_line": 42,
+        "snippet": "#!/bin/bash\n# Exercise the complete segmented DA idle lifecycle on an action queue. A\n# deliberately slow, tiny memory tier makes each 2000-message burst spill. The\n# filesystem oracle proves lazy creation, grace-period dematerialization, and\n# transparent rematerialization; exact sequence output proves no loss or\n# reordering. The impstats oracle proves the final child worker terminated.\n# The reset probe uses a 3-second timeout, injects after 1 second, and checks\n# 2.25 seconds later: the check is past the original deadline but still 750 ms\n# before the reset deadline, leaving a substantial scheduler margin under SAN.\n. ${srcdir:=.}/diag.sh init\n\nexport NUMMESSAGES=4000\nSPOOL_DIR=\"${RSYSLOG_DYNNAME}.spool\"\nSEG_DIR=\"$SPOOL_DIR/idle-action.segq\"\nMARKER=\"$SPOOL_DIR/idle-action.da-engine\"\nSTATS_FILE=\"${RSYSLOG_DYNNAME}.stats\"\n\nwait_path_state() {\n\tlocal mode=\"$1\"\n\tlocal path=\"$2\"\n\tlocal timeoutend=$((SECONDS + 30))\n\twhile true; do\n\t\tif [ \"$mode\" = present ] && [ -e \"$path\" ]; then\n\t\t\treturn\n\t\tfi\n\t\tif [ \"$mode\" = absent ] && [ ! -e \"$path\" ]; then\n\t\t\treturn\n\t\tfi\n\t\tif [ \"$SECONDS\" -ge \"$timeoutend\" ]; then\n\t\t\techo \"FAIL: path did not become $mode: $path\"\n\t\t\tfind \"$SPOOL_DIR\" -maxdepth 2 -print 2>/dev/null || true\n\t\t\terror_exit 1\n\t\tfi\n\t\t./msleep 50\n\tdone\n}\n\ngenerate_conf\nadd_conf '\nglobal(workDirectory=\"'\"$SPOOL_DIR\"'\")\nmodule(load=\"../plugins/impstats/.libs/impstats\"\n\tinterval=\"1\" log.syslog=\"off\" log.file=\"'\"$STATS_FILE\"'\")\n"
+      }
+    },
+    {
+      "file": "tests/segmented-da-idle-dematerialize.sh",
+      "old_start": 52,
+      "old_end": 58,
+      "new_start": 55,
+      "new_end": 61,
+      "context_hint": "template(name=\"outfmt\" type=\"string\" string=\"%msg:F,58:2%\\n\")",
+      "added_lines": [
+        "\tqueue.diskQueueIdleTimeout=\"3000\""
+      ],
+      "deleted_lines": [
+        "\tqueue.diskQueueIdleTimeout=\"500\""
+      ],
+      "context_lines": [
+        "\tqueue.dequeueBatchSize=\"1\"",
+        "\tqueue.dequeueSlowdown=\"2\"",
+        "\tqueue.diskQueueType=\"segmentedDisk\"",
+        ")",
+        "'",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "template",
+        "queue",
+        "diskQueueIdleTimeout"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "output_format",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log template, property, and output formatting behavior"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output",
+          "plugin_api",
+          "logging",
+          "persistence_state",
+          "output_format",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "template",
+        "snippet_start_line": 23,
+        "snippet_end_line": 91,
+        "snippet": "\t\tif [ \"$mode\" = present ] && [ -e \"$path\" ]; then\n\t\t\treturn\n\t\tfi\n\t\tif [ \"$mode\" = absent ] && [ ! -e \"$path\" ]; then\n\t\t\treturn\n\t\tfi\n\t\tif [ \"$SECONDS\" -ge \"$timeoutend\" ]; then\n\t\t\techo \"FAIL: path did not become $mode: $path\"\n\t\t\tfind \"$SPOOL_DIR\" -maxdepth 2 -print 2>/dev/null || true\n\t\t\terror_exit 1\n\t\tfi\n\t\t./msleep 50\n\tdone\n}\n\ngenerate_conf\nadd_conf '\nglobal(workDirectory=\"'\"$SPOOL_DIR\"'\")\nmodule(load=\"../plugins/impstats/.libs/impstats\"\n\tinterval=\"1\" log.syslog=\"off\" log.file=\"'\"$STATS_FILE\"'\")\n\ntemplate(name=\"outfmt\" type=\"string\" string=\"%msg:F,58:2%\\n\")\n:msg, contains, \"msgnum:\" action(\n\ttype=\"omfile\"\n\tname=\"idle-action\"\n\tfile=\"'\"$RSYSLOG_OUT_LOG\"'\"\n\ttemplate=\"outfmt\"\n\tqueue.type=\"LinkedList\"\n\tqueue.filename=\"idle-action\"\n\tqueue.size=\"50\"\n\tqueue.highWatermark=\"10\"\n\tqueue.lowWatermark=\"5\"\n\tqueue.dequeueBatchSize=\"1\"\n\tqueue.dequeueSlowdown=\"2\"\n\tqueue.diskQueueType=\"segmentedDisk\"\n\tqueue.diskQueueIdleTimeout=\"3000\"\n)\n'\n\nstartup\n[ ! -e \"$SEG_DIR\" ] || error_exit 1 \"segmented DA store materialized before the first spill\"\n[ ! -e \"$MARKER\" ] || error_exit 1 \"segmented DA engine marker was created before the first spill\"\n\ninjectmsg 0 2000\nwait_path_state present \"$SEG_DIR\"\n[ -f \"$MARKER\" ] || error_exit 1 \"segmented DA engine marker was not created with the first spill\"\nwait_file_lines \"$RSYSLOG_OUT_LOG\" 2000 300\n\n# A memory-tier-only enqueue during the grace period must wake the child and\n# restart the full timeout even though it does not itself spill to disk.\n./msleep 1000\ninjectmsg 2000 1\nwait_file_lines \"$RSYSLOG_OUT_LOG\" 2001 300\n./msleep 2250\n[ -d \"$SEG_DIR\" ] || error_exit 1 \"new traffic did not reset the segmented DA idle grace period\"\nwait_path_state absent \"$SEG_DIR\"\n\n# A second burst must recreate the same child store and run through the same\n# lifecycle, proving that worker and store teardown are both reversible.\ninjectmsg 2001 1999\nwait_path_state present \"$SEG_DIR\"\nwait_file_lines \"$RSYSLOG_OUT_LOG\" 4000 300\nwait_path_state absent \"$SEG_DIR\"\n\nwait_content 'store.idleDematerializations=2' \"$STATS_FILE\"\nwait_content 'workers.current=0' \"$STATS_FILE\"\n[ \"$(cat \"$MARKER\")\" = \"RSYSLOG-DA-ENGINE-V1 segmentedDisk\" ] ||\n\terror_exit 1 \"segmented DA marker changed during idle cleanup\"\n\n"
+      }
+    },
+    {
+      "file": "tests/segmented-da-idle-dematerialize.sh",
+      "old_start": 67,
+      "old_end": 76,
+      "new_start": 70,
+      "new_end": 79,
+      "context_hint": "wait_file_lines \"$RSYSLOG_OUT_LOG\" 2000 300",
+      "added_lines": [
+        "./msleep 1000",
+        "./msleep 2250"
+      ],
+      "deleted_lines": [
+        "./msleep 250",
+        "./msleep 300",
+        "- "
+      ],
+      "context_lines": [
+        "",
+        "# A memory-tier-only enqueue during the grace period must wake the child and",
+        "# restart the full timeout even though it does not itself spill to disk.",
+        "injectmsg 2000 1",
+        "wait_file_lines \"$RSYSLOG_OUT_LOG\" 2001 300",
+        "[ -d \"$SEG_DIR\" ] || error_exit 1 \"new traffic did not reset the segmented DA idle grace period\"",
+        "wait_path_state absent \"$SEG_DIR\"",
+        "",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "msleep"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "output_format",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log template, property, and output formatting behavior"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output",
+          "plugin_api",
+          "logging",
+          "persistence_state",
+          "output_format",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 38,
+        "snippet_end_line": 95,
+        "snippet": "generate_conf\nadd_conf '\nglobal(workDirectory=\"'\"$SPOOL_DIR\"'\")\nmodule(load=\"../plugins/impstats/.libs/impstats\"\n\tinterval=\"1\" log.syslog=\"off\" log.file=\"'\"$STATS_FILE\"'\")\n\ntemplate(name=\"outfmt\" type=\"string\" string=\"%msg:F,58:2%\\n\")\n:msg, contains, \"msgnum:\" action(\n\ttype=\"omfile\"\n\tname=\"idle-action\"\n\tfile=\"'\"$RSYSLOG_OUT_LOG\"'\"\n\ttemplate=\"outfmt\"\n\tqueue.type=\"LinkedList\"\n\tqueue.filename=\"idle-action\"\n\tqueue.size=\"50\"\n\tqueue.highWatermark=\"10\"\n\tqueue.lowWatermark=\"5\"\n\tqueue.dequeueBatchSize=\"1\"\n\tqueue.dequeueSlowdown=\"2\"\n\tqueue.diskQueueType=\"segmentedDisk\"\n\tqueue.diskQueueIdleTimeout=\"3000\"\n)\n'\n\nstartup\n[ ! -e \"$SEG_DIR\" ] || error_exit 1 \"segmented DA store materialized before the first spill\"\n[ ! -e \"$MARKER\" ] || error_exit 1 \"segmented DA engine marker was created before the first spill\"\n\ninjectmsg 0 2000\nwait_path_state present \"$SEG_DIR\"\n[ -f \"$MARKER\" ] || error_exit 1 \"segmented DA engine marker was not created with the first spill\"\nwait_file_lines \"$RSYSLOG_OUT_LOG\" 2000 300\n\n# A memory-tier-only enqueue during the grace period must wake the child and\n# restart the full timeout even though it does not itself spill to disk.\n./msleep 1000\ninjectmsg 2000 1\nwait_file_lines \"$RSYSLOG_OUT_LOG\" 2001 300\n./msleep 2250\n[ -d \"$SEG_DIR\" ] || error_exit 1 \"new traffic did not reset the segmented DA idle grace period\"\nwait_path_state absent \"$SEG_DIR\"\n\n# A second burst must recreate the same child store and run through the same\n# lifecycle, proving that worker and store teardown are both reversible.\ninjectmsg 2001 1999\nwait_path_state present \"$SEG_DIR\"\nwait_file_lines \"$RSYSLOG_OUT_LOG\" 4000 300\nwait_path_state absent \"$SEG_DIR\"\n\nwait_content 'store.idleDematerializations=2' \"$STATS_FILE\"\nwait_content 'workers.current=0' \"$STATS_FILE\"\n[ \"$(cat \"$MARKER\")\" = \"RSYSLOG-DA-ENGINE-V1 segmentedDisk\" ] ||\n\terror_exit 1 \"segmented DA marker changed during idle cleanup\"\n\nshutdown_when_empty\nwait_shutdown\nseq_check 0 3999\nexit_test\n"
+      }
+    }
+  ]
+}

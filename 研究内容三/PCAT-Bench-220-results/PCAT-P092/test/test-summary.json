@@ -1,0 +1,135 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/analysis.json",
+  "patch_id": "2a95a616e9da16f49dfc55b11d7ca9f079bbb430",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "https://github.com/golang/go",
+    "base_commit": "f192b5be2ef8f82e627e923ea72507c38b9f5ea5",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/_worktrees/patched",
+    "package_profile": "golang"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "Go 1.25.0 (bootstrap) → Go 1.28-devel (patched)",
+    "optimization": "default (Go compiler standard optimization)",
+    "coverage_tool": "go test -cover (Go built-in coverage)",
+    "notes": [
+      "Before: Go 1.25.0 pre-built binary (has CrossOriginProtection but without userinfo check)",
+      "After: Go built from patched worktree source (commit 2a95a616e9da) with Go 1.25.0 bootstrap",
+      "Coverage collected via go test -coverprofile on net/http package with -run TestCrossOriginProtectionAddTrustedOriginErrors"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 13,
+    "inputs_executed": 13,
+    "contracts_total": 3,
+    "contracts_passed": 2,
+    "contracts_breached": 1,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 2,
+    "patch_lines_covered": 2,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "medium",
+      "status": "passed",
+      "target_location": {
+        "file": "src/net/http/csrf.go",
+        "new_lines": [68, 69],
+        "symbol": "AddTrustedOrigin"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "verified_and_executed",
+          "artifact_path": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing/test-entry-work/PCA-TE-0001/main.go",
+          "run_command": "go run main.go",
+          "expected_signal": "userinfo origins (https://@example.com, https://user:pass@example.com) rejected in after build, accepted in before build",
+          "reachability_signal": "before: userinfo origins accepted (nil error); after: userinfo origins rejected with 'userinfo, path, query, and fragment are not allowed' error"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "backward_input_acceptance",
+          "status": "breached",
+          "detail": "Userinfo origins (https://@example.com, https://user:pass@example.com, https://user@example.com) were accepted before patch (nil error) but rejected after patch. This is the intended compatibility change — input contract tightened to reject origins with userinfo parts."
+        },
+        {
+          "contract_id": "valid_acceptance_preserved",
+          "status": "passed",
+          "detail": "Valid origins without userinfo (https://example.com, https://example.com:8080, http://example.com) are accepted by both before and after versions."
+        },
+        {
+          "contract_id": "invalid_rejection_preserved",
+          "status": "passed",
+          "detail": "Origins with path/query/fragment/missing-scheme/missing-host are rejected by both versions. Note: error message text changed from 'path, query, and fragment are not allowed' to 'userinfo, path, query, and fragment are not allowed'."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 2,
+        "covered_lines": 2,
+        "uncovered_lines": [],
+        "rate": 100.0,
+        "tool": "go test -coverprofile",
+        "details": "csrf.go:68.2,68.75 count=1 (new u.User check), csrf.go:69.3,70.1 count=1 (new error return). AddTrustedOrigin function 100% covered."
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I1",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "AddTrustedOrigin(\"https://@example.com\") = <nil> (accepted)",
+          "after": "AddTrustedOrigin(\"https://@example.com\") = error: invalid origin \"https://@example.com\": userinfo, path, query, and fragment are not allowed",
+          "evidence": "before_output.txt and after_output.txt show rejection change for 3 userinfo test cases"
+        },
+        {
+          "input_id": "I2",
+          "diff_type": "ERROR_EXCEPTION_CHANGE",
+          "before": "invalid origin \"https://example.com/\": path, query, and fragment are not allowed",
+          "after": "invalid origin \"https://example.com/\": userinfo, path, query, and fragment are not allowed",
+          "evidence": "Error message text changed for path/query/fragment rejection cases — 'userinfo' added to error description"
+        }
+      ],
+      "notes": [
+        "Confirmed INPUT_CONTRACT_CHANGE: origins with userinfo now rejected. Browsers never send userinfo in Origin headers per RFC 6454, so practical impact is limited to programmatic callers.",
+        "Secondary ERROR_EXCEPTION_CHANGE: error message text changed for already-rejected inputs. Low practical impact.",
+        "Coverage: 100% of patched lines reached. Both new lines (68, 69) are executed during test."
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing/test-entry-tasks.json",
+    "test_entry_tasks": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing/test-entry-tasks.json",
+    "test_entries": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing/test-entry-work/PCA-TE-0001/main.go",
+    "test_inputs": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing/test-entry-work/PCA-TE-0001/main.go",
+    "execution_results": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing/phase4_execution/",
+    "contract_summary": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing/before_output.txt",
+    "coverage_data": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing/phase4_execution/coverage.out",
+    "report": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing/COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "补丁在 CrossOriginProtection.AddTrustedOrigin 中新增了对 userinfo 部分的检查，导致之前被接受的含 userinfo 的 origin 现在被拒绝。虽然浏览器不会发送含 userinfo 的 Origin 头（RFC 6454），但通过代码直接调用此 API 的调用方行为发生改变。补丁行覆盖率 100%，确认兼容性变更存在且被测试覆盖。错误消息文本也发生了变化（增加了 'userinfo' 字样），但影响较小。",
+    "recommended_actions": [
+      "审查所有调用 AddTrustedOrigin 的代码，确认是否传入了含 userinfo 的 origin 字符串",
+      "如有代码依赖旧的错误消息文本（'path, query, and fragment are not allowed'），需更新到新文本（'userinfo, path, query, and fragment are not allowed'）",
+      "此变更为安全加固，建议尽快合并"
+    ]
+  }
+}

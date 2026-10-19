@@ -1,0 +1,361 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/glib/pca-results/c9da97/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/glib/pca-results/c9da97/patch.diff",
+  "profile": "glib2",
+  "summary": {
+    "total_changed_files": 2,
+    "changed_files": [
+      "gio/gdbusintrospection.c",
+      "gio/tests/gdbus-introspection.c"
+    ],
+    "total_hunks": 3,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 2770,
+      "patch_lines": 64,
+      "diff_added_lines": 34,
+      "diff_deleted_lines": 1,
+      "diff_context_lines": 18,
+      "churn": 35,
+      "raw_hunks": 3,
+      "candidate_hunks": 3,
+      "skipped_doc_hunks": 0,
+      "changed_files": 2,
+      "candidate_context_bytes": 8384,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "user_visible_output": 3,
+        "daemon_control": 3,
+        "gio_behavior": 3
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "gio/gdbusintrospection.c",
+      "old_start": 1266,
+      "old_end": 1272,
+      "new_start": 1266,
+      "new_end": 1272,
+      "context_hint": "parser_start_element (GMarkupParseContext  *context,",
+      "added_lines": [
+        "      if (stack->next != NULL && strcmp (stack->next->data, \"node\") != 0)"
+      ],
+      "deleted_lines": [
+        "      if (!(g_slist_length (stack) >= 1 || strcmp (stack->next->data, \"node\") != 0))"
+      ],
+      "context_lines": [
+        "  /* ---------------------------------------------------------------------------------------------------- */",
+        "  if (strcmp (element_name, \"node\") == 0)",
+        "    {",
+        "        {",
+        "          g_set_error_literal (error,",
+        "                               G_MARKUP_ERROR,"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "parser_start_element",
+        "stack",
+        "next",
+        "NULL",
+        "strcmp",
+        "data"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "daemon_control",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "Runtime daemon control, metrics, and administration interfaces."
+          },
+          {
+            "name": "gio_behavior",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "I/O, DBus, settings, and network behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "daemon_control",
+          "gio_behavior"
+        ],
+        "profile": "glib2",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "parser_start_element",
+        "snippet_start_line": 1237,
+        "snippet_end_line": 1302,
+        "snippet": "  g_free (data);\n}\n\n/* ---------------------------------------------------------------------------------------------------- */\n\nstatic void\nparser_start_element (GMarkupParseContext  *context,\n                      const gchar          *element_name,\n                      const gchar         **attribute_names,\n                      const gchar         **attribute_values,\n                      gpointer              user_data,\n                      GError              **error)\n{\n  ParseData *data = user_data;\n  GSList *stack;\n  const gchar *name;\n  const gchar *type;\n  const gchar *access;\n  const gchar *direction;\n  const gchar *value;\n\n  name = NULL;\n  type = NULL;\n  access = NULL;\n  direction = NULL;\n  value = NULL;\n\n  stack = (GSList *) g_markup_parse_context_get_element_stack (context);\n\n  /* ---------------------------------------------------------------------------------------------------- */\n  if (strcmp (element_name, \"node\") == 0)\n    {\n      if (stack->next != NULL && strcmp (stack->next->data, \"node\") != 0)\n        {\n          g_set_error_literal (error,\n                               G_MARKUP_ERROR,\n                               G_MARKUP_ERROR_INVALID_CONTENT,\n                               \"<node> elements can only be top-level or embedded in other <node> elements\");\n          goto out;\n        }\n\n      if (!g_markup_collect_attributes (element_name,\n                                        attribute_names,\n                                        attribute_values,\n                                        error,\n                                        G_MARKUP_COLLECT_STRING | G_MARKUP_COLLECT_OPTIONAL, \"name\", &name,\n                                        /* some hand-written introspection XML documents use this */\n                                        G_MARKUP_COLLECT_STRING | G_MARKUP_COLLECT_OPTIONAL, \"xmlns:doc\", NULL,\n                                        G_MARKUP_COLLECT_INVALID))\n        goto out;\n\n      g_dbus_node_info_set (data,\n                            parse_data_get_node (data, TRUE),\n                            name,\n                            NULL,\n                            NULL,\n                            NULL);\n\n      /* push the currently retrieved interfaces and nodes on the stack and prepare new arrays */\n      data->interfaces_stack = g_slist_prepend (data->interfaces_stack, data->interfaces);\n      data->interfaces = NULL;\n      parse_data_steal_interfaces (data, NULL);\n\n      data->nodes_stack = g_slist_prepend (data->nodes_stack, data->nodes);\n      data->nodes = NULL;\n      parse_data_steal_nodes (data, NULL);\n"
+      }
+    },
+    {
+      "file": "gio/tests/gdbus-introspection.c",
+      "old_start": 300,
+      "old_end": 305,
+      "new_start": 300,
+      "new_end": 337,
+      "context_hint": "test_extra_data (void)",
+      "added_lines": [
+        "static void",
+        "test_invalid (void)",
+        "{",
+        "  const struct",
+        "    {",
+        "      const char *xml;",
+        "      GMarkupError expected_error_code;",
+        "    }",
+        "  vectors[] =",
+        "    {",
+        "      { \"\", G_MARKUP_ERROR_EMPTY },",
+        "      { \"<node><interface name=\\\"I\\\"><method name=\\\"M\\\"><node><interface name=\\\"I2\\\"></interface></node></method>\", G_MARKUP_ERROR_INVALID_CONTENT },",
+        "      { \"<node><interface name=\\\"I\\\"><signal name=\\\"S\\\"><node><interface name=\\\"I2\\\"><signal name=\\\"S2\\\"></signal></interface></node></signal>\", G_MARKUP_ERROR_INVALID_CONTENT },",
+        "      { \"<node><interface name=\\\"I\\\"><property name=\\\"P\\\" type=\\\"s\\\" access=\\\"read\\\"><node><interface name=\\\"I2\\\"></interface></node></property>\", G_MARKUP_ERROR_INVALID_CONTENT },",
+        "      { \"<node><interface name=\\\"I\\\"><method name=\\\"M\\\"><arg type=\\\"\\\"><node><interface name=\\\"I2\\\"><method name=\\\"M2\\\"></method></interface></node></arg>\", G_MARKUP_ERROR_INVALID_CONTENT },",
+        "    };",
+        "",
+        "  for (size_t i = 0; i < G_N_ELEMENTS (vectors); i++)",
+        "    {",
+        "      GDBusNodeInfo *node;",
+        "      GError *local_error = NULL;",
+        "",
+        "      g_test_message (\"Testing parsing of %s gives an error\", vectors[i].xml);",
+        "",
+        "      node = g_dbus_node_info_new_for_xml (vectors[i].xml, &local_error);",
+        "      g_assert_error (local_error, G_MARKUP_ERROR, (int) vectors[i].expected_error_code);",
+        "      g_assert_null (node);",
+        "",
+        "      g_clear_error (&local_error);",
+        "    }",
+        "}",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "  g_dbus_node_info_unref (info);",
+        "}",
+        "",
+        "/* ---------------------------------------------------------------------------------------------------- */",
+        "",
+        "int"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "test_extra_data",
+        "test_invalid",
+        "xml",
+        "GMarkupError",
+        "expected_error_code",
+        "vectors",
+        "g_dbus_node_info_unref"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "daemon_control",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "Runtime daemon control, metrics, and administration interfaces."
+          },
+          {
+            "name": "gio_behavior",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "I/O, DBus, settings, and network behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "daemon_control",
+          "gio_behavior"
+        ],
+        "profile": "glib2",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "test_extra_data",
+        "snippet_start_line": 271,
+        "snippet_end_line": 360,
+        "snippet": "  \"    <interface name='com.example.Frob' version='1.0'>\"\n  \"      <doc:doc><doc:description><doc:para>Blah blah</doc:para></doc:description></doc:doc>\"\n  \"      <method name='DownloadPackages'>\"\n  \"        <arg type='u' name='somenumber' direction='in'>\"\n  \"          <doc:doc><doc:summary><doc:para>\"\n  \"            See <doc:ulink url='http:///example.com'>example</doc:ulink>\"\n  \"          </doc:para></doc:summary></doc:doc>\"\n  \"        </arg>\"\n  \"        <arg type='s' name='somestring' direction='out'>\"\n  \"          <doc:doc><doc:summary><doc:para>\"\n  \"            More docs\"\n  \"          </doc:para></doc:summary></doc:doc>\"\n  \"        </arg>\"\n  \"      </method>\"\n  \"      <signal name='HelloWorld'>\"\n  \"        <arg type='s' name='somestring'/>\"\n  \"      </signal>\"\n  \"      <method name='Sleep'>\"\n  \"        <arg type='i' name='timeout' direction='in'/>\"\n  \"      </method>\"\n  \"      <property name='y' type='y' access='readwrite'/>\"\n  \"    </interface>\"\n  \"  </node>\";\n  GError *error;\n\n  error = NULL;\n  info = g_dbus_node_info_new_for_xml (data, &error);\n  g_assert_no_error (error);\n\n  g_dbus_node_info_unref (info);\n}\n\nstatic void\ntest_invalid (void)\n{\n  const struct\n    {\n      const char *xml;\n      GMarkupError expected_error_code;\n    }\n  vectors[] =\n    {\n      { \"\", G_MARKUP_ERROR_EMPTY },\n      { \"<node><interface name=\\\"I\\\"><method name=\\\"M\\\"><node><interface name=\\\"I2\\\"></interface></node></method>\", G_MARKUP_ERROR_INVALID_CONTENT },\n      { \"<node><interface name=\\\"I\\\"><signal name=\\\"S\\\"><node><interface name=\\\"I2\\\"><signal name=\\\"S2\\\"></signal></interface></node></signal>\", G_MARKUP_ERROR_INVALID_CONTENT },\n      { \"<node><interface name=\\\"I\\\"><property name=\\\"P\\\" type=\\\"s\\\" access=\\\"read\\\"><node><interface name=\\\"I2\\\"></interface></node></property>\", G_MARKUP_ERROR_INVALID_CONTENT },\n      { \"<node><interface name=\\\"I\\\"><method name=\\\"M\\\"><arg type=\\\"\\\"><node><interface name=\\\"I2\\\"><method name=\\\"M2\\\"></method></interface></node></arg>\", G_MARKUP_ERROR_INVALID_CONTENT },\n    };\n\n  for (size_t i = 0; i < G_N_ELEMENTS (vectors); i++)\n    {\n      GDBusNodeInfo *node;\n      GError *local_error = NULL;\n\n      g_test_message (\"Testing parsing of %s gives an error\", vectors[i].xml);\n\n      node = g_dbus_node_info_new_for_xml (vectors[i].xml, &local_error);\n      g_assert_error (local_error, G_MARKUP_ERROR, (int) vectors[i].expected_error_code);\n      g_assert_null (node);\n\n      g_clear_error (&local_error);\n    }\n}\n\n/* ---------------------------------------------------------------------------------------------------- */\n\nint\nmain (int   argc,\n      char *argv[])\n{\n  gint ret;\n\n  g_test_init (&argc, &argv, G_TEST_OPTION_ISOLATE_DIRS, NULL);\n\n  /* all the tests rely on a shared main loop */\n  loop = g_main_loop_new (NULL, FALSE);\n\n  g_test_add_func (\"/gdbus/introspection/parser\", test_introspection_parser);\n  g_test_add_func (\"/gdbus/introspection/generate\", test_generate);\n  g_test_add_func (\"/gdbus/introspection/default-direction\", test_default_direction);\n  g_test_add_func (\"/gdbus/introspection/extra-data\", test_extra_data);\n  g_test_add_func (\"/gdbus/introspection/invalid\", test_invalid);\n\n  ret = session_bus_run ();\n\n  while (g_main_context_iteration (NULL, FALSE));\n  g_main_loop_unref (loop);\n\n  return ret;\n}\n"
+      }
+    },
+    {
+      "file": "gio/tests/gdbus-introspection.c",
+      "old_start": 317,
+      "old_end": 322,
+      "new_start": 349,
+      "new_end": 355,
+      "context_hint": "main (int   argc,",
+      "added_lines": [
+        "  g_test_add_func (\"/gdbus/introspection/invalid\", test_invalid);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "  g_test_add_func (\"/gdbus/introspection/generate\", test_generate);",
+        "  g_test_add_func (\"/gdbus/introspection/default-direction\", test_default_direction);",
+        "  g_test_add_func (\"/gdbus/introspection/extra-data\", test_extra_data);",
+        "",
+        "  ret = session_bus_run ();",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "main",
+        "g_test_add_func",
+        "gdbus",
+        "introspection",
+        "invalid",
+        "test_invalid"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "daemon_control",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "Runtime daemon control, metrics, and administration interfaces."
+          },
+          {
+            "name": "gio_behavior",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "I/O, DBus, settings, and network behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "daemon_control",
+          "gio_behavior"
+        ],
+        "profile": "glib2",
+        "effective_profile_layers": [
+          "c_project",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "main",
+        "snippet_start_line": 288,
+        "snippet_end_line": 360,
+        "snippet": "  \"      <method name='Sleep'>\"\n  \"        <arg type='i' name='timeout' direction='in'/>\"\n  \"      </method>\"\n  \"      <property name='y' type='y' access='readwrite'/>\"\n  \"    </interface>\"\n  \"  </node>\";\n  GError *error;\n\n  error = NULL;\n  info = g_dbus_node_info_new_for_xml (data, &error);\n  g_assert_no_error (error);\n\n  g_dbus_node_info_unref (info);\n}\n\nstatic void\ntest_invalid (void)\n{\n  const struct\n    {\n      const char *xml;\n      GMarkupError expected_error_code;\n    }\n  vectors[] =\n    {\n      { \"\", G_MARKUP_ERROR_EMPTY },\n      { \"<node><interface name=\\\"I\\\"><method name=\\\"M\\\"><node><interface name=\\\"I2\\\"></interface></node></method>\", G_MARKUP_ERROR_INVALID_CONTENT },\n      { \"<node><interface name=\\\"I\\\"><signal name=\\\"S\\\"><node><interface name=\\\"I2\\\"><signal name=\\\"S2\\\"></signal></interface></node></signal>\", G_MARKUP_ERROR_INVALID_CONTENT },\n      { \"<node><interface name=\\\"I\\\"><property name=\\\"P\\\" type=\\\"s\\\" access=\\\"read\\\"><node><interface name=\\\"I2\\\"></interface></node></property>\", G_MARKUP_ERROR_INVALID_CONTENT },\n      { \"<node><interface name=\\\"I\\\"><method name=\\\"M\\\"><arg type=\\\"\\\"><node><interface name=\\\"I2\\\"><method name=\\\"M2\\\"></method></interface></node></arg>\", G_MARKUP_ERROR_INVALID_CONTENT },\n    };\n\n  for (size_t i = 0; i < G_N_ELEMENTS (vectors); i++)\n    {\n      GDBusNodeInfo *node;\n      GError *local_error = NULL;\n\n      g_test_message (\"Testing parsing of %s gives an error\", vectors[i].xml);\n\n      node = g_dbus_node_info_new_for_xml (vectors[i].xml, &local_error);\n      g_assert_error (local_error, G_MARKUP_ERROR, (int) vectors[i].expected_error_code);\n      g_assert_null (node);\n\n      g_clear_error (&local_error);\n    }\n}\n\n/* ---------------------------------------------------------------------------------------------------- */\n\nint\nmain (int   argc,\n      char *argv[])\n{\n  gint ret;\n\n  g_test_init (&argc, &argv, G_TEST_OPTION_ISOLATE_DIRS, NULL);\n\n  /* all the tests rely on a shared main loop */\n  loop = g_main_loop_new (NULL, FALSE);\n\n  g_test_add_func (\"/gdbus/introspection/parser\", test_introspection_parser);\n  g_test_add_func (\"/gdbus/introspection/generate\", test_generate);\n  g_test_add_func (\"/gdbus/introspection/default-direction\", test_default_direction);\n  g_test_add_func (\"/gdbus/introspection/extra-data\", test_extra_data);\n  g_test_add_func (\"/gdbus/introspection/invalid\", test_invalid);\n\n  ret = session_bus_run ();\n\n  while (g_main_context_iteration (NULL, FALSE));\n  g_main_loop_unref (loop);\n\n  return ret;\n}\n"
+      }
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P058/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repos/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P058/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P058",
+  "patch_id": "29ed28820a3bd8222d7b533e41ecd4809a2162f8",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "grub_cryptodisk_open",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "grub-core/disk/cryptodisk.c",
+        "old_lines": [
+          702,
+          708
+        ],
+        "new_lines": [
+          702,
+          708
+        ],
+        "symbol": "grub_cryptodisk_open"
+      },
+      "old_behavior": "grub_cryptodisk_open() used grub_strcasecmp() to compare the user-provided UUID string (from 'cryptouuid/...' device name) against dev->uuid. Both the user input and the stored dev->uuid were dash-free (LUKS/LUKS2 stripped dashes before storing). Only exact dash-free UUID strings would match.",
+      "new_behavior": "grub_cryptodisk_open() now uses grub_uuidcasecmp() which ignores dashes in both the user-provided UUID string and dev->uuid during comparison. dev->uuid now stores the raw header UUID (may contain dashes) for LUKS/LUKS2 devices. Users can specify UUIDs with or without dashes; both forms will match the same device.",
+      "compatibility_reason": "This change relaxes the input contract for the cryptouuid/<UUID> device name. Previously, users had to provide dash-free UUIDs (e.g., '12345678123412341234123456789abc') for the device lookup to work. Now users can use the standard UUID format with dashes (e.g., '12345678-1234-1234-1234-123456789abc'), which matches what cryptsetup shows. This is backward-compatible because existing configurations using dash-free UUIDs continue to work. However, it is a config-visible behavior change that alters the accepted input format, and any scripts or automated tools that generate GRUB configurations may need to be aware of the new acceptance range.",
+      "test_recommendation": "Test that 'cryptouuid/<UUID-with-dashes>' correctly opens LUKS1, LUKS2, and GELI encrypted devices. Verify that 'cryptouuid/<UUID-without-dashes>' continues to work (backward compatibility). Test with mixed dash patterns.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "configure_ciphers / luks2_scan (search_uuid matching)",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "grub-core/disk/geli.c",
+        "old_lines": [
+          305,
+          311
+        ],
+        "new_lines": [
+          305,
+          311
+        ],
+        "symbol": "configure_ciphers"
+      },
+      "old_behavior": "Each crypto backend module (GELI, LUKS, LUKS2) independently implemented UUID matching for the 'cryptomount -u <UUID>' command. GELI used grub_strcasecmp against generated UUID. LUKS and LUKS2 first stripped dashes from the header UUID using manual loops, then used grub_strcasecmp against the dash-stripped result. Users had to provide dash-free UUIDs to the -u option.",
+      "new_behavior": "All crypto backends now use the centralized grub_uuidcasecmp() function for UUID matching. Dashes are no longer manually stripped; the comparison function itself ignores dashes. Users can now provide UUIDs with or without dashes to 'cryptomount -u'.",
+      "compatibility_reason": "The 'cryptomount -u' CLI option now accepts dashed UUIDs in addition to dash-free UUIDs. Previously, users copying a UUID from cryptsetup output (which includes dashes) would get a non-match. Now those UUIDs work directly. This is backward-compatible: existing scripts using dash-free UUIDs continue to work. However, this is a CLI-visible behavior change that affects the accepted parameter format for a commonly used GRUB command.",
+      "test_recommendation": "Test cryptomount -u with UUIDs containing dashes (standard format), without dashes, and with irregular dash placement. Test with GELI, LUKS1, and LUKS2 encrypted volumes. Verify correct device selection with multiple encrypted volumes.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P058/compatibility-testing"
+}

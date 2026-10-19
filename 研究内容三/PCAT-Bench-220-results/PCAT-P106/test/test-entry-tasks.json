@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046",
+  "patch_id": "a23d8e124fbd",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "bond_option_xmit_hash_policy_set",
+        "kind": "sysfs_attribute",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "drivers/net/bonding/bond_options.c",
+        "old_lines": [
+          1592,
+          1597
+        ],
+        "new_lines": [
+          1592,
+          1599
+        ],
+        "symbol": "bond_option_xmit_hash_policy_set"
+      },
+      "old_behavior": "修改 bonding xmit_hash_policy 时，sysfs 或 netlink 接口直接接受新值并应用到 bond->params.xmit_policy，不会检查已加载 XDP 程序的兼容性。即使用户在 802.3ad/balance-xor 模式下已加载 XDP 程序，也能将 xmit_hash_policy 切换为不兼容的 vlan+srcmac。",
+      "new_behavior": "修改 xmit_hash_policy 时，新增长 guard 检查：若 bond->xdp_prog 已加载且 __bond_xdp_check(BOND_MODE(bond), newval->value) 返回 false（即 802.3ad/balance-xor 模式 + vlan+srcmac 策略），则返回 -EOPNOTSUPP，拒绝该变更。错误码经 bond_opt_tryset_rtnl 和 __bond_opt_set 向上传播至 sysfs store 操作（返回负错误码给 write 调用）和 netlink 操作（返回 err 给调用方）。",
+      "compatibility_reason": "该变更会破坏用户空间工具的兼容性。之前可以通过 `echo 'vlan+srcmac 2' > /sys/class/net/<bond>/bonding/xmit_hash_policy` 或 ip link netlink 消息在已加载 XDP 程序的 802.3ad/balance-xor 模式 bond 上更改哈希策略。现在该操作会失败并返回 EOPNOTSUPP（sysfs write 返回 -EOPNOTSUPP，netlink 返回 EOPNOTSUPP 错误）。依赖此行为的自动化脚本、网络配置工具和编排系统会受到影响。虽然这是修复一个 WARN_ON 崩溃的必要措施，但改变了既有的 sysfs/netlink 配置接口语义。",
+      "test_recommendation": "创建 802.3ad 或 balance-xor 模式 bonding 设备，加载 XDP 程序，通过 sysfs 写 vlan+srcmac 策略，验证返回 -EOPNOTSUPP；再卸载 XDP 后验证可正常切换。同时通过 ip link set type bond 命令验证 netlink 接口同样拒绝。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "shell command sequence or kselftest shell script",
+        "trigger_surface": "read/write the procfs/sysfs/sysctl node and assert output, errno, permission, or state transition",
+        "seed_sources": [
+          "Documentation/ABI",
+          "existing tools/tests",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "fs_interface_command",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/compatibility-testing"
+}

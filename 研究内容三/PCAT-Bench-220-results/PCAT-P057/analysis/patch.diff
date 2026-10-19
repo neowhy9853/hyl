@@ -1,0 +1,39 @@
+commit 66d9658f5f557e0e525e5db5449ef94686df50d3
+Author: Simon Kelley <simon@thekelleys.org.uk>
+Date:   Thu Feb 26 15:10:41 2026 +0000
+
+    Fix crash with empty DHCP SNAME option.
+    
+    dhcp-option=66,
+    
+    sets the servername to nothing, and causes a segfault at DHCP
+    transaction time. There may be other ways to provoke this, for
+    instance by using an empty filename.
+    
+    The patch make safe_strncpy() even safer, by handing a NULL src argument.
+    
+    Thanks to Jeff Allen for spotting and reporting this.
+
+diff --git a/src/util.c b/src/util.c
+index 44eada2..2712549 100644
+--- a/src/util.c
++++ b/src/util.c
+@@ -327,13 +327,15 @@ void *safe_malloc(size_t size)
+ }
+ 
+ /* Ensure limited size string is always terminated.
+- * Can be replaced by (void)strlcpy() on some platforms */
++   Can be replaced by (void)strlcpy() on some platforms.
++   src may be NULL in which case we return an empty string. */
+ void safe_strncpy(char *dest, const char *src, size_t size)
+ {
+   if (size != 0)
+     {
+-      dest[size-1] = '\0';
+-      strncpy(dest, src, size-1);
++      dest[0] = dest[size-1] = '\0';
++      if (src)
++	strncpy(dest, src, size-1);
+     }
+ }
+ 

@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P056/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P056/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P056",
+  "patch_id": "7d5fbe7da380135a70ab7b7f3f117cc870207503",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "add_edns0_config / add_mac / add_dns_client",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/edns0.c",
+        "old_lines": [
+          265,
+          270
+        ],
+        "new_lines": [
+          265,
+          279
+        ],
+        "symbol": "edns0_needs_mac"
+      },
+      "old_behavior": "在 TCP 模式下，当配置了 --add-mac / --add-mac-hex / --add-mac-b64 选项时，子进程处理 TCP 连接时无法读取内核 ARP 表（无 netlink socket），find_mac() 静默失败，DNS 响应中不包含客户端 MAC 地址的 EDNS0 选项。",
+      "new_behavior": "do_tcp_connection() 在 fork() 之前调用 edns0_needs_mac() 预填充 ARP 缓存；子进程继承父进程的 ARP 缓存后，find_mac() 可直接从缓存中查找客户端 MAC 地址，不再需要 netlink。DNS 响应中按配置正确包含客户端 MAC 地址的 EDNS0 选项。",
+      "compatibility_reason": "这是一个行为修复，但改变了 TCP 模式 DNS 响应的输出内容：此前即使配置了 MAC 地址选项，TCP 模式下的 DNS 响应不会携带 EDNS0 MAC 选项（静默失败）；补丁后这些选项会正确包含在响应中。客户端如果此前依赖了 TCP 模式下 MAC 选项始终缺失的行为（例如使用无 MAC 的响应进行解析），可能会观察到变化。指令明确要求不因 bug fix 而丢弃 finding。",
+      "test_recommendation": "高优先级：使用 dig +tcp 测试 --add-mac / --add-mac-hex / --add-mac-b64 三种选项在 TCP 模式下各自的响应是否包含正确的 EDNS0 MAC 选项。对比 before/after 的输出变化。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P056/compatibility-testing"
+}

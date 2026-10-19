@@ -1,0 +1,919 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P059/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P059",
+  "base_ref": "ad0386bd7",
+  "base_commit": "ad0386bd7c2075a5fc72f99bb99f9380519d20a4",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "e2a1a337e21d28dcd1d9d7fe25aff62f4e3bdf98",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/rhboot/grub2/commit/e2a1a337e21d28dcd1d9d7fe25aff62f4e3bdf98.patch",
+    "download_url": "https://github.com/rhboot/grub2/commit/e2a1a337e21d28dcd1d9d7fe25aff62f4e3bdf98.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P059/_patch-cache/e2a1a337e21d.patch",
+    "commit": "e2a1a337e21d28dcd1d9d7fe25aff62f4e3bdf98"
+  },
+  "package_profile": "grub2",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 3175,
+    "patch_lines": 80,
+    "diff_added_lines": 2,
+    "diff_deleted_lines": 6,
+    "diff_context_lines": 27,
+    "churn": 8,
+    "raw_hunks": 4,
+    "candidate_hunks": 4,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 5308,
+    "public_candidate_hunks": 4,
+    "surface_counts": {
+      "cli_options": 4,
+      "user_visible_output": 3,
+      "cli": 4,
+      "module_api": 4,
+      "boot_protocol": 4,
+      "cli_commands": 4
+    },
+    "candidates_json_bytes": 21041
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 4,
+    "compatibility_changes": 4,
+    "high_priority": 2,
+    "medium_priority": 1,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "grub2",
+      "affected_surface": "boot_protocol / cli_commands - chainloader command TPM PCR measurement behavior",
+      "affected_api": {
+        "name": "grub_cmd_chainloader",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "grub-core/loader/efi/chainloader.c",
+        "old_lines": [
+          1082,
+          1090
+        ],
+        "new_lines": [
+          1081,
+          1087
+        ],
+        "symbol": "grub_cmd_chainloader"
+      },
+      "old_behavior": "调用 grub_linuxefi_secure_validate() 对已加载的 chainloader 镜像进行第二次 shim-lock verify 校验，导致 TPM PCR 被扩展两次（一次由 verifier 框架在 grub_file_open 时触发，一次由该显式调用触发）。",
+      "new_behavior": "完全移除 grub_linuxefi_secure_validate() 显式调用，chainloader 镜像的 shim-lock verify 仅由 verifier 框架在 grub_file_open() 时执行一次，TPM PCR 仅被扩展一次。",
+      "compatibility_reason": "PCR TPM 事件日志发生变化。依赖 TPM 远程证明（remote attestation）或测量启动（measured boot）的系统将对 chainloader 镜像观察到不同的 PCR 值，可能破坏既有的 PCR 策略和完整性校验逻辑。该变更为显式的双重测量问题修复，但对依赖 PCR 值的下游系统具有兼容性影响。",
+      "evidence": [
+        {
+          "file": "grub-core/loader/efi/chainloader.c",
+          "lines": [
+            1082,
+            1085
+          ],
+          "snippet": "  rc = grub_linuxefi_secure_validate((void *)(unsigned long)address, fsize);\n  grub_dprintf (\"chain\", \"linuxefi_secure_validate: %d\\n\", rc);\n  if (rc > 0)"
+        },
+        {
+          "file": "grub-core/loader/efi/chainloader.c",
+          "lines": [
+            1081,
+            1084
+          ],
+          "snippet": "  if (grub_efi_get_secureboot () == GRUB_EFI_SECUREBOOT_MODE_ENABLED)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "chainloader 命令是 GRUB 公共 CLI 命令（通过 GRUB_MOD_INIT 注册），用户和配置文件（grub.cfg）可直接调用，其 TPM 测量行为是 EFI SecureBoot 链的可观察外部效果。",
+      "uncertainty": "依赖旧版双重 PCR 测量的系统可能有多常见，具体影响面依赖于下游发行版对 PCR 策略的使用方式。",
+      "manual_review_required": false,
+      "recommended_review": "建议通知依赖 TPM PCR 远程证明的下游发行版（如 RHEL、Ubuntu、openEuler 等），确认其 PCR 策略是否需要随此变更调整。",
+      "test_recommendation": "在启用 SecureBoot 的 QEMU/VM 环境中执行 chainloader 命令加载 EFI 镜像，捕获并对比修复前后的 TPM 事件日志（PCR 扩展记录），验证 PCR 值的变化符合预期（减少一次扩展）。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "grub-core/loader/efi/chainloader.c",
+            "old_lines": [
+              1082,
+              1090
+            ],
+            "new_lines": [
+              1081,
+              1087
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli",
+              "module_api",
+              "boot_protocol",
+              "cli_commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              },
+              {
+                "name": "cli_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB shell commands and options"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "grub2",
+      "affected_surface": "boot_protocol / cli_commands - boot path selection criteria changed",
+      "affected_api": {
+        "name": "grub_cmd_chainloader",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "grub-core/loader/efi/chainloader.c",
+        "old_lines": [
+          1082,
+          1098
+        ],
+        "new_lines": [
+          1081,
+          1095
+        ],
+        "symbol": "grub_cmd_chainloader"
+      },
+      "old_behavior": "启动路径选择依据 grub_linuxefi_secure_validate() 的返回值：rc > 0 时使用 grub_secureboot_chainloader_boot（调用 handle_image 进行 PE 校验和重定位，然后 start_image）；rc == 0 时使用 grub_chainloader_boot（先 LoadImage 再 start_image）。当 SecureBoot 关闭但 shim 存在时，shim 可能仍验证成功返回 rc > 0，导致使用 handle_image 路径。",
+      "new_behavior": "启动路径选择仅依据 SecureBoot 状态：SecureBoot 开启时使用 grub_secureboot_chainloader_boot，否则始终使用 grub_chainloader_boot。不再调用 grub_linuxefi_secure_validate()，shim 存在与否不再影响路径选择。",
+      "compatibility_reason": "当 SecureBoot 关闭但 shim 仍安装时，旧代码可能选择 grub_secureboot_chainloader_boot 路径（调用 handle_image + LoadImage + StartImage），新代码始终选择 grub_chainloader_boot 路径（直接 LoadImage + StartImage）。handle_image 额外进行 PE 头部校验、重定位等处理，其缺失可能影响某些非标准 EFI 镜像的启动行为。此外，grub_chainloader_boot 直接调用 start_image 而不调用 handle_image，改变了 EFI boot services 调用序列。",
+      "evidence": [
+        {
+          "file": "grub-core/loader/efi/chainloader.c",
+          "lines": [
+            1082,
+            1098
+          ],
+          "snippet": "  rc = grub_linuxefi_secure_validate((void *)(unsigned long)address, fsize);\n  grub_dprintf (\"chain\", \"linuxefi_secure_validate: %d\\n\", rc);\n  if (rc > 0)\n    {\n      grub_file_close (file);\n      grub_device_close (dev);\n      grub_loader_set (grub_secureboot_chainloader_boot,\n                       grub_secureboot_chainloader_unload, 0);\n      return 0;\n    }\n  else if (rc == 0)"
+        },
+        {
+          "file": "grub-core/loader/efi/chainloader.c",
+          "lines": [
+            1081,
+            1092
+          ],
+          "snippet": "  if (grub_efi_get_secureboot () == GRUB_EFI_SECUREBOOT_MODE_ENABLED)\n    {\n      grub_file_close (file);\n      grub_device_close (dev);\n      grub_loader_set (grub_secureboot_chainloader_boot,\n                       grub_secureboot_chainloader_unload, 0);\n      return 0;\n    }\n  else"
+        },
+        {
+          "file": "grub-core/loader/efi/chainloader.c",
+          "lines": [
+            529,
+            545
+          ],
+          "snippet": "handle_image (void *data, grub_efi_uint32_t datasize)\n{\n  ...\n  rc = read_header (data, datasize, &context);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "chainloader 命令是公共 CLI 接口，启动路径选择直接影响 EFI 镜像的加载行为，属于用户可观察的启动时序和 EFI 服务调用变化。",
+      "uncertainty": "SecureBoot 关闭但 shim 存在的场景在实际部署中是否常见不确定。commit 消息中提到\"not sure if that is necessary\"，作者本人对此场景的路径选择存在疑问。",
+      "manual_review_required": true,
+      "recommended_review": "建议在以下场景人工复核：(1) SecureBoot OFF + shim 已安装的环境，确认 chainloader 是否仍能正常启动所有预期镜像类型；(2) 某些依赖 handle_image PE 重定位的非标准 EFI 镜像，确认新的 LoadImage + StartImage 路径是否兼容。",
+      "test_recommendation": "在 SecureBoot OFF + shim 安装环境中测试 chainloader 启动多种 EFI 镜像（包括非标准 PE 镜像），观察启动行为是否与修复前一致。同时对比 handle_image 和 LoadImage/StartImage 对相同镜像的处理差异。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 3 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 3,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "grub-core/loader/efi/chainloader.c",
+            "old_lines": [
+              1082,
+              1090
+            ],
+            "new_lines": [
+              1081,
+              1087
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli",
+              "module_api",
+              "boot_protocol",
+              "cli_commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              },
+              {
+                "name": "cli_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB shell commands and options"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "grub-core/loader/efi/chainloader.c",
+            "old_lines": [
+              1092,
+              1098
+            ],
+            "new_lines": [
+              1089,
+              1095
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli",
+              "module_api",
+              "boot_protocol",
+              "cli_commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              },
+              {
+                "name": "cli_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB shell commands and options"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0004",
+            "file": "grub-core/loader/efi/chainloader.c",
+            "old_lines": [
+              1101,
+              1107
+            ],
+            "new_lines": [
+              1098,
+              1103
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "cli",
+              "module_api",
+              "boot_protocol",
+              "cli_commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              },
+              {
+                "name": "cli_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB shell commands and options"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 3 matched candidate hunk(s)"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "grub2",
+      "affected_surface": "cli_options / boot_protocol - error handling path for chainloader removed",
+      "affected_api": {
+        "name": "grub_cmd_chainloader",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "grub-core/loader/efi/chainloader.c",
+        "old_lines": [
+          1092,
+          1107
+        ],
+        "new_lines": [
+          1089,
+          1103
+        ],
+        "symbol": "grub_cmd_chainloader"
+      },
+      "old_behavior": "grub_linuxefi_secure_validate() 返回负值时（验证失败），代码通过 fall-through 进入 fail 标签，执行资源清理和错误返回。三段分支为：rc > 0 走安全启动路径、rc == 0 走常规路径、rc < 0 走失败路径。",
+      "new_behavior": "三段分支简化为二段：SecureBoot 开启走安全启动路径（grub_secureboot_chainloader_boot），否则走常规路径。不存在显式的链式加载验证失败路径。依赖 verifier 框架在 grub_file_open() 阶段截获加载失败。",
+      "compatibility_reason": "虽然 commit 消息声称在 SecureBoot 下该错误路径已不可达（verifier 框架已在文件打开时完成校验），但代码的契约语义已发生变化。如果将来 grub_linuxefi_secure_validate() 被重新调用或存在非标准 verifier 模块配置，缺少显式错误路径可能导致行为不同于预期。此外，当 SecureBoot 开启但 verifier 模块缺失时，行为可能与旧代码不一致。",
+      "evidence": [
+        {
+          "file": "grub-core/loader/efi/chainloader.c",
+          "lines": [
+            1092,
+            1107
+          ],
+          "snippet": "  else if (rc == 0)\n    {\n      ...\n      return 0;\n    }\n  // -1 fall-through to fail\n\nfail:"
+        },
+        {
+          "file": "grub-core/loader/efi/chainloader.c",
+          "lines": [
+            1089,
+            1103
+          ],
+          "snippet": "  else\n    {\n      ...\n      return 0;\n    }\n\nfail:"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "错误处理路径直接影响 chainloader 命令对无效/恶意 EFI 镜像的响应方式，用户可观察到启动是否以不同错误码/消息失败或意外继续处理。",
+      "uncertainty": "在标准 SecureBoot 配置下该错误路径确实不可达（verifier 框架拦截），但在非标准配置或 verifier 模块缺失时可能存在差异。",
+      "manual_review_required": false,
+      "recommended_review": "确认在目标发行版的默认 GRUB 配置中，verifier 框架必然在 grub_file_open() 阶段拦截验证失败，从而使该错误路径确实不可达。",
+      "test_recommendation": "构造一个无效/损坏的 EFI 镜像，在 SecureBoot ON 环境中执行 chainloader 命令，验证：(1) 修复前会因 grub_linuxefi_secure_validate() 返回负数而进入 fail 路径；(2) 修复后 verifier 框架在文件打开时已拒绝，行为等价。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 3 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=ERROR_EXCEPTION_CHANGE -> high"
+        ],
+        "matched_candidate_count": 3,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "grub-core/loader/efi/chainloader.c",
+            "old_lines": [
+              1092,
+              1098
+            ],
+            "new_lines": [
+              1089,
+              1095
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli",
+              "module_api",
+              "boot_protocol",
+              "cli_commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              },
+              {
+                "name": "cli_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB shell commands and options"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0004",
+            "file": "grub-core/loader/efi/chainloader.c",
+            "old_lines": [
+              1101,
+              1107
+            ],
+            "new_lines": [
+              1098,
+              1103
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "cli",
+              "module_api",
+              "boot_protocol",
+              "cli_commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              },
+              {
+                "name": "cli_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB shell commands and options"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "grub-core/loader/efi/chainloader.c",
+            "old_lines": [
+              1082,
+              1090
+            ],
+            "new_lines": [
+              1081,
+              1087
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli",
+              "module_api",
+              "boot_protocol",
+              "cli_commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              },
+              {
+                "name": "cli_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB shell commands and options"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 3 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=ERROR_EXCEPTION_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "grub2",
+      "affected_surface": "user_visible_output - debug diagnostic output removed",
+      "affected_api": {
+        "name": "grub_cmd_chainloader",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "grub-core/loader/efi/chainloader.c",
+        "old_lines": [
+          1082,
+          1090
+        ],
+        "new_lines": [
+          1081,
+          1087
+        ],
+        "symbol": "grub_cmd_chainloader"
+      },
+      "old_behavior": "在执行 chainloader 时输出 grub_dprintf 调试日志 \"linuxefi_secure_validate: %d\\n\"，包含 shim-lock 验证的返回值。该日志在 'chain' 调试类别下可见。",
+      "new_behavior": "该 grub_dprintf 调试日志被完全移除，chainloader 命令不再输出 shim-lock 验证结果日志。",
+      "compatibility_reason": "依赖该调试日志进行启动故障排查的开发者或自动化脚本可能受到影响。调试日志虽然非稳定接口，但在实际运维中常被用作诊断依据。",
+      "evidence": [
+        {
+          "file": "grub-core/loader/efi/chainloader.c",
+          "lines": [
+            1082,
+            1090
+          ],
+          "snippet": "  rc = grub_linuxefi_secure_validate((void *)(unsigned long)address, fsize);\n  grub_dprintf (\"chain\", \"linuxefi_secure_validate: %d\\n\", rc);\n  if (rc > 0)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "grub_dprintf 是用户可见的 GRUB 调试输出接口，通过设置 debug 变量可观察到该输出，对启动故障排查具有实际价值。",
+      "uncertainty": "该调试日志的消费者范围有限，主要为 GRUB 开发者和高级用户，且 grub_linuxefi_secure_validate() 返回值本身已不再产生。",
+      "manual_review_required": false,
+      "recommended_review": "无需特殊复核，属于伴随功能变更的副作用清理。",
+      "test_recommendation": "在启用 'chain' 调试输出的环境中，确认新代码执行 chainloader 时不再产生 \"linuxefi_secure_validate\" 日志，且其他调试信息正常输出。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "grub-core/loader/efi/chainloader.c",
+            "old_lines": [
+              1082,
+              1090
+            ],
+            "new_lines": [
+              1081,
+              1087
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli",
+              "module_api",
+              "boot_protocol",
+              "cli_commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              },
+              {
+                "name": "cli_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB shell commands and options"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "grub-core/loader/efi/chainloader.c",
+            "old_lines": [
+              1092,
+              1098
+            ],
+            "new_lines": [
+              1089,
+              1095
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli",
+              "module_api",
+              "boot_protocol",
+              "cli_commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              },
+              {
+                "name": "cli_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB shell commands and options"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "analysis_summary": {
+    "notes": "本补丁移除 chainloader 命令中的 grub_linuxefi_secure_validate() 重复调用，消除双重 TPM PCR 测量问题。变更集中在 grub-core/loader/efi/chainloader.c 的 grub_cmd_chainloader 函数中。共确认 4 项兼容性变更：2 项高优先级（TPM PCR 测量行为变化、启动路径选择标准变化），1 项中优先级（错误处理路径简化），1 项低优先级（调试日志移除）。变更影响的 API surface 包括 boot_protocol、cli_commands、cli_options 和 user_visible_output。该补丁必须在已有 verifier 框架且 shim-lock-verifier 为内置模块的 GRUB 版本中使用，不应移植到缺少 verifier 框架的旧版本。"
+  }
+}

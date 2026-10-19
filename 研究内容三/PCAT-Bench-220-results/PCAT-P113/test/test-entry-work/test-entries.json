@@ -1,0 +1,54 @@
+[
+  {
+    "finding_id": "PCA-0001",
+    "entry_id": "PCA-TE-0001",
+    "entry_kind": "api_harness",
+    "status": "generated",
+    "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+    "build_command": "cd build && ../analysis_repo/configure CFLAGS=\"-fprofile-arcs -ftest-coverage -O0 -g\" LDFLAGS=\"-lgcov --coverage\" --prefix=$PWD/install && make -j$(nproc)",
+    "run_command": "cd test-entry-work/PCA-0001 && bash reproducer.sh",
+    "target_location": {
+      "file": "libsoup/soup-auth-manager.c",
+      "new_lines": [446, 454],
+      "symbol": "update_authorization_header"
+    },
+    "reachability_signal": "gcov coverage showing hits on lines 449-450 (the guarded soup_message_headers_remove call) after sending a request with manual Authorization header and no cached credentials",
+    "expected_signal": "Before patch: Authorization header is stripped; After patch: Authorization header is preserved (response status 200 with echoed Authorization header)",
+    "execution": {
+      "cwd": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P053/compatibility-testing",
+      "timeout_seconds": 300,
+      "uses_clean_source_copy": true
+    },
+    "input_strategy": "Send HTTP request with manually-set Authorization header ('Basic dGVzdDp0ZXN0') through a session without cached credentials, against an in-process SoupServer that requires Basic auth (returns 401 with WWW-Authenticate). The changed code path in update_authorization_header() is triggered when soup_message_get_auth(msg) returns NULL, which happens when the session has no cached auth for the target URI.",
+    "contract_probe": {
+      "probe_id": "side_effect_auth_header_preservation",
+      "command": "bash test-entry-work/PCA-0001/reproducer.sh",
+      "comparison": "exact",
+      "cwd": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P053/compatibility-testing",
+      "timeout_seconds": 300
+    },
+    "prerequisites": [
+      "intltool (for autogen.sh)",
+      "autoconf, automake, libtool",
+      "glib-2.0-devel (pkg-config glib-2.0)",
+      "libxml2-devel (pkg-config libxml-2.0)",
+      "sqlite3-devel (pkg-config sqlite3)",
+      "Apache HTTP server with Digest auth module OR in-process SoupServer"
+    ],
+    "limitations": "1) Requires Apache HTTP server with Digest auth for full test coverage (the commit's native test uses Apache). 2) The in-process SoupServer approach (harness.c) only tests Basic auth, not Digest auth. 3) Building libsoup from the 2016-era analysis worktree requires intltool which is not available in the current environment. 4) System libsoup-2.4.pc not found (dev headers missing).",
+    "native_test_entry": {
+      "source": "commit_message_reproducer",
+      "test_name": "/auth/authorization-header-request",
+      "test_function": "do_message_has_authorization_header_test",
+      "file": "tests/auth-test.c",
+      "command": "./auth-test -p /auth/authorization-header-request",
+      "requires_apache": true
+    },
+    "synthetic_harness": {
+      "source": "synthetic_harness",
+      "harness_file": "test-entry-work/PCA-0001/harness.c",
+      "harness_type": "standalone C program using libsoup in-process SoupServer",
+      "covers": "Authorization header preservation when no cached auth exists"
+    }
+  }
+]

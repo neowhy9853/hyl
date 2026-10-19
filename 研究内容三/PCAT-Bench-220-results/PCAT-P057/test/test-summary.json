@@ -1,0 +1,132 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/analysis.json",
+  "patch_id": "66d9658f5f557e0e525e5db5449ef94686df50d3",
+  "result_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+    "base_commit": "ca30c826476ba01ad1383f0fbb4e3d51fd998ea3",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/_worktrees/patched",
+    "package_profile": "dnsmasq"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc (Ubuntu)",
+    "optimization": "-O0 -g",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Build with COPTS=-DHAVE_DNSSEC, nettle/hogweed/gmp available",
+      "DHCP full-protocol test requires network namespace root; not available in sandbox",
+      "Standalone unit harness proved contract correctness for all input variants"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 11,
+    "inputs_executed": 11,
+    "contracts_total": 2,
+    "contracts_passed": 2,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 3,
+    "patch_lines_covered": 3,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "low",
+      "status": "passed",
+      "target_location": {
+        "file": "src/util.c",
+        "new_lines": [
+          327,
+          341
+        ],
+        "symbol": "safe_strncpy"
+      },
+      "entries": [
+        {
+          "entry_id": "TE-0001",
+          "status": "passed",
+          "artifact_path": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/compatibility-testing/test-entry-work/standalone_test",
+          "run_command": "standalone_test",
+          "expected_signal": "11/11 tests pass, NULL src handled without crash in patched version",
+          "reachability_signal": "PASS Test 8 (new:NULL): result="
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "backward_input_acceptance",
+          "status": "passed",
+          "detail": "INPUT_CONTRACT_CHANGE (relaxation): NULL src previously caused SIGSEGV (Test 3 proved crash), now produces empty string (Test 8 proved). Non-NULL behavior identical (Tests 1,6). Contract is RELAXED - accepts more inputs without breaking existing correct callers."
+        },
+        {
+          "contract_id": "normal_behavior_preservation",
+          "status": "passed",
+          "detail": "Normal src (non-NULL string) produces identical results in both old and new versions. Verified with empty string, short string, size=1, size=0 edge cases. No behavioral regression for existing callers."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 3,
+        "covered_lines": 3,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I3",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "SIGSEGV crash when safe_strncpy(dest, NULL, size) called (Test 3)",
+          "after": "Empty string returned when safe_strncpy(dest, NULL, size) called (Test 8)",
+          "evidence": "PASS Test 3 (old:NULL): crashed as expected; PASS Test 8 (new:NULL): result="
+        }
+      ],
+      "notes": [
+        "GCov confirms patch lines 336-338 executed during dnsmasq startup (4 calls)",
+        "NULL branch of line 337 (if src) not reached during startup because DHCP transaction not triggered (requires netns root)",
+        "Standalone harness explicitly tested NULL branch and confirmed correct behavior",
+        "This is a bug fix (crash prevention). No existing correct callers are affected."
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "BLOCKER-001",
+      "reason": "DHCP full-protocol test requires network namespace with root privileges (sudo password not available in sandbox)",
+      "required_action": "Run DHCP test in a network namespace with sudo or as root: sudo ip netns add pca-test && ..."
+    }
+  ],
+  "artifacts": {
+    "impact_map": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/compatibility-testing/phase1_impact/impact_map.json",
+    "test_entry_tasks": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/compatibility-testing/test-entry-tasks.json",
+    "test_entries": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/compatibility-testing/test-entry-work/test-entries.json",
+    "test_inputs": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/compatibility-testing/phase3_inputs/test_inputs.json",
+    "execution_results": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/compatibility-testing/phase4_execution/results.json",
+    "contract_summary": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/compatibility-testing/phase3_contracts/contract_verification.json",
+    "coverage_data": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/_worktrees/patched/util.c.gcov",
+    "report": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/compatibility-testing/COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": true,
+    "rationale": "Patch lines covered (100%). Contract tests passed (11/11). However, DHCP full-protocol integration test could not be executed (requires root/network namespace). Unit-level testing confirms INPUT_CONTRACT_CHANGE is a relaxation (crash becomes defined behavior), no regression for normal inputs. Conclusion: inconclusive due to missing integration test, but strong evidence suggests compatible.",
+    "recommended_actions": [
+      "Execute DHCP full-protocol test in network namespace with root privileges",
+      "Test dhcp-boot with empty filename (same safe_strncpy code path)",
+      "Add a regression unit test for safe_strncpy with NULL src"
+    ]
+  }
+}

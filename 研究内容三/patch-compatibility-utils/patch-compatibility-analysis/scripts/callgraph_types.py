@@ -63,6 +63,7 @@ class FunctionInfo:
     language: str
     is_static: bool = False
     calls: Set[str] = field(default_factory=set)
+    call_sites: Dict[str, Set[int]] = field(default_factory=dict)
     entry_kind: str = ""
 
     @property

@@ -1,0 +1,229 @@
+{
+  "repo": "/data7/wanghy/tmp/opencode/httpd-clone",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P068/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P068",
+  "base_ref": "66254273e22a5b4051d15d7423b86a5d884b4ee5",
+  "base_commit": "66254273e22a5b4051d15d7423b86a5d884b4ee5",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "2d8a447551125cb0f1efb4781a58afa9ab77c392",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/apache/httpd/commit/2d8a447551125cb0f1efb4781a58afa9ab77c392",
+    "download_url": "https://github.com/apache/httpd/commit/2d8a447551125cb0f1efb4781a58afa9ab77c392.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P068/_patch-cache/2d8a44755112.patch",
+    "commit": "2d8a447551125cb0f1efb4781a58afa9ab77c392"
+  },
+  "package_profile": "httpd",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1872,
+    "patch_lines": 47,
+    "diff_added_lines": 8,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 11,
+    "churn": 10,
+    "raw_hunks": 2,
+    "candidate_hunks": 2,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 2521,
+    "public_candidate_hunks": 2,
+    "surface_counts": {
+      "network_protocol": 1,
+      "cli_options": 1,
+      "config_keys": 1,
+      "cli": 1,
+      "plugin_api": 1,
+      "module_api": 1,
+      "config_directives": 1
+    },
+    "candidates_json_bytes": 9939
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 2,
+    "compatibility_changes": 1,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "httpd",
+      "affected_surface": "RewriteRule configuration directive in mod_rewrite, specifically the interaction between trailing '?' in the substitution string and the [QSA] flag",
+      "affected_api": {
+        "name": "RewriteRule",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/mappers/mod_rewrite.c",
+        "old_lines": [
+          3910,
+          3911
+        ],
+        "new_lines": [
+          3911,
+          3914
+        ],
+        "symbol": "cmd_rewriterule"
+      },
+      "old_behavior": "当 RewriteRule 的替换字符串以 '?' 结尾时，无论该规则是否设置了 [QSA] 标志，RULEFLAG_QSNONE 都会被无条件设置，从而抑制查询字符串的追加。这意味着当规则同时包含尾部 '?' 和 [QSA] 标志时，[QSA] 标志被忽略，查询字符串不会被追加。",
+      "new_behavior": "当 RewriteRule 的替换字符串以 '?' 结尾时，只有在该规则未设置 [QSA] 标志的情况下才会设置 RULEFLAG_QSNONE。如果规则同时设置了 [QSA] 标志和尾部 '?'，则 [QSA] 生效，查询字符串将被追加到重写的 URL 中。",
+      "compatibility_reason": "该变更修改了 RewriteRule 配置指令的核心行为。旧行为无条件忽略 [QSA] 标志（当存在尾部 '?' 时），新行为则使 [QSA] 优先。已部署的使用 RewriteRule 并同时具有尾部 '?' 和 [QSA] 标志的 Apache 配置，在升级后将产生不同的查询字符串行为，可能导致 URL 中出现意外的查询参数，从而破坏依赖特定 URL 格式的下游应用、反向代理规则、缓存策略或安全规则。此变更虽然是 bug 修复（PR66672 记录了 'recent regression'），但其改变了配置指令的语义，属于兼容性变更。",
+      "evidence": [
+        {
+          "file": "modules/mappers/mod_rewrite.c",
+          "lines": [
+            3910,
+            3911
+          ],
+          "snippet": "     if (*(a2_end-1) == '?') {\n-        /* a literal ? at the end of the unsubstituted rewrite rule */\n-        newrule->flags |= RULEFLAG_QSNONE;\n         *(a2_end-1) = '\\0'; /* trailing ? has done its job */"
+        },
+        {
+          "file": "modules/mappers/mod_rewrite.c",
+          "lines": [
+            3911,
+            3914
+          ],
+          "snippet": "         *(a2_end-1) = '\\0'; /* trailing ? has done its job */\n+        /* a literal ? at the end of the unsubstituted rewrite rule */\n+        if (!(newrule->flags & RULEFLAG_QSAPPEND))\n+        {\n+            newrule->flags |= RULEFLAG_QSNONE;\n+        }"
+        },
+        {
+          "file": "modules/mappers/mod_rewrite.c",
+          "lines": [
+            5477,
+            5477
+          ],
+          "snippet": "    AP_INIT_RAW_ARGS(\"RewriteRule\",     cmd_rewriterule,     NULL, OR_FILEINFO,"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "cmd_rewriterule 虽然声明为 static 函数，但它通过 AP_INIT_RAW_ARGS 注册为 RewriteRule 配置指令的解析处理函数，是所有用户 RewriteRule 配置的解析入口。RewriteRule 是 mod_rewrite 模块的核心配置指令，广泛用于 URL 重写，其行为变化直接影响 HTTP 响应中的重写 URL 和查询字符串，构成外部可观察的兼容性变化。",
+      "uncertainty": "变更前的行为是最近才引入的回归（根据 PR66672 描述为 'recent regression'），这意味着旧行为可能仅在有限的版本窗口内有效。大部分已部署的配置可能基于更早版本（其中 [QSA] 与尾部 '?' 协同工作正常），因此实际受影响用户规模可能较小。",
+      "manual_review_required": false,
+      "recommended_review": "建议确认自哪个版本开始引入了该回归，以评估实际影响范围。如果该回归仅出现在未发布的开发版本中，则影响极为有限。",
+      "test_recommendation": "设置包含以下 RewriteRule 的 Apache 配置进行测试：\n1. RewriteRule ^/test /new [QSA] — 验证正常 QSA 行为未改变\n2. RewriteRule ^/test /new? [QSA] — 验证修复后查询字符串被正确追加（有尾随 '?' 且带 QSA）\n3. RewriteRule ^/test /new? — 验证尾部 '?' 无 QSA 时查询字符串仍被抑制\n4. RewriteRule ^/test /new?param=val [QSA] — 验证替换字符串中存在显式 '?' 时的行为\n对每个场景使用 HTTP 请求验证实际重写 URL 中的查询字符串。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "modules/mappers/mod_rewrite.c",
+            "old_lines": [
+              3909,
+              3917
+            ],
+            "new_lines": [
+              3909,
+              3920
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "config_keys",
+              "cli",
+              "plugin_api",
+              "module_api",
+              "config_directives"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "cli",
+                "test_priority": "medium",
+                "public": true,
+                "description": "httpd and support utility command-line behavior"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "config_directives",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration directive parsing and behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

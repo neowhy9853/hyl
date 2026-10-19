@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/bc05a8/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/lvm2",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/bc05a8/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/bc05a8",
+  "patch_id": "bc05a801bdca5f982f5712f1220e34a47a993f33",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "config_file_read_fd",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "lib/config/config.c",
+        "old_lines": [
+          512,
+          524
+        ],
+        "new_lines": [
+          512,
+          525
+        ],
+        "symbol": "config_file_read_fd"
+      },
+      "old_behavior": "When metadata buffer size overflow (integer wraparound) is detected, an error message 'Metadata buffer size overflow.' is logged without any diagnostic details.",
+      "new_behavior": "When metadata buffer size overflow is detected, the error message includes the actual size values (size, size2) and the device name, formatted as 'Metadata buffer size overflow %zu + %zu on %s.'.",
+      "compatibility_reason": "The error message format for metadata buffer overflow has changed. Any tool, script, monitoring system, or test that parses lvm stderr/log output and matches against the exact error string 'Metadata buffer size overflow.' will fail to match the new message. The message now includes size values and device name which changes both the text and number of tokens.",
+      "test_recommendation": "Verify that the new error message format includes the correct size and device name. Compile the patched binary and trigger the metadata buffer overflow condition (by passing a crafted metadata size that causes integer wraparound) to confirm the new message format.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/bc05a8/compatibility-testing"
+}

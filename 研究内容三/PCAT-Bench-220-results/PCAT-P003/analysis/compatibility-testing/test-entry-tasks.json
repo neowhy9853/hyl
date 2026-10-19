@@ -1,0 +1,76 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P003/analysis/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/kernel",
+  "analysis_repo": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P003/analysis/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P003/analysis",
+  "patch_id": "828e0bb791b319cbbb6102978c639ecac0bc917a",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "IOCTL_NETLINK_ABI_CHANGE",
+      "affected_api": {
+        "name": "struct rtnl_link_stats / IFLA_STATS",
+        "kind": "struct_type",
+        "language": "c",
+        "signature_old": "struct rtnl_link_stats { ...; __u32 rx_nohandler; };",
+        "signature_new": "struct rtnl_link_stats { ...; __u32 rx_nohandler; __u32 rx_dropped_by_xdp; };"
+      },
+      "target_location": {
+        "file": "include/uapi/linux/if_link.h",
+        "old_lines": [
+          37,
+          42
+        ],
+        "new_lines": [
+          37,
+          43
+        ],
+        "symbol": "struct rtnl_link_stats"
+      },
+      "old_behavior": "补丁前 struct rtnl_link_stats 含 24 个 __u32 字段，x86_64 上 sizeof、alignof 和数组步长分别为 96、4、96 字节；rtnl_fill_stats() 以该 sizeof 生成 IFLA_STATS 载荷，因此旧载荷长度为 96 字节。",
+      "new_behavior": "补丁在结构体尾部新增 __u32 rx_dropped_by_xdp，使 sizeof 和数组步长增至 100 字节、字段偏移为 96；rtnl_fill_stats() 的 sizeof(struct rtnl_link_stats) 同步使 IFLA_STATS 载荷增长到 100 字节。既有字段偏移保持不变。",
+      "compatibility_reason": "这是稳定 include/uapi 公共结构和 rtnetlink 线协议载荷的布局变化。按旧头文件编译且要求 IFLA_STATS 长度等于 96、复制固定大小、以旧 sizeof 迭代结构数组或校验完整布局的消费者，面对 100 字节载荷可能拒绝、截断或错误计算步长；新旧头文件编译出的消费者也不再具有相同的 sizeof 契约。",
+      "test_recommendation": "分别对 before/after 执行 headers_install，用同一用户态 C probe 比较 sizeof、alignof、rx_nohandler/rx_dropped_by_xdp 的 offsetof 和数组步长；再启动匹配内核，通过 NETLINK_ROUTE RTM_GETLINK 比较 IFLA_STATS nla_len/载荷长度，并用旧头文件消费者验证严格长度与兼容前缀解析，同时保留 native-header/native-size 控制路径。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "ioctl_or_netlink_uapi_reproducer",
+        "preferred_artifact": "kselftest, syzkaller program, shell command, or minimal module only when no user-space path exists",
+        "trigger_surface": "drive the externally reachable subsystem path that reaches the changed line",
+        "seed_sources": [
+          "tools/testing/selftests",
+          "static_call_chains",
+          "subsystem docs"
+        ],
+        "surface_entry_kind": "kernel_reachability_reproducer",
+        "contract_id": "ioctl_netlink_abi_stability",
+        "comparison": "exact",
+        "required_observation": "command/family availability, UAPI layout, attributes, policy, reply, and errno",
+        "input_axes": [
+          "command/operation",
+          "struct size",
+          "known attributes",
+          "unknown attributes",
+          "nested policy",
+          "compat mode"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P003/analysis/compatibility-testing"
+}

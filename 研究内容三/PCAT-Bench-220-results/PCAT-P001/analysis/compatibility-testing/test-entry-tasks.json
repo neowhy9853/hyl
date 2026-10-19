@@ -1,0 +1,121 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/linux",
+  "analysis_repo": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis",
+  "patch_id": "632ca5e16e3e3141e559b9b4a4e588d252d0df2a",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "ABI_CHANGE",
+      "affected_api": {
+        "name": "struct input_event",
+        "kind": "struct_type",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "include/uapi/linux/input.h",
+        "old_lines": [
+          44,
+          49
+        ],
+        "new_lines": [
+          44,
+          50
+        ],
+        "symbol": "struct input_event"
+      },
+      "old_behavior": "struct input_event 在 __s32 value 后结束；用户态按旧头文件编译时，事件记录大小和尾部布局不包含额外的 32 位字段。",
+      "new_behavior": "struct input_event 在 value 后新增 __u32 compat_reserved；用户态编译得到的结构体记录变长，尾部布局与旧头文件不一致。",
+      "compatibility_reason": "evdev 消费者以 struct input_event 为 read(2) 记录边界。给稳定 UAPI 结构体追加字段会改变 sizeof 和数组步长；使用新旧头文件编译的客户端与生产者可能以不同记录长度解释同一字节流。",
+      "test_recommendation": "用相同用户态 C harness 分别包含基线与补丁后的 UAPI 头文件，断言 sizeof(struct input_event)、compat_reserved 的 offsetof 及连续记录数组步长；若具备 VM，再比较 evdev read(2) 的实际记录边界。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "kernel_reachability_reproducer",
+        "preferred_artifact": "kselftest, syzkaller program, shell command, or minimal module only when no user-space path exists",
+        "trigger_surface": "drive the externally reachable subsystem path that reaches the changed line",
+        "seed_sources": [
+          "tools/testing/selftests",
+          "static_call_chains",
+          "subsystem docs"
+        ]
+      },
+            "required_output": {
+                "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "limitations and any manual steps"
+                ],
+                "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+            }
+        },
+        {
+            "id": "PCA-TE-0002",
+            "finding_id": "PCA-0001",
+            "test_priority": "high",
+            "compatibility_type": "ABI_CHANGE",
+            "affected_api": {
+                "name": "struct input_event",
+                "kind": "struct_type",
+                "language": "c"
+            },
+            "target_location": {
+                "file": "include/uapi/linux/input.h",
+                "old_lines": [
+                    44,
+                    49
+                ],
+                "new_lines": [
+                    44,
+                    50
+                ],
+                "symbol": "struct input_event"
+            },
+            "old_behavior": "基线内核的原生 struct input_event 为 24 字节，evdev/uinput 接受 24 字节记录。",
+            "new_behavior": "补丁内核的原生 struct input_event 为 32 字节，旧 24 字节 syscall 缓冲区低于 input_event_size()。",
+            "compatibility_reason": "需要用真实 before/after 内核确认编译期布局差异确实改变 write/read 的用户可见输入契约，而不是仅停留在 sizeof。",
+            "test_recommendation": "在无特权 QEMU VM 内用 uinput 创建虚拟键盘，比较旧 24 字节和各内核 native-size 记录的 write/read 返回值。",
+            "static_call_chains": [
+                [
+                    "write(/dev/uinput)",
+                    "uinput_write",
+                    "uinput_inject_events",
+                    "input_event_from_user"
+                ],
+                [
+                    "read(/dev/input/eventX)",
+                    "evdev_read",
+                    "input_event_to_user"
+                ]
+            ],
+            "strategy": {
+                "entry_kind": "kernel_qemu_syscall_harness",
+                "preferred_artifact": "static initramfs probe and isolated before/after bzImage",
+                "trigger_surface": "uinput write and evdev read syscalls",
+                "seed_sources": [
+                    "drivers/input/misc/uinput.c",
+                    "drivers/input/evdev.c",
+                    "drivers/input/input-compat.c"
+                ]
+            },
+            "required_output": {
+                "goal": "compare legacy and native event record syscalls across real before/after kernels",
+                "must_include": [
+                    "isolated before/after builds",
+                    "exact QEMU runner",
+                    "legacy write/read errno and return values",
+                    "native-size reachability control",
+                    "serial logs and guest completion markers"
+                ],
+                "do_not_execute": "Do not require host root, persistent services, or physical input hardware."
+            }
+        }
+    ],
+  "test_result_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/compatibility-testing"
+}

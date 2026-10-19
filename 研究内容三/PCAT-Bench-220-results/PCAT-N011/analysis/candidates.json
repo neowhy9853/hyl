@@ -1,0 +1,210 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/fbfcf87/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/fbfcf87/patch.diff",
+  "profile": "dnsmasq",
+  "summary": {
+    "total_changed_files": 2,
+    "changed_files": [
+      "src/blockdata.c",
+      "src/util.c"
+    ],
+    "total_hunks": 2,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 1481,
+      "patch_lines": 63,
+      "diff_added_lines": 7,
+      "diff_deleted_lines": 15,
+      "diff_context_lines": 26,
+      "churn": 22,
+      "raw_hunks": 2,
+      "candidate_hunks": 2,
+      "skipped_doc_hunks": 0,
+      "changed_files": 2,
+      "candidate_context_bytes": 2739,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "user_visible_output": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/blockdata.c",
+      "old_start": 193,
+      "old_end": 214,
+      "new_start": 193,
+      "new_end": 212,
+      "context_hint": "void *blockdata_retrieve(struct blockdata *block, size_t len, void *data)",
+      "added_lines": [
+        "  uint8_t *d;",
+        "      static unsigned int buff_len = 0;",
+        "      static unsigned char *buff = NULL;",
+        "      uint8_t *new;",
+        "      ",
+        "\t  if (!(new = whine_realloc(buff, blen)))"
+      ],
+      "deleted_lines": [
+        "  uint8_t *new, *d;",
+        "  static unsigned int buff_len = 0;",
+        "  static unsigned char *buff = NULL;",
+        "   ",
+        "\t  if (!(new = whine_malloc(blen)))",
+        "\t  if (buff)",
+        "\t    free(buff);",
+        ""
+      ],
+      "context_lines": [
+        "{",
+        "  size_t blen;",
+        "  struct  blockdata *b;",
+        "  ",
+        "  if (!data)",
+        "    {",
+        "      if (len > buff_len)",
+        "\t{",
+        "\t  blen = len + 1024;",
+        "\t    return NULL;",
+        "",
+        "\t  buff = new;",
+        "\t  buff_len = blen;",
+        "\t}"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "blockdata",
+        "uint8_t",
+        "d",
+        "buff_len",
+        "buff",
+        "NULL",
+        "blockdata_free"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "blockdata",
+        "snippet_start_line": 164,
+        "snippet_end_line": 241,
+        "snippet": "\t  b = new;\n\t}\n      else\n\t{\n\t  /* failed to alloc, free partial chain */\n\t  blockdata_free(block);\n\t  return 0;\n\t}\n    }\n\n  return 1;\n}\n\nvoid blockdata_free(struct blockdata *blocks)\n{\n  struct blockdata *tmp;\n  \n  if (blocks)\n    {\n      for (tmp = blocks; tmp->next; tmp = tmp->next)\n\tblockdata_count--;\n      tmp->next = keyblock_free;\n      keyblock_free = blocks; \n      blockdata_count--;\n    }\n}\n\n/* if data == NULL, return pointer to static block of sufficient size */\nvoid *blockdata_retrieve(struct blockdata *block, size_t len, void *data)\n{\n  size_t blen;\n  struct  blockdata *b;\n  uint8_t *d;\n  \n  if (!data)\n    {\n      static unsigned int buff_len = 0;\n      static unsigned char *buff = NULL;\n      uint8_t *new;\n      \n      if (len > buff_len)\n\t{\n\t  blen = len + 1024;\n\t  if (!(new = whine_realloc(buff, blen)))\n\t    return NULL;\n\n\t  buff = new;\n\t  buff_len = blen;\n\t}\n      data = buff;\n    }\n  \n  for (d = data, b = block; len > 0 && b;  b = b->next)\n    {\n      blen = len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len;\n      memcpy(d, b->key, blen);\n      d += blen;\n      len -= blen;\n    }\n\n  return data;\n}\n\n\nvoid blockdata_write(struct blockdata *block, size_t len, int fd)\n{\n  for (; len > 0 && block; block = block->next)\n    {\n      size_t blen = len > KEYBLOCK_LEN ? KEYBLOCK_LEN : len;\n      read_write(fd, block->key, blen, RW_WRITE);\n      len -= blen;\n    }\n}\n\nstruct blockdata *blockdata_read(int fd, size_t len)\n{\n  return blockdata_alloc_real(fd, NULL, len);\n}\n"
+      }
+    },
+    {
+      "file": "src/util.c",
+      "old_start": 680,
+      "old_end": 697,
+      "new_start": 680,
+      "new_end": 691,
+      "context_hint": "int expand_buf(struct iovec *iov, size_t size)",
+      "added_lines": [
+        "  if (!(new = whine_realloc(iov->iov_base, size)))"
+      ],
+      "deleted_lines": [
+        "  if (!(new = whine_malloc(size)))",
+        "  if (iov->iov_base)",
+        "    {",
+        "      memcpy(new, iov->iov_base, iov->iov_len);",
+        "      free(iov->iov_base);",
+        "    }",
+        ""
+      ],
+      "context_lines": [
+        "  if (size <= (size_t)iov->iov_len)",
+        "    return 1;",
+        "",
+        "    {",
+        "      errno = ENOMEM;",
+        "      return 0;",
+        "    }",
+        "",
+        "  iov->iov_base = new;",
+        "  iov->iov_len = size;",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "iovec",
+        "new",
+        "whine_realloc",
+        "iov",
+        "iov_base",
+        "size",
+        "free",
+        "expand_buf"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output"
+        ],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "iovec",
+        "snippet_start_line": 651,
+        "snippet_end_line": 721,
+        "snippet": "      in = r+1;\n    }\n  \n  if (wildcard_mask)\n    *wildcard_mask = mask;\n\n  return i;\n}\n\n/* return 0 for no match, or (no matched octets) + 1 */\nint memcmp_masked(unsigned char *a, unsigned char *b, int len, unsigned int mask)\n{\n  int i, count;\n  for (count = 1, i = len - 1; i >= 0; i--, mask = mask >> 1)\n    if (!(mask & 1))\n      {\n\tif (a[i] == b[i])\n\t  count++;\n\telse\n\t  return 0;\n      }\n  return count;\n}\n\n/* _note_ may copy buffer */\nint expand_buf(struct iovec *iov, size_t size)\n{\n  void *new;\n\n  if (size <= (size_t)iov->iov_len)\n    return 1;\n\n  if (!(new = whine_realloc(iov->iov_base, size)))\n    {\n      errno = ENOMEM;\n      return 0;\n    }\n\n  iov->iov_base = new;\n  iov->iov_len = size;\n\n  return 1;\n}\n\nchar *print_mac(char *buff, unsigned char *mac, int len)\n{\n  char *p = buff;\n  int i;\n   \n  if (len == 0)\n    sprintf(p, \"<null>\");\n  else\n    for (i = 0; i < len; i++)\n      p += sprintf(p, \"%.2x%s\", mac[i], (i == len - 1) ? \"\" : \":\");\n  \n  return buff;\n}\n\n/* rc is return from sendto and friends.\n   Return 1 if we should retry.\n   Set errno to zero if we succeeded. */\nint retry_send(ssize_t rc)\n{\n  static int retries = 0;\n  struct timespec waiter;\n  \n  if (rc != -1)\n    {\n      retries = 0;\n      errno = 0;\n      return 0;\n"
+      }
+    }
+  ]
+}

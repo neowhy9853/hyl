@@ -1,0 +1,147 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/ruby/pca-results/812738/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/ruby/pca-results/812738/patch.diff",
+  "profile": "ruby",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "test/rubygems/test_bundled_ca.rb"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 0,
+    "patch_metrics": {
+      "patch_bytes": 1446,
+      "patch_lines": 35,
+      "diff_added_lines": 2,
+      "diff_deleted_lines": 2,
+      "diff_context_lines": 9,
+      "churn": 4,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 1583,
+      "public_candidate_hunks": 0,
+      "surface_counts": {
+        "tests": 1,
+        "ruby_exceptions": 1,
+        "user_visible_output": 1,
+        "exceptions": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "test/rubygems/test_bundled_ca.rb",
+      "old_start": 33,
+      "old_end": 39,
+      "new_start": 33,
+      "new_end": 40,
+      "context_hint": "def assert_https(host)",
+      "added_lines": [
+        "  rescue Errno::ENOENT, Errno::ETIMEDOUT, Errno::ECONNRESET, Errno::ECONNREFUSED,",
+        "         EOFError, SocketError, Gem::Net::OpenTimeout"
+      ],
+      "deleted_lines": [
+        "  rescue Errno::ENOENT, Errno::ETIMEDOUT, SocketError, Gem::Net::OpenTimeout",
+        "- "
+      ],
+      "context_lines": [
+        "    http.verify_mode = OpenSSL::SSL::VERIFY_PEER",
+        "    http.cert_store = bundled_certificate_store",
+        "    http.get(\"/\")",
+        "    pend \"#{host} seems offline, I can't tell whether ssl would work.\"",
+        "  rescue OpenSSL::SSL::SSLError => e",
+        "    # Only fail for certificate verification errors",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "assert_https",
+        "rescue",
+        "Errno",
+        "ENOENT",
+        "ETIMEDOUT",
+        "ECONNRESET"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "ruby_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract"
+            ],
+            "description": "Exception hierarchy, type, message, and failure behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and hierarchy changes"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "ruby_exceptions",
+          "user_visible_output",
+          "exceptions"
+        ],
+        "profile": "ruby",
+        "effective_profile_layers": [
+          "default",
+          "ruby_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "assert_https",
+        "snippet_start_line": 4,
+        "snippet_end_line": 62,
+        "snippet": "require \"rubygems/vendored_net_http\"\nrequire \"rubygems/openssl\"\n\nunless Gem::HAVE_OPENSSL\n  warn \"Skipping bundled certificates tests.  openssl not found.\"\nend\n\nrequire \"rubygems/request\"\n\n# = Testing Bundled CA\n#\n# The tested hosts are explained in detail here: https://github.com/ruby/rubygems/commit/5e16a5428f973667cabfa07e94ff939e7a83ebd9\n#\n\nclass TestGemBundledCA < Gem::TestCase\n  def bundled_certificate_store\n    store = OpenSSL::X509::Store.new\n\n    Gem::Request.get_cert_files.each do |ssl_cert|\n      store.add_file ssl_cert\n    end\n\n    store\n  end\n\n  def assert_https(host)\n    assert true\n    http = Gem::Net::HTTP.new(host, 443)\n    http.use_ssl = true\n    http.verify_mode = OpenSSL::SSL::VERIFY_PEER\n    http.cert_store = bundled_certificate_store\n    http.get(\"/\")\n  rescue Errno::ENOENT, Errno::ETIMEDOUT, Errno::ECONNRESET, Errno::ECONNREFUSED,\n         EOFError, SocketError, Gem::Net::OpenTimeout\n    pend \"#{host} seems offline, I can't tell whether ssl would work.\"\n  rescue OpenSSL::SSL::SSLError => e\n    # Only fail for certificate verification errors\n    if e.message.include?(\"certificate verify failed\")\n      flunk \"#{host} is not verifiable using the included certificates. Error was: #{e.message}\"\n    end\n    raise\n  end\n\n  def test_accessing_rubygems\n    assert_https(\"rubygems.org\")\n  end\n\n  def test_accessing_www_rubygems\n    assert_https(\"www.rubygems.org\")\n  end\n\n  def test_accessing_staging\n    assert_https(\"staging.rubygems.org\")\n  end\n\n  def test_accessing_new_index\n    assert_https(\"index.rubygems.org\")\n  end\nend if Gem::HAVE_OPENSSL\n"
+      }
+    }
+  ]
+}

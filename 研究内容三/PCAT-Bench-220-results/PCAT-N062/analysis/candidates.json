@@ -1,0 +1,146 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-N022/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-N022/patch.diff",
+  "profile": "c_project",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "Lib/test/test_sqlite3/test_cli.py"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 0,
+    "patch_metrics": {
+      "patch_bytes": 1356,
+      "patch_lines": 30,
+      "diff_added_lines": 3,
+      "diff_deleted_lines": 0,
+      "diff_context_lines": 9,
+      "churn": 3,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 2918,
+      "public_candidate_hunks": 0,
+      "surface_counts": {
+        "tests": 1,
+        "cli_options": 1,
+        "user_visible_output": 1,
+        "cli": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "Lib/test/test_sqlite3/test_cli.py",
+      "old_start": 223,
+      "old_end": 228,
+      "new_start": 223,
+      "new_end": 231,
+      "context_hint": "def setUpClass(cls):",
+      "added_lines": [
+        "        if sys.platform.startswith(\"openbsd\"):",
+        "            # OpenBSD's readline does not honor \"completion-query-items 0\".",
+        "            raise unittest.SkipTest(\"OpenBSD readline hangs on completion\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        readline = import_module(\"readline\")",
+        "        if readline.backend == \"editline\":",
+        "            raise unittest.SkipTest(\"libedit readline is not supported\")",
+        "",
+        "    def write_input(self, input_, env=None):",
+        "        script = textwrap.dedent(\"\"\"",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "setUpClass",
+        "sys",
+        "platform",
+        "startswith",
+        "openbsd",
+        "OpenBSD"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "cli_options",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "cli",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Command-line interface"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "cli_options",
+          "user_visible_output",
+          "cli"
+        ],
+        "profile": "c_project",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "setUpClass",
+        "snippet_start_line": 194,
+        "snippet_end_line": 261,
+        "snippet": "\n        out, err = self.run_cli(TESTFN, commands=(\"CREATE TABLE t(t);\",))\n        self.assertIn(TESTFN, err)\n        self.assertEndsWith(out, self.PS1)\n\n        out, _ = self.run_cli(TESTFN, commands=(\"SELECT count(t) FROM t;\",))\n        self.assertIn(\"(0,)\\n\", out)\n\n    def test_color(self):\n        with unittest.mock.patch(\"_colorize.can_colorize\", return_value=True):\n            out, err = self.run_cli(commands=\"TEXT\\n\")\n            self.assertIn(\"\\x01\\x1b[1;35m\\x02sqlite> \\x01\\x1b[0m\\x02\", out)\n            self.assertIn(\"\\x01\\x1b[1;35m\\x02    ... \\x01\\x1b[0m\\x02\\x01\\x1b\", out)\n            out, err = self.run_cli(commands=(\"sel;\",))\n            self.assertIn('\\x1b[1;35mOperationalError (SQLITE_ERROR)\\x1b[0m: '\n                          '\\x1b[35mnear \"sel\": syntax error\\x1b[0m', err)\n\n\n@requires_subprocess()\n@force_not_colorized_test_class\nclass Completion(unittest.TestCase):\n    # run_pty() creates a real terminal environment, where sqlite3 CLI\n    # SqliteInteractiveConsole invokes GNU Readline for input. Readline's\n    # _rl_strip_prompt() strips \\001 and \\002 from the output, so test\n    # assertions use the plain prompt.\n    PS1 = \"sqlite> \"\n\n    @classmethod\n    def setUpClass(cls):\n        readline = import_module(\"readline\")\n        if readline.backend == \"editline\":\n            raise unittest.SkipTest(\"libedit readline is not supported\")\n        if sys.platform.startswith(\"openbsd\"):\n            # OpenBSD's readline does not honor \"completion-query-items 0\".\n            raise unittest.SkipTest(\"OpenBSD readline hangs on completion\")\n\n    def write_input(self, input_, env=None):\n        script = textwrap.dedent(\"\"\"\n            import readline\n            from sqlite3.__main__ import main\n\n            # Configure readline to ...:\n            # - hide control sequences surrounding each candidate\n            # - hide \"Display all xxx possibilities? (y or n)\"\n            # - show candidates one per line\n            readline.parse_and_bind(\"set colored-completion-prefix off\")\n            readline.parse_and_bind(\"set completion-query-items 0\")\n            readline.parse_and_bind(\"set page-completions off\")\n            readline.parse_and_bind(\"set completion-display-width 0\")\n\n            main()\n        \"\"\")\n        return run_pty(script, input_, env)\n\n    def test_complete_sql_keywords(self):\n        _sqlite3 = import_module(\"_sqlite3\")\n        if not hasattr(_sqlite3, \"SQLITE_KEYWORDS\"):\n            raise unittest.SkipTest(\"unable to determine SQLite keywords\")\n\n        # List candidates starting with 'S', there should be multiple matches.\n        input_ = b\"S\\t\\tEL\\t 1;\\n.quit\\n\"\n        output = self.write_input(input_)\n        self.assertIn(b\"SELECT\", output)\n        self.assertIn(b\"SET\", output)\n        self.assertIn(b\"SAVEPOINT\", output)\n        self.assertIn(b\"(1,)\", output)\n\n        # Keywords are completed in upper case for even lower case user input.\n"
+      }
+    }
+  ]
+}

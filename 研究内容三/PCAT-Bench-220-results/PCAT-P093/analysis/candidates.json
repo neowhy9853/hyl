@@ -1,0 +1,563 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P033/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P033/patch.diff",
+  "profile": "golang",
+  "summary": {
+    "total_changed_files": 3,
+    "changed_files": [
+      "src/runtime/panic.go",
+      "test/fixedbugs/issue19658.go",
+      "src/runtime/panic_test.go"
+    ],
+    "total_hunks": 4,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 4021,
+      "patch_lines": 127,
+      "diff_added_lines": 59,
+      "diff_deleted_lines": 2,
+      "diff_context_lines": 26,
+      "churn": 61,
+      "raw_hunks": 4,
+      "candidate_hunks": 4,
+      "skipped_doc_hunks": 0,
+      "changed_files": 3,
+      "candidate_context_bytes": 6940,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "go_exported_api": 2,
+        "go_errors": 4,
+        "user_visible_output": 4,
+        "stdlib": 3,
+        "errors": 4,
+        "tests": 3
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/runtime/panic.go",
+      "old_start": 791,
+      "old_end": 797,
+      "new_start": 791,
+      "new_end": 797,
+      "context_hint": "type PanicNilError struct {",
+      "added_lines": [
+        "func (*PanicNilError) Error() string { return \"runtime error: panic called with nil argument\" }"
+      ],
+      "deleted_lines": [
+        "func (*PanicNilError) Error() string { return \"panic called with nil argument\" }"
+      ],
+      "context_lines": [
+        "\t_ [0]*PanicNilError",
+        "}",
+        "",
+        "func (*PanicNilError) RuntimeError() {}",
+        "",
+        "var panicnil = &godebugInc{name: \"panicnil\"}"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "func",
+        "PanicNilError",
+        "Error",
+        "string",
+        "runtime",
+        "error",
+        "Goexit"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "go_exported_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "input_contract",
+              "return_contract",
+              "error_contract"
+            ],
+            "description": "Exported Go functions, methods, types, interfaces, constants, and variables."
+          },
+          {
+            "name": "go_errors",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "return_contract"
+            ],
+            "description": "Error type, sentinel value, wrapping, and comparison behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "stdlib",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Go standard library"
+          },
+          {
+            "name": "errors",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Error type, sentinel errors, error wrapping"
+          }
+        ],
+        "surface_reasons": [
+          "go_exported_api",
+          "go_errors",
+          "user_visible_output",
+          "stdlib",
+          "errors"
+        ],
+        "profile": "golang",
+        "effective_profile_layers": [
+          "default",
+          "go_base",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "panic",
+        "snippet_start_line": 762,
+        "snippet_end_line": 827,
+        "snippet": "func readvarintUnsafe(fd unsafe.Pointer) (uint32, unsafe.Pointer) {\n\tvar r uint32\n\tvar shift int\n\tfor {\n\t\tb := *(*uint8)(fd)\n\t\tfd = add(fd, unsafe.Sizeof(b))\n\t\tif b < 128 {\n\t\t\treturn r + uint32(b)<<shift, fd\n\t\t}\n\t\tr += uint32(b&0x7F) << (shift & 31)\n\t\tshift += 7\n\t\tif shift > 28 {\n\t\t\tpanic(\"Bad varint\")\n\t\t}\n\t}\n}\n\n// A PanicNilError happens when code calls panic(nil).\n//\n// Before Go 1.21, programs that called panic(nil) observed recover returning nil.\n// Starting in Go 1.21, programs that call panic(nil) observe recover returning a *PanicNilError.\n// Programs can change back to the old behavior by setting GODEBUG=panicnil=1.\ntype PanicNilError struct {\n\t// This field makes PanicNilError structurally different from\n\t// any other struct in this package, and the _ makes it different\n\t// from any struct in other packages too.\n\t// This avoids any accidental conversions being possible\n\t// between this struct and some other struct sharing the same fields,\n\t// like happened in go.dev/issue/56603.\n\t_ [0]*PanicNilError\n}\n\nfunc (*PanicNilError) Error() string { return \"runtime error: panic called with nil argument\" }\nfunc (*PanicNilError) RuntimeError() {}\n\nvar panicnil = &godebugInc{name: \"panicnil\"}\n\n// The implementation of the predeclared function panic.\n// The compiler emits calls to this function.\n//\n// gopanic should be an internal detail,\n// but historically, widely used packages access it using linkname.\n//\n// Do not remove or change the type signature.\n// See go.dev/issue/67401.\n//\n//go:linkname gopanic\nfunc gopanic(e any) {\n\tif e == nil {\n\t\tif debug.panicnil.Load() != 1 {\n\t\t\te = new(PanicNilError)\n\t\t} else {\n\t\t\tpanicnil.IncNonDefault()\n\t\t}\n\t}\n\n\tgp := getg()\n\tif gp.m.curg != gp {\n\t\tprint(\"panic: \")\n\t\tprintpanicval(e)\n\t\tprint(\"\\n\")\n\t\tthrow(\"panic on system stack\")\n\t}\n\n\tif gp.m.mallocing != 0 {\n\t\tprint(\"panic: \")\n"
+      }
+    },
+    {
+      "file": "src/runtime/panic_test.go",
+      "old_start": 5,
+      "old_end": 10,
+      "new_start": 5,
+      "new_end": 11,
+      "context_hint": "",
+      "added_lines": [
+        "\t\"runtime\""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "package runtime_test",
+        "",
+        "import (",
+        "\t\"slices\"",
+        "\t\"strings\"",
+        "\t\"testing\""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "runtime"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "go_errors",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "return_contract"
+            ],
+            "description": "Error type, sentinel value, wrapping, and comparison behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "stdlib",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Go standard library"
+          },
+          {
+            "name": "errors",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Error type, sentinel errors, error wrapping"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "go_errors",
+          "user_visible_output",
+          "stdlib",
+          "errors"
+        ],
+        "profile": "golang",
+        "effective_profile_layers": [
+          "default",
+          "go_base",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 1,
+        "snippet_end_line": 41,
+        "snippet": "// Copyright 2020 The Go Authors. All rights reserved.\n// Use of this source code is governed by a BSD-style\n// license that can be found in the LICENSE file.\n\npackage runtime_test\n\nimport (\n\t\"runtime\"\n\t\"slices\"\n\t\"strings\"\n\t\"testing\"\n\t\"time\"\n)\n\n// Test that panics print out the underlying value\n// when the underlying kind is directly printable.\n// Issue: https://golang.org/issues/37531\nfunc TestPanicWithDirectlyPrintableCustomTypes(t *testing.T) {\n\ttests := []struct {\n\t\tname            string\n\t\twantPanicPrefix string\n\t}{\n\t\t{\"panicCustomBool\", `panic: main.MyBool(true)`},\n\t\t{\"panicCustomComplex128\", `panic: main.MyComplex128(32.1+10i)`},\n\t\t{\"panicCustomComplex64\", `panic: main.MyComplex64(0.11+3i)`},\n\t\t{\"panicCustomFloat32\", `panic: main.MyFloat32(-93.7)`},\n\t\t{\"panicCustomFloat64\", `panic: main.MyFloat64(-93.7)`},\n\t\t{\"panicCustomInt\", `panic: main.MyInt(93)`},\n\t\t{\"panicCustomInt8\", `panic: main.MyInt8(93)`},\n\t\t{\"panicCustomInt16\", `panic: main.MyInt16(93)`},\n\t\t{\"panicCustomInt32\", `panic: main.MyInt32(93)`},\n\t\t{\"panicCustomInt64\", `panic: main.MyInt64(93)`},\n\t\t{\"panicCustomString\", `panic: main.MyString(\"Panic` + \"\\n\\t\" + `line two\")`},\n\t\t{\"panicCustomUint\", `panic: main.MyUint(93)`},\n\t\t{\"panicCustomUint8\", `panic: main.MyUint8(93)`},\n\t\t{\"panicCustomUint16\", `panic: main.MyUint16(93)`},\n\t\t{\"panicCustomUint32\", `panic: main.MyUint32(93)`},\n\t\t{\"panicCustomUint64\", `panic: main.MyUint64(93)`},\n\t\t{\"panicCustomUintptr\", `panic: main.MyUintptr(93)`},\n\t\t{\"panicDeferFatal\", \"panic: runtime.errorString(\\\"invalid memory address or nil pointer dereference\\\")\\n\\tfatal error: sync: unlock of unlocked mutex\"},\n\t\t{\"panicDoublieDeferFatal\", \"panic: runtime.errorString(\\\"invalid memory address or nil pointer dereference\\\") [recovered, repanicked]\\n\\tfatal error: sync: unlock of unlocked mutex\"},\n"
+      }
+    },
+    {
+      "file": "src/runtime/panic_test.go",
+      "old_start": 98,
+      "old_end": 100,
+      "new_start": 99,
+      "new_end": 157,
+      "context_hint": "func TestPanicRecoverSpeed(t *testing.T) {",
+      "added_lines": [
+        "",
+        "// Test that panics with nil arguments produce the prefix",
+        "// \"runtime error:\" per https://golang.org/issues/63813.",
+        "func TestPanicNilErrorPrefix(t *testing.T) {",
+        "\ttests := []struct {",
+        "\t\tname      string",
+        "\t\twantPanic string",
+        "\t\tfn        func()",
+        "\t}{",
+        "\t\t{",
+        "\t\t\tname:      \"panic(nil)\",",
+        "\t\t\twantPanic: \"runtime error: panic with nil argument\",",
+        "\t\t\tfn: func() {",
+        "\t\t\t\tpanic(nil)",
+        "\t\t\t},",
+        "\t\t},",
+        "\t\t{",
+        "\t\t\tname:      \"panic((any)(nil))\",",
+        "\t\t\twantPanic: \"runtime error: panic with nil argument\",",
+        "\t\t\tfn: func() {",
+        "\t\t\t\tvar foo any = nil",
+        "\t\t\t\tpanic(foo)",
+        "\t\t\t},",
+        "\t\t},",
+        "\t\t{",
+        "\t\t\tname:      \"panic((error)(nil))\",",
+        "\t\t\twantPanic: \"runtime error: panic with nil argument\",",
+        "\t\t\tfn: func() {",
+        "\t\t\t\tvar err error",
+        "\t\t\t\tpanic(err)",
+        "\t\t\t},",
+        "\t\t},",
+        "\t}",
+        "",
+        "\tfor _, tt := range tests {",
+        "\t\ttt := tt",
+        "\t\tt.Run(tt.name, func(t *testing.T) {",
+        "\t\t\tdefer func() {",
+        "\t\t\t\tr := recover()",
+        "\t\t\t\tif r == nil {",
+        "\t\t\t\t\tt.Fatal(\"expected a panic\")",
+        "\t\t\t\t}",
+        "",
+        "\t\t\t\tre, ok := r.(runtime.Error)",
+        "\t\t\t\tif !ok {",
+        "\t\t\t\t\tt.Fatalf(\"wrong panic type: got %T, want runtime.Error\", r)",
+        "\t\t\t\t}",
+        "\t\t\t\tif !strings.Contains(re.Error(), \"runtime error: panic called with nil argument\") {",
+        "\t\t\t\t\tt.Fatalf(\"mismatched message, missing `runtime error: panic with nil`, : got:\\n%s\", re.Error())",
+        "\t\t\t\t}",
+        "\t\t\t}()",
+        "",
+        "\t\t\ttt.fn()",
+        "\t\t})",
+        "\t}",
+        "}"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\tt.Errorf(\"more than 2x time increase: %v\", m)",
+        "\t}",
+        "}"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "TestPanicRecoverSpeed",
+        "Test",
+        "that",
+        "panics",
+        "with",
+        "nil"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "go_errors",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "return_contract"
+            ],
+            "description": "Error type, sentinel value, wrapping, and comparison behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "stdlib",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Go standard library"
+          },
+          {
+            "name": "errors",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Error type, sentinel errors, error wrapping"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "go_errors",
+          "user_visible_output",
+          "stdlib",
+          "errors"
+        ],
+        "profile": "golang",
+        "effective_profile_layers": [
+          "default",
+          "go_base",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "TestPanicRecoverSpeed",
+        "snippet_start_line": 69,
+        "snippet_end_line": 157,
+        "snippet": "\t\tf(n - 1)\n\t}\n\n\ttime := func(f func()) time.Duration {\n\t\tvar times []time.Duration\n\t\tfor range 10 {\n\t\t\tstart := time.Now()\n\t\t\tf()\n\t\t\ttimes = append(times, time.Since(start))\n\t\t}\n\t\tslices.Sort(times)\n\t\ttimes = times[1 : len(times)-1] // skip high and low, to reduce noise\n\t\tvar avg time.Duration\n\t\tfor _, v := range times {\n\t\t\tavg += v / time.Duration(len(times))\n\t\t}\n\t\treturn avg\n\t}\n\n\ta := time(func() {\n\t\tdefer func() { recover() }()\n\t\tf(1024)\n\t})\n\tb := time(func() {\n\t\tdefer func() { recover() }()\n\t\tf(2048)\n\t})\n\tm := b.Seconds() / a.Seconds()\n\tt.Logf(\"a: %v, b: %v, m: %v\", a, b, m)\n\tif m > 3.5 {\n\t\tt.Errorf(\"more than 2x time increase: %v\", m)\n\t}\n}\n\n// Test that panics with nil arguments produce the prefix\n// \"runtime error:\" per https://golang.org/issues/63813.\nfunc TestPanicNilErrorPrefix(t *testing.T) {\n\ttests := []struct {\n\t\tname      string\n\t\twantPanic string\n\t\tfn        func()\n\t}{\n\t\t{\n\t\t\tname:      \"panic(nil)\",\n\t\t\twantPanic: \"runtime error: panic with nil argument\",\n\t\t\tfn: func() {\n\t\t\t\tpanic(nil)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname:      \"panic((any)(nil))\",\n\t\t\twantPanic: \"runtime error: panic with nil argument\",\n\t\t\tfn: func() {\n\t\t\t\tvar foo any = nil\n\t\t\t\tpanic(foo)\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tname:      \"panic((error)(nil))\",\n\t\t\twantPanic: \"runtime error: panic with nil argument\",\n\t\t\tfn: func() {\n\t\t\t\tvar err error\n\t\t\t\tpanic(err)\n\t\t\t},\n\t\t},\n\t}\n\n\tfor _, tt := range tests {\n\t\ttt := tt\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tdefer func() {\n\t\t\t\tr := recover()\n\t\t\t\tif r == nil {\n\t\t\t\t\tt.Fatal(\"expected a panic\")\n\t\t\t\t}\n\n\t\t\t\tre, ok := r.(runtime.Error)\n\t\t\t\tif !ok {\n\t\t\t\t\tt.Fatalf(\"wrong panic type: got %T, want runtime.Error\", r)\n\t\t\t\t}\n\t\t\t\tif !strings.Contains(re.Error(), \"runtime error: panic called with nil argument\") {\n\t\t\t\t\tt.Fatalf(\"mismatched message, missing `runtime error: panic with nil`, : got:\\n%s\", re.Error())\n\t\t\t\t}\n\t\t\t}()\n\n\t\t\ttt.fn()\n\t\t})\n\t}\n}\n"
+      }
+    },
+    {
+      "file": "test/fixedbugs/issue19658.go",
+      "old_start": 47,
+      "old_end": 53,
+      "new_start": 47,
+      "new_end": 53,
+      "context_hint": "func main() {",
+      "added_lines": [
+        "\t\t{\"\", \"nil\", \"panic: runtime error: panic called with nil argument\"},"
+      ],
+      "deleted_lines": [
+        "\t\t{\"\", \"nil\", \"panic: panic called with nil argument\"},"
+      ],
+      "context_lines": [
+        "\t\tInput  string",
+        "\t\tExpect string",
+        "\t}{",
+        "\t\t{\"errors.New\", `\"test\"`, \"panic: test\"},",
+        "\t\t{\"S\", \"S{}\", \"panic: s-stringer\"},",
+        "\t\t{\"byte\", \"8\", \"panic: 8\"},",
+        ""
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "main",
+        "nil",
+        "panic",
+        "runtime",
+        "error",
+        "called",
+        "String"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "go_exported_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "input_contract",
+              "return_contract",
+              "error_contract"
+            ],
+            "description": "Exported Go functions, methods, types, interfaces, constants, and variables."
+          },
+          {
+            "name": "go_errors",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "return_contract"
+            ],
+            "description": "Error type, sentinel value, wrapping, and comparison behavior."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "errors",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Error type, sentinel errors, error wrapping"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "go_exported_api",
+          "go_errors",
+          "user_visible_output",
+          "errors"
+        ],
+        "profile": "golang",
+        "effective_profile_layers": [
+          "default",
+          "go_base",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "main",
+        "snippet_start_line": 18,
+        "snippet_end_line": 83,
+        "snippet": "\t\"path/filepath\"\n)\n\nconst fn = `\npackage main\n\nimport  \"errors\"\ntype S struct {\n\n}\nfunc (s S) String() string {\n\treturn \"s-stringer\"\n}\nfunc main() {\n \t_ = errors.New\n  panic(%s(%s))\n}\n`\n\nfunc main() {\n\ttempDir, err := ioutil.TempDir(\"\", \"\")\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tdefer os.RemoveAll(tempDir)\n\ttmpFile := filepath.Join(tempDir, \"tmp.go\")\n\n\tfor _, tc := range []struct {\n\t\tType   string\n\t\tInput  string\n\t\tExpect string\n\t}{\n\t\t{\"\", \"nil\", \"panic: runtime error: panic called with nil argument\"},\n\t\t{\"errors.New\", `\"test\"`, \"panic: test\"},\n\t\t{\"S\", \"S{}\", \"panic: s-stringer\"},\n\t\t{\"byte\", \"8\", \"panic: 8\"},\n\t\t{\"rune\", \"8\", \"panic: 8\"},\n\t\t{\"int\", \"8\", \"panic: 8\"},\n\t\t{\"int8\", \"8\", \"panic: 8\"},\n\t\t{\"int16\", \"8\", \"panic: 8\"},\n\t\t{\"int32\", \"8\", \"panic: 8\"},\n\t\t{\"int64\", \"8\", \"panic: 8\"},\n\t\t{\"uint\", \"8\", \"panic: 8\"},\n\t\t{\"uint8\", \"8\", \"panic: 8\"},\n\t\t{\"uint16\", \"8\", \"panic: 8\"},\n\t\t{\"uint32\", \"8\", \"panic: 8\"},\n\t\t{\"uint64\", \"8\", \"panic: 8\"},\n\t\t{\"uintptr\", \"8\", \"panic: 8\"},\n\t\t{\"bool\", \"true\", \"panic: true\"},\n\t\t{\"complex64\", \"8 + 16i\", \"panic: (8+16i)\"},\n\t\t{\"complex128\", \"8+16i\", \"panic: (8+16i)\"},\n\t\t{\"string\", `\"test\"`, \"panic: test\"}} {\n\n\t\tb := bytes.Buffer{}\n\t\tfmt.Fprintf(&b, fn, tc.Type, tc.Input)\n\n\t\terr = ioutil.WriteFile(tmpFile, b.Bytes(), 0644)\n\t\tif err != nil {\n\t\t\tlog.Fatal(err)\n\t\t}\n\n\t\tcmd := exec.Command(\"go\", \"run\", tmpFile)\n\t\tvar buf bytes.Buffer\n\t\tcmd.Stdout = &buf\n\t\tcmd.Stderr = &buf\n\t\tcmd.Env = os.Environ()\n"
+      }
+    }
+  ]
+}

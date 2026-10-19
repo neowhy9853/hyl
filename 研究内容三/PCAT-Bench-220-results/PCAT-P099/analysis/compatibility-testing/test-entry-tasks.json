@@ -1,0 +1,199 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/linux",
+  "analysis_repo": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis",
+  "patch_id": "09dc18894148381d3bfc550083b1236043870dce",
+  "min_priority": "all",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "ibv_rereg_mr / IB_USER_VERBS_CMD_REREG_MR",
+        "kind": "public_function",
+        "language": "c",
+        "signature_old": "ibv_rereg_mr(mr, flags, pd, addr, length, access)",
+        "signature_new": "ibv_rereg_mr(mr, flags, pd, addr, length, access)"
+      },
+      "target_location": {
+        "file": "drivers/infiniband/core/umem.c",
+        "old_lines": [
+          326,
+          328
+        ],
+        "new_lines": [
+          334,
+          342
+        ],
+        "symbol": "ib_umem_check_rereg"
+      },
+      "old_behavior": "补丁前 hns_roce、irdma、mlx5 和 rxe 的 rereg_user_mr 在仅设置 IB_MR_REREG_ACCESS 时不会核对原 ib_umem 是否以 writable 方式 pin；只读 umem 可继续进入驱动的重新注册流程，并可能被接受为带写权限的 MR。mlx4 自带较晚的 writable 检查，因此该驱动已拒绝该输入。",
+      "new_behavior": "补丁后五个驱动在处理重新注册前调用 ib_umem_check_rereg()。当 umem 非 NULL、设置 IB_MR_REREG_ACCESS、未设置 IB_MR_REREG_TRANS、新 access 含 IB_ACCESS_LOCAL_WRITE、IB_ACCESS_REMOTE_WRITE、IB_ACCESS_REMOTE_ATOMIC 或 IB_ACCESS_MW_BIND 且原 umem->writable 为 false 时，helper 返回 -EACCES；NULL umem、原 umem writable、新 access 只读、未设置 REREG_ACCESS，或同时设置 REREG_TRANS 时返回 0。",
+      "compatibility_reason": "这是经公共 uverbs 命令可触发的输入接受范围收紧。既有应用若对最初只读注册的 MR 调用 access-only ibv_rereg_mr() 升级为可写，hns_roce、irdma、mlx5 和 rxe 从可能成功变为确定失败；应用必须连同 IB_MR_REREG_TRANS 重新 pin 内存，或从一开始以 writable access 注册。",
+      "test_recommendation": "优先用 RXE 创建只读 MR 后分别以只读、LOCAL_WRITE、REMOTE_WRITE、REMOTE_ATOMIC 执行 ibv_rereg_mr；覆盖 ACCESS 缺失、ACCESS|TRANS、PD 组合、无效 flag、原 umem writable、NULL umem，以及 CONFIG_INFINIBAND_USER_MEM=y/n。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "affected_api": {
+        "name": "ibv_rereg_mr / IB_USER_VERBS_CMD_REREG_MR",
+        "kind": "public_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "drivers/infiniband/core/umem.c",
+        "old_lines": [
+          326,
+          328
+        ],
+        "new_lines": [
+          339,
+          341
+        ],
+        "symbol": "ib_umem_check_rereg"
+      },
+      "old_behavior": "对 non-writable umem 的 access-only 写权限升级，hns_roce、irdma、mlx5 和 rxe 没有统一的前置错误，可能成功或返回各自后续硬件路径的错误；mlx4 在取得 MPT 后以 -EPERM 拒绝。",
+      "new_behavior": "相同输入在五个驱动中于回调早期统一返回 ERR_PTR(-EACCES)，ib_uverbs_rereg_mr() 通过 PTR_ERR 把 -EACCES 返回到用户态；rdma-core/ibverbs 客户端观察为 ibv_rereg_mr 失败并设置 errno=EACCES。无效 rereg flag 仍先返回 -EOPNOTSUPP；CONFIG_INFINIBAND_USER_MEM=n 的 header stub 也返回 -EOPNOTSUPP。",
+      "compatibility_reason": "既有客户端的成功/失败分支和错误处理断言会变化；对 mlx4，错误类别还从 EPERM 改为 EACCES。应用若按 errno 决定重试、重新注册或降级策略，行为将不同。",
+      "test_recommendation": "before/after 比较同一输入矩阵的返回值和 errno，单独断言 invalid flag=-EOPNOTSUPP、access-only RO->RW=-EACCES(after)、mlx4 ACCESS|TRANS 仍走原有 -EPERM 特例。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "error_or_exception_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "error_exception_stability",
+        "comparison": "error",
+        "required_observation": "errno/error code, exception type, message, and failure mode",
+        "input_axes": [
+          "each error path",
+          "invalid input",
+          "missing resource",
+          "permission",
+          "fault injection"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0003",
+      "finding_id": "PCA-0003",
+      "test_priority": "low",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "rereg_user_mr driver callbacks",
+        "kind": "callback_type",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "drivers/infiniband/sw/rxe/rxe_verbs.c",
+        "old_lines": [
+          1325,
+          1330
+        ],
+        "new_lines": [
+          1329,
+          1344
+        ],
+        "symbol": "rxe_rereg_user_mr"
+      },
+      "old_behavior": "补丁前非法 RO->RW access-only 输入可先执行副作用：hns 分配 mailbox、查询/销毁 MPT 并修改 enabled/iova/size/access；irdma 先硬件 dereg 再修改 access/PD，TRANS 时还释放旧 umem；mlx4 获取 MPT，且包含 PD 时可先改 PD，随后才以 -EPERM 检查 writable；mlx5 可进入 UMR/revoke/recreate 与 umem/reg_pages 更新；rxe 可先变更 PD 引用和 mr->access。",
+      "new_behavior": "五个回调都把 ib_umem_check_rereg() 放在上述硬件、引用计数、字段和资源生命周期操作之前。helper 返回 -EACCES 时这些副作用计数应全部为零，MR/PD/umem 状态保持不变。设置 REREG_TRANS 时 helper 返回 0，允许需要重新 pin 的原路径继续；mlx4 的 REREG_ACCESS|REREG_TRANS 仍由其后置检查返回 -EPERM，并保留原有特殊处理顺序。",
+      "compatibility_reason": "失败路径从可能已撤销硬件 MR、改变 PD 引用/MR 字段或分配资源，变为无副作用的前置拒绝。依赖失败后对象状态、可继续使用性或清理顺序的客户端和驱动测试会观察到变化；这同时修复了 non-writable pin 被错误升级的安全/一致性问题。",
+      "test_recommendation": "为 hns、irdma、mlx4、mlx5、rxe 构造 before/after wrapper，记录 helper、mailbox、硬件 dereg/MPT/UMR、PD get/put、MR 字段和 umem release 的次数与严格顺序；helper=-EACCES 时断言驱动副作用为零。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "kselftest, syzkaller program, shell command, or minimal module only when no user-space path exists",
+        "trigger_surface": "drive the externally reachable subsystem path that reaches the changed line",
+        "seed_sources": [
+          "tools/testing/selftests",
+          "static_call_chains",
+          "subsystem docs"
+        ],
+        "surface_entry_kind": "kernel_reachability_reproducer",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis/compatibility-testing"
+}

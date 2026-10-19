@@ -1,0 +1,562 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/openldap",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/openldap/pca-results/fbf682/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/fbf682",
+  "base_ref": "fbf682a6c684db5e0b6928b511f8fc57d6c8eb7c^",
+  "base_commit": "bb64b0b55b5aa77fae077209f26b015f6a86275f",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "fbf682a6c684db5e0b6928b511f8fc57d6c8eb7c",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca-openldap-patch/0001-ITS-6198-Allow-extop-and-control-restrictions-in-ACL.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "openldap",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 8617,
+    "patch_lines": 257,
+    "diff_added_lines": 139,
+    "diff_deleted_lines": 6,
+    "diff_context_lines": 69,
+    "churn": 145,
+    "raw_hunks": 10,
+    "candidate_hunks": 8,
+    "skipped_doc_hunks": 2,
+    "changed_files": 5,
+    "candidate_context_bytes": 20534,
+    "public_candidate_hunks": 6,
+    "surface_counts": {
+      "persistence_state": 3,
+      "libldap_api": 3,
+      "protocol_behavior": 7,
+      "config_schema": 6,
+      "user_visible_output": 2,
+      "public_headers": 1,
+      "config_keys": 2,
+      "network_protocol": 1,
+      "tests": 2,
+      "config_files": 1,
+      "config": 1,
+      "tools": 1
+    },
+    "candidates_json_bytes": 53844
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 5,
+    "total_candidates": 8,
+    "compatibility_changes": 4,
+    "high_priority": 2,
+    "medium_priority": 2,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "openldap",
+      "affected_surface": "slapd ACL configuration syntax: new 'op=' and 'control=' keywords in 'to' clauses",
+      "affected_api": {
+        "name": "slapd.conf / cn=config ACL syntax",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "servers/slapd/aclparse.c",
+        "old_lines": [
+          1691,
+          1696
+        ],
+        "new_lines": [
+          1691,
+          1741
+        ],
+        "symbol": "parse_acl"
+      },
+      "old_behavior": "The ACL configuration parser only accepted 'dn', 'filter', and 'attrs' tokens in the 'to' clause. Any other token after these produced a syntax error.",
+      "new_behavior": "The parser now accepts two new tokens in 'to' clauses: 'op=<operation>|<oid>' to restrict an ACL rule to a specific LDAP operation or extended operation, and 'control=<oid>' to restrict the rule to requests carrying a specific control. Invalid OIDs or unknown controls produce specific error messages (backward-compatible error paths).",
+      "compatibility_reason": "Configuration files using 'op=' or 'control=' in ACL 'to' clauses will be rejected by older slapd versions as syntax errors. Tools that generate or modify slapd ACL configurations need to handle the new keywords. Old configurations without the new keywords remain fully compatible.",
+      "evidence": [
+        {
+          "file": "servers/slapd/aclparse.c",
+          "lines": [
+            1694,
+            1739
+          ],
+          "snippet": "} else if ( strcasecmp( left, \"control\" ) == 0 ) {\n\tchar *oid = oidm_find( right );\n...\n} else if ( strcasecmp( left, \"op\" ) == 0 ) {\n\tint i = verb_to_mask( right, slap_restrictable_ops );\n..."
+        },
+        {
+          "file": "servers/slapd/aclparse.c",
+          "lines": [
+            2244,
+            2248
+          ],
+          "snippet": "\"\\t[op=<opspec>] [control=<oid>]\\n\"\n...\n\"<opspec> ::= <LDAPOperation> | <oid>\\n\";"
+        },
+        {
+          "file": "tests/data/slapd-acl.conf",
+          "lines": [
+            134,
+            141
+          ],
+          "snippet": "access to dn.subtree=\"ou=Add & Delete,dc=example,dc=com\" control=manageDSAiT\naccess to dn.subtree=\"ou=Add & Delete,dc=example,dc=com\" op=search"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The ACL configuration parser is a user-facing interface documented in slapd.access(5). Configuration file syntax is a public contract between slapd and its administrators.",
+      "uncertainty": "All new keywords are validated before acceptance (known control OID lookup, known operation name lookup). The error paths for invalid values replicate existing patterns in the parser.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that the 'op=' keyword correctly resolves all standard LDAP operations (search, bind, add, delete, modify, compare, abandon, extended) and that extended operation OIDs are properly resolved via objectIdentifier macros.",
+      "test_recommendation": "Test parsing of valid and invalid 'op=' and 'control=' values. Verify that old configs without these keywords parse identically. Run 'test006-acls' which exercises the new ACL keywords.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0004",
+            "file": "servers/slapd/aclparse.c",
+            "old_lines": [
+              1691,
+              1696
+            ],
+            "new_lines": [
+              1691,
+              1741
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "libldap_api",
+              "protocol_behavior",
+              "config_schema"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "libldap_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "libldap/liblber public C API and ABI"
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "LDAP protocol, controls, schema, filters, and result codes"
+              },
+              {
+                "name": "config_schema",
+                "test_priority": "high",
+                "public": true,
+                "description": "cn=config, slapd.conf, schema, and overlay configuration"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.9,
+      "package_profile": "openldap",
+      "affected_surface": "cn=config readback output via acl_unparse",
+      "affected_api": {
+        "name": "slapd cn=config acl_unparse output",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "servers/slapd/aclparse.c",
+        "old_lines": [
+          2815,
+          2820
+        ],
+        "new_lines": [
+          2869,
+          2888
+        ],
+        "symbol": "acl_unparse"
+      },
+      "old_behavior": "The acl_unparse function serialized the 'to' clause as 'dn', 'filter', 'attrs', and 'val' components only. The output never included 'op=' or 'control=' lines.",
+      "new_behavior": "When an ACL entry has acl_opval or acl_controlval set, acl_unparse now emits 'op=<value>' and/or 'control=<value>' lines in the serialized output.",
+      "compatibility_reason": "Tools consuming cn=config LDIF output (e.g., slapcat, ldapsearch of cn=config) will see new attributes in ACL entries that use the new keywords. Parsers that expect a specific set of ACL 'to' clause tokens may not recognize the new output lines.",
+      "evidence": [
+        {
+          "file": "servers/slapd/aclparse.c",
+          "lines": [
+            2872,
+            2888
+          ],
+          "snippet": "if ( !BER_BVISNULL( &a->acl_opval ) ) {\n\tto++;\n\tptr = acl_safe_strcopy( ptr, \" op=\" );\n\tptr = acl_safe_strbvcopy( ptr, &a->acl_opval );\n\tptr = acl_safe_strcopy( ptr, \"\\n\" );\n}\nif ( !BER_BVISNULL( &a->acl_controlval ) ) {\n\tto++;\n\tptr = acl_safe_strcopy( ptr, \" control=\" );\n\tptr = acl_safe_strbvcopy( ptr, &a->acl_controlval );\n\tptr = acl_safe_strcopy( ptr, \"\\n\" );"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "acl_unparse produces user-visible output consumed by cn=config management tools and administrators. The slapd-config(5) format is a documented interface.",
+      "uncertainty": "Output only changes when the new 'op=' or 'control=' keywords are actually used in ACL configuration. Existing ACLs without these restrictions produce identical output.",
+      "manual_review_required": false,
+      "recommended_review": "Check that acl_unparse round-trips correctly: parse an ACL with 'op=search', then unparse it and verify the output contains the expected 'op=' line.",
+      "test_recommendation": "Verify cn=config readback includes 'op=' and 'control=' when configured. Test round-trip (parse then unparse) for ACLs with and without the new keywords.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0007",
+            "file": "servers/slapd/aclparse.c",
+            "old_lines": [
+              2815,
+              2820
+            ],
+            "new_lines": [
+              2869,
+              2888
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "protocol_behavior",
+              "config_schema"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "LDAP protocol, controls, schema, filters, and result codes"
+              },
+              {
+                "name": "config_schema",
+                "test_priority": "high",
+                "public": true,
+                "description": "cn=config, slapd.conf, schema, and overlay configuration"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "openldap",
+      "affected_surface": "AccessControl struct layout in slap.h (slapd internal header, affects dynamically loaded backends/overlays)",
+      "affected_api": {
+        "name": "AccessControl struct in servers/slapd/slap.h",
+        "kind": "public_method",
+        "language": "c"
+      },
+      "location": {
+        "file": "servers/slapd/slap.h",
+        "old_lines": [
+          1612,
+          1617
+        ],
+        "new_lines": [
+          1612,
+          1624
+        ],
+        "symbol": "AccessControl"
+      },
+      "old_behavior": "The AccessControl struct had acl_attrval as the last field before acl_access. The offset of acl_access and acl_next was deterministic from that layout.",
+      "new_behavior": "Five new fields (acl_op, acl_oid, acl_control, acl_opval, acl_controlval) are inserted between acl_attrval and acl_access, changing the struct layout.",
+      "compatibility_reason": "Slapd dynamically loads backend and overlay modules that access the AccessControl struct (typically through op->o_bd->be_acl chains or cn=config operations). Modules compiled against the old struct layout will use wrong offsets for acl_access and acl_next when loaded by the new slapd, causing memory corruption or incorrect behavior.",
+      "evidence": [
+        {
+          "file": "servers/slapd/slap.h",
+          "lines": [
+            1612,
+            1624
+          ],
+          "snippet": "slap_restrictop_t acl_op;\nstruct berval acl_oid;\nint acl_control;\n\n/* Preserved op= and control= parts as configured */\nstruct berval acl_opval;\nstruct berval acl_controlval;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "slap.h is included by slapd backend and overlay modules that are compiled separately and loaded dynamically. The struct layout is an implicit ABI contract between slapd core and its modules.",
+      "uncertainty": "If slapd backends/overlays are always compiled together with the slapd core (no separate module distribution), this ABI mismatch cannot occur. The risk applies only when pre-compiled slapd modules from different builds may be loaded.",
+      "manual_review_required": true,
+      "recommended_review": "Verify that any slapd modules shipping separately are recompiled against the new slap.h. Consider whether the struct layout change could be made at the end of the struct to minimize ABI impact.",
+      "test_recommendation": "Load a pre-compiled slapd backend module built against the old slap.h and verify it still functions correctly. If modules are always compiled in-tree, this is not a practical concern.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=public_method with contract/signature type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0008",
+            "file": "servers/slapd/slap.h",
+            "old_lines": [
+              1612,
+              1617
+            ],
+            "new_lines": [
+              1612,
+              1624
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "config_keys",
+              "network_protocol",
+              "persistence_state",
+              "protocol_behavior",
+              "config_schema"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "LDAP protocol, controls, schema, filters, and result codes"
+              },
+              {
+                "name": "config_schema",
+                "test_priority": "high",
+                "public": true,
+                "description": "cn=config, slapd.conf, schema, and overlay configuration"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=public_method with contract/signature type=ABI_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "openldap",
+      "affected_surface": "ACL evaluation in slap_acl_get - new op/control filtering logic",
+      "affected_api": {
+        "name": "slap_acl_get ACL evaluation",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "servers/slapd/acl.c",
+        "old_lines": [
+          545,
+          550
+        ],
+        "new_lines": [
+          545,
+          564
+        ],
+        "symbol": "slap_acl_get"
+      },
+      "old_behavior": "The ACL evaluation loop iterated through all matching ACL entries and checked dn/filter/attrs only. All ACL entries were evaluated regardless of the operation type or controls present on the request.",
+      "new_behavior": "Before checking dn/filter/attrs, the loop now checks if the ACL entry has op= or control= restrictions. If acl_op is set, the entry is skipped when the request operation type doesn't match (bitwise mask check). For extended operations, the OID must also match. If acl_control is set, the entry is skipped when the specified control is absent or has level <= SLAP_CONTROL_IGNORED.",
+      "compatibility_reason": "ACL evaluation semantics change for entries using the new keywords: an ACL rule with 'op=search' will only match search operations, potentially granting or denying access differently than before. For entries without op/control restrictions, behavior is unchanged.",
+      "evidence": [
+        {
+          "file": "servers/slapd/acl.c",
+          "lines": [
+            548,
+            560
+          ],
+          "snippet": "if ( a->acl_op ) {\n\tslap_restrictop_t restrictop = SLAP_OP2RESTRICT(slap_req2op( op->o_tag ));\n\tif ( !(a->acl_op & restrictop) )\n\t\tcontinue;\n\tif ( restrictop == SLAP_RESTRICT_OP_EXTENDED && !BER_BVISNULL( &a->acl_oid ) &&\n\t\t\tber_bvcmp( &a->acl_oid, &op->oq_extended.rs_reqoid ) != 0 )\n\t\tcontinue;\n}\nif ( a->acl_control &&\n\t\t_SCM(op->o_ctrlflag[a->acl_control]) <= SLAP_CONTROL_IGNORED )\n\tcontinue;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "ACL evaluation is a core security mechanism in slapd. Changes to ACL matching semantics directly affect what operations are permitted or denied for LDAP clients. The ACL system is documented in slapd.access(5) as an administrator-facing interface.",
+      "uncertainty": "The new filtering code only activates when acl_op or acl_control is non-zero on an ACL entry. For old configurations without these keywords, the new code is a no-op (acl_op is zero-initialized by ch_calloc).",
+      "manual_review_required": false,
+      "recommended_review": "Verify the bitwise operation mask correctly matches all LDAP operations. Check that SLAP_RESTRICT_OP_EXTENDED correctly identifies extended operations and the OID comparison works for all extended operation OID formats.",
+      "test_recommendation": "Run test006-acls which exercises the op=search and control=manageDSAiT ACL rules. Test that ACLs with 'op=search' do not match add/delete/modify operations. Test that 'control=' correctly restricts to requests carrying the specified control.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "servers/slapd/acl.c",
+            "old_lines": [
+              545,
+              550
+            ],
+            "new_lines": [
+              545,
+              564
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "persistence_state",
+              "libldap_api",
+              "protocol_behavior",
+              "config_schema"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "libldap_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "libldap/liblber public C API and ABI"
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "LDAP protocol, controls, schema, filters, and result codes"
+              },
+              {
+                "name": "config_schema",
+                "test_priority": "high",
+                "public": true,
+                "description": "cn=config, slapd.conf, schema, and overlay configuration"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

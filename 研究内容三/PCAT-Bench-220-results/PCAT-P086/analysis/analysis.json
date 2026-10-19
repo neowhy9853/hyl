@@ -1,0 +1,633 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P026/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P026",
+  "base_ref": "9770e32ce07110f0c8c7a381604ec9a490028eed^",
+  "base_commit": "9eb50a40b4186d665aa98c8dbea7cf60fb2aacca",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "9770e32ce07110f0c8c7a381604ec9a490028eed",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/python/cpython/commit/9770e32ce07110f0c8c7a381604ec9a490028eed",
+    "download_url": "https://github.com/python/cpython/commit/9770e32ce07110f0c8c7a381604ec9a490028eed.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P026/_patch-cache/9770e32ce071.patch",
+    "commit": "9770e32ce07110f0c8c7a381604ec9a490028eed",
+    "base_ref_inferred": "9770e32ce07110f0c8c7a381604ec9a490028eed^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "cpython",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "soft threshold exceeded",
+    "churn=268 >= 250"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 19224,
+    "patch_lines": 436,
+    "diff_added_lines": 251,
+    "diff_deleted_lines": 17,
+    "diff_context_lines": 106,
+    "churn": 268,
+    "raw_hunks": 16,
+    "candidate_hunks": 8,
+    "skipped_doc_hunks": 8,
+    "changed_files": 5,
+    "candidate_context_bytes": 30594,
+    "public_candidate_hunks": 4,
+    "surface_counts": {
+      "python_public_api": 4,
+      "python_exceptions": 6,
+      "syscall_wrappers": 1,
+      "user_visible_output": 4,
+      "python_stdlib": 4,
+      "exceptions": 6,
+      "tests": 3
+    },
+    "candidates_json_bytes": 69884
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 3
+  },
+  "summary": {
+    "total_changed_files": 5,
+    "total_candidates": 8,
+    "compatibility_changes": 4,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 4
+  },
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "cpython",
+      "affected_surface": "python_public_api",
+      "affected_api": {
+        "name": "os.makedirs",
+        "kind": "exported_function",
+        "language": "python"
+      },
+      "location": {
+        "file": "Lib/os.py",
+        "old_lines": [
+          219,
+          232
+        ],
+        "new_lines": [
+          219,
+          235
+        ],
+        "symbol": "makedirs"
+      },
+      "old_behavior": "makedirs(name, mode=0o777, exist_ok=False) - 接受3个位置或关键字参数，中间目录使用默认权限创建（受umask影响）",
+      "new_behavior": "makedirs(name, mode=0o777, exist_ok=False, *, parent_mode=None) - 新增keyword-only参数parent_mode，当设置为非None时用作中间目录的创建模式；默认None保持原有行为",
+      "compatibility_reason": "函数签名新增一个keyword-only可选参数parent_mode。由于parent_mode位于*之后，调用者无法以位置参数方式传入，但已有调用者不受影响：所有现有参数（name、mode、exist_ok）的位置和默认值未变，不传递parent_mode时行为与旧版本完全一致。这是纯增量的向后兼容变更。",
+      "evidence": [
+        {
+          "file": "Lib/os.py",
+          "lines": [
+            219,
+            235
+          ],
+          "snippet": "@@ -219,14 +219,17 @@\n-def makedirs(name, mode=0o777, exist_ok=False):\n-    \"\"\"makedirs(name [, mode=0o777][, exist_ok=False])\n+def makedirs(name, mode=0o777, exist_ok=False, *, parent_mode=None):\n+    \"\"\"makedirs(name [, mode=0o777][, exist_ok=False][, parent_mode=None])"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "os.makedirs是Python标准库os模块的公共函数，在Python文档中有明确记载，被大量第三方代码广泛使用。新增参数直接修改了公共API签名。",
+      "uncertainty": "是否有代码依赖inspect.signature或getfullargspec检查makedirs的参数列表，如果这类工具代码对参数数量有严格断言，可能会观察到变化。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核：纯增量的可选参数，向后兼容。",
+      "test_recommendation": "验证不传递parent_mode时makedirs的行为与旧版本完全一致；验证传递parent_mode时中间目录获得指定模式；验证parent_mode与mode值不同时的正确隔离。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0009",
+            "file": "Lib/os.py",
+            "old_lines": [
+              219,
+              232
+            ],
+            "new_lines": [
+              219,
+              235
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "python_public_api",
+              "python_exceptions",
+              "syscall_wrappers",
+              "user_visible_output",
+              "python_stdlib",
+              "exceptions"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "python_public_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public Python module, class, function, method, and attribute behavior."
+              },
+              {
+                "name": "python_exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type, message, and failure-path compatibility."
+              },
+              {
+                "name": "syscall_wrappers",
+                "test_priority": "high",
+                "public": true,
+                "description": "User-space syscall wrappers, fallbacks, flags, errno, and retry behavior."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "python_stdlib",
+                "test_priority": "high",
+                "public": true,
+                "description": "Python standard library public API"
+              },
+              {
+                "name": "exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type and message changes"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0010",
+            "file": "Lib/os.py",
+            "old_lines": [
+              234,
+              240
+            ],
+            "new_lines": [
+              237,
+              247
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "python_public_api",
+              "python_exceptions",
+              "user_visible_output",
+              "python_stdlib",
+              "exceptions"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "python_public_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public Python module, class, function, method, and attribute behavior."
+              },
+              {
+                "name": "python_exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type, message, and failure-path compatibility."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "python_stdlib",
+                "test_priority": "high",
+                "public": true,
+                "description": "Python standard library public API"
+              },
+              {
+                "name": "exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type and message changes"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "cpython",
+      "affected_surface": "python_public_api",
+      "affected_api": {
+        "name": "os.makedirs",
+        "kind": "exported_function",
+        "language": "python"
+      },
+      "location": {
+        "file": "Lib/os.py",
+        "old_lines": [
+          234,
+          240
+        ],
+        "new_lines": [
+          237,
+          247
+        ],
+        "symbol": "makedirs"
+      },
+      "old_behavior": "递归调用makedirs(head, exist_ok=exist_ok)创建中间目录——中间目录使用默认权限（受umask影响），无法单独指定模式",
+      "new_behavior": "当parent_mode参数不为None时，递归调用makedirs(head, mode=parent_mode, exist_ok=exist_ok, parent_mode=parent_mode)，将parent_mode用作中间目录创建模式和递归传递；当parent_mode为None（默认值）时，行为与旧版本完全相同",
+      "compatibility_reason": "更改了makedirs递归创建中间目录时的mode参数传递逻辑。当parent_mode被显式设置时，中间目录获得指定权限而非默认权限，改变了文件系统中的可观察副作用（目录权限位）。默认行为（parent_mode=None）不受影响，因此只有显式使用新参数的用户会观察到变化。",
+      "evidence": [
+        {
+          "file": "Lib/os.py",
+          "lines": [
+            237,
+            247
+          ],
+          "snippet": "@@ -234,7 +237,11 @@\n-            makedirs(head, exist_ok=exist_ok)\n+            if parent_mode is not None:\n+                makedirs(head, mode=parent_mode, exist_ok=exist_ok,\n+                         parent_mode=parent_mode)\n+            else:\n+                makedirs(head, exist_ok=exist_ok)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "makedirs是os模块中最常用的目录创建函数之一，其副作用（创建的目录权限）直接可被文件系统上的其他进程观察到。",
+      "uncertainty": "在并发场景下（另一个线程/进程同时创建了目录），FileExistsError的try/except保护是否在所有parent_mode路径下均正确工作。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核：条件分支清晰，默认路径不变。",
+      "test_recommendation": "验证makedirs(path, parent_mode=0o700)时所有中间目录权限为0o700且叶目录为默认0o777；验证不设置parent_mode时行为不变；验证umask对parent_mode的屏蔽效果。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0010",
+            "file": "Lib/os.py",
+            "old_lines": [
+              234,
+              240
+            ],
+            "new_lines": [
+              237,
+              247
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "python_public_api",
+              "python_exceptions",
+              "user_visible_output",
+              "python_stdlib",
+              "exceptions"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "python_public_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public Python module, class, function, method, and attribute behavior."
+              },
+              {
+                "name": "python_exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type, message, and failure-path compatibility."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "python_stdlib",
+                "test_priority": "high",
+                "public": true,
+                "description": "Python standard library public API"
+              },
+              {
+                "name": "exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type and message changes"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "cpython",
+      "affected_surface": "python_public_api",
+      "affected_api": {
+        "name": "pathlib.Path.mkdir",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "location": {
+        "file": "Lib/pathlib/__init__.py",
+        "old_lines": [
+          1204,
+          1210
+        ],
+        "new_lines": [
+          1204,
+          1210
+        ],
+        "symbol": "mkdir"
+      },
+      "old_behavior": "Path.mkdir(self, mode=0o777, parents=False, exist_ok=False) - 接受3个位置或关键字参数，中间目录使用默认权限创建",
+      "new_behavior": "Path.mkdir(self, mode=0o777, parents=False, exist_ok=False, *, parent_mode=None) - 新增keyword-only参数parent_mode，当设置为非None时用作中间目录的创建模式",
+      "compatibility_reason": "与os.makedirs相同的模式：pathlib.Path.mkdir新增keyword-only可选参数parent_mode。已有调用者不传递parent_mode时行为不变，纯增量兼容。",
+      "evidence": [
+        {
+          "file": "Lib/pathlib/__init__.py",
+          "lines": [
+            1204,
+            1210
+          ],
+          "snippet": "@@ -1204,7 +1204,7 @@\n-    def mkdir(self, mode=0o777, parents=False, exist_ok=False):\n+    def mkdir(self, mode=0o777, parents=False, exist_ok=False, *, parent_mode=None):"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "pathlib.Path.mkdir是Python标准库pathlib模块的公共方法，在Python文档中明确记录。",
+      "uncertainty": "是否有代码对Path.mkdir的参数列表进行反射检查。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核。",
+      "test_recommendation": "验证Path.mkdir(parents=True)不传parent_mode时行为不变；验证Path.mkdir(parents=True, parent_mode=0o700)时中间目录权限正确。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=public_method with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0011",
+            "file": "Lib/pathlib/__init__.py",
+            "old_lines": [
+              1204,
+              1210
+            ],
+            "new_lines": [
+              1204,
+              1210
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "python_public_api",
+              "python_exceptions",
+              "user_visible_output",
+              "python_stdlib",
+              "exceptions"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "python_public_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public Python module, class, function, method, and attribute behavior."
+              },
+              {
+                "name": "python_exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type, message, and failure-path compatibility."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "python_stdlib",
+                "test_priority": "high",
+                "public": true,
+                "description": "Python standard library public API"
+              },
+              {
+                "name": "exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type and message changes"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=public_method with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "cpython",
+      "affected_surface": "python_public_api",
+      "affected_api": {
+        "name": "pathlib.Path.mkdir",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "location": {
+        "file": "Lib/pathlib/__init__.py",
+        "old_lines": [
+          1213,
+          1219
+        ],
+        "new_lines": [
+          1213,
+          1223
+        ],
+        "symbol": "mkdir"
+      },
+      "old_behavior": "递归调用self.parent.mkdir(parents=True, exist_ok=True)创建父目录——父目录获得默认权限",
+      "new_behavior": "当parent_mode不为None时，递归调用self.parent.mkdir(mode=parent_mode, parents=True, exist_ok=True, parent_mode=parent_mode)，将parent_mode应用于父目录创建；当parent_mode为None时行为不变",
+      "compatibility_reason": "Path.mkdir递归创建父目录时的mode参数传递逻辑变化。显式设置parent_mode时父目录权限改变，默认行为不变。",
+      "evidence": [
+        {
+          "file": "Lib/pathlib/__init__.py",
+          "lines": [
+            1213,
+            1223
+          ],
+          "snippet": "@@ -1213,7 +1213,11 @@\n-            self.parent.mkdir(parents=True, exist_ok=True)\n+            if parent_mode is not None:\n+                self.parent.mkdir(mode=parent_mode, parents=True, exist_ok=True,\n+                                  parent_mode=parent_mode)\n+            else:\n+                self.parent.mkdir(parents=True, exist_ok=True)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "pathlib.Path.mkdir是公共API，其副作用（创建的目录权限）可被文件系统其他进程观察。",
+      "uncertainty": "无重大不确定性。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核。",
+      "test_recommendation": "验证Path.mkdir(parents=True, parent_mode=0o700)时父目录权限正确；验证深层目录层次时parent_mode正确传播到所有中间级别。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=public_method on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0012",
+            "file": "Lib/pathlib/__init__.py",
+            "old_lines": [
+              1213,
+              1219
+            ],
+            "new_lines": [
+              1213,
+              1223
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "python_public_api",
+              "python_exceptions",
+              "user_visible_output",
+              "python_stdlib",
+              "exceptions"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "python_public_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public Python module, class, function, method, and attribute behavior."
+              },
+              {
+                "name": "python_exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type, message, and failure-path compatibility."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "python_stdlib",
+                "test_priority": "high",
+                "public": true,
+                "description": "Python standard library public API"
+              },
+              {
+                "name": "exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type and message changes"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=public_method on public surface -> at least medium"
+    }
+  ],
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

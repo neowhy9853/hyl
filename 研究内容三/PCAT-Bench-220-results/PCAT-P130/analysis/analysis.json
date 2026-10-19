@@ -1,0 +1,886 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P070/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P070",
+  "base_ref": "0d71da4bdfff4c18abcea77ffa76227f70be0f73^",
+  "base_commit": "3934667f36d0775928ee1368b4784b3419cf45d8",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "0d71da4bdfff4c18abcea77ffa76227f70be0f73",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/apache/httpd/commit/0d71da4bdfff4c18abcea77ffa76227f70be0f73",
+    "download_url": "https://github.com/apache/httpd/commit/0d71da4bdfff4c18abcea77ffa76227f70be0f73.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P070/_patch-cache/0d71da4bdfff.patch",
+    "commit": "0d71da4bdfff4c18abcea77ffa76227f70be0f73",
+    "base_ref_inferred": "0d71da4bdfff4c18abcea77ffa76227f70be0f73^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "httpd",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "hard threshold exceeded",
+    "candidates_json_bytes=204598 >= 180000"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 25483,
+    "patch_lines": 599,
+    "diff_added_lines": 164,
+    "diff_deleted_lines": 119,
+    "diff_context_lines": 224,
+    "churn": 283,
+    "raw_hunks": 25,
+    "candidate_hunks": 25,
+    "skipped_doc_hunks": 0,
+    "changed_files": 7,
+    "candidate_context_bytes": 76711,
+    "public_candidate_hunks": 25,
+    "surface_counts": {
+      "public_headers": 6,
+      "plugin_api": 16,
+      "struct_layout": 5,
+      "network_protocol": 21,
+      "module_api": 25,
+      "config_directives": 2,
+      "request_handling": 17,
+      "callbacks": 3,
+      "config_keys": 8,
+      "daemon_control": 12,
+      "user_visible_output": 19,
+      "persistence_state": 19,
+      "logging": 18
+    },
+    "candidates_json_bytes": 204598
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 8
+  },
+  "summary": {
+    "total_changed_files": 7,
+    "total_candidates": 25,
+    "compatibility_changes": 4,
+    "high_priority": 2,
+    "medium_priority": 2,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "httpd",
+      "affected_surface": "plugin_api, network_protocol, module_api, request_handling",
+      "affected_api": {
+        "name": "process_connection hook callback contract (Event MPM)",
+        "kind": "callback_type",
+        "language": "c"
+      },
+      "location": {
+        "file": "server/mpm/event/event.c",
+        "old_lines": [
+          1114,
+          1168
+        ],
+        "new_lines": [
+          1114,
+          1192
+        ],
+        "symbol": "process_socket"
+      },
+      "old_behavior": "After r1918022, when a process_connection hook returned OK with cs->pub.state still CONN_STATE_PROCESSING, the MPM performed POLLIN/POLLOUT on the underlying socket (based on sense), waiting for I/O readiness using Timeout before calling back the process_connection hooks again. This changed the earlier semantics where OK+CONN_STATE_PROCESSING was equivalent to lingering close.",
+      "new_behavior": "This patch restores the earlier semantics: when a process_connection hook returns OK and cs->pub.state remains CONN_STATE_PROCESSING, the MPM degrades to lingering close processing. If a hook wants the MPM to wait for I/O and call back, it must return the newly introduced AGAIN(-4) return code while maintaining CONN_STATE_PROCESSING state. Additionally, DONE return value is now mapped to OK (no longer treated as an independent code).",
+      "compatibility_reason": "This change has significant compatibility impact on third-party modules using Event MPM: (1) Any module relying on r1918022's 'OK+CONN_STATE_PROCESSING -> POLLIN/POLLOUT' behavior will break, connections will be unexpectedly closed; (2) Modules wanting the I/O wait mechanism must be modified to return AGAIN instead of OK, but can check ap_mpm_query(AP_MPMQ_CAN_AGAIN) first for graceful fallback; (3) The DONE->OK mapping may affect code paths checking for DONE return. This is the root cause compatibility change of this patch.",
+      "evidence": [
+        {
+          "file": "server/mpm/event/event.c",
+          "lines": [
+            1142,
+            1160
+          ],
+          "snippet": "        switch (rc) {\n        case DONE:\n            rc = OK; /* same as OK, fall through */\n        case OK:\n            if (cs->pub.state == CONN_STATE_PROCESSING) {\n                cs->pub.state = CONN_STATE_LINGER;\n            }\n            else if (cs->pub.state == CONN_STATE_KEEPALIVE) {\n                cs->pub.state = CONN_STATE_WRITE_COMPLETION;\n            }\n            break;\n        case AGAIN:\n            if (cs->pub.state == CONN_STATE_PROCESSING) {\n                rc = OK;\n            }\n            break;\n        }"
+        },
+        {
+          "file": "server/mpm/event/event.c",
+          "lines": [
+            1153,
+            1160
+          ],
+          "snippet": "         * - CONN_STATE_PROCESSING: wait for read/write-ability of the underlying\n         *   socket using Timeout and come back to process_connection() hooks when\n         *   ready (the return value should be AGAIN in this case to not break old\n         *   or third-party modules which might return OK w/o touching the state and\n         *   expect lingering close, like with worker or prefork MPMs);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "process_connection is a core hook interface in the Apache module API, implemented by all modules. Event MPM is one of the default MPMs; its connection state handling logic directly affects all third-party modules (including precompiled binary modules) that implement process_connection hooks and run under event MPM. The behavior being changed was only introduced in r1918022 for a short window; this patch intentionally restores the earlier compat behavior.",
+      "uncertainty": "Impact scope depends on how many third-party modules depended on r1918022's OK+CONN_STATE_PROCESSING behavior. Due to the short window of r1918022, affected modules may be limited but cannot be ruled out entirely.",
+      "manual_review_required": true,
+      "recommended_review": "Check whether known third-party modules depend on OK+CONN_STATE_PROCESSING for non-lingering-close behavior. Pay special attention to mod_proxy_http2, mod_lua, and community modules that use CONN_STATE_PROCESSING in their process_connection hooks.",
+      "test_recommendation": "Build httpd with GCOV instrumentation. Write a test module implementing process_connection hook: verify that OK+CONN_STATE_PROCESSING triggers lingering close (not POLLIN/POLLOUT); verify that AGAIN+CONN_STATE_PROCESSING puts the connection back in the pollset for I/O events. Also verify DONE->OK mapping does not break third-party modules.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=callback_type with compatibility_type=RETURN_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0018",
+            "file": "server/mpm/event/event.c",
+            "old_lines": [
+              1110,
+              1185
+            ],
+            "new_lines": [
+              1114,
+              1201
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "network_protocol",
+              "daemon_control",
+              "persistence_state",
+              "module_api",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "daemon_control",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control, metrics, and administration interfaces."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=callback_type with compatibility_type=RETURN_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.85,
+      "package_profile": "httpd",
+      "affected_surface": "network_protocol, module_api, request_handling, daemon_control",
+      "affected_api": {
+        "name": "h2_c1_run / h2_c1_hook_process_connection",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/http2/h2_c1.c",
+        "old_lines": [
+          115,
+          280
+        ],
+        "new_lines": [
+          117,
+          308
+        ],
+        "symbol": "h2_c1_run"
+      },
+      "old_behavior": "h2_c1_run() returned apr_status_t type, logged errors and closed connection only when APR_STATUS_IS_EOF(status). In non-keepalive case, set cs->state=CONN_STATE_PROCESSING or CONN_STATE_WRITE_COMPLETION (controlled by H2_USE_STATE_PROCESSING compile-time macro). h2_c1_hook_process_connection always returned OK.",
+      "new_behavior": "h2_c1_run() returns int type, uses status!=APR_SUCCESS for error checking (covers EOF and all other non-success states). New mpm_can_again static variable (queried via ap_mpm_query(AP_MPMQ_CAN_AGAIN)): when MPM supports it and non-keepalive, returns AGAIN(-4) with cs->state=CONN_STATE_PROCESSING; otherwise uses CONN_STATE_WRITE_COMPLETION+clogging_input_filters=1 as compat fallback. h2_c1_hook_process_connection propagates h2_c1_run()'s return value to MPM instead of always returning OK.",
+      "compatibility_reason": "(1) Return type changed from apr_status_t to int: while AGAIN=-4 is unknown to old MPMs, old MPMs cannot set AP_MPMQ_CAN_AGAIN so the module won't return AGAIN; (2) Error handling relaxed from APR_STATUS_IS_EOF to status!=APR_SUCCESS, which may cause connection close on non-fatal error states (e.g., APR_EAGAIN); (3) clogging_input_filters side effect changes MPM's subsequent connection processing path; (4) h2_c1.h still declares apr_status_t while implementation uses int, causing potential compile warnings.",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_c1.c",
+          "lines": [
+            117,
+            128
+          ],
+          "snippet": "int h2_c1_run(conn_rec *c)\n{\n    int rc = OK;\n    apr_status_t status;\n    int mpm_state = 0, keepalive = 0;\n    h2_conn_ctx_t *conn_ctx = h2_conn_ctx_get(c);\n    \n    ap_assert(conn_ctx);\n    ap_assert(conn_ctx->session);\n    c->clogging_input_filters = 0;"
+        },
+        {
+          "file": "modules/http2/h2_c1.c",
+          "lines": [
+            155,
+            190
+          ],
+          "snippet": "#ifdef AP_MPMQ_CAN_AGAIN\n                    if (mpm_can_again) {\n                        c->cs->state = CONN_STATE_PROCESSING;\n                        rc = AGAIN;\n                    }\n                    else\n#endif\n                    {\n                        c->cs->state = CONN_STATE_WRITE_COMPLETION;\n                        c->clogging_input_filters = 1;\n                    }"
+        },
+        {
+          "file": "modules/http2/h2_c1.c",
+          "lines": [
+            305,
+            311
+          ],
+          "snippet": "    return h2_c1_run(c);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "h2_c1_hook_process_connection is a module callback registered with ap_hook_process_connection, part of the public API contract. Its return value is directly passed to event MPM's process_socket() function, affecting connection lifecycle. Even though h2_c1_run() is module-internal, its behavioral changes have externally observable effects on MPM and HTTP/2 clients via the hook contract.",
+      "uncertainty": "Impact of relaxed error handling needs real-traffic validation. Some non-EOF error states previously silently handled may now cause connection close. Severity of h2_c1.h declaration mismatch depends on compiler warning settings.",
+      "manual_review_required": true,
+      "recommended_review": "Check h2_c1.h declaration for potential sync to int return type. Verify probability and impact of non-EOF error states (e.g., APR_EAGAIN, APR_EINTR) unexpectedly triggering connection close.",
+      "test_recommendation": "Build Apache httpd with mod_http2: verify fallback to clogging_input_filters path on MPMs without AP_MPMQ_CAN_AGAIN; verify AGAIN return triggers correct poll callback on capable MPMs; confirm connection close behavior on non-EOF error states meets expectations; run mod_http2 existing test suite for regressions.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 4 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 4,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0008",
+            "file": "modules/http2/h2_c1.c",
+            "old_lines": [
+              113,
+              135
+            ],
+            "new_lines": [
+              115,
+              137
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "network_protocol",
+              "persistence_state",
+              "module_api",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0009",
+            "file": "modules/http2/h2_c1.c",
+            "old_lines": [
+              153,
+              172
+            ],
+            "new_lines": [
+              155,
+              193
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "network_protocol",
+              "persistence_state",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0010",
+            "file": "modules/http2/h2_c1.c",
+            "old_lines": [
+              178,
+              184
+            ],
+            "new_lines": [
+              199,
+              205
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "plugin_api",
+              "network_protocol",
+              "persistence_state",
+              "module_api",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0011",
+            "file": "modules/http2/h2_c1.c",
+            "old_lines": [
+              284,
+              291
+            ],
+            "new_lines": [
+              305,
+              311
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "network_protocol",
+              "persistence_state",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 4 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.88,
+      "package_profile": "httpd",
+      "affected_surface": "daemon_control, request_handling",
+      "affected_api": {
+        "name": "process_socket (pre_connection failure handling)",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "location": {
+        "file": "server/mpm/event/event.c",
+        "old_lines": [
+          1082,
+          1087
+        ],
+        "new_lines": [
+          1085,
+          1092
+        ],
+        "symbol": "process_socket"
+      },
+      "old_behavior": "When ap_run_pre_connection() returned neither OK nor DONE, the MPM only logged 'connection aborted' but performed no cleanup, allowing the connection to continue into the process_connection hook flow.",
+      "new_behavior": "When ap_run_pre_connection() returns neither OK nor DONE, the MPM logs the message then immediately calls close_connection(cs) to explicitly close the socket and reclaim connection resources, returning from process_socket.",
+      "compatibility_reason": "This change alters the side effect of pre_connection hook errors: (1) Connection is immediately closed and resources released, bypassing subsequent process_connection hooks; (2) Side effect change may affect modules that set up filters or connection context in pre_connection expecting continued processing (though pre_connection failure normally should not proceed); (3) This is a defensive improvement but changes MPM's connection lifecycle management.",
+      "evidence": [
+        {
+          "file": "server/mpm/event/event.c",
+          "lines": [
+            1085,
+            1092
+          ],
+          "snippet": "        if (rc != OK && rc != DONE) {\n            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(00469)\n                          \"process_socket: connection aborted\");\n            close_connection(cs);\n            return;\n        }"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Although process_socket is an MPM-internal function, the pre_connection hook failure handling path change affects the connection lifecycle observable by external modules. Modules may set filters or connection contexts in pre_connection expecting continued processing. This change causes those setups to be ignored (connection terminated early).",
+      "uncertainty": "Actual frequency of pre_connection failures is low, but impact scope cannot be quantified. Old behavior treated pre_connection failure as recoverable; new behavior abandons the connection.",
+      "manual_review_required": false,
+      "recommended_review": "No specific manual review needed; this is a defensive improvement.",
+      "test_recommendation": "Write a test module simulating pre_connection returning error, verify connection is properly closed with resource cleanup; confirm normal flow (pre_connection returns OK/DONE) is unaffected.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=daemon_handler on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0016",
+            "file": "server/mpm/event/event.c",
+            "old_lines": [
+              1082,
+              1087
+            ],
+            "new_lines": [
+              1085,
+              1092
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output",
+              "logging",
+              "network_protocol",
+              "daemon_control",
+              "persistence_state",
+              "module_api",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "daemon_control",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control, metrics, and administration interfaces."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=daemon_handler on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.75,
+      "package_profile": "httpd",
+      "affected_surface": "public_headers",
+      "affected_api": {
+        "name": "CONN_STATE_PROCESSING enum documented contract",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "include/httpd.h",
+        "old_lines": [
+          1322,
+          1329
+        ],
+        "new_lines": [
+          1322,
+          1331
+        ],
+        "symbol": "CONN_STATE_PROCESSING"
+      },
+      "old_behavior": "CONN_STATE_PROCESSING enum documentation stated: connection is 'Handled by process_connection() hooks, may be returned to the MPM for POLLIN/POLLOUT (using Timeout)', implying returning OK would achieve this behavior.",
+      "new_behavior": "CONN_STATE_PROCESSING enum documentation updated to: connection is 'Processed by process_connection() hooks, returning AGAIN to the MPM in this state will make it wait for the connection to be readable or writable according to CONN_SENSE_WANT_READ or CONN_SENSE_WANT_WRITE respectively, where Timeout applies', explicitly requiring AGAIN instead of OK.",
+      "compatibility_reason": "Documented contract change in public header causes: (1) Module code written based on old comment will not match new contract; (2) New comment clarifies CONN_SENSE_WANT_READ/WRITE semantics, but old code may not set sense; (3) Although this change typically takes effect alongside code changes, the public header is included by all modules, so semantic differences in comments may cause incorrect assumptions by module developers.",
+      "evidence": [
+        {
+          "file": "include/httpd.h",
+          "lines": [
+            1322,
+            1331
+          ],
+          "snippet": "    CONN_STATE_PROCESSING,          /* Processed by process_connection() hooks, returning\n                                     * AGAIN to the MPM in this state will make it wait for\n                                     * the connection to be readable or writable according to\n                                     * CONN_SENSE_WANT_READ or CONN_SENSE_WANT_WRITE respectively,\n                                     * where Timeout applies */"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "This comment is in include/httpd.h public header, included at compile time by all Apache modules. The contract described in the comment is the specification reference for all process_connection hook implementations.",
+      "uncertainty": "Pure comment changes do not affect compiled output, only developer understanding when reading headers. Actual behavioral changes are implemented in event.c (see PCA-0001). This finding's compatibility impact is already covered by PCA-0001; recorded here as an independent documented contract change. Medium-low confidence since comment changes alone cannot cause runtime breakage.",
+      "manual_review_required": false,
+      "recommended_review": "No separate review needed; compatibility impact covered by PCA-0001.",
+      "test_recommendation": "Process_connection hook implementations written per new comment should correctly interact with event MPM by returning AGAIN instead of OK for I/O wait. Verify as described in PCA-0001.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "include/httpd.h",
+            "old_lines": [
+              1319,
+              1326
+            ],
+            "new_lines": [
+              1322,
+              1332
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "config_keys",
+              "plugin_api",
+              "struct_layout",
+              "network_protocol",
+              "persistence_state",
+              "module_api",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "struct_layout",
+                "test_priority": "high",
+                "public": true,
+                "description": "ABI-sensitive definitions:\n- Struct layout (size, field order, field type)\n- Enum values\n- Macro definitions\n- Constants\n"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Validation passed. Proceed to directed testing if requested.",
+  "analysis_stage": "completed"
+}

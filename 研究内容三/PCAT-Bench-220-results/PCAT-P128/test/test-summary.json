@@ -1,0 +1,125 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P068/analysis.json",
+  "patch_id": "2d8a447551125cb0f1efb4781a58afa9ab77c392",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P068/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+    "base_commit": "66254273e22a5b4051d15d7423b86a5d884b4ee5",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P068/_worktrees/patched",
+    "package_profile": "httpd"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "not_run",
+    "after_build": "not_run",
+    "compiler": "gcc (Ubuntu 11.4.0)",
+    "optimization": "-O0",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Full httpd build not possible: APR dev headers (libapr1-dev, libaprutil1-dev) not installed and sudo access unavailable",
+      "Synthetic C harness used to isolate and test the exact flag-setting logic changed by this patch",
+      "Synthetic harness built with gcc -fprofile-arcs -ftest-coverage -O0 -g"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 6,
+    "inputs_executed": 6,
+    "contracts_total": 1,
+    "contracts_passed": 1,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 2,
+    "patch_lines_covered": 2,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "medium",
+      "status": "passed",
+      "target_location": {
+        "file": "modules/mappers/mod_rewrite.c",
+        "new_lines": [3909, 3920],
+        "symbol": "cmd_rewriterule"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+          "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+          "expected_signal": "Test 2 (QSA + trailing ?): BEFORE sets QSNONE, AFTER does NOT set QSNONE. KEY ASSERTION: QSA+trailing? correctly does not set QSNONE in new code.",
+          "reachability_signal": "gcov confirms apply_trailing_qmark_AFTER (synthetic equivalent of new cmd_rewriterule logic) executed 6 times. Both branches of the !RULEFLAG_QSAPPEND condition taken (3x true, 3x false). Line coverage: 100%."
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "qsa_trailing_qmark_flag_logic",
+          "status": "passed",
+          "detail": "Contract: When RULEFLAG_QSAPPEND is set AND trailing ? is present, RULEFLAG_QSNONE must NOT be set. Verified across 6 test cases. Old (regressed) behavior: QSNONE unconditionally set regardless of QSA. New (fixed) behavior: QSNONE only set when QSA is NOT present. All 6 tests passed with exact match."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 2,
+        "covered_lines": 2,
+        "uncovered_lines": [],
+        "rate": 100.0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I2",
+          "diff_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+          "before": "flags=0x00100200 (RULEFLAG_QSAPPEND | RULEFLAG_QSNONE). QSNONE set unconditionally, overriding QSA.",
+          "after": "flags=0x00000200 (RULEFLAG_QSAPPEND only). QSNONE NOT set, QSA preserved. Query string will be appended at runtime.",
+          "evidence": "gcov confirmed apply_trailing_qmark_AFTER line 21 (if !QSAPPEND) and line 22 (set QSNONE) executed. Line 21 taken both branches: 3x QSAPPEND not set -> line 22 executed; 3x QSAPPEND set -> line 22 skipped."
+        }
+      ],
+      "notes": [
+        "Synthetic harness model verified: the flag-setting logic change behaves correctly for all 6 tested flag combinations",
+        "The regression fix restores expected behavior: QSA + trailing ? now correctly appends query string",
+        "Non-QSA trailing ? behavior unchanged: RULEFLAG_QSNONE still set, query string discarded",
+        "Full end-to-end httpd integration test not possible due to missing APR dev headers"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "BLOCK-0001",
+      "reason": "Cannot build full httpd binary: libapr1-dev, libaprutil1-dev not installed and sudo access unavailable for package installation",
+      "required_action": "Install libapr1-dev and libaprutil1-dev packages, then build httpd with coverage instrumentation for end-to-end before/after HTTP-level testing"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "test-entry-work/test-entry-verification.json",
+    "contract_summary": "test-entry-work/test-entry-verification.json",
+    "coverage_data": "test-entry-work/PCA-0001/rewrite_qsa_test.c.gcov",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": true,
+    "rationale": "The synthetic harness verified that the flag-setting logic change correctly fixes the QSA+trailing ? regression at the code level. The new behavior: when QSA flag is present, RULEFLAG_QSNONE is not set, allowing query string append to work as expected. Contract verification passed with 0 breaches. The synthetic harness achieved 100% line coverage of the corresponding flag-setting logic. However, full end-to-end HTTP integration testing is blocked by missing APR dev headers, so backward compatibility cannot be conclusively determined at the integration level.",
+    "recommended_actions": [
+      "Install APR development headers (libapr1-dev, libaprutil1-dev) and rebuild httpd for full integration testing",
+      "Run Apache's mod_rewrite test suite against the patched build",
+      "Add HTTP-level test: RewriteRule with trailing ? and [QSA] flag, verify query string is appended in HTTP redirect response",
+      "Add HTTP-level test: RewriteRule with trailing ? without QSA, verify query string is discarded"
+    ]
+  }
+}

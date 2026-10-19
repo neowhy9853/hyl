@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P068/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P068/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P068",
+  "patch_id": "2d8a447551125cb0f1efb4781a58afa9ab77c392",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "RewriteRule directive, cmd_rewriterule",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "modules/mappers/mod_rewrite.c",
+        "old_lines": [
+          3909,
+          3917
+        ],
+        "new_lines": [
+          3909,
+          3920
+        ],
+        "symbol": "cmd_rewriterule"
+      },
+      "old_behavior": "When a RewriteRule had a trailing `?` at the end of the substitution string (which strips any query string from the substitution), the code unconditionally set the RULEFLAG_QSNONE flag. This caused the query string to be discarded even when the [QSA] (Query String Append) flag was also specified. The trailing `?` overrode QSA, resulting in no query string being appended.",
+      "new_behavior": "When a RewriteRule has a trailing `?` at the end of the substitution string, the code now checks whether the [QSA] flag is also set. If QSA is set, RULEFLAG_QSNONE is NOT set, allowing the original request query string to be appended to the rewritten URL as expected. If QSA is NOT set, RULEFLAG_QSNONE is still set, preserving the existing behavior for rules without QSA.",
+      "compatibility_reason": "Users who use a RewriteRule with both a trailing `?` (to strip the substitution's own query string) and the [QSA] flag (to append the original query string) will observe different query string handling behavior. After this fix, the QSA flag takes precedence and the original query string is correctly appended, whereas before the fix the query string was silently discarded. This changes the externally observable HTTP rewrite output for affected configurations. The patch description says this fixes a 'recent regression', meaning the old pre-regression behavior was the same as the new patched behavior.",
+      "test_recommendation": "Verify RewriteRule behavior with the following combinations: (1) trailing `?` without QSA — query string should be discarded; (2) trailing `?` with QSA — original query string should be appended; (3) no trailing `?` with QSA — query string should be appended as before; (4) trailing `?` with QSDISCARD [QSD] — query string should still be discarded. Use Apache's mod_rewrite test suite or httxt2dbm-style HTTP tests.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P068/compatibility-testing"
+}

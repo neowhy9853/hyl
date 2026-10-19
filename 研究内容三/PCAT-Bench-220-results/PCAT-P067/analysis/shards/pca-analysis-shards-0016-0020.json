@@ -1,0 +1,368 @@
+{
+  "analysis_metadata": {
+    "patch": "net: add modern allowedSender ACLs",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/8aa55f/_worktrees/patched",
+    "analysis_date": "2026-07-23",
+    "shards_analyzed": ["SHARD-0016", "SHARD-0017", "SHARD-0018", "SHARD-0019", "SHARD-0020"],
+    "total_candidates": 16,
+    "compatibility_changes": 13,
+    "non_compatibility_changes": 3
+  },
+  "shards": [
+    {
+      "shard_id": "SHARD-0016",
+      "surface": "user_visible_output",
+      "files": ["grammar/rainerscript.c"],
+      "candidates": [
+        {
+          "hunk_id": "HUNK-0017",
+          "file": "grammar/rainerscript.c",
+          "lines_patched": "4666-4680",
+          "function": "cnfarrayPrint",
+          "change_summary": "Added NULL check at function entry; prints '(empty)' via dbgprintf and returns early instead of dereferencing ar->nmemb",
+          "is_compatibility_change": false,
+          "reasoning": "Defensive NULL guard. Previously would segfault on NULL input; now safely prints '(empty)' and returns. This is purely a safety improvement — no caller intentionally passed NULL before (it would crash). The debug output format changes trivially for the NULL edge case, but this was never a valid code path. Non-NULL behavior is binary-identical.",
+          "surface_impact": "user_visible_output: output_format — debug output for NULL arrays changes from crash to '(empty)'.",
+          "evidence": {
+            "file": "grammar/rainerscript.c",
+            "lines": "4670-4674",
+            "code_snippet": "    if (ar == NULL) {\n        doIndent(indent + 1);\n        dbgprintf(\"(empty)\\n\");\n        return;\n    }"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0018",
+          "file": "grammar/rainerscript.c",
+          "lines_patched": "4973-4992",
+          "function": "cnfarrayNew",
+          "change_summary": "Changed cnfarrayNew(NULL) behavior: previously allocated nmemb=1 with arr[0]=NULL; now returns nmemb=0, arr=NULL with no malloc",
+          "is_compatibility_change": true,
+          "change_category": "behavior_change",
+          "reasoning": "The return value of cnfarrayNew(NULL) changed. Before: nmemb=1, arr containing one NULL string pointer (malloc'd). After: nmemb=0, arr=NULL (no allocation). This is a semantic change for callers that pass NULL val — they now get a genuinely empty array instead of a 1-element array with a NULL entry. However, this is a bug fix: passing NULL as the first element to 'create array AND add first element' was always an error. The change enables correct cnfarrayDup() behavior for empty arrays.",
+          "surface_impact": "config_language: array creation semantics changed for NULL input. Previously created a 1-element array with NULL ptr; now creates true empty array.",
+          "evidence": {
+            "file": "grammar/rainerscript.c",
+            "lines": "4972-4981",
+            "code_snippet": "struct cnfarray *cnfarrayNew(es_str_t *val) {\n    struct cnfarray *ar;\n    if ((ar = malloc(sizeof(struct cnfarray))) != NULL) {\n        ar->nodetype = 'A';\n        ar->nmemb = 0;\n        ar->arr = NULL;\n        if (val == NULL) {\n            goto done;\n        }"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0016",
+          "file": "grammar/rainerscript.c",
+          "lines_patched": "4180-4184",
+          "function": "cnfarrayContentDestruct",
+          "change_summary": "Added NULL check at function entry; returns immediately if ar is NULL instead of dereferencing ar->nmemb",
+          "is_compatibility_change": false,
+          "reasoning": "Defensive NULL guard. Previously would segfault. Now safely returns. This is purely a safety improvement — callers never intentionally passed NULL. Same pattern as HUNK-0017. Non-NULL behavior is binary-identical.",
+          "surface_impact": "user_visible_output: error_contract — null-pointer crash eliminated.",
+          "evidence": {
+            "file": "grammar/rainerscript.c",
+            "lines": "4180-4184",
+            "code_snippet": "void cnfarrayContentDestruct(struct cnfarray *ar) {\n    unsigned short i;\n    if (ar == NULL) {\n        return;\n    }"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0019",
+          "file": "grammar/rainerscript.c",
+          "lines_patched": "5009-5014",
+          "function": "cnfarrayDup",
+          "change_summary": "Added NULL/empty guard: if old is NULL or nmemb==0, returns cnfarrayNew(NULL) (empty array) instead of dereferencing old->arr[0]",
+          "is_compatibility_change": true,
+          "change_category": "behavior_change",
+          "reasoning": "Previously cnfarrayDup(NULL) or cnfarrayDup(empty_array) would crash (deref NULL or OOB access). Now returns a valid empty array. This is a bug fix that changes behavior for invalid inputs from 'crash' to 'valid empty array'. Relies on cnfarrayNew(NULL) changes from HUNK-0018 to produce a correct empty array. For valid non-empty inputs, behavior is identical.",
+          "surface_impact": "config_language: array duplication semantics changed for NULL/empty input — from crash to empty array. output_format: echo/dump of duplicated empty arrays now works.",
+          "evidence": {
+            "file": "grammar/rainerscript.c",
+            "lines": "5012-5013",
+            "code_snippet": "    if (old == NULL || old->nmemb == 0) {\n        return cnfarrayNew(NULL);\n    }"
+          },
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "shard_id": "SHARD-0017",
+      "surface": "user_visible_output",
+      "files": ["plugins/imtcp/imtcp.c", "plugins/imudp/imudp.c"],
+      "candidates": [
+        {
+          "hunk_id": "HUNK-0032",
+          "file": "plugins/imtcp/imtcp.c",
+          "lines_patched": "1377-1379",
+          "function": "freeCnf (per-instance loop)",
+          "change_summary": "Added DestructAllowedSenders cleanup for per-instance pAllowedSendersRoot in the freeCnf instance iteration loop",
+          "is_compatibility_change": true,
+          "change_category": "resource_lifetime",
+          "reasoning": "New cleanup path for the pAllowedSendersRoot field introduced by this patch. Without this, per-instance allowed sender lists would leak memory on module unload/reload (HUP). This is a resource lifetime change — previously no cleanup was needed because this field didn't exist; now cleanup is required to prevent leaks.",
+          "surface_impact": "persistence_state: resource_lifetime — new destructor call prevents memory leak of per-instance allowed sender lists.",
+          "evidence": {
+            "file": "plugins/imtcp/imtcp.c",
+            "lines": "1377-1379",
+            "code_snippet": "        if (inst->pAllowedSendersRoot != NULL) {\n            net.DestructAllowedSenders(&inst->pAllowedSendersRoot);\n        }"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0031",
+          "file": "plugins/imtcp/imtcp.c",
+          "lines_patched": "1344-1346",
+          "function": "freeCnf (module-level)",
+          "change_summary": "Added DestructAllowedSenders cleanup for module-level pModConf->pAllowedSendersRoot before the instance iteration loop",
+          "is_compatibility_change": true,
+          "change_category": "resource_lifetime",
+          "reasoning": "Same pattern as HUNK-0032 but for the module-level configuration. Cleans up pAllowedSendersRoot from pModConf before freeing instances. Without this, module-level allowed sender lists would leak.",
+          "surface_impact": "persistence_state: resource_lifetime — prevents memory leak of module-level allowed sender lists.",
+          "evidence": {
+            "file": "plugins/imtcp/imtcp.c",
+            "lines": "1344-1346",
+            "code_snippet": "    if (pModConf->pAllowedSendersRoot != NULL) {\n        net.DestructAllowedSenders(&pModConf->pAllowedSendersRoot);\n    }"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0028",
+          "file": "plugins/imtcp/imtcp.c",
+          "lines_patched": "932-945",
+          "function": "newInpInst (input() block parsing)",
+          "change_summary": "Added parsing of new 'allowedsender' config parameter for imtcp input instances: validates array is non-empty, iterates entries, calls net.addAllowedSenderEntry() for each, sets bAllowedSendersSet flag",
+          "is_compatibility_change": true,
+          "change_category": "new_config_parameter",
+          "reasoning": "This introduces a new configuration parameter 'allowedsender' for imtcp input blocks. Previously this parameter did not exist; now it is recognized and processed. The error message 'imtcp: allowedSender array must not be empty' is new user-visible output. Config files using this parameter before the patch would have been ignored (or errored as unknown parameter).",
+          "surface_impact": "config_language: new 'allowedsender' parameter for imtcp input(). user_visible_output: new error message format. daemon_interfaces: new ACL behavior for TCP inputs.",
+          "evidence": {
+            "file": "plugins/imtcp/imtcp.c",
+            "lines": "932-945",
+            "code_snippet": "        } else if (!strcmp(inppblk.descr[i].name, \"allowedsender\")) {\n            if (pvals[i].val.d.ar == NULL || pvals[i].val.d.ar->nmemb == 0) {\n                LogError(0, RS_RET_INVALID_PARAMS, \"imtcp: allowedSender array must not be empty\");\n                ABORT_FINALIZE(RS_RET_INVALID_PARAMS);\n            }\n            inst->bAllowedSendersSet = 1;\n            for (int j = 0; j < pvals[i].val.d.ar->nmemb; ++j) {\n                uchar *sender = (uchar *)es_str2cstr(pvals[i].val.d.ar->arr[j], NULL);\n                CHKmalloc(sender);\n                const rsRetVal entryRet =\n                    net.addAllowedSenderEntry(&inst->pAllowedSendersRoot, &inst->pAllowedSendersLast, sender);\n                free(sender);\n                CHKiRet(entryRet);\n            }"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0053",
+          "file": "plugins/imudp/imudp.c",
+          "lines_patched": "1125-1138",
+          "function": "createListner (input() block parsing)",
+          "change_summary": "Added parsing of new 'allowedsender' config parameter for imudp input instances: same pattern as imtcp with 'imudp:' prefix in error messages",
+          "is_compatibility_change": true,
+          "change_category": "new_config_parameter",
+          "reasoning": "Same new configuration parameter for imudp. The error message format differs: 'imudp: allowedSender array must not be empty'. Previously this parameter was not recognized by imudp.",
+          "surface_impact": "config_language: new 'allowedsender' parameter for imudp input(). user_visible_output: new error message 'imudp: allowedSender array must not be empty'. daemon_interfaces: new ACL behavior for UDP inputs.",
+          "evidence": {
+            "file": "plugins/imudp/imudp.c",
+            "lines": "1125-1138",
+            "code_snippet": "        } else if (!strcmp(inppblk.descr[i].name, \"allowedsender\")) {\n            if (pvals[i].val.d.ar == NULL || pvals[i].val.d.ar->nmemb == 0) {\n                LogError(0, RS_RET_INVALID_PARAMS, \"imudp: allowedSender array must not be empty\");\n                ABORT_FINALIZE(RS_RET_INVALID_PARAMS);\n            }\n            inst->bAllowedSendersSet = 1;\n            for (int j = 0; j < pvals[i].val.d.ar->nmemb; ++j) {\n                uchar *sender = (uchar *)es_str2cstr(pvals[i].val.d.ar->arr[j], NULL);\n                CHKmalloc(sender);\n                const rsRetVal entryRet =\n                    net.addAllowedSenderEntry(&inst->pAllowedSendersRoot, &inst->pAllowedSendersLast, sender);\n                free(sender);\n                CHKiRet(entryRet);\n            }"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0043",
+          "file": "plugins/imudp/imudp.c",
+          "lines_patched": "625-629",
+          "function": "processSocket (HAVE_RECVMMSG variant)",
+          "change_summary": "Added 'struct lstn_s **ppLstnPrev' parameter to processSocket() function signature (recvmmsg variant)",
+          "is_compatibility_change": true,
+          "change_category": "api_signature_change",
+          "reasoning": "The processSocket() function signature changed — a new parameter was added. This is a static function within imudp.c, so the blast radius is limited to call sites within the same file. All callers must be updated to pass the new ppLstnPrev argument. The change enables the processPacket() function (see HUNK-0044) to potentially update the listener linked list.",
+          "surface_impact": "plugin_api: function signature changed (static, internal). module_api: internal call chain modified.",
+          "evidence": {
+            "file": "plugins/imudp/imudp.c",
+            "lines": "625-629",
+            "code_snippet": "static rsRetVal processSocket(struct wrkrInfo_s *pWrkr,\n                              struct lstn_s *lstn,\n                              struct sockaddr_storage *frominetPrev,\n                              struct lstn_s **ppLstnPrev,\n                              int *pbIsPermitted) {"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0045",
+          "file": "plugins/imudp/imudp.c",
+          "lines_patched": "713-717",
+          "function": "processSocket (non-recvmmmsg variant)",
+          "change_summary": "Added 'struct lstn_s **ppLstnPrev' parameter to processSocket() function signature (recvmsg/fallback variant)",
+          "is_compatibility_change": true,
+          "change_category": "api_signature_change",
+          "reasoning": "Same signature change for the #else (non-recvmmmsg) variant of processSocket(). Both variants must be kept in sync. The fallback variant at line 713 mirrors the recvmmsg variant at line 625.",
+          "surface_impact": "plugin_api: function signature changed (static, internal). module_api: internal call chain modified.",
+          "evidence": {
+            "file": "plugins/imudp/imudp.c",
+            "lines": "713-717",
+            "code_snippet": "static rsRetVal processSocket(struct wrkrInfo_s *pWrkr,\n                              struct lstn_s *lstn,\n                              struct sockaddr_storage *frominetPrev,\n                              struct lstn_s **ppLstnPrev,\n                              int *pbIsPermitted) {"
+          },
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "shard_id": "SHARD-0018",
+      "surface": "user_visible_output",
+      "files": ["plugins/imudp/imudp.c", "runtime/net.c"],
+      "candidates": [
+        {
+          "hunk_id": "HUNK-0044",
+          "file": "plugins/imudp/imudp.c",
+          "lines_patched": "688-690",
+          "function": "processSocket (HAVE_RECVMMSG call site)",
+          "change_summary": "Updated processPacket() call to include new ppLstnPrev argument, matching the new processPacket signature",
+          "is_compatibility_change": true,
+          "change_category": "call_site_update",
+          "reasoning": "The processPacket() call site was updated to pass the new ppLstnPrev parameter. This is the consumer-side change corresponding to the processPacket signature change. Without this change, compilation would fail. The new parameter enables ACL-related listener list manipulation during packet processing.",
+          "surface_impact": "plugin_api: internal call site updated for new function signature. network_protocol: processPacket now receives listener list pointer.",
+          "evidence": {
+            "file": "plugins/imudp/imudp.c",
+            "lines": "688-690",
+            "code_snippet": "            processPacket(lstn, frominetPrev, ppLstnPrev, pbIsPermitted,\n                          pWrkr->recvmsg_mmh[i].msg_hdr.msg_iov->iov_base, pWrkr->recvmsg_mmh[i].msg_len, &stTime,\n                          ttGenTime, &(pWrkr->frominet[i]), pWrkr->recvmsg_mmh[i].msg_hdr.msg_namelen, &multiSub);"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0062",
+          "file": "runtime/net.c",
+          "lines_patched": "1676-1677",
+          "function": "BEGINobjQueryInterface(net)",
+          "change_summary": "Registered two new function pointers in the net module interface: addAllowedSenderEntry and DestructAllowedSenders",
+          "is_compatibility_change": true,
+          "change_category": "module_api_extension",
+          "reasoning": "Two new entries were added to the net module's function pointer table (vtable). This is a backward-compatible extension: existing callers are unaffected since they reference existing function pointers by name. New callers (imtcp, imudp) reference these new entries. The module interface struct grows by two function pointer slots. This is the registration side of the API — new functions must be registered here to be callable from modules.",
+          "surface_impact": "module_api: two new exported function pointers added to net interface. daemon_interfaces: extends the net module's runtime interface.",
+          "evidence": {
+            "file": "runtime/net.c",
+            "lines": "1676-1677",
+            "code_snippet": "    pIf->addAllowedSenderEntry = addAllowedSenderEntry;\n    pIf->DestructAllowedSenders = DestructAllowedSenders;"
+          },
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "shard_id": "SHARD-0019",
+      "surface": "user_visible_output",
+      "files": ["runtime/net.c"],
+      "candidates": [
+        {
+          "hunk_id": "HUNK-0060",
+          "file": "runtime/net.c",
+          "lines_patched": "1017-1043 (new) / 1046-1055 (moved)",
+          "function": "isAllowedSenderList (new), isAllowedSender2 (moved)",
+          "change_summary": "Extracted the core ACL-checking loop from isAllowedSender2() into a new isAllowedSenderList() function that takes AllowedSenders* directly instead of uchar* pszType",
+          "is_compatibility_change": true,
+          "change_category": "api_refactoring",
+          "reasoning": "This is an 'extract method' refactoring that creates a new internal function isAllowedSenderList(). The original isAllowedSender2() function previously contained both setAllowRoot() resolution AND the ACL loop. Now the loop is extracted into isAllowedSenderList(), and isAllowedSender2() becomes a thin wrapper (see HUNK-0061 in SHARD-0020). This is a structural change that enables direct-list ACL checking (used by the new modern allowedsender path in imudp processPacket). The external behavior of isAllowedSender2() is preserved, but a new internal function exists that callers can use directly with pre-resolved AllowedSenders pointers.",
+          "surface_impact": "module_api: new internal function isAllowedSenderList() added. network_protocol: ACL checking can now operate on pre-resolved sender lists. daemon_interfaces: enables per-instance allowed sender lists.",
+          "evidence": {
+            "file": "runtime/net.c",
+            "lines": "1017-1020",
+            "code_snippet": "static int isAllowedSenderList(struct AllowedSenders *pAllowRoot,\n                               struct sockaddr *pFrom,\n                               const char *pszFromHost,\n                               int bChkDNS) {"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0059",
+          "file": "runtime/net.c",
+          "lines_patched": "903-931",
+          "function": "addAllowedSenderEntry",
+          "change_summary": "New function addAllowedSenderEntry() that parses a single allowed sender string, validates no extra data follows, and calls AddAllowedSender() to insert into a caller-provided list",
+          "is_compatibility_change": true,
+          "change_category": "new_api_function",
+          "reasoning": "This is an entirely new function. It differs from the existing addAllowedSenderLine() which parses from a config line and uses global per-protocol lists. addAllowedSenderEntry() takes a pre-parsed sender string and caller-provided list root/last pointers, making it suitable for per-instance allowed sender lists (as used by imtcp/imudp input() blocks). It validates that no extra data follows the parsed address (a stricter check than addAllowedSenderLine). The error message 'Invalid extra data after allowedSender entry' is new user-visible output.",
+          "surface_impact": "module_api: new exported function addAllowedSenderEntry(). user_visible_output: new error message format for malformed sender entries. network_protocol: per-instance sender entry validation.",
+          "evidence": {
+            "file": "runtime/net.c",
+            "lines": "903-921",
+            "code_snippet": "static rsRetVal addAllowedSenderEntry(struct AllowedSenders **ppRoot,\n                                      struct AllowedSenders **ppLast,\n                                      uchar *pszAllowedSender) {\n    rsParsObj *pPars = NULL;\n    struct NetAddr *uIP = NULL;\n    int iBits;\n    DEFiRet;\n\n    assert(ppRoot != NULL);\n    assert(ppLast != NULL);\n    assert(pszAllowedSender != NULL);\n\n    CHKiRet(rsParsConstructFromSz(&pPars, pszAllowedSender));\n    CHKiRet(parsAddrWithBits(pPars, &uIP, &iBits));\n    if (!parsIsAtEndOfParseString(pPars)) {\n        LogError(0, RS_RET_INVALID_PARAMS, \"Invalid extra data after allowedSender entry '%s'\", pszAllowedSender);\n        ABORT_FINALIZE(RS_RET_INVALID_PARAMS);\n    }\n    CHKiRet(AddAllowedSender(ppRoot, ppLast, uIP, iBits));"
+          },
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "shard_id": "SHARD-0020",
+      "surface": "user_visible_output",
+      "files": ["runtime/net.c"],
+      "candidates": [
+        {
+          "hunk_id": "HUNK-0058",
+          "file": "runtime/net.c",
+          "lines_patched": "573-591",
+          "function": "DestructAllowedSenders",
+          "change_summary": "New function that destructs an AllowedSenders linked list given a double pointer to the root — frees HostWildcard/NetAddr members, frees each node, and sets *ppRoot = NULL",
+          "is_compatibility_change": true,
+          "change_category": "new_api_function",
+          "reasoning": "New cleanup function for per-instance allowed sender lists. Differs from the existing clearAllowedSenders() which resolves the list via pszType string lookup. DestructAllowedSenders() takes a direct AllowedSenders** pointer, suitable for per-instance lists that aren't registered in the global per-protocol allow-root table. Used by imtcp/imudp freeCnf paths (HUNK-0031, HUNK-0032). This is the implementation that backs the net.DestructAllowedSenders interface entry registered in HUNK-0062.",
+          "surface_impact": "persistence_state: resource_lifetime — new destructor for per-instance AllowedSenders lists. module_api: new function backing net.DestructAllowedSenders interface pointer.",
+          "evidence": {
+            "file": "runtime/net.c",
+            "lines": "573-591",
+            "code_snippet": "static void DestructAllowedSenders(struct AllowedSenders **ppRoot) {\n    struct AllowedSenders *pPrev;\n    struct AllowedSenders *pCurr;\n\n    assert(ppRoot != NULL);\n\n    pCurr = *ppRoot;\n    while (pCurr != NULL) {\n        pPrev = pCurr;\n        pCurr = pCurr->pNext;\n        if (F_ISSET(pPrev->allowedSender.flags, ADDR_NAME))\n            free(pPrev->allowedSender.addr.HostWildcard);\n        else\n            free(pPrev->allowedSender.addr.NetAddr);\n        free(pPrev);\n    }\n\n    *ppRoot = NULL;\n}"
+          },
+          "confidence": "high"
+        },
+        {
+          "hunk_id": "HUNK-0061",
+          "file": "runtime/net.c",
+          "lines_patched": "1046-1055",
+          "function": "isAllowedSender2",
+          "change_summary": "isAllowedSender2() rewritten from inline ACL loop to a thin wrapper: resolves AllowedSenders root via setAllowRoot(), then delegates to isAllowedSenderList()",
+          "is_compatibility_change": false,
+          "reasoning": "Pure refactoring. The external contract of isAllowedSender2() is preserved identically: same function signature, same assert(pFrom != NULL), same setAllowRoot() call, same error handling (return 0 on failure), same delegation to the core ACL loop (now in isAllowedSenderList()). The behavioral semantics are binary-identical. This is the wrapper counterpart to the extract-method refactoring in HUNK-0060.",
+          "surface_impact": "None — behavior is preserved. The function remains a static wrapper with identical external semantics.",
+          "evidence": {
+            "file": "runtime/net.c",
+            "lines": "1046-1055",
+            "code_snippet": "static int isAllowedSender2(uchar *pszType, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS) {\n    struct AllowedSenders *pAllowRoot = NULL;\n\n    assert(pFrom != NULL);\n\n    if (setAllowRoot(&pAllowRoot, pszType) != RS_RET_OK)\n        return 0; /* if something went wrong, we deny access - that's the better choice... */\n\n    return isAllowedSenderList(pAllowRoot, pFrom, pszFromHost, bChkDNS);\n}"
+          },
+          "confidence": "high"
+        }
+      ]
+    }
+  ],
+  "cross_shard_dependencies": [
+    {
+      "dependency": "HUNK-0059 (addAllowedSenderEntry impl) -> HUNK-0062 (net.c interface registration)",
+      "description": "addAllowedSenderEntry is defined in net.c (HUNK-0059) and exported via the net module interface (HUNK-0062). Callers via pIf->addAllowedSenderEntry require both."
+    },
+    {
+      "dependency": "HUNK-0058 (DestructAllowedSenders impl) -> HUNK-0062 (net.c interface registration)",
+      "description": "DestructAllowedSenders is defined in net.c (HUNK-0058) and exported via the net module interface (HUNK-0062). Callers via pIf->DestructAllowedSenders require both."
+    },
+    {
+      "dependency": "HUNK-0058 (DestructAllowedSenders) -> HUNK-0031,HUNK-0032 (imtcp freeCnf callers)",
+      "description": "imtcp freeCnf calls net.DestructAllowedSenders for both pModConf and per-instance lists."
+    },
+    {
+      "dependency": "HUNK-0060 (isAllowedSenderList) -> HUNK-0061 (isAllowedSender2 wrapper)",
+      "description": "isAllowedSender2() now delegates to isAllowedSenderList(). The wrapper must exist wherever isAllowedSender2 is called."
+    },
+    {
+      "dependency": "HUNK-0043,HUNK-0045 (processSocket signature) -> HUNK-0044 (processPacket call site)",
+      "description": "The processSocket signature change (new ppLstnPrev param) must match the processPacket call site update."
+    },
+    {
+      "dependency": "HUNK-0018 (cnfarrayNew NULL behavior) -> HUNK-0019 (cnfarrayDup NULL/empty guard)",
+      "description": "cnfarrayDup's new NULL/empty guard returns cnfarrayNew(NULL), which relies on the changed behavior in HUNK-0018 to produce a correctly empty array."
+    },
+    {
+      "dependency": "HUNK-0018 (cnfarrayNew NULL behavior) -> HUNK-0016 (cnfarrayContentDestruct NULL guard)",
+      "description": "cnfarrayContentDestruct's NULL guard handles arrays returned by cnfarrayNew(NULL) under the new semantics."
+    }
+  ],
+  "summary": {
+    "total_candidates": 16,
+    "compatibility_changes": 13,
+    "non_compatibility_changes": 3,
+    "change_categories": {
+      "new_config_parameter": 2,
+      "new_api_function": 3,
+      "api_refactoring": 1,
+      "api_signature_change": 2,
+      "call_site_update": 1,
+      "module_api_extension": 1,
+      "resource_lifetime": 2,
+      "behavior_change": 2
+    },
+    "high_priority_changes": [
+      "HUNK-0028 (imtcp new allowedsender param) — config_language surface, new LogError output",
+      "HUNK-0053 (imudp new allowedsender param) — config_language surface, new LogError output",
+      "HUNK-0043/HUNK-0045/HUNK-0044 (processSocket/processPacket signature) — internal API break in imudp",
+      "HUNK-0018/HUNK-0019 (cnfarrayNew/cnfarrayDup behavior) — config_language array semantics"
+    ]
+  }
+}

@@ -63,6 +63,7 @@ For each finding, record:
 - `compatibility_type` — classification (SIDE_EFFECT_CHANGE, INPUT_CONTRACT_CHANGE, etc.)
 - `test_priority` and `test_recommendation` — analysis-owned testing guidance
 - `static_call_chains` — sequences from public entry points to changed code
+- `affected_scope` — reverse-dependency scope from analysis (direct callers, transitive dependents, affected files, affected entry points, test dependents); use its `affected_entry_points` and `test_dependents` as additional evidence when selecting entries/inputs
 - legacy entry/input references, when present, as provenance only
 
 Reject an unknown `compatibility_type`; do not silently route it through a
@@ -343,6 +344,20 @@ llvm-profdata merge -o merged.profdata *.profraw
 llvm-cov export <binary> -instr-profile=merged.profdata > coverage.json
 ```
 
+**Structured coverage data for the dedicated coverage report:**
+
+Collect per-line hit counts for every patch line as structured JSON. This dataset is the evidence source for the `coverage_report` section of `test-summary.json` and for the dedicated `COVERAGE_REPORT.md`:
+
+```bash
+python3 "<TEST_SKILL_DIR>/scripts/collect_coverage.py" \
+  <project_dir> "<TEST_RESULT_DIR>/phase4_execution/gcov_report.md" \
+  --file <changed-file-1> --lines <line> <line> ... \
+  --file <changed-file-2> --lines <line> ... \
+  --json-output "<TEST_RESULT_DIR>/phase4_execution/coverage_data.json"
+```
+
+`coverage_data.json` records `files[].lines[]` with a per-line `status` (`covered`/`not_covered`/`unreachable`/`non_code`/`not_found`) and `hits`, plus per-file and total counts. The Markdown output remains available for quick inspection but is not the report source. Reference the JSON path as `coverage_report.coverage_data` in Phase 5.
+
 **Coverage line interpretation:**
 - `N: line` — N executions (COVERED)
 - `#####: line` — 0 executions (NOT COVERED)
@@ -369,7 +384,7 @@ llvm-cov export <binary> -instr-profile=merged.profdata > coverage.json
    f. Re-check gate (return to step 1)
 4. **Maximum 3 iterations**. After 3, document remaining uncovered lines with root cause analysis.
 
-Record results in `phase4_execution/coverage_iterations.json`.
+Record results in `phase4_execution/coverage_iterations.json`. These rounds are summarized into `coverage_report.iterations` in Phase 5, and every remaining uncovered line must be classified in `coverage_report.uncovered_line_analysis`.
 
 ### Step 4d: Behavior Comparison (Before/After)
 
@@ -422,7 +437,7 @@ Prefer `scripts/input_matrix.sh` with separately prepared before/after directori
 
 ## Phase 5: Coverage Report
 
-Treat `<TEST_RESULT_DIR>/test-summary.json` as the only final result source. Do not hand-write the Markdown report. Populate the JSON from actual entry verification, input execution, contract, behavior-diff, and coverage artifacts, then run the deterministic formatter described below.
+Treat `<TEST_RESULT_DIR>/test-summary.json` as the only final result source. Do not hand-write the Markdown reports. Populate the JSON from actual entry verification, input execution, contract, behavior-diff, and coverage artifacts, then run the deterministic formatter described below.
 
 ### Coverage Rate Calculation
 
@@ -433,6 +448,34 @@ Count only executable lines. Exclude:
 - Comments
 - String literal continuations from previous lines
 - Blank lines
+
+### Required `coverage_report` Section
+
+In addition to the summary counts and per-finding coverage, every `test-summary.json` must include a `coverage_report` object. It is the dedicated coverage dataset that `finalize_test_report.py` renders into `COVERAGE_REPORT.md`:
+
+| Field | Meaning |
+|---|---|
+| `tool`, `optimization` | `gcov`/`llvm-cov` and the actual build optimization level |
+| `coverage_data` | path to the structured `collect_coverage.py --json-output` dataset |
+| `gate` | `{threshold, rate, met}`; `threshold` must equal `coverage_gate`, `rate` must equal `summary.patch_line_coverage_rate`, `met` must equal `conclusion.coverage_gate_met` |
+| `findings[]` | per-finding hunk coverage: `finding_id`, `file`, `new_lines`, `executable_lines`, `covered_lines`, `uncovered_lines`, `rate`; counts must equal the matching `finding_results[].coverage` |
+| `files[]` | per-file aggregate: `file`, `executable_lines`, `covered_lines`, `uncovered_lines`, `rate`, optional `finding_ids`; totals must equal the summary patch counts |
+| `uncovered_line_analysis[]` | one entry for EVERY uncovered patch line: `file`, `line`, `classification` (`coverable` / `architecturally_unreachable` / `fault_injection_needed` / `not_attempted`), `reason`, optional `attempted_inputs` |
+| `iterations[]` | coverage-gate rounds: `round`, `rate`, `inputs_added`, optional `rate_before`/`notes` |
+| `caveats[]` | optimization level, unreachable-line caveats, missing tooling, environment limits |
+
+Rules:
+
+1. Every entry in `files[].uncovered_lines` (format `file:line`) must have a matching `uncovered_line_analysis` entry with the same `file` and `line`; the formatter rejects a report with unexplained uncovered lines. Use `not_attempted` plus a reason only when the iteration budget was exhausted.
+2. `files[]` is required whenever `summary.patch_executable_lines > 0`; when present, file totals must sum exactly to `summary.patch_executable_lines`, `summary.patch_lines_covered`, and `summary.patch_lines_uncovered`.
+3. Do not fabricate counts: derive `coverage_report` from actual gcov/llvm-cov output (`phase4_execution/coverage_data.json`) and the coverage iteration loop, never from assumptions.
+
+### Dedicated Coverage Report
+
+`finalize_test_report.py` renders two deterministic Markdown files from `test-summary.json`:
+
+- `TEST_REPORT.md` — overall test report: target, execution status, summary, environment, per-finding entries/contracts/coverage/behavior differences, blockers, artifacts.
+- `COVERAGE_REPORT.md` — **dedicated coverage report**: gate result, coverage overview, per-finding and per-file coverage, uncovered-line analysis with classification and root cause, coverage iteration history, method/caveats, and coverage evidence artifact paths.
 
 ---
 
@@ -456,14 +499,15 @@ After writing JSON, always run:
 ```bash
 python3 "<TEST_SKILL_DIR>/scripts/finalize_test_report.py" \
   "<TEST_RESULT_DIR>/test-summary.json" \
-  --output "<TEST_RESULT_DIR>/COVERAGE_REPORT.md"
+  --output "<TEST_RESULT_DIR>/TEST_REPORT.md" \
+  --coverage-output "<TEST_RESULT_DIR>/COVERAGE_REPORT.md"
 ```
 
-The formatter validates count arithmetic, coverage rate, coverage gate, status consistency, finding structure, blockers, and artifact fields before rendering. If it fails, fix `test-summary.json` and rerun; never bypass validation or manually patch the Markdown output.
+The formatter validates count arithmetic, coverage rate, coverage gate, status consistency, finding structure, blockers, artifact fields, the `coverage_report` structure, gate consistency, per-file/per-finding aggregation, and the uncovered-line analysis coverage before rendering either Markdown file. If it fails, fix `test-summary.json` and rerun; never bypass validation or manually patch the Markdown output.
 
 Set `report_language` to the user's language (`zh-CN` by default). The formatter automatically emits Chinese headings for `zh*` and English headings otherwise while preserving natural-language evidence from JSON.
 
-At completion, report the paths to both files, the overall status, compatibility conclusion, contract breaches, coverage rate, and every blocked/not-run item.
+At completion, report the paths to `test-summary.json`, `TEST_REPORT.md`, and the dedicated `COVERAGE_REPORT.md`, the overall status, compatibility conclusion, contract breaches, coverage rate, the coverage gate result, and every blocked/not-run item.
 
 ---
 

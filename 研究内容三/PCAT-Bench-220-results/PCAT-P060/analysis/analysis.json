@@ -1,0 +1,196 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/pca_84/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/pca_84",
+  "base_ref": "84415a8^",
+  "base_commit": "1537645e8f4606101b9a593393552438bc23415c",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "pca_84415a",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca_84415a.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "dnsmasq",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 460,
+    "patch_lines": 13,
+    "diff_added_lines": 1,
+    "diff_deleted_lines": 1,
+    "diff_context_lines": 6,
+    "churn": 2,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 2028,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "protocol": 1,
+      "network_protocol": 1,
+      "persistence_state": 1,
+      "dhcp_protocol": 1
+    },
+    "candidates_json_bytes": 6339
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "dnsmasq",
+      "affected_surface": "DHCP protocol behavior \u2014 PXE boot server response routing",
+      "affected_api": {
+        "name": "dhcp_packet",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/dhcp.c",
+        "old_lines": [
+          399,
+          405
+        ],
+        "new_lines": [
+          399,
+          405
+        ],
+        "symbol": "dhcp_packet"
+      },
+      "old_behavior": "When pxefd is set (PXE boot server port 4011), the PXE handler runs and sets dest.sin_addr = mess->ciaddr when ciaddr is non-zero. However, control then falls through to the standalone if ((is_relay_use_source || mess->giaddr.s_addr) && !is_relay_reply) check. For PXEBS responses, dhcp_reply() clears ciaddr (sets to 0) and leaves giaddr as 0, so neither the relay nor ciaddr conditions match, and the code falls to the final else broadcast block which sets dest to 255.255.255.255:68. The PXE client listening on port 4011 never receives the response.",
+      "new_behavior": "When pxefd is set, the PXE handler runs and the else-if chain skips the subsequent relay/giaddr/ciaddr/broadcast blocks entirely. The dest variable retains its original value from recvmsg (the PXE client's source address and port 4011), so the DHCP response is correctly sent back to the PXE client.",
+      "compatibility_reason": "The change modifies DHCP response routing control flow for PXE boot server (PXEBS) responses. The old code causes PXEBS responses to be sent to broadcast address 255.255.255.255:68 instead of back to the PXE client on port 4011. This breaks PXE network boot for any client using dnsmasq as a proxy DHCP server \u2014 a documented and widely used feature. The fix restores the if/else-if chain that existed in dnsmasq 2.91 and was inadvertently broken in 2.92 by commit 4fbe1ad (\"Implement RFC-4388 DHCPv4 leasequery\").",
+      "evidence": [
+        {
+          "file": "src/dhcp.c",
+          "lines": [
+            397,
+            413
+          ],
+          "snippet": "  if (pxe_fd)\n    { \n      if (mess->ciaddr.s_addr != 0)\n        dest.sin_addr = mess->ciaddr;\n    }\n  else if ((is_relay_use_source || mess->giaddr.s_addr) && !is_relay_reply)\n    {\n      /* Send to BOOTP relay. */\n      if (is_relay_use_source)\n        /* restore as-received value */\n        mess->giaddr.s_addr = INADDR_BROADCAST;\n      else\n        {\n          dest.sin_addr = mess->giaddr;\n          dest.sin_port = htons(daemon->dhcp_server_port);\n        }\n    }"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The change is in DHCP packet response routing logic, which is a public network protocol surface. PXE boot server (PXEBS) responses are an externally observable DHCP protocol behavior that directly affects client-side PXE boot success. The change controls how DHCP response messages are addressed and delivered over the network.",
+      "uncertainty": "Low. The behavior change is directly caused by a one-line if-to-else-if conversion. The commit message and git history clearly document the regression and fix. The old behavior was a known regression from 2.92.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that the else-if change does not affect RFC-4388 DHCPv4 leasequery behavior. The leasequery path requires pxe_fd to be false (normal DHCP on port 67), so the mutual exclusion introduced by else-if should not affect leasequery. Confirm by checking that leasequery processing never sets pxe_fd.",
+      "test_recommendation": "High-priority directed testing: build before (base commit) and after (patched) binaries, then verify PXE boot server response routing. Construct minimal DHCP PXEBS packets and verify the response destination address/port. Also verify that normal DHCP relay and leasequery scenarios remain unaffected.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/dhcp.c",
+            "old_lines": [
+              399,
+              405
+            ],
+            "new_lines": [
+              399,
+              405
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "protocol",
+              "network_protocol",
+              "persistence_state",
+              "dhcp_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol behavior"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "dhcp_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "DHCPv4/v6 lease and option behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

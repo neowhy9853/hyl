@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/pca_84/analysis.json",
+  "patch_id": "pca_84415a",
+  "result_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/pca_84/compatibility-testing",
+  "status": "blocked",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+    "base_commit": "1537645e8f4606101b9a593393552438bc23415c",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/pca_84/_worktrees/patched",
+    "package_profile": "dnsmasq"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc",
+    "optimization": "-O0",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Build with COPTS=-DHAVE_DNSSEC using nettle/hogweed/gmp",
+      "gcov 42 .gcno files produced",
+      "DNS-mode query test verified (port 2053, 45-byte response)",
+      "PXE DHCP test blocked: requires root/CAP_NET_BIND_SERVICE for ports 67/68/4011"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 0,
+    "inputs_planned": 1,
+    "inputs_executed": 0,
+    "contracts_total": 1,
+    "contracts_passed": 0,
+    "contracts_breached": 0,
+    "contracts_skipped": 1,
+    "patch_executable_lines": 1,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 1,
+    "patch_line_coverage_rate": 0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "status": "blocked",
+      "target_location": {
+        "file": "src/dhcp.c",
+        "new_lines": [399, 413],
+        "symbol": "dhcp_packet"
+      },
+      "entries": [
+        {
+          "entry_id": "E1-PCA-0001",
+          "status": "blocked",
+          "artifact_path": "${TEST_DIR}/test-entry-work/runs/pca-0001",
+          "run_command": "python3 pxe_dhcp_test_harness.py --dnsmasq-before <before_binary> --dnsmasq-after <after_binary> --netns pca-test",
+          "expected_signal": "PXEBS ACK sent to client on port 4011 (not broadcast 255.255.255.255:68)",
+          "reachability_signal": "gcov shows dhcp.c:402 as covered (##### → N:) after test"
+        }
+      ],
+      "contracts": [],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 0,
+        "uncovered_lines": ["src/dhcp.c:402"],
+        "rate": 0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "PXEBS response routing test requires root privileges for DHCP packet injection on ports 67/68/4011",
+        "Source code and binary analysis confirms the fix is correct: single if-to-else-if conversion restoring 2.91 behavior"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "PCA-0001",
+      "reason": "PXE DHCP protocol test requires CAP_NET_BIND_SERVICE (ports 67/68/4011) and network namespace for raw packet injection. The unprivileged sandbox cannot provide these.",
+      "required_action": "Execute in a privileged environment with ip netns or real network interfaces and Python scapy for DHCP packet crafting"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "phase4_execution/results.json",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": false,
+    "rationale": "The patch fixes a known regression (PXEBS broken in 2.92) by restoring an else-if chain in DHCP response routing. The change is a correct single-line fix with no side effects on non-PXE code paths. Build and DNS-mode tests pass. PXE-specific dynamic testing is blocked by sandbox privilege restrictions. Source-level analysis confirms the fix is safe and targeted.",
+    "recommended_actions": [
+      "Run PXEBS directed test in privileged environment with ip netns",
+      "Verify that normal DHCP relay and leasequery scenarios remain unaffected",
+      "Confirm line coverage of dhcp.c:402 after PXE test execution"
+    ]
+  }
+}

@@ -1,0 +1,67 @@
+From 9989a54a5333a4ce8d7893d3468d8187e6e3b13b Mon Sep 17 00:00:00 2001
+From: Pablo Galindo Salgado <Pablogsal@gmail.com>
+Date: Mon, 25 May 2026 13:45:58 +0100
+Subject: [PATCH 03/50] gh-149156: Fix perf trampoline crash after fork
+ (#150347)
+
+---
+ ...26-05-24-14-45-00.gh-issue-149156.NP73rB.rst |  3 +++
+ Python/perf_trampoline.c                        | 17 ++++++++++++-----
+ 2 files changed, 15 insertions(+), 5 deletions(-)
+ create mode 100644 Misc/NEWS.d/next/Core_and_Builtins/2026-05-24-14-45-00.gh-issue-149156.NP73rB.rst
+
+diff --git a/Misc/NEWS.d/next/Core_and_Builtins/2026-05-24-14-45-00.gh-issue-149156.NP73rB.rst b/Misc/NEWS.d/next/Core_and_Builtins/2026-05-24-14-45-00.gh-issue-149156.NP73rB.rst
+new file mode 100644
+index 0000000..2cb091e
+--- /dev/null
++++ b/Misc/NEWS.d/next/Core_and_Builtins/2026-05-24-14-45-00.gh-issue-149156.NP73rB.rst
+@@ -0,0 +1,3 @@
++Fix an intermittent crash after :func:`os.fork` when perf trampoline
++profiling is enabled and the child returns through trampoline frames
++inherited from the parent process.
+diff --git a/Python/perf_trampoline.c b/Python/perf_trampoline.c
+index 58c61e6..d90b789 100644
+--- a/Python/perf_trampoline.c
++++ b/Python/perf_trampoline.c
+@@ -210,9 +210,8 @@ enum perf_trampoline_type {
+ static void free_code_arenas(void);
+ 
+ static void
+-perf_trampoline_reset_state(void)
++perf_trampoline_clear_code_watcher(void)
+ {
+-    free_code_arenas();
+     if (code_watcher_id >= 0) {
+         PyCode_ClearWatcher(code_watcher_id);
+         code_watcher_id = -1;
+@@ -220,6 +219,13 @@ perf_trampoline_reset_state(void)
+     extra_code_index = -1;
+ }
+ 
++static void
++perf_trampoline_reset_state(void)
++{
++    free_code_arenas();
++    perf_trampoline_clear_code_watcher();
++}
++
+ static int
+ perf_trampoline_code_watcher(PyCodeEvent event, PyCodeObject *co)
+ {
+@@ -621,9 +627,10 @@ _PyPerfTrampoline_AfterFork_Child(void)
+             // After fork, Fini may leave the old code watcher registered
+             // if trampolined code objects from the parent still exist
+             // (trampoline_refcount > 0). Clear it unconditionally before
+-            // Init registers a new one, to prevent two watchers sharing
+-            // the same globals and double-decrementing trampoline_refcount.
+-            perf_trampoline_reset_state();
++            // Init registers a new one, but keep the old arenas mapped: the
++            // child may still need to return through trampoline frames that
++            // were on the C stack at fork().
++            perf_trampoline_clear_code_watcher();
+             _PyPerfTrampoline_Init(1);
+         }
+     }
+-- 
+2.43.0
+

@@ -1,0 +1,90 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/cpython",
+  "analysis_repo": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max-rerun-20260722/PCAT-N016/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max-rerun-20260722/PCAT-N016",
+  "base_ref": "9c23f3452df96dede49d82d7f957343364182b35",
+  "base_commit": "9c23f3452df96dede49d82d7f957343364182b35",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "9989a54a5333a4ce8d7893d3468d8187e6e3b13b",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/PCAT-Bench-220/items/PCAT-N016/patch.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "cpython",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "patch_metrics": {
+    "patch_bytes": 2617,
+    "patch_lines": 67,
+    "diff_added_lines": 15,
+    "diff_deleted_lines": 6,
+    "diff_context_lines": 24,
+    "churn": 21,
+    "raw_hunks": 4,
+    "candidate_hunks": 4,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 5916,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "user_visible_output": 1
+    },
+    "candidates_json_bytes": 15163
+  },
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 4,
+    "compatibility_changes": 0,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "analysis_summary": {
+    "notes": "本次分析发现补丁不引入任何外部可见兼容性变更。补丁修复了 perf trampoline 在 fork 后的间歇性崩溃问题。\n\nHUNK-0001: NEWS 文档条目，非代码变更。\nHUNK-0002: 将 perf_trampoline_reset_state() 拆分为 perf_trampoline_clear_code_watcher() + perf_trampoline_reset_state()。所有函数均为 static，纯内部重构。\nHUNK-0003: perf_trampoline_reset_state() 的新实现，保持调用 free_code_arenas() + perf_trampoline_clear_code_watcher()。static 函数，内部重构。\nHUNK-0004: _PyPerfTrampoline_AfterFork_Child() 中不再调用 perf_trampoline_reset_state()（会释放 code arenas），改为调用 perf_trampoline_clear_code_watcher()（仅清除 code watcher，保留 arenas 映射）。原因是子进程可能仍需通过 fork() 时 C 栈上的 trampoline frames 返回。\n  - _PyPerfTrampoline_AfterFork_Child 声明在 Include/internal/pycore_ceval.h（内部头文件）\n  - _Py 前缀按 CPython 惯例为内部/私有 API\n  - cpython profile 的 ignore_patterns 明确排除：_ 前缀符号、static 函数（除非从 public surface 可达）、private/internal 头文件\n  - 此变更是 bug fix：防止 fork 后子进程通过继承的 trampoline frames 返回时崩溃\n  - 不涉及任何公共 API 签名、ABI、CLI、配置、输出格式、错误契约等外部可见变化",
+    "candidate_disposition": [
+      {
+        "hunk_id": "HUNK-0001",
+        "file": "Misc/NEWS.d/next/Core_and_Builtins/2026-05-24-14-45-00.gh-issue-149156.NP73rB.rst",
+        "disposition": "not_compatibility_change",
+        "reason": "纯文档变更（NEWS 条目），非代码逻辑变更。"
+      },
+      {
+        "hunk_id": "HUNK-0002",
+        "file": "Python/perf_trampoline.c",
+        "disposition": "not_compatibility_change",
+        "reason": "内部重构：从 perf_trampoline_reset_state() 提取 perf_trampoline_clear_code_watcher()。所有符号均为 static，profile 规则排除 static 函数。"
+      },
+      {
+        "hunk_id": "HUNK-0003",
+        "file": "Python/perf_trampoline.c",
+        "disposition": "not_compatibility_change",
+        "reason": "perf_trampoline_reset_state() 的新定义，保持调用 free_code_arenas() + perf_trampoline_clear_code_watcher()。static 函数，纯内部重构。"
+      },
+      {
+        "hunk_id": "HUNK-0004",
+        "file": "Python/perf_trampoline.c",
+        "disposition": "not_compatibility_change",
+        "reason": "_PyPerfTrampoline_AfterFork_Child() 中改用 perf_trampoline_clear_code_watcher() 替代 perf_trampoline_reset_state()，避免 fork 后释放仍在使用的 code arenas。\n1. 函数声明在 Include/internal/pycore_ceval.h（内部头文件）\n2. _Py 前缀标识内部 API（profile ignore_patterns）\n3. 变更为 bug fix（gh-149156），修复 fork 后 perf trampoline 启用时子进程通过继承的 trampoline frames 返回导致的间歇性崩溃\n4. 无公共 API 签名、ABI、CLI、配置、输出格式或错误契约变化\n5. profile 匹配的 user_visible_output surface 为误报：PyStatus_Error 调用匹配了 'error' 模式但非用户可见输出变更"
+      }
+    ],
+    "surface_overmatch_notes": "user_visible_output surface 在 HUNK-0004 上为误报。匹配来源于上下文中的 PyStatus_Error() 调用包含 'error' 子串，但实际变更不涉及任何 printf/fprintf/error 输出逻辑。这种行为变更对用户不可见。"
+  },
+  "next_step": "Analysis complete. No compatibility changes found. Testing is not recommended because there are zero confirmed findings."
+}

@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P023/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P023/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P023",
+  "patch_id": "07ae6f133ad7a4e7ed506f6a511809b1fc3d1465",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "parse_config_h / get_config_vars / get_config_var",
+        "kind": "exported_function",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Lib/sysconfig/__init__.py",
+        "old_lines": [
+          437,
+          450
+        ],
+        "new_lines": [
+          437,
+          453
+        ],
+        "symbol": "parse_config_h"
+      },
+      "old_behavior": "String values from pyconfig.h #define directives are returned in the config dictionary with surrounding double-quotes preserved. For example, '#define PY_BUILTIN_HASHLIB_HASHES \"blake2,sha256\"' would yield the value '\"blake2,sha256\"' (including the literal double-quote characters).",
+      "new_behavior": "Enclosing double-quotes are stripped from string values via the new quoted_re regex. The same #define now yields 'blake2,sha256' (without the double-quote characters).",
+      "compatibility_reason": "Code that consumes sysconfig output and relies on the old quoted-string format will observe changed values. This includes tools, build scripts, packaging systems, and any downstream code that calls get_config_vars() or get_config_var() and processes the returned string values — for example, code that manually strips quotes, checks for quote-prefixed values with .startswith('\"'), or compares config values against quoted strings. Values that were previously double-quoted (e.g., PY_BUILTIN_HASHLIB_HASHES, any string-type pyconfig.h #define) now have a different format. This is a publicly exported API in __all__ and is consumed widely by Python's own build/test infrastructure and external tooling such as pip, setuptools, and virtualenv.",
+      "test_recommendation": "Test that get_config_vars() and get_config_var() return unquoted values for all string-type config entries from pyconfig.h. Verify that downstream consumers (pip, setuptools, virtualenv, distlib) are not broken by the format change. Check that int-typed values are unaffected.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P023/compatibility-testing"
+}

@@ -1,0 +1,64 @@
+From 07ae6f133ad7a4e7ed506f6a511809b1fc3d1465 Mon Sep 17 00:00:00 2001
+From: Stefano Rivera <stefano@rivera.za.net>
+Date: Mon, 25 May 2026 05:30:07 -0700
+Subject: [PATCH 01/50] gh-150208: Avoid double-quoting string values in
+ sysconfigdata (#150209)
+
+String values from ``pyconfig.h`` were rendered into ``sysconfigdata``
+variables, retaining the quotes.
+---
+ Lib/sysconfig/__init__.py                                   | 3 +++
+ Lib/test/test_sysconfig.py                                  | 6 ++++++
+ .../2026-05-21-21-04-43.gh-issue-150208.VOkxRG.rst          | 2 ++
+ 3 files changed, 11 insertions(+)
+ create mode 100644 Misc/NEWS.d/next/Core_and_Builtins/2026-05-21-21-04-43.gh-issue-150208.VOkxRG.rst
+
+diff --git a/Lib/sysconfig/__init__.py b/Lib/sysconfig/__init__.py
+index 298256a..719b306 100644
+--- a/Lib/sysconfig/__init__.py
++++ b/Lib/sysconfig/__init__.py
+@@ -437,6 +437,7 @@ def parse_config_h(fp, vars=None):
+     import re
+     define_rx = re.compile("#define ([A-Z][A-Za-z0-9_]+) (.*)\n")
+     undef_rx = re.compile("/[*] #undef ([A-Z][A-Za-z0-9_]+) [*]/\n")
++    quoted_re = re.compile('^"(.*)"$')
+ 
+     while True:
+         line = fp.readline()
+@@ -445,6 +446,8 @@ def parse_config_h(fp, vars=None):
+         m = define_rx.match(line)
+         if m:
+             n, v = m.group(1, 2)
++            if mq := quoted_re.match(v):
++                v = mq.group(1)
+             try:
+                 if n in _ALWAYS_STR:
+                     raise ValueError
+diff --git a/Lib/test/test_sysconfig.py b/Lib/test/test_sysconfig.py
+index e6433f7..e6f9958 100644
+--- a/Lib/test/test_sysconfig.py
++++ b/Lib/test/test_sysconfig.py
+@@ -576,6 +576,12 @@ def test_linux_ext_suffix(self):
+                 expected_suffixes = 'x86_64-linux-gnu.so', 'x86_64-linux-musl.so'
+             self.assertEndsWith(suffix, expected_suffixes)
+ 
++    @unittest.skipIf(sysconfig.get_config_var('PY_BUILTIN_HASHLIB_HASHES') is None,
++                     'PY_BUILTIN_HASHLIB_HASHES required for this test')
++    def test_PY_BUILTIN_HASHLIB_HASHES_in_vars(self):
++        vars = sysconfig.get_config_vars()
++        self.assertFalse(vars['PY_BUILTIN_HASHLIB_HASHES'].startswith('"'))
++
+     @unittest.skipUnless(sys.platform == 'android', 'Android-specific test')
+     def test_android_ext_suffix(self):
+         machine = platform.machine()
+diff --git a/Misc/NEWS.d/next/Core_and_Builtins/2026-05-21-21-04-43.gh-issue-150208.VOkxRG.rst b/Misc/NEWS.d/next/Core_and_Builtins/2026-05-21-21-04-43.gh-issue-150208.VOkxRG.rst
+new file mode 100644
+index 0000000..e9bc1d9
+--- /dev/null
++++ b/Misc/NEWS.d/next/Core_and_Builtins/2026-05-21-21-04-43.gh-issue-150208.VOkxRG.rst
+@@ -0,0 +1,2 @@
++Avoid double-quoting string values from ``pyconfig.h`` in ``sysconfigdata``
++variables.
+-- 
+2.43.0
+

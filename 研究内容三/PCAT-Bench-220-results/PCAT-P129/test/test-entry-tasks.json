@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P069/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P069/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P069",
+  "patch_id": "dee1eb37d787d34cb37df7eab535240e1774293a",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "SSL_CTX_set_dh_auto",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "modules/ssl/ssl_engine_init.c",
+        "old_lines": [
+          1623,
+          1628
+        ],
+        "new_lines": [
+          1623,
+          1628
+        ],
+        "symbol": "ssl_init_server_certs"
+      },
+      "old_behavior": "当 certfile 存在且不为 engine ID 时，即使无法从证书文件中加载 DH 参数（custom_dh_done/done 保持为 0），`else` 分支匹配的是 `if (certfile && !modssl_is_engine_id(certfile))` 的外部条件，导致 `SSL_CTX_set_dh_auto()` 不会被调用，DH 密码套件被实际禁用。只有 certfile 不存在或是 engine ID 时，`else` 才会执行并启用 DH 自动选择。",
+      "new_behavior": "将局部变量 `done` 替换为函数作用域的 `custom_dh_done`，并将 `else` 改为独立的 `if (!custom_dh_done)` 检查。现在无论 certfile 是否可用，只要没有成功加载自定义 DH 参数（custom_dh_done == 0），`SSL_CTX_set_dh_auto()` 都会被调用以启用 DH 参数自动选择，恢复 DH 密码套件功能。",
+      "compatibility_reason": "该变更修复了一个回归缺陷，恢复了 TLS 握手期间的 DH 密码套件自动协商功能。补丁前，当证书文件存在但不包含嵌入式 DH 参数且未显式配置 DH 参数时，DH 密码套件被静默禁用，客户端可能无法完成 DH 密钥交换。补丁后，`SSL_CTX_set_dh_auto()` 在未设置自定义 DH 参数时始终被调用，恢复了预期的默认行为。这是 SSL/TLS 密码套件层面的可观察行为变化，影响所有 HTTPS 连接的安全协商。",
+      "test_recommendation": "建议进行以下回归测试：1) 配置 SSL vhost 但不设置 DH 参数文件 → 验证 DH 密码套件在 TLS 握手中可用；2) 在 certfile 中嵌入 DH 参数 → 验证自定义参数优先于自动选择；3) 使用 `openssl s_client -cipher 'DHE'` 连接验证 DH 密码套件协商结果；4) 检查服务器日志中 'Custom DH parameters' 的日志输出是否按预期出现。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P069/compatibility-testing"
+}

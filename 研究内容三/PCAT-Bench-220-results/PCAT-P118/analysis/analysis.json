@@ -1,0 +1,747 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repos/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P058/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P058",
+  "base_ref": "29ed28820a3bd8222d7b533e41ecd4809a2162f8~1",
+  "base_commit": "1468127018e1223ec87d7a56dd16270edf396b87",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "29ed28820a3bd8222d7b533e41ecd4809a2162f8",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/rhboot/grub2/commit/29ed28820a3bd8222d7b533e41ecd4809a2162f8.patch",
+    "download_url": "https://github.com/rhboot/grub2/commit/29ed28820a3bd8222d7b533e41ecd4809a2162f8.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P058/_patch-cache/29ed28820a3b.patch",
+    "commit": "29ed28820a3bd8222d7b533e41ecd4809a2162f8"
+  },
+  "package_profile": "grub2",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "patch_metrics": {
+    "patch_bytes": 7616,
+    "patch_lines": 200,
+    "diff_added_lines": 41,
+    "diff_deleted_lines": 31,
+    "diff_context_lines": 76,
+    "churn": 72,
+    "raw_hunks": 11,
+    "candidate_hunks": 11,
+    "skipped_doc_hunks": 0,
+    "changed_files": 5,
+    "candidate_context_bytes": 21427,
+    "public_candidate_hunks": 11,
+    "surface_counts": {
+      "ioctl_netlink_consumers": 1,
+      "user_visible_output": 9,
+      "ioctl_netlink": 1,
+      "plugin_api": 1,
+      "logging": 3,
+      "module_api": 11,
+      "config_keys": 5,
+      "config": 5,
+      "boot_protocol": 2,
+      "public_headers": 1,
+      "struct_layout": 1
+    },
+    "candidates_json_bytes": 59028
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 5,
+    "total_candidates": 11,
+    "compatibility_changes": 5,
+    "high_priority": 2,
+    "medium_priority": 1,
+    "low_priority": 2
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "grub2",
+      "affected_surface": "cryptouuid/<UUID> device name lookup in grub.cfg / cryptomount command, via grub_cryptodisk_open()",
+      "affected_api": {
+        "name": "grub_cryptodisk_open",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "grub-core/disk/cryptodisk.c",
+        "old_lines": [
+          702,
+          708
+        ],
+        "new_lines": [
+          702,
+          708
+        ],
+        "symbol": "grub_cryptodisk_open"
+      },
+      "old_behavior": "grub_cryptodisk_open() used grub_strcasecmp() to compare the user-provided UUID string (from 'cryptouuid/...' device name) against dev->uuid. Both the user input and the stored dev->uuid were dash-free (LUKS/LUKS2 stripped dashes before storing). Only exact dash-free UUID strings would match.",
+      "new_behavior": "grub_cryptodisk_open() now uses grub_uuidcasecmp() which ignores dashes in both the user-provided UUID string and dev->uuid during comparison. dev->uuid now stores the raw header UUID (may contain dashes) for LUKS/LUKS2 devices. Users can specify UUIDs with or without dashes; both forms will match the same device.",
+      "compatibility_reason": "This change relaxes the input contract for the cryptouuid/<UUID> device name. Previously, users had to provide dash-free UUIDs (e.g., '12345678123412341234123456789abc') for the device lookup to work. Now users can use the standard UUID format with dashes (e.g., '12345678-1234-1234-1234-123456789abc'), which matches what cryptsetup shows. This is backward-compatible because existing configurations using dash-free UUIDs continue to work. However, it is a config-visible behavior change that alters the accepted input format, and any scripts or automated tools that generate GRUB configurations may need to be aware of the new acceptance range.",
+      "evidence": [
+        {
+          "file": "grub-core/disk/cryptodisk.c",
+          "lines": [
+            702,
+            705
+          ],
+          "snippet": "  if (grub_memcmp (name, \"cryptouuid/\", sizeof (\"cryptouuid/\") - 1) == 0)\n    {\n      for (dev = cryptodisk_list; dev != NULL; dev = dev->next)\n\tif (grub_uuidcasecmp (name + sizeof (\"cryptouuid/\") - 1, dev->uuid, sizeof (dev->uuid)) == 0)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "grub_cryptodisk_open() is the public device open handler registered via grub_disk_dev_register. The 'cryptouuid/' prefix is used in grub.cfg and the GRUB shell by end users. The matching behavior change directly affects whether a user-specified device name resolves to the intended encrypted disk.",
+      "uncertainty": "None. The comparison function change is clearly visible in the diff and the source excerpt confirms the behavioral change.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that the 'luks' and 'luks2' GRUB commands display UUIDs correctly with dashes after this change.",
+      "test_recommendation": "Test that 'cryptouuid/<UUID-with-dashes>' correctly opens LUKS1, LUKS2, and GELI encrypted devices. Verify that 'cryptouuid/<UUID-without-dashes>' continues to work (backward compatibility). Test with mixed dash patterns.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "grub-core/disk/cryptodisk.c",
+            "old_lines": [
+              702,
+              708
+            ],
+            "new_lines": [
+              702,
+              708
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "ioctl_netlink_consumers",
+              "user_visible_output",
+              "ioctl_netlink",
+              "plugin_api",
+              "logging",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "ioctl_netlink_consumers",
+                "test_priority": "high",
+                "public": true,
+                "description": "ioctl and netlink ABI consumers or producers."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "ioctl_netlink",
+                "test_priority": "high",
+                "public": true,
+                "description": "ioctl command, netlink attribute, and kernel ABI consumers"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "grub2",
+      "affected_surface": "cryptomount -u <UUID> command parameter acceptance for all crypto backends (GELI, LUKS, LUKS2)",
+      "affected_api": {
+        "name": "configure_ciphers / luks2_scan (search_uuid matching)",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "grub-core/disk/geli.c",
+        "old_lines": [
+          305,
+          311
+        ],
+        "new_lines": [
+          305,
+          311
+        ],
+        "symbol": "configure_ciphers"
+      },
+      "old_behavior": "Each crypto backend module (GELI, LUKS, LUKS2) independently implemented UUID matching for the 'cryptomount -u <UUID>' command. GELI used grub_strcasecmp against generated UUID. LUKS and LUKS2 first stripped dashes from the header UUID using manual loops, then used grub_strcasecmp against the dash-stripped result. Users had to provide dash-free UUIDs to the -u option.",
+      "new_behavior": "All crypto backends now use the centralized grub_uuidcasecmp() function for UUID matching. Dashes are no longer manually stripped; the comparison function itself ignores dashes. Users can now provide UUIDs with or without dashes to 'cryptomount -u'.",
+      "compatibility_reason": "The 'cryptomount -u' CLI option now accepts dashed UUIDs in addition to dash-free UUIDs. Previously, users copying a UUID from cryptsetup output (which includes dashes) would get a non-match. Now those UUIDs work directly. This is backward-compatible: existing scripts using dash-free UUIDs continue to work. However, this is a CLI-visible behavior change that affects the accepted parameter format for a commonly used GRUB command.",
+      "evidence": [
+        {
+          "file": "grub-core/disk/geli.c",
+          "lines": [
+            305,
+            308
+          ],
+          "snippet": "  if (cargs->search_uuid != NULL && grub_uuidcasecmp (cargs->search_uuid, uuid, sizeof (uuid)) != 0)"
+        },
+        {
+          "file": "grub-core/disk/luks.c",
+          "lines": [
+            89,
+            96
+          ],
+          "snippet": "  if (cargs->search_uuid != NULL && grub_uuidcasecmp (cargs->search_uuid, header.uuid, sizeof (header.uuid)) != 0)\n    {\n      grub_dprintf (\"luks\", \"%s != %s\\n\", header.uuid, cargs->search_uuid);\n      return NULL;\n    }"
+        },
+        {
+          "file": "grub-core/disk/luks2.c",
+          "lines": [
+            360,
+            368
+          ],
+          "snippet": "  if (cargs->search_uuid != NULL && grub_uuidcasecmp (cargs->search_uuid, header.uuid, sizeof (header.uuid)) != 0)\n    {\n      grub_dprintf (\"luks2\", \"%s != %s\\n\", header.uuid, cargs->search_uuid);\n      return NULL;\n    }"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The 'cryptomount -u' command is a user-facing GRUB shell command. The search_uuid parameter originates from the CLI command handler. The UUID comparison directly determines whether the user's specified UUID matches an encrypted device, which is a user-visible outcome.",
+      "uncertainty": "None. All three crypto backend modules show the same change from grub_strcasecmp+dash-stripping to grub_uuidcasecmp.",
+      "manual_review_required": false,
+      "recommended_review": "Ensure the grub_uuidcasecmp function handles edge cases: empty strings, all-dash strings, very long UUIDs, and strings without any hex characters.",
+      "test_recommendation": "Test cryptomount -u with UUIDs containing dashes (standard format), without dashes, and with irregular dash placement. Test with GELI, LUKS1, and LUKS2 encrypted volumes. Verify correct device selection with multiple encrypted volumes.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "grub-core/disk/geli.c",
+            "old_lines": [
+              305,
+              311
+            ],
+            "new_lines": [
+              305,
+              311
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output",
+              "config",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "grub.cfg parsing and environment semantics"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.9,
+      "package_profile": "grub2",
+      "affected_surface": "Internal data representation: struct grub_cryptodisk.uuid field for LUKS1/LUKS2 devices",
+      "affected_api": {
+        "name": "grub_cryptodisk.uuid (stored UUID field)",
+        "kind": "struct_type",
+        "language": "c"
+      },
+      "location": {
+        "file": "grub-core/disk/luks.c",
+        "old_lines": [
+          123,
+          129
+        ],
+        "new_lines": [
+          110,
+          116
+        ],
+        "symbol": "configure_ciphers"
+      },
+      "old_behavior": "LUKS1 and LUKS2 modules stored UUIDs in struct grub_cryptodisk.uuid after manually stripping dashes. The stored UUID was always in dash-free format (e.g., '12345678123412341234123456789abc'). The grub_dprintf debug output showed the dash-free UUID.",
+      "new_behavior": "LUKS1 and LUKS2 now store the raw UUID from the LUKS header directly into struct grub_cryptodisk.uuid using grub_memcpy. The stored UUID now includes dashes as they appear in the LUKS header (e.g., '12345678-1234-1234-1234-123456789abc'). The grub_dprintf debug output also shows the raw UUID with dashes.",
+      "compatibility_reason": "The format of the UUID stored in the grub_cryptodisk structure changes from dash-free to dashed for LUKS1/LUKS2 devices. While all internal UUID comparisons now use grub_uuidcasecmp() which handles both formats, any GRUB commands or external code that directly reads the uuid field (e.g., 'luks' or 'luks2' command output, GRUB's 'ls' command showing device properties) will display UUIDs in a different format. Tools or scripts that parse GRUB command output expecting dash-free UUIDs may be affected.",
+      "evidence": [
+        {
+          "file": "grub-core/disk/luks.c",
+          "lines": [
+            89,
+            96
+          ],
+          "snippet": "  if (cargs->search_uuid != NULL && grub_uuidcasecmp (cargs->search_uuid, header.uuid, sizeof (header.uuid)) != 0)\n    {\n      grub_dprintf (\"luks\", \"%s != %s\\n\", header.uuid, cargs->search_uuid);\n      return NULL;\n    }\n  ...\n  grub_memcpy (newdev->uuid, header.uuid, sizeof (header.uuid));"
+        },
+        {
+          "file": "grub-core/disk/luks2.c",
+          "lines": [
+            360,
+            377
+          ],
+          "snippet": "  if (cargs->search_uuid != NULL && grub_uuidcasecmp (cargs->search_uuid, header.uuid, sizeof (header.uuid)) != 0)\n    {\n      grub_dprintf (\"luks2\", \"%s != %s\\n\", header.uuid, cargs->search_uuid);\n      return NULL;\n    }\n  ...\n  COMPILE_TIME_ASSERT (sizeof (cryptodisk->uuid) >= sizeof (header.uuid));\n  grub_memcpy (cryptodisk->uuid, header.uuid, sizeof (header.uuid));"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The grub_cryptodisk.uuid field is an exposed struct field used by multiple GRUB modules and potentially visible through GRUB commands (luks/luks2 command output, GRUB shell display). The format change from dash-free to dashed affects any code that reads this field. While the struct is not part of a formal API/ABI contract, it is observable through GRUB shell commands and module interactions.",
+      "uncertainty": "The GELI backend stores UUIDs differently (via make_uuid). We have not verified whether GELI's stored UUID format also changes, but the geli.c code only changed the comparison, not the storage. The impact is limited to LUKS1 and LUKS2 devices.",
+      "manual_review_required": false,
+      "recommended_review": "Check if any other GRUB code directly reads struct grub_cryptodisk.uuid field (e.g., GRUB shell commands, disk iteration, ls command). Verify that the 'luks' and 'luks2' commands display UUIDs as expected.",
+      "test_recommendation": "After cryptomount, verify that GRUB commands which display device UUIDs (e.g., 'luks' command, 'ls' with crypto devices) show the UUID in the expected format. Test with both LUKS1 and LUKS2 encrypted volumes.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=struct_type on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "grub-core/disk/luks.c",
+            "old_lines": [
+              123,
+              129
+            ],
+            "new_lines": [
+              110,
+              116
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output",
+              "config",
+              "logging",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "grub.cfg parsing and environment semantics"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "grub-core/disk/luks.c",
+            "old_lines": [
+              92,
+              110
+            ],
+            "new_lines": [
+              89,
+              97
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output",
+              "config",
+              "logging",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "grub.cfg parsing and environment semantics"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=struct_type on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.99,
+      "package_profile": "grub2",
+      "affected_surface": "New public API function in public header include/grub/misc.h",
+      "affected_api": {
+        "name": "grub_uuidcasecmp",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "include/grub/misc.h",
+        "old_lines": [
+          290,
+          295
+        ],
+        "new_lines": [
+          290,
+          325
+        ],
+        "symbol": "grub_uuidcasecmp"
+      },
+      "old_behavior": "No grub_uuidcasecmp function existed. UUID comparison was done using grub_strcasecmp (exact string match) or manual dash-stripping followed by grub_strcasecmp.",
+      "new_behavior": "A new static inline function grub_uuidcasecmp(const char *uuid1, const char *uuid2, grub_size_t n) is added to the public header include/grub/misc.h. It compares two UUID strings case-insensitively while skipping dash characters. It compares exactly n significant (non-dash) characters.",
+      "compatibility_reason": "This is a purely additive API change: a new function is added to a public header. No existing function signatures are changed, no existing behaviors are modified in exported symbols. The function is static inline, so it does not affect ABI. This is not a breaking change.",
+      "evidence": [
+        {
+          "file": "include/grub/misc.h",
+          "lines": [
+            290,
+            325
+          ],
+          "snippet": "static inline int\ngrub_uuidcasecmp (const char *uuid1, const char *uuid2, grub_size_t n)\n{\n  if (n == 0)\n    return 0;\n  while (*uuid1 && *uuid2 && --n)\n    {\n      while ('-' == *uuid1)\n        ++uuid1;\n      while ('-' == *uuid2)\n        ++uuid2;\n      if (grub_tolower ((grub_uint8_t) *uuid1) != grub_tolower ((grub_uint8_t) *uuid2))\n\tbreak;\n      uuid1++;\n      uuid2++;\n    }\n  return (int) grub_tolower ((grub_uint8_t) *uuid1) - (int) grub_tolower ((grub_uint8_t) *uuid2);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The function is placed in include/grub/misc.h, a widely-included public header in the GRUB codebase. Any GRUB module or utility that includes this header gains access to the function. This is intentionally public API.",
+      "uncertainty": "None. The addition is straightforward.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that the function handles edge cases correctly: both strings consisting entirely of dashes, empty strings, strings with dashes at the end.",
+      "test_recommendation": "Unit test the grub_uuidcasecmp function with various UUID formats: with dashes, without dashes, mixed case, edge cases (empty, all-dash, extra-long strings). Verify it produces the same result as manual dash-strip + case-insensitive compare.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0011",
+            "file": "include/grub/misc.h",
+            "old_lines": [
+              290,
+              295
+            ],
+            "new_lines": [
+              290,
+              325
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "struct_layout",
+              "module_api",
+              "boot_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "struct_layout",
+                "test_priority": "high",
+                "public": true,
+                "description": "ABI-sensitive definitions:\n- Struct layout (size, field order, field type)\n- Enum values\n- Macro definitions\n- Constants\n"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0005",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.9,
+      "package_profile": "grub2",
+      "affected_surface": "Debug log output from LUKS and LUKS2 crypto modules (grub_dprintf)",
+      "affected_api": {
+        "name": "grub_dprintf (\"luks\"/\"luks2\" debug channels)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "grub-core/disk/luks.c",
+        "old_lines": [
+          92,
+          97
+        ],
+        "new_lines": [
+          89,
+          96
+        ],
+        "symbol": "configure_ciphers"
+      },
+      "old_behavior": "When a UUID mismatch occurred, grub_dprintf would print the dash-stripped UUID (e.g., '12345678123412341234123456789abc != 12345678-1234-1234-1234-123456789abc') in debug output. The local 'uuid' variable contained the dash-free version of the header UUID.",
+      "new_behavior": "When a UUID mismatch occurs, grub_dprintf now prints the raw header UUID with dashes (e.g., '12345678-1234-1234-1234-123456789abc != 12345678-1234-1234-1234-123456789abc'). The header.uuid field is used directly without stripping.",
+      "compatibility_reason": "The debug output format changes: UUID mismatch messages now display UUIDs with dashes instead of without. This only affects debug output behind grub_dprintf, which is typically disabled in production builds. However, automated test systems or debugging tools that parse GRUB debug output may need to update their expected patterns.",
+      "evidence": [
+        {
+          "file": "grub-core/disk/luks.c",
+          "lines": [
+            92,
+            94
+          ],
+          "snippet": "  if (cargs->search_uuid != NULL && grub_uuidcasecmp (cargs->search_uuid, header.uuid, sizeof (header.uuid)) != 0)\n    {\n      grub_dprintf (\"luks\", \"%s != %s\\n\", header.uuid, cargs->search_uuid);"
+        },
+        {
+          "file": "grub-core/disk/luks2.c",
+          "lines": [
+            363,
+            365
+          ],
+          "snippet": "  if (cargs->search_uuid != NULL && grub_uuidcasecmp (cargs->search_uuid, header.uuid, sizeof (header.uuid)) != 0)\n    {\n      grub_dprintf (\"luks2\", \"%s != %s\\n\", header.uuid, cargs->search_uuid);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "While grub_dprintf is normally compiled out in production builds, it is enabled in debug builds and can be enabled via the 'debug' environment variable or 'set debug=luks' in grub.cfg. Testing frameworks and developers relying on debug output patterns may be affected.",
+      "uncertainty": "The impact is minimal since grub_dprintf output is not a stable interface and is typically disabled. However, test scripts that monitor GRUB debug output during development or CI may need updating.",
+      "manual_review_required": false,
+      "recommended_review": "No manual review needed for debug output change.",
+      "test_recommendation": "Enable GRUB debug output for the 'luks' and 'luks2' channels and verify the UUID mismatch message format is correct.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "grub-core/disk/luks.c",
+            "old_lines": [
+              92,
+              110
+            ],
+            "new_lines": [
+              89,
+              97
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output",
+              "config",
+              "logging",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "grub.cfg parsing and environment semantics"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

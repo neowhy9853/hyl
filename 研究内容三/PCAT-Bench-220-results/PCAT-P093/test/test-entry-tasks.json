@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P033/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P033/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P033",
+  "patch_id": "16e8e067516c7c35f2affd8e9d58271707611575",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "affected_api": {
+        "name": "runtime.PanicNilError.Error()",
+        "kind": "public_method",
+        "language": "go"
+      },
+      "target_location": {
+        "file": "src/runtime/panic.go",
+        "old_lines": [
+          794,
+          794
+        ],
+        "new_lines": [
+          794,
+          794
+        ],
+        "symbol": "PanicNilError.Error"
+      },
+      "old_behavior": "PanicNilError.Error() 返回字符串 \"panic called with nil argument\"，该错误消息不符合 Go 规范中对 runtime.Error 的约定——所有 runtime 错误应以 \"runtime error:\" 为前缀。panic(nil) 的完整输出为 \"panic: panic called with nil argument\"。",
+      "new_behavior": "PanicNilError.Error() 返回字符串 \"runtime error: panic called with nil argument\"，添加了 \"runtime error:\" 前缀以正确符合 runtime.Error 接口约定。panic(nil) 的完整输出变为 \"panic: runtime error: panic called with nil argument\"。",
+      "compatibility_reason": "任何对 PanicNilError.Error() 返回值进行字符串精确匹配、子串匹配（如检查 \"runtime error:\" 前缀是否存在）或解析的代码都将受到影响。调用方如果比较错误消息以判断是否为 panic(nil) 错误，其断言将失败。Go 约定推荐使用类型断言和接口判断（而非字符串匹配）来处理错误，因此实际影响范围有限，但仍构成兼容性变更。",
+      "test_recommendation": "验证 panic(nil) 输出的错误消息包含 \"runtime error:\" 前缀；验证调用 panic(nil) 后 recover() 返回值实现 runtime.Error 接口；验证对 PanicNilError.Error() 的字符串包含检查在旧代码中可能失效的场景。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "error_or_exception_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "error_exception_stability",
+        "comparison": "error",
+        "required_observation": "errno/error code, exception type, message, and failure mode",
+        "input_axes": [
+          "each error path",
+          "invalid input",
+          "missing resource",
+          "permission",
+          "fault injection"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P033/compatibility-testing"
+}

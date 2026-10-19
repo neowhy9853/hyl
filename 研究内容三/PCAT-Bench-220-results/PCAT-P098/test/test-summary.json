@@ -1,0 +1,139 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P038/analysis.json",
+  "patch_id": "5bbd22ff78daf010c5bd19c466a0c45ac78503d4",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P038/compatibility-testing",
+  "status": "blocked",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+    "base_commit": "c19862e5f8415b4f24b189d065ed739517c548ba",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P038/_worktrees/patched",
+    "package_profile": "golang"
+  },
+  "environment": {
+    "kind": "not_available",
+    "before_build": "blocked",
+    "after_build": "blocked",
+    "compiler": "Go bootstrap required (go1.24.6+)",
+    "optimization": "N/A",
+    "coverage_tool": "N/A",
+    "notes": [
+      "System Go is go1.18.1. Go 1.26 release branch requires go1.24.6+ as bootstrap toolchain (src/cmd/dist/notgo124.go)",
+      "No suitable Go bootstrap binary found on system. Download go1.24.6+ from https://go.dev/dl/ to proceed with build.",
+      "Alternatively, use a pre-built Go toolchain from the release-branch.go1.26 CI artifacts."
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 0,
+    "inputs_planned": 3,
+    "inputs_executed": 0,
+    "contracts_total": 1,
+    "contracts_passed": 0,
+    "contracts_breached": 0,
+    "contracts_skipped": 1,
+    "patch_executable_lines": 10,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 10,
+    "patch_line_coverage_rate": 0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "status": "blocked",
+      "target_location": {
+        "file": "src/net/http/server.go",
+        "new_lines": [1970, 1980],
+        "symbol": "c.serve"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "needs_env",
+          "artifact_path": "test-entry-work/PCA-0001/run_native_test.sh",
+          "run_command": "GOROOT=<patched-goroot> <patched-goroot>/bin/go test -v -run 'TestServerUnencryptedHTTP2HeaderTimeout' -count=1 -timeout=120s net/http",
+          "expected_signal": "PASS: All subtests pass (client sends nothing, client sends slowly, header read expires)",
+          "reachability_signal": "Test exercises conn.serve() -> maybeServeUnencryptedHTTP2() path with ReadHeaderTimeout deadline set. The test assertion `time.Since(start) == srv.ReadHeaderTimeout` confirms the timeout deadline is active."
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "unencrypted_http2_header_timeout",
+          "status": "skipped",
+          "detail": "Contract verification skipped: Cannot build Go from source without go1.24.6+ bootstrap. The contract would verify: (1) ReadHeaderTimeout is applied before HTTP/2 preface Peek(), (2) connections without HTTP/2 preface are closed after ReadHeaderTimeout, (3) slow preface writes do not extend the deadline."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 10,
+        "covered_lines": 0,
+        "uncovered_lines": [
+          "src/net/http/server.go:980",
+          "src/net/http/server.go:1041",
+          "src/net/http/server.go:1974",
+          "src/net/http/server.go:1975",
+          "src/net/http/server.go:1976",
+          "src/net/http/server.go:2107",
+          "src/net/http/server.go:2108",
+          "src/net/http/server.go:2109",
+          "src/net/http/server.go:2110",
+          "src/net/http/server.go:2111"
+        ],
+        "rate": 0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Patch adds TestServerUnencryptedHTTP2HeaderTimeout which exercises 3 scenarios: client-sends-nothing (times out), client-sends-slowly (deadline not extended), header-read-expires (time counts against ReadHeaderTimeout)",
+        "The test uses testing/synctest for deterministic time control in Go tests",
+        "Build blocked: Go 1.26 requires go1.24.6+ as bootstrap (notgo124.go: Go 1.26 and later requires Go 1.24.6 as the minimum bootstrap toolchain)",
+        "System has go1.18.1 which is insufficient. To proceed: install go1.24.6+ or use a pre-built Go toolchain."
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "BLOCK-BOOTSTRAP-GO124",
+      "reason": "Go 1.26 release branch (base commit c19862e5f) requires go1.24.6+ as bootstrap toolchain. System Go is go1.18.1. Building from source is blocked without a suitable GOROOT_BOOTSTRAP.",
+      "required_action": "Install Go 1.24.6 or later: download from https://go.dev/dl/, extract to a location, and pass GOROOT_BOOTSTRAP=/path/to/go1.24.6 to the build."
+    },
+    {
+      "scope": "build",
+      "id": "BLOCK-BUILD-GO126",
+      "reason": "The patched Go toolchain must be built from source to run tests that exercise the standard library's net/http server behavior changes.",
+      "required_action": "Build Go from the patched worktree: cd <analysis_repo>/src && GOROOT_BOOTSTRAP=/path/to/go1.24.6 ./make.bash"
+    },
+    {
+      "scope": "coverage",
+      "id": "BLOCK-COVERAGE",
+      "reason": "Coverage instrumentation requires a built Go toolchain. Go's coverage tool (go test -cover) requires the standard library to be built with coverage support.",
+      "required_action": "Build Go with coverage flags: go test -cover -coverpkg=net/http -run TestServerUnencryptedHTTP2HeaderTimeout net/http"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "",
+    "execution_results": "",
+    "contract_summary": "",
+    "coverage_data": "",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": false,
+    "rationale": "静态分析确认 SIDE_EFFECT_CHANGE：ReadHeaderTimeout 配置项的有效范围扩大至非加密 HTTP/2 客户端前言检测阶段。此前此阶段无超时限制，补丁后受 ReadHeaderTimeout 约束。这是 CVE-2026-56853 的安全修复，属于有意向后不兼容变更。动态测试因缺少 Go 1.24.6+ 引导工具链而无法执行构建和覆盖测试。补丁中新增的 TestServerUnencryptedHTTP2HeaderTimeout 测试覆盖了关键场景（客户端无响应、缓慢发送前言、请求头超时），可作为回归测试运行。",
+    "recommended_actions": [
+      "安装 Go 1.24.6+ 引导工具链后构建补丁后 Go，运行 TestServerUnencryptedHTTP2HeaderTimeout 验证超时行为",
+      "对已部署 UnencryptedHTTP2 的生产服务器，审核 ReadHeaderTimeout 配置以确保其值在当前语义下合适",
+      "若需独立控制 HTTP/2 前言检测超时和请求头读取超时，考虑引入新配置项（如 H2PrefaceTimeout）"
+    ]
+  }
+}

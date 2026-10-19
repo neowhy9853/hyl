@@ -1,0 +1,430 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/patch.diff",
+  "profile": "kernel_6_6",
+  "summary": {
+    "total_changed_files": 3,
+    "changed_files": [
+      "drivers/net/bonding/bond_options.c",
+      "include/net/bonding.h",
+      "drivers/net/bonding/bond_main.c"
+    ],
+    "total_hunks": 5,
+    "public_api_hunks": 3,
+    "patch_metrics": {
+      "patch_bytes": 2379,
+      "patch_lines": 59,
+      "diff_added_lines": 10,
+      "diff_deleted_lines": 2,
+      "diff_context_lines": 30,
+      "churn": 12,
+      "raw_hunks": 5,
+      "candidate_hunks": 5,
+      "skipped_doc_hunks": 0,
+      "changed_files": 3,
+      "candidate_context_bytes": 10812,
+      "public_candidate_hunks": 3,
+      "surface_counts": {
+        "callbacks": 2,
+        "public_headers": 1,
+        "proc_sys_consumers": 1,
+        "procfs": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "drivers/net/bonding/bond_main.c",
+      "old_start": 322,
+      "old_end": 328,
+      "new_start": 322,
+      "new_end": 328,
+      "context_hint": "static bool bond_sk_check(struct bonding *bond)",
+      "added_lines": [
+        "bool __bond_xdp_check(int mode, int xmit_policy)"
+      ],
+      "deleted_lines": [
+        "bool bond_xdp_check(struct bonding *bond, int mode)"
+      ],
+      "context_lines": [
+        "\t}",
+        "}",
+        "",
+        "{",
+        "\tswitch (mode) {",
+        "\tcase BOND_MODE_ROUNDROBIN:"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "bonding",
+        "__bond_xdp_check",
+        "mode",
+        "xmit_policy",
+        "bond_xdp_check",
+        "bond",
+        "bond_sk_check"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Callback types and callback invocation semantics."
+          }
+        ],
+        "surface_reasons": [
+          "callbacks"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "bonding",
+        "snippet_start_line": 293,
+        "snippet_end_line": 358,
+        "snippet": " * @bond: bond device that got this skb for tx.\n * @skb: hw accel VLAN tagged skb to transmit\n * @slave_dev: slave that is supposed to xmit this skbuff\n */\nnetdev_tx_t bond_dev_queue_xmit(struct bonding *bond, struct sk_buff *skb,\n\t\t\tstruct net_device *slave_dev)\n{\n\tskb->dev = slave_dev;\n\n\tBUILD_BUG_ON(sizeof(skb->queue_mapping) !=\n\t\t     sizeof(qdisc_skb_cb(skb)->slave_dev_queue_mapping));\n\tskb_set_queue_mapping(skb, qdisc_skb_cb(skb)->slave_dev_queue_mapping);\n\n\tif (unlikely(netpoll_tx_running(bond->dev)))\n\t\treturn bond_netpoll_send_skb(bond_get_slave_by_dev(bond, slave_dev), skb);\n\n\treturn dev_queue_xmit(skb);\n}\n\nstatic bool bond_sk_check(struct bonding *bond)\n{\n\tswitch (BOND_MODE(bond)) {\n\tcase BOND_MODE_8023AD:\n\tcase BOND_MODE_XOR:\n\t\tif (bond->params.xmit_policy == BOND_XMIT_POLICY_LAYER34)\n\t\t\treturn true;\n\t\tfallthrough;\n\tdefault:\n\t\treturn false;\n\t}\n}\n\nbool __bond_xdp_check(int mode, int xmit_policy)\n{\n\tswitch (mode) {\n\tcase BOND_MODE_ROUNDROBIN:\n\tcase BOND_MODE_ACTIVEBACKUP:\n\t\treturn true;\n\tcase BOND_MODE_8023AD:\n\tcase BOND_MODE_XOR:\n\t\t/* vlan+srcmac is not supported with XDP as in most cases the 802.1q\n\t\t * payload is not in the packet due to hardware offload.\n\t\t */\n\t\tif (xmit_policy != BOND_XMIT_POLICY_VLAN_SRCMAC)\n\t\t\treturn true;\n\t\tfallthrough;\n\tdefault:\n\t\treturn false;\n\t}\n}\n\nbool bond_xdp_check(struct bonding *bond, int mode)\n{\n\treturn __bond_xdp_check(mode, bond->params.xmit_policy);\n}\n\n/*---------------------------------- VLAN -----------------------------------*/\n\n/* In the following 2 functions, bond_vlan_rx_add_vid and bond_vlan_rx_kill_vid,\n * We don't protect the slave list iteration with a lock because:\n * a. This operation is performed in IOCTL context,\n * b. The operation is protected by the RTNL semaphore in the 8021q code,\n * c. Holding a lock with BH disabled while directly calling a base driver\n *    entry point is generally a BAD idea.\n *\n * The design of synchronization/protection for this operation in the 8021q\n"
+      }
+    },
+    {
+      "file": "drivers/net/bonding/bond_main.c",
+      "old_start": 333,
+      "old_end": 339,
+      "new_start": 333,
+      "new_end": 339,
+      "context_hint": "bool bond_xdp_check(struct bonding *bond, int mode)",
+      "added_lines": [
+        "\t\tif (xmit_policy != BOND_XMIT_POLICY_VLAN_SRCMAC)"
+      ],
+      "deleted_lines": [
+        "\t\tif (bond->params.xmit_policy != BOND_XMIT_POLICY_VLAN_SRCMAC)"
+      ],
+      "context_lines": [
+        "\t\t/* vlan+srcmac is not supported with XDP as in most cases the 802.1q",
+        "\t\t * payload is not in the packet due to hardware offload.",
+        "\t\t */",
+        "\t\t\treturn true;",
+        "\t\tfallthrough;",
+        "\tdefault:"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "bonding",
+        "xmit_policy",
+        "BOND_XMIT_POLICY_VLAN_SRCMAC",
+        "bond",
+        "params",
+        "__bond_xdp_check"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Callback types and callback invocation semantics."
+          }
+        ],
+        "surface_reasons": [
+          "callbacks"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "bonding",
+        "snippet_start_line": 304,
+        "snippet_end_line": 369,
+        "snippet": "\tskb_set_queue_mapping(skb, qdisc_skb_cb(skb)->slave_dev_queue_mapping);\n\n\tif (unlikely(netpoll_tx_running(bond->dev)))\n\t\treturn bond_netpoll_send_skb(bond_get_slave_by_dev(bond, slave_dev), skb);\n\n\treturn dev_queue_xmit(skb);\n}\n\nstatic bool bond_sk_check(struct bonding *bond)\n{\n\tswitch (BOND_MODE(bond)) {\n\tcase BOND_MODE_8023AD:\n\tcase BOND_MODE_XOR:\n\t\tif (bond->params.xmit_policy == BOND_XMIT_POLICY_LAYER34)\n\t\t\treturn true;\n\t\tfallthrough;\n\tdefault:\n\t\treturn false;\n\t}\n}\n\nbool __bond_xdp_check(int mode, int xmit_policy)\n{\n\tswitch (mode) {\n\tcase BOND_MODE_ROUNDROBIN:\n\tcase BOND_MODE_ACTIVEBACKUP:\n\t\treturn true;\n\tcase BOND_MODE_8023AD:\n\tcase BOND_MODE_XOR:\n\t\t/* vlan+srcmac is not supported with XDP as in most cases the 802.1q\n\t\t * payload is not in the packet due to hardware offload.\n\t\t */\n\t\tif (xmit_policy != BOND_XMIT_POLICY_VLAN_SRCMAC)\n\t\t\treturn true;\n\t\tfallthrough;\n\tdefault:\n\t\treturn false;\n\t}\n}\n\nbool bond_xdp_check(struct bonding *bond, int mode)\n{\n\treturn __bond_xdp_check(mode, bond->params.xmit_policy);\n}\n\n/*---------------------------------- VLAN -----------------------------------*/\n\n/* In the following 2 functions, bond_vlan_rx_add_vid and bond_vlan_rx_kill_vid,\n * We don't protect the slave list iteration with a lock because:\n * a. This operation is performed in IOCTL context,\n * b. The operation is protected by the RTNL semaphore in the 8021q code,\n * c. Holding a lock with BH disabled while directly calling a base driver\n *    entry point is generally a BAD idea.\n *\n * The design of synchronization/protection for this operation in the 8021q\n * module is good for one or more VLAN devices over a single physical device\n * and cannot be extended for a teaming solution like bonding, so there is a\n * potential race condition here where a net device from the vlan group might\n * be referenced (either by a base driver or the 8021q code) while it is being\n * removed from the system. However, it turns out we're not making matters\n * worse, and if it works for regular VLAN usage it will work here too.\n*/\n\n/**\n * bond_vlan_rx_add_vid - Propagates adding an id to slaves\n * @bond_dev: bonding net device that got called\n"
+      }
+    },
+    {
+      "file": "drivers/net/bonding/bond_main.c",
+      "old_start": 341,
+      "old_end": 346,
+      "new_start": 341,
+      "new_end": 351,
+      "context_hint": "bool bond_xdp_check(struct bonding *bond, int mode)",
+      "added_lines": [
+        "bool bond_xdp_check(struct bonding *bond, int mode)",
+        "{",
+        "\treturn __bond_xdp_check(mode, bond->params.xmit_policy);",
+        "}",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t}",
+        "}",
+        "",
+        "/*---------------------------------- VLAN -----------------------------------*/",
+        "",
+        "/* In the following 2 functions, bond_vlan_rx_add_vid and bond_vlan_rx_kill_vid,"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "bonding",
+        "bond_xdp_check",
+        "bond",
+        "mode",
+        "__bond_xdp_check",
+        "params"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "bonding",
+        "snippet_start_line": 312,
+        "snippet_end_line": 381,
+        "snippet": "static bool bond_sk_check(struct bonding *bond)\n{\n\tswitch (BOND_MODE(bond)) {\n\tcase BOND_MODE_8023AD:\n\tcase BOND_MODE_XOR:\n\t\tif (bond->params.xmit_policy == BOND_XMIT_POLICY_LAYER34)\n\t\t\treturn true;\n\t\tfallthrough;\n\tdefault:\n\t\treturn false;\n\t}\n}\n\nbool __bond_xdp_check(int mode, int xmit_policy)\n{\n\tswitch (mode) {\n\tcase BOND_MODE_ROUNDROBIN:\n\tcase BOND_MODE_ACTIVEBACKUP:\n\t\treturn true;\n\tcase BOND_MODE_8023AD:\n\tcase BOND_MODE_XOR:\n\t\t/* vlan+srcmac is not supported with XDP as in most cases the 802.1q\n\t\t * payload is not in the packet due to hardware offload.\n\t\t */\n\t\tif (xmit_policy != BOND_XMIT_POLICY_VLAN_SRCMAC)\n\t\t\treturn true;\n\t\tfallthrough;\n\tdefault:\n\t\treturn false;\n\t}\n}\n\nbool bond_xdp_check(struct bonding *bond, int mode)\n{\n\treturn __bond_xdp_check(mode, bond->params.xmit_policy);\n}\n\n/*---------------------------------- VLAN -----------------------------------*/\n\n/* In the following 2 functions, bond_vlan_rx_add_vid and bond_vlan_rx_kill_vid,\n * We don't protect the slave list iteration with a lock because:\n * a. This operation is performed in IOCTL context,\n * b. The operation is protected by the RTNL semaphore in the 8021q code,\n * c. Holding a lock with BH disabled while directly calling a base driver\n *    entry point is generally a BAD idea.\n *\n * The design of synchronization/protection for this operation in the 8021q\n * module is good for one or more VLAN devices over a single physical device\n * and cannot be extended for a teaming solution like bonding, so there is a\n * potential race condition here where a net device from the vlan group might\n * be referenced (either by a base driver or the 8021q code) while it is being\n * removed from the system. However, it turns out we're not making matters\n * worse, and if it works for regular VLAN usage it will work here too.\n*/\n\n/**\n * bond_vlan_rx_add_vid - Propagates adding an id to slaves\n * @bond_dev: bonding net device that got called\n * @proto: network protocol ID\n * @vid: vlan id being added\n */\nstatic int bond_vlan_rx_add_vid(struct net_device *bond_dev,\n\t\t\t\t__be16 proto, u16 vid)\n{\n\tstruct bonding *bond = netdev_priv(bond_dev);\n\tstruct slave *slave, *rollback_slave;\n\tstruct list_head *iter;\n\tint res;\n\n\tbond_for_each_slave(bond, slave, iter) {\n"
+      }
+    },
+    {
+      "file": "drivers/net/bonding/bond_options.c",
+      "old_start": 1592,
+      "old_end": 1597,
+      "new_start": 1592,
+      "new_end": 1599,
+      "context_hint": "static int bond_option_fail_over_mac_set(struct bonding *bond,",
+      "added_lines": [
+        "\tif (bond->xdp_prog && !__bond_xdp_check(BOND_MODE(bond), newval->value))",
+        "\t\treturn -EOPNOTSUPP;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "static int bond_option_xmit_hash_policy_set(struct bonding *bond,",
+        "\t\t\t\t\t    const struct bond_opt_value *newval)",
+        "{",
+        "\tnetdev_dbg(bond->dev, \"Setting xmit hash policy to %s (%llu)\\n\",",
+        "\t\t   newval->string, newval->value);",
+        "\tWRITE_ONCE(bond->params.xmit_policy, newval->value);"
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "bonding",
+        "bond",
+        "xdp_prog",
+        "__bond_xdp_check",
+        "BOND_MODE",
+        "newval",
+        "bond_option_xmit_hash_policy_set"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "bonding",
+        "snippet_start_line": 1563,
+        "snippet_end_line": 1629,
+        "snippet": "\tunblock_netpoll_tx();\n\n\treturn 0;\n}\n\nstatic int bond_option_primary_reselect_set(struct bonding *bond,\n\t\t\t\t\t    const struct bond_opt_value *newval)\n{\n\tnetdev_dbg(bond->dev, \"Setting primary_reselect to %s (%llu)\\n\",\n\t\t   newval->string, newval->value);\n\tWRITE_ONCE(bond->params.primary_reselect, newval->value);\n\n\tblock_netpoll_tx();\n\tbond_select_active_slave(bond);\n\tunblock_netpoll_tx();\n\n\treturn 0;\n}\n\nstatic int bond_option_fail_over_mac_set(struct bonding *bond,\n\t\t\t\t\t const struct bond_opt_value *newval)\n{\n\tnetdev_dbg(bond->dev, \"Setting fail_over_mac to %s (%llu)\\n\",\n\t\t   newval->string, newval->value);\n\tWRITE_ONCE(bond->params.fail_over_mac, newval->value);\n\n\treturn 0;\n}\n\nstatic int bond_option_xmit_hash_policy_set(struct bonding *bond,\n\t\t\t\t\t    const struct bond_opt_value *newval)\n{\n\tif (bond->xdp_prog && !__bond_xdp_check(BOND_MODE(bond), newval->value))\n\t\treturn -EOPNOTSUPP;\n\tnetdev_dbg(bond->dev, \"Setting xmit hash policy to %s (%llu)\\n\",\n\t\t   newval->string, newval->value);\n\tWRITE_ONCE(bond->params.xmit_policy, newval->value);\n\n\treturn 0;\n}\n\nstatic int bond_option_resend_igmp_set(struct bonding *bond,\n\t\t\t\t       const struct bond_opt_value *newval)\n{\n\tnetdev_dbg(bond->dev, \"Setting resend_igmp to %llu\\n\",\n\t\t   newval->value);\n\tWRITE_ONCE(bond->params.resend_igmp, newval->value);\n\n\treturn 0;\n}\n\nstatic int bond_option_num_peer_notif_set(struct bonding *bond,\n\t\t\t\t   const struct bond_opt_value *newval)\n{\n\tWRITE_ONCE(bond->params.num_peer_notif, newval->value);\n\n\treturn 0;\n}\n\nstatic int bond_option_all_slaves_active_set(struct bonding *bond,\n\t\t\t\t\t     const struct bond_opt_value *newval)\n{\n\tstruct list_head *iter;\n\tstruct slave *slave;\n\n\tif (newval->value == bond->params.all_slaves_active)\n\t\treturn 0;\n"
+      }
+    },
+    {
+      "file": "include/net/bonding.h",
+      "old_start": 697,
+      "old_end": 702,
+      "new_start": 697,
+      "new_end": 703,
+      "context_hint": "void bond_debug_register(struct bonding *bond);",
+      "added_lines": [
+        "bool __bond_xdp_check(int mode, int xmit_policy);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "void bond_debug_unregister(struct bonding *bond);",
+        "void bond_debug_reregister(struct bonding *bond);",
+        "const char *bond_mode_name(int mode);",
+        "bool bond_xdp_check(struct bonding *bond, int mode);",
+        "void bond_setup(struct net_device *bond_dev);",
+        "unsigned int bond_get_num_tx_queues(void);",
+        ""
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "bonding",
+        "__bond_xdp_check",
+        "mode",
+        "xmit_policy",
+        "bond_debug_unregister"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "proc_sys_consumers",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "input_contract",
+              "error_contract"
+            ],
+            "description": "User-space parsers or generators for /proc, /proc/sys, or /sys text output."
+          },
+          {
+            "name": "procfs",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "permission",
+              "error_contract"
+            ],
+            "description": "/proc entries and text output. Treat field addition/removal, ordering,\ndelimiter, unit, header, permission, missing-entry, and error behavior\nchanges as compatibility candidates, especially for documented or widely\nscraped entries.\n"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "proc_sys_consumers",
+          "procfs"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "bonding",
+        "snippet_start_line": 668,
+        "snippet_end_line": 733,
+        "snippet": "\nstruct bond_net {\n\tstruct net\t\t*net;\t/* Associated network namespace */\n\tstruct list_head\tdev_list;\n#ifdef CONFIG_PROC_FS\n\tstruct proc_dir_entry\t*proc_dir;\n#endif\n\tstruct class_attribute\tclass_attr_bonding_masters;\n};\n\nint bond_rcv_validate(const struct sk_buff *skb, struct bonding *bond, struct slave *slave);\nnetdev_tx_t bond_dev_queue_xmit(struct bonding *bond, struct sk_buff *skb, struct net_device *slave_dev);\nint bond_create(struct net *net, const char *name);\nint bond_create_sysfs(struct bond_net *net);\nvoid bond_destroy_sysfs(struct bond_net *net);\nvoid bond_prepare_sysfs_group(struct bonding *bond);\nint bond_sysfs_slave_add(struct slave *slave);\nvoid bond_sysfs_slave_del(struct slave *slave);\nvoid bond_xdp_set_features(struct net_device *bond_dev);\nint bond_enslave(struct net_device *bond_dev, struct net_device *slave_dev,\n\t\t struct netlink_ext_ack *extack);\nint bond_release(struct net_device *bond_dev, struct net_device *slave_dev);\nu32 bond_xmit_hash(struct bonding *bond, struct sk_buff *skb);\nint bond_set_carrier(struct bonding *bond);\nvoid bond_select_active_slave(struct bonding *bond);\nvoid bond_change_active_slave(struct bonding *bond, struct slave *new_active);\nvoid bond_create_debugfs(void);\nvoid bond_destroy_debugfs(void);\nvoid bond_debug_register(struct bonding *bond);\nvoid bond_debug_unregister(struct bonding *bond);\nvoid bond_debug_reregister(struct bonding *bond);\nconst char *bond_mode_name(int mode);\nbool __bond_xdp_check(int mode, int xmit_policy);\nbool bond_xdp_check(struct bonding *bond, int mode);\nvoid bond_setup(struct net_device *bond_dev);\nunsigned int bond_get_num_tx_queues(void);\nint bond_netlink_init(void);\nvoid bond_netlink_fini(void);\nstruct net_device *bond_option_active_slave_get_rcu(struct bonding *bond);\nconst char *bond_slave_link_status(s8 link);\nstruct bond_vlan_tag *bond_verify_device_path(struct net_device *start_dev,\n\t\t\t\t\t      struct net_device *end_dev,\n\t\t\t\t\t      int level);\nint bond_update_slave_arr(struct bonding *bond, struct slave *skipslave);\nvoid bond_slave_arr_work_rearm(struct bonding *bond, unsigned long delay);\nvoid bond_peer_notify_work_rearm(struct bonding *bond, unsigned long delay);\nvoid bond_work_init_all(struct bonding *bond);\nvoid bond_work_cancel_all(struct bonding *bond);\n\n#ifdef CONFIG_PROC_FS\nvoid bond_create_proc_entry(struct bonding *bond);\nvoid bond_remove_proc_entry(struct bonding *bond);\nvoid bond_create_proc_dir(struct bond_net *bn);\nvoid bond_destroy_proc_dir(struct bond_net *bn);\n#else\nstatic inline void bond_create_proc_entry(struct bonding *bond)\n{\n}\n\nstatic inline void bond_remove_proc_entry(struct bonding *bond)\n{\n}\n\nstatic inline void bond_create_proc_dir(struct bond_net *bn)\n{\n}\n"
+      }
+    }
+  ]
+}

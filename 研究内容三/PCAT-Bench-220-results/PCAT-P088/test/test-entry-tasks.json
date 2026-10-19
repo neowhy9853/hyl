@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P028/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P028/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P028",
+  "patch_id": "681477de459bd12ab2429669aa6d52cbed83c018",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "TarFile.zstopen",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Lib/tarfile.py",
+        "old_lines": [
+          2132,
+          2132
+        ],
+        "new_lines": [
+          2132,
+          2132
+        ],
+        "symbol": "zstopen"
+      },
+      "old_behavior": "在 `zstopen` 方法中，当 `taropen()` 抛出 `Exception` 子类异常时，底层的 `ZstdFile` 文件对象会被关闭；但当抛出 `BaseException` 子类（非 `Exception` 子类）如 `KeyboardInterrupt`、`SystemExit` 时，由于 `except Exception` 不捕获这些异常，文件对象不会被关闭，直接向上传播异常，造成文件对象资源泄漏。",
+      "new_behavior": "在 `zstopen` 方法中，将 `except Exception:` 改为裸 `except:`，当 `taropen()` 抛出任何异常（包括 `KeyboardInterrupt`、`SystemExit` 等 `BaseException` 子类）时，底层的 `ZstdFile` 文件对象都会被正确关闭后再重新抛出异常，不再发生资源泄漏。",
+      "compatibility_reason": "`TarFile.zstopen` 是 Python 标准库 `tarfile` 模块的公开类方法。补丁将 `except Exception` 改为裸 `except`，扩大了异常捕获范围，使得 `BaseException` 子类（如 `KeyboardInterrupt`）也会触发 `fileobj.close()`。这是一个可观察的行为变化：在补丁前当用户在 `zstopen` 调用期间发送 `Ctrl+C`（触发 `KeyboardInterrupt`），底层的 zstd 文件对象不会被关闭；补丁后该文件对象会被正确关闭后再重新抛出异常。虽然这是一个资源泄漏修复且属于正确行为改进，但资源清理副作用的条件范围发生了变化，调用方若依赖补丁前文件对象在 `BaseException` 路径中保持打开状态，可能观察到行为差异。",
+      "test_recommendation": "验证当 `taropen()` 内部抛出 `KeyboardInterrupt` 时，`zstopen()` 能正确关闭底层 `ZstdFile` 文件对象后重新抛出 `KeyboardInterrupt`。补丁已附带单元测试 `test_zstopen_closes_fileobj_on_base_exception`。建议通过 `tarfile.open(name, \"w:zst\")` 路径触发，模拟并发中断场景。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P028/compatibility-testing"
+}

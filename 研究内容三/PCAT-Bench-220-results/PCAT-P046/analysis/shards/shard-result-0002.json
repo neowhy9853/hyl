@@ -1,0 +1,103 @@
+{
+  "shard_id": "SHARD-0002",
+  "status": "analyzed",
+  "surface": "config_keys",
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.9,
+      "package_profile": "networkmanager",
+      "affected_surface": "nmcli device show output",
+      "affected_api": {
+        "name": "nmc_fields_dev_show_controller_prop / nmc_fields_dev_show_team_prop",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/nmcli/devices.c",
+        "old_lines": [766, 782],
+        "new_lines": [766, 784],
+        "symbol": "print_bond_bridge_info"
+      },
+      "old_behavior": "nmcli device show for bond/bridge devices outputs fields NAME and SLAVES only in the BOND/BRIDGE section.",
+      "new_behavior": "nmcli device show for bond/bridge devices now outputs an additional PORTS field (index 2) showing the same port list as SLAVES. Existing SLAVES field content unchanged.",
+      "compatibility_reason": "The new PORTS field appears in the nmcli device show output for bond/bridge/team devices. Any script that parses nmcli output by column position could be affected if PORTS is selected. However, the developer explicitly preserved the old SLAVES field name and its content, so scripts using the old field name continue to work. The change is intentionally backward-compatible.",
+      "evidence": [
+        {
+          "file": "src/nmcli/devices.c",
+          "lines": [766, 784],
+          "snippet": "const NmcMetaGenericInfo *const nmc_fields_dev_show_controller_prop[] = {\n    NMC_META_GENERIC(\"NAME\"),   /* 0 */\n    NMC_META_GENERIC(\"SLAVES\"), /* 1 */\n    NMC_META_GENERIC(\"PORTS\"),  /* 2 */\n    NULL,\n};\n#define NMC_FIELDS_DEV_SHOW_CONTROLLER_PROP_COMMON \"NAME,SLAVES,PORTS\"\n\nconst NmcMetaGenericInfo *const nmc_fields_dev_show_team_prop[] = {\n    NMC_META_GENERIC(\"NAME\"),   /* 0 */\n    NMC_META_GENERIC(\"SLAVES\"), /* 1 */\n    NMC_META_GENERIC(\"PORTS\"),  /* 2 */\n    NMC_META_GENERIC(\"CONFIG\"), /* 3 */\n    NULL,\n};\n#define NMC_FIELDS_DEV_SHOW_TEAM_PROP_COMMON \"NAME,SLAVES,PORTS,CONFIG\""
+        },
+        {
+          "file": "src/nmcli/devices.c",
+          "lines": [1539, 1546],
+          "snippet": "    set_val_str(arr, 1, g_strdup(ports_str->str));\n    set_val_str(arr, 2, g_string_free(ports_str, FALSE));"
+        },
+        {
+          "file": "src/nmcli/devices.c",
+          "lines": [1603, 1611],
+          "snippet": "    set_val_str(arr, 1, g_strdup(ports_str->str));\n    set_val_str(arr, 2, g_string_free(ports_str, FALSE));\n    set_val_str(arr, 3, sanitize_team_config(nm_device_team_get_config(NM_DEVICE_TEAM(device))));"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "nmcli is the primary NetworkManager CLI tool. Its output is consumed by administrators, scripts, and monitoring tools. Adding a new output field changes the user-visible output format, making this an external compatibility concern.",
+      "uncertainty": "The change is intentionally additive and the developer explicitly designed it to avoid breakage. The low priority reflects the additive nature.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that PORTS field values match SLAVES field values in bond/bridge/team show output.",
+      "test_recommendation": "Run nmcli device show with --fields on a bond/bridge device and verify both SLAVES and PORTS contain identical port lists. Run the existing golden output tests (test-client) which have been updated for the new fields."
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "networkmanager",
+      "affected_surface": "nmcli connection show output",
+      "affected_api": {
+        "name": "_metagen_con_active_general_get_fcn",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/nmcli/connections.c",
+        "old_lines": [920, 925],
+        "new_lines": [920, 926],
+        "symbol": "_metagen_con_active_general_get_fcn"
+      },
+      "old_behavior": "nmcli connection show for active connections outputs GENERAL.MASTER-PATH field showing the controller device D-Bus path.",
+      "new_behavior": "nmcli connection show now outputs an additional GENERAL.CONTROLLER-PATH field showing the same controller device D-Bus path as GENERAL.MASTER-PATH.",
+      "compatibility_reason": "A new GENERAL.CONTROLLER-PATH field appears in nmcli connection show output. The commit message explicitly states this is a backward-compatible addition: 'Instead of replacing them, we add a new field that will show the same value with the new name.' Existing GENERAL.MASTER-PATH is preserved.",
+      "evidence": [
+        {
+          "file": "src/nmcli/connections.c",
+          "lines": [920, 926],
+          "snippet": "    case NMC_GENERIC_INFO_TYPE_CON_ACTIVE_GENERAL_CONTROLLER_PATH:\n    case NMC_GENERIC_INFO_TYPE_CON_ACTIVE_GENERAL_MASTER_PATH:\n        dev = nm_active_connection_get_controller(ac);\n        return dev ? nm_object_get_path(NM_OBJECT(dev)) : NULL;"
+        },
+        {
+          "file": "src/nmcli/connections.c",
+          "lines": [950, 957],
+          "snippet": "        _METAGEN_CON_ACTIVE_GENERAL(NMC_GENERIC_INFO_TYPE_CON_ACTIVE_GENERAL_CONTROLLER_PATH,\n                                    \"CONTROLLER-PATH\"),\n        _METAGEN_CON_ACTIVE_GENERAL(NMC_GENERIC_INFO_TYPE_CON_ACTIVE_GENERAL_MASTER_PATH,\n                                    \"MASTER-PATH\"),"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "nmcli is the primary user-facing CLI tool for NetworkManager. Any change to its output format is user-visible and potentially consumable by scripts.",
+      "uncertainty": "The change is purely additive with explicit backward-compatibility intent from the commit message.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that GENERAL.CONTROLLER-PATH field shows the same value as GENERAL.MASTER-PATH for various connection types.",
+      "test_recommendation": "Run 'nmcli connection show' and verify both CONTROLLER-PATH and MASTER-PATH fields exist and contain identical values. Run existing test-client golden output tests."
+    }
+  ],
+  "internal_candidates": [
+    {
+      "candidate_index": 2,
+      "hunk_id": "HUNK-0003",
+      "symbol": "NMC_FIELDS_DEV_SHOW_CONTROLLER_PROP_COMMON",
+      "file": "src/nmcli/devices.c",
+      "disposition": "additive_config_change",
+      "reason": "The NMC_FIELDS_DEV_SHOW_CONTROLLER_PROP_COMMON and NMC_FIELDS_DEV_SHOW_TEAM_PROP_COMMON macros are used for field selection within nmcli's --fields option. Adding PORTS is additive. Old SLAVES still selectable. The CONFIG field shifted from index 2 to 3 in team_prop, but field selection is name-based not position-based."
+    }
+  ],
+  "summary": "2 LOW-priority compatibility findings: additive nmcli output format changes (new PORTS field for device show, new CONTROLLER-PATH field for connection show). Both preserve old field names and behavior."
+}

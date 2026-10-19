@@ -1,0 +1,46 @@
+{
+  "findings": ["PCA-0001"],
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "synthetic_harness",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+      "build_command": "gcc -O0 -g -Wall -o test-entry-work/PCA-0001/mgmt_reproducer test-entry-work/PCA-0001/mgmt_reproducer.c",
+      "run_command": "sudo bash test-entry-work/PCA-0001/reproducer.sh",
+      "target_location": {
+        "file": "net/bluetooth/mgmt.c",
+        "new_lines": [9147, 9149],
+        "symbol": "add_ext_adv_data"
+      },
+      "reachability_signal": "Test 2 (data_len=7) receives MGMT_STATUS_SUCCESS instead of MGMT_STATUS_INVALID_PARAMS, proving the '>' comparison at line 9149 was executed and the extra bytes were tolerated. gcov should show line 9149 as covered.",
+      "expected_signal": "test 1 (exact_len=6): ACCEPTED; test 2 (extra_len=7): ACCEPTED (after patch); test 3 (short_len=5): REJECTED with MGMT_STATUS_INVALID_PARAMS; test 4 (min_len=3): ACCEPTED",
+      "execution": {
+        "cwd": "result_dir",
+        "timeout_seconds": 60,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Sends MGMT_OP_ADD_EXT_ADV_DATA with adv_data_len=2, scan_rsp_len=1 (expected_len=6) at varying data_len: 3 (min struct), 5 (too short), 6 (exact match), 7 (extra byte). Tests the old-new validation boundary: old != rejects 7, new > accepts 7. Input axes: exact boundary (6), null/empty (3), old-invalid (7), maximum/overflow (255+255).",
+      "contract_probe": {
+        "probe_id": "mgmt_add_ext_adv_data_length_contract",
+        "command": "sudo {BINARY} 2>&1 | grep -E 'ACCEPTED|REJECTED'",
+        "comparison": "acceptance",
+        "cwd": "{VERSION_DIR}",
+        "timeout_seconds": 30
+      },
+      "prerequisites": [
+        "Kernel with CONFIG_BT=y, CONFIG_BT_MGMT=y, CONFIG_BT_HCIBTUSB=y or CONFIG_BT_HCIUART=y or CONFIG_BT_HCIVHCI=y",
+        "Bluetooth HCI device (real or virtual via hci_vhci)",
+        "Root privileges (CAP_NET_ADMIN) for HCI_CHANNEL_CONTROL socket",
+        "gcc and libc headers for building the reproducer"
+      ],
+      "limitations": "Requires a running kernel with Bluetooth MGMT enabled and an HCI device present. Cannot be run as a standalone user-space test without kernel support. A full kernel build + QEMU VM with Bluetooth is needed for automated testing. For manual verification on a live system with Bluetooth hardware, run: sudo bash test-entry-work/PCA-0001/reproducer.sh"
+    }
+  ],
+  "generated_at": "2026-07-23T22:29:55",
+  "source_artifacts": {
+    "c_program": "test-entry-work/PCA-0001/mgmt_reproducer.c",
+    "shell_wrapper": "test-entry-work/PCA-0001/reproducer.sh"
+  }
+}

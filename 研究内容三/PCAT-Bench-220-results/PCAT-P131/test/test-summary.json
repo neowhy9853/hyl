@@ -1,0 +1,125 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071/analysis.json",
+  "patch_id": "fd74218c456c9b6322ee9316ff16955a088f75d4",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071/compatibility-testing",
+  "status": "blocked",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+    "base_commit": "c513c04b680ecf204ec68327d6ad95e4d4325beb",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P071/_worktrees/patched",
+    "package_profile": "httpd"
+  },
+  "environment": {
+    "kind": "not_available",
+    "before_build": "blocked",
+    "after_build": "blocked",
+    "compiler": "gcc (requires libapr1-dev, libaprutil1-dev)",
+    "optimization": "O0",
+    "coverage_tool": "gcov (requires instrumented build)",
+    "notes": [
+      "Build requires libapr1-dev and libaprutil1-dev which are not installed on host",
+      "sudo required for package installation but not available in this environment",
+      "Docker is available but build configuration needs additional setup",
+      "System apache2 2.4.52 is installed but lacks dev headers for source compilation"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 0,
+    "inputs_planned": 1,
+    "inputs_executed": 0,
+    "contracts_total": 1,
+    "contracts_passed": 0,
+    "contracts_breached": 0,
+    "contracts_skipped": 1,
+    "patch_executable_lines": 1,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 1,
+    "patch_line_coverage_rate": 0.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "medium",
+      "status": "blocked",
+      "target_location": {
+        "file": "modules/filters/mod_proxy_html.c",
+        "new_lines": [337, 340],
+        "symbol": "pcomment"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "needs_env",
+          "artifact_path": "test-entry-work/PCA-TE-0001",
+          "run_command": "See test-entry-work/PCA-TE-0001/test_httpd.sh for complete Docker-based build and test script",
+          "expected_signal": "Before: duplicate content dump before comments; After: content output only at correct element boundaries",
+          "reachability_signal": "gcov coverage showing execution of lines 337-340 in mod_proxy_html.c"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "output_format_stability",
+          "status": "skipped",
+          "detail": "Cannot build before/after binaries for comparison: libapr1-dev and libaprutil1-dev not available"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 0,
+        "uncovered_lines": ["modules/filters/mod_proxy_html.c:337-340"],
+        "rate": 0.0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Single-line deletion of dump_content(ctx) from pcomment else-branch",
+        "Fix for regression introduced in r1934975 (Github #681)",
+        "Static analysis confirms behavioral change: accumulated buffer content no longer dumped before comments",
+        "Source-level verification complete with 0.95 confidence",
+        "Full dynamic testing requires: apt-get install libapr1-dev libaprutil1-dev, build httpd with gcov, configure mod_proxy_html, serve test HTML, compare proxy output"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "BLOCKER-0001",
+      "reason": "Build dependencies missing: libapr1-dev, libaprutil1-dev. These are required to compile httpd from source (provides apr_pools.h, apr_strings.h, etc. needed by httpd headers). Host has runtime libraries (libapr1, libaprutil1) but not development headers.",
+      "required_action": "Install build dependencies: sudo apt-get install libapr1-dev libaprutil1-dev, or use a Docker container with full build environment"
+    },
+    {
+      "scope": "build",
+      "id": "BLOCKER-0002",
+      "reason": "httpd build requires cmake-configured compilation with dependencies on APR, APR-util, libxml2, OpenSSL, PCRE, etc. Docker-based build attempted but container configuration needs refinement for proper source copying and CMake paths.",
+      "required_action": "Complete Docker-based build configuration or use host build with installed dev packages"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_summary.json",
+    "coverage_data": "phase4_execution/coverage.json",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": false,
+    "rationale": "Dynamic testing blocked by missing build dependencies (libapr1-dev, libaprutil1-dev). Static analysis with 0.95 confidence confirms OUTPUT_FORMAT_CHANGE: removal of dump_content(ctx) from pcomment restores correct HTML output order and eliminates content duplication. The change fixes a regression (r1934975, Github #681) where accumulated CDATA/text content was incorrectly flushed before comments. Since no dynamic testing could be performed, backward compatibility cannot be confirmed through execution evidence, though the static analysis strongly indicates this is a correct bug fix restoring intended behavior.",
+    "recommended_actions": [
+      "Install libapr1-dev and libaprutil1-dev on a build host",
+      "Run test-entry-work/PCA-TE-0001/test_httpd.sh in an environment with full httpd build dependencies",
+      "Verify no content duplication in proxy HTML output with test page containing comments and CDATA",
+      "Run existing httpd test suite to confirm no regressions"
+    ]
+  }
+}

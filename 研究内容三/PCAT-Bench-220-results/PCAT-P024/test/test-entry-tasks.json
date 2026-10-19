@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/vim/pca-results/0001-p/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/vim",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/vim/pca-results/0001-p/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/0001-p",
+  "patch_id": "0001-patch",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "complete_check()",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/insexpand.c",
+        "old_lines": [
+          6408,
+          6416
+        ],
+        "new_lines": [
+          6408,
+          6417
+        ],
+        "symbol": "ins_compl_check_keys"
+      },
+      "old_behavior": "complete_check() (via ins_compl_check_keys) sets compl_interrupted = TRUE only when KeyTyped is set. Mapped typed keys lose the KeyTyped flag, so complete_check() returns FALSE for mapped input, causing the completion function loop to continue until the iteration limit.",
+      "new_behavior": "complete_check() (via ins_compl_check_keys) sets compl_interrupted = TRUE when KeyTyped is set, OR when in_compl_func is TRUE and reg_executing == 0 (not replaying a register). This allows complete_check() to return TRUE for mapped typed keys during completion, causing the completion function loop to exit early when the user types a mapped key.",
+      "compatibility_reason": "The complete_check() Vim function is a documented public Vimscript API. The patch changes its observable behavior: previously it would not return TRUE for mapped typed keys during completion; now it does (except during @r register replay). Vim plugins or scripts that call complete_check() to poll for user interruption will now observe earlier interruption when the user has mapped keys. This is an additive behavioral change that fixes a documented bug - the intended behavior was always to detect user input. The compatibility risk is extremely low because: (1) the change only makes the function work in more cases (additive), (2) any code depending on complete_check() NOT detecting mapped input was relying on buggy behavior, (3) the @r replay case is explicitly excluded.",
+      "test_recommendation": "Run the existing test_ins_complete.vim test suite with focus on Test_complete_check_mapped_typed_key. Additionally, test mapped <Space> insertion during completion to verify the fix works and does not introduce regressions in other completion scenarios.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/0001-p/compatibility-testing"
+}

@@ -1,0 +1,111 @@
+{
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P059/compatibility-testing",
+  "entries": [
+    {
+      "entry_id": "TE-PCA-0001",
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "artifact_path": "test-entry-work/PCA-0001/",
+      "run_command": "artifacts are declarative only; see contract_probe for setup and verification steps",
+      "expected_signal": "chainloader TPM PCR extension count changes from 2 to 1 per chainloaded image",
+      "reachability_signal": "grub_dprintf('chain', ...) output before/after patch or strace -e trace=open,read showing shim-lock verify count",
+      "execution": {
+        "cwd": "test-entry-work/PCA-0001/",
+        "timeout_sec": 120,
+        "allow_privileged": true,
+        "allow_network": false
+      },
+      "contract_probe": {
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "before_setup": [
+          "1. Build grub2 from base_commit ad0386bd7 using: ./bootstrap && ./configure --with-platform=efi --target=x86_64 && make",
+          "2. Prepare QEMU VM with OVMF_CODE_4M.secboot.fd (SecureBoot ON) and swtpm for TPM emulation",
+          "3. Create a GRUB image containing the chainloader module and a test EFI payload (e.g., shell.efi)",
+          "4. Boot the VM with -chardev file,id=tpmlog,path=tpm_eventlog.before.log and TPM logging enabled"
+        ],
+        "after_setup": [
+          "1. Build grub2 from patched commit e2a1a337 using same configure options",
+          "2. Use identical QEMU VM configuration with swtpm reset",
+          "3. Boot with same test EFI payload",
+          "4. Capture TPM event log to tpm_eventlog.after.log"
+        ],
+        "verification": [
+          "1. Count occurrences of the chainloaded image hash in each TPM event log",
+          "2. Verify before log has 2 occurrences (verifier + explicit grub_linuxefi_secure_validate)",
+          "3. Verify after log has 1 occurrence (verifier only)",
+          "4. PCR values differ between before and after (expected for compatibility change)"
+        ]
+      },
+      "prerequisites": [
+        "gnulib (from git://git.savannah.gnu.org/git/gnulib.git)",
+        "autoconf >= 2.69, automake >= 1.15, bison, flex, pkg-config",
+        "gcc >= 5.1.0 with EFI cross-compilation support",
+        "qemu-system-x86_64 with OVMF firmware (ovmf or edk2-ovmf package)",
+        "swtpm (TPM emulator)",
+        "EFI test payload (e.g., EDK2 shell.efi or a minimal hello.efi)"
+      ],
+      "limitations": [
+        "Full integration test requires working grub2 build with EFI target, QEMU + OVMF + swtpm",
+        "Cannot build in current environment: bootstrap requires cloning gnulib from git.savannah.gnu.org",
+        "The TPM PCR behavior change is confirmed by static code analysis; the removed grub_linuxefi_secure_validate() call is the only source of the second PCR extension",
+        "The contract verification steps above describe the minimum viable integration test"
+      ],
+      "status": "needs_env",
+      "status_reason": "grub2 bootstrap requires gnulib submodule initialization (network access to git.savannah.gnu.org). Full TPM PCR testing requires QEMU + OVMF + swtpm setup. The code change is statically verifiable: removal of grub_linuxefi_secure_validate() call directly eliminates one PCR extension."
+    },
+    {
+      "entry_id": "TE-PCA-0002",
+      "finding_id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "artifact_path": "test-entry-work/PCA-0002/",
+      "run_command": "artifacts are declarative only; see contract_probe for setup and verification steps",
+      "expected_signal": "When SecureBoot=OFF and shim is present, chainloader now uses grub_chainloader_boot (LoadImage+StartImage) instead of grub_secureboot_chainloader_boot (handle_image+LoadImage+StartImage)",
+      "reachability_signal": "grub_dprintf('chain', ...) output showing boot path selection, or EFI debug tracing showing LoadImage vs handle_image calls",
+      "execution": {
+        "cwd": "test-entry-work/PCA-0002/",
+        "timeout_sec": 120,
+        "allow_privileged": true,
+        "allow_network": false
+      },
+      "contract_probe": {
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "before_setup": [
+          "1. Build grub2 from base_commit ad0386bd7 with: ./bootstrap && ./configure --with-platform=efi --target=x86_64 && make",
+          "2. Prepare QEMU VM with OVMF_CODE_4M.fd (SecureBoot OFF) and shim installed",
+          "3. Add debug output instrumentation to grub_secureboot_chainloader_boot() and grub_chainloader_boot() to log which path is taken",
+          "4. Boot and execute: chainloader /path/to/test.efi",
+          "5. Record: (a) which boot path was taken, (b) EFI boot services call sequence"
+        ],
+        "after_setup": [
+          "1. Build grub2 from patched commit with same configuration and debug instrumentation",
+          "2. Use identical QEMU VM configuration",
+          "3. Boot and execute: chainloader /path/to/test.efi",
+          "4. Record same metrics"
+        ],
+        "verification": [
+          "1. Compare boot path selection between before and after builds",
+          "2. Before: should use grub_secureboot_chainloader_boot when shim is present (rc > 0 from grub_linuxefi_secure_validate)",
+          "3. After: should use grub_chainloader_boot when SecureBoot is OFF (regardless of shim presence)",
+          "4. Verify that both paths successfully boot the test EFI payload",
+          "5. If any failure occurs in the after path, document which EFI image types fail"
+        ]
+      },
+      "prerequisites": [
+        "Same as PCA-0001 build requirements",
+        "shim bootloader (for non-SecureBoot + shim test scenario)",
+        "Multiple test EFI payloads (standard and non-standard PE images)"
+      ],
+      "limitations": [
+        "Cannot build in current environment: bootstrap requires gnulib",
+        "The boot path change is a direct consequence of removing grub_linuxefi_secure_validate() call",
+        "Static analysis confirms: condition changed from 'validate result > 0' to 'SecureBoot enabled'",
+        "grub_secureboot_chainloader_boot calls handle_image() + grub_load_and_start_image() while grub_chainloader_boot calls start_image() directly",
+        "The commit author notes uncertainty about the SecureBoot OFF + shim present scenario"
+      ],
+      "status": "needs_env",
+      "status_reason": "Requires full grub2 build (blocked by gnulib bootstrap) and QEMU + OVMF environment. The logic change is statically verifiable: conditional on SecureBoot state replaces conditional on grub_linuxefi_secure_validate() return value."
+    }
+  ]
+}

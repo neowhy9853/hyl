@@ -1,0 +1,40 @@
+# batch_manifest.yaml 示例（完整字段说明见 schemas/manifest_schema.json）
+schema_version: '1.0'
+
+global:
+  concurrency: 4                # 同时运行的子 Agent 数量（硬上限 16）
+  mode: analysis                # analysis | analysis-test
+  timeout_sec: 3600             # 单用例超时上限（analysis-test 实际生效值 ×3）
+  retries: 1                    # 失败重试次数（interrupted/熔断不消耗）
+  model: "gpt-4.1"              # 全批统一模型（可省略用默认）
+  agent: "patch-compatibility-utils"
+  output_base: /data/pca/batch-results
+  repo_cache: /data/pca/_repos
+  # skill_dir: /home/node/.opencode/skills/patch-compatibility-utils  # Docker 默认路径
+  progress_interval_sec: 300    # 心跳间隔（0 关闭）
+  disk_check_interval_sec: 600  # 运行中磁盘水位检查间隔
+  disk_low_watermark_gb: 20     # 低于该剩余空间暂停分派（--resume 续跑）
+  consecutive_fail_limit: 5     # 连续同签名失败熔断阈值
+  # notify:                     # 可选外部推送（模式 D）
+  #   on: [batch_done, circuit_break, disk_low]
+  #   command: 'lark-cli im send --to <open_id> "批次 {{batch_id}}: {{event}} {{counts}}"'
+  # report_to:                  # 可选里程碑注入回调（模式 E；session id 由 Agent 启动时传入）
+  #   server: http://localhost:4096
+  #   milestone: 10             # 或 every: 30m
+
+cases:
+  - id: PCAT-P001
+    repo: /data/pca/_repos/linux       # 本地仓库路径；也可写 URL，由调度器克隆到 repo_cache
+    base_commit: ffc253263a1375a65fa6c9f62a893e9767fbebfa
+    patch: /data/pci/items/PCAT-P001/patch.patch
+    profile: kernel_6_6                # 默认 auto
+    expected:                          # 可选，仅用于指标计算
+      is_compatibility_change: true
+      test_priority: high
+  - id: PCAT-N001
+    repo: /data/pca/_repos/linux
+    base_commit: ffc253263a1375a65fa6c9f62a893e9767fbebfa
+    patch: /data/pci/items/PCAT-N001/patch.patch
+    profile: kernel_6_6
+    expected:
+      is_compatibility_change: false

@@ -1,0 +1,300 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/784f97/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/784f97/patch.diff",
+  "profile": "haproxy",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "src/acme.c"
+    ],
+    "total_hunks": 2,
+    "public_api_hunks": 2,
+    "patch_metrics": {
+      "patch_bytes": 3712,
+      "patch_lines": 121,
+      "diff_added_lines": 70,
+      "diff_deleted_lines": 1,
+      "diff_context_lines": 22,
+      "churn": 71,
+      "raw_hunks": 3,
+      "candidate_hunks": 2,
+      "skipped_doc_hunks": 1,
+      "changed_files": 1,
+      "candidate_context_bytes": 4558,
+      "public_candidate_hunks": 2,
+      "surface_counts": {
+        "user_visible_output": 2,
+        "config": 1,
+        "config_keys": 1,
+        "network_protocol": 1,
+        "persistence_state": 1,
+        "runtime_api": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/acme.c",
+      "old_start": 37,
+      "old_end": 42,
+      "new_start": 37,
+      "new_end": 48,
+      "context_hint": "",
+      "added_lines": [
+        "#ifdef USE_LUA",
+        "#include <lua.h>",
+        "#include <lauxlib.h>",
+        "#include <haproxy/hlua.h>",
+        "#include <haproxy/hlua_fcn.h>",
+        "#endif"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "#include <haproxy/ssl_utils.h>",
+        "#include <haproxy/tools.h>",
+        "#include <haproxy/trace.h>",
+        "",
+        "#define TRACE_SOURCE &trace_acme",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "ifdef",
+        "USE_LUA",
+        "include",
+        "lua",
+        "h",
+        "lauxlib"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "haproxy.cfg directive parsing and semantics"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "config"
+        ],
+        "profile": "haproxy",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 8,
+        "snippet_end_line": 78,
+        "snippet": " */\n\n#include \"haproxy/ticks.h\"\n#include <stddef.h>\n#include <stdlib.h>\n#include <string.h>\n#include <sys/stat.h>\n\n#include <import/ebsttree.h>\n#include <import/mjson.h>\n\n#include <haproxy/acme-t.h>\n\n#include <haproxy/acme_resolvers.h>\n#include <haproxy/base64.h>\n#include <haproxy/intops.h>\n#include <haproxy/cfgparse.h>\n#include <haproxy/cli.h>\n#include <haproxy/errors.h>\n#include <haproxy/http_client.h>\n#include <haproxy/jws.h>\n#include <haproxy/list.h>\n#include <haproxy/log.h>\n#include <haproxy/pattern.h>\n#include <haproxy/resolvers.h>\n#include <haproxy/sink.h>\n#include <haproxy/ssl_ckch.h>\n#include <haproxy/ssl_gencert.h>\n#include <haproxy/ssl_sock.h>\n#include <haproxy/ssl_utils.h>\n#include <haproxy/tools.h>\n#include <haproxy/trace.h>\n#ifdef USE_LUA\n#include <lua.h>\n#include <lauxlib.h>\n#include <haproxy/hlua.h>\n#include <haproxy/hlua_fcn.h>\n#endif\n\n#define TRACE_SOURCE &trace_acme\n\n#if defined(HAVE_ACME)\n\nstatic EVP_PKEY *tmp_pkey = NULL;\nstatic X509 *tmp_x509 = NULL;\n\n\nstatic void acme_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,\n                       const struct ist where, const struct ist func,\n                       const void *a1, const void *a2, const void *a3, const void *a4);\n\nstatic const struct trace_event acme_trace_events[] = {\n\t{ .mask = ACME_EV_SCHED,            .name = \"acme_sched\",            .desc = \"Wakeup scheduled ACME task\" },\n\t{ .mask = ACME_EV_NEW,              .name = \"acme_new\",              .desc = \"New ACME task\" },\n\t{ .mask = ACME_EV_TASK,             .name = \"acme_task\",             .desc = \"ACME task\" },\n\t{ }\n};\n\n\nstatic const struct name_desc acme_trace_lockon_args[4] = {\n\t/* arg1 */ { .name=\"acme_ctx\", .desc=\"ACME context\" },\n\t/* arg2 */ { },\n\t/* arg3 */ { },\n\t/* arg4 */ { }\n};\n\nstatic const struct name_desc acme_trace_decoding[] = {\n\t{ .name=\"clean\",    .desc=\"only user-friendly stuff, generally suitable for level \\\"user\\\"\" },\n\t{ .name=\"minimal\",  .desc=\"report only conn, no real decoding\" },\n\t{ .name=\"simple\",   .desc=\"add error messages\" },\n\t{ .name=\"advanced\", .desc=\"add handshake-related details\" },\n"
+      }
+    },
+    {
+      "file": "src/acme.c",
+      "old_start": 3692,
+      "old_end": 3697,
+      "new_start": 3698,
+      "new_end": 3745,
+      "context_hint": "static void __acme_init(void)",
+      "added_lines": [
+        "#ifdef USE_LUA",
+        "/*",
+        " * ACME.challenge_ready(crt, dns)",
+        " *",
+        " * Marks the ACME challenge for domain <dns> in certificate <crt> as ready.",
+        " * Returns the number of remaining challenges, or 0 if all challenges are",
+        " * ready and validation has been triggered.",
+        " * Raises a Lua error if the certificate or domain is not found.",
+        " */",
+        "__LJMP static int hlua_acme_challenge_ready(lua_State *L)",
+        "{",
+        "\tconst char *crt;",
+        "\tconst char *dns;",
+        "\tint ret;",
+        "",
+        "\tif (lua_gettop(L) != 2)",
+        "\t\tWILL_LJMP(luaL_error(L, \"'ACME.challenge_ready' needs 2 arguments.\"));",
+        "",
+        "\tcrt = MAY_LJMP(luaL_checkstring(L, 1));",
+        "\tdns = MAY_LJMP(luaL_checkstring(L, 2));",
+        "",
+        "\tret = acme_challenge_ready(crt, dns);",
+        "\tif (ret == -2)",
+        "\t\tWILL_LJMP(luaL_error(L, \"ACME.challenge_ready: certificate '%s' not found\", crt));",
+        "\tif (ret == -1)",
+        "\t\tWILL_LJMP(luaL_error(L, \"ACME.challenge_ready: domain '%s' not found for certificate '%s'\", dns, crt));",
+        "",
+        "\tlua_pushinteger(L, ret);",
+        "\treturn 1;",
+        "}",
+        "",
+        "static int acme_hlua_init_state(lua_State *L, char **errmsg)",
+        "{",
+        "\tlua_newtable(L);",
+        "\thlua_class_function(L, \"challenge_ready\", hlua_acme_challenge_ready);",
+        "\tlua_setglobal(L, \"ACME\");",
+        "\treturn ERR_NONE;",
+        "}",
+        "",
+        "REGISTER_HLUA_STATE_INIT(acme_hlua_init_state);",
+        "#endif /* USE_LUA */",
+        ""
+      ],
+      "deleted_lines": [
+        "- "
+      ],
+      "context_lines": [
+        "}",
+        "INITCALL0(STG_REGISTER, __acme_init);",
+        "",
+        "#endif /* ! HAVE_ACME */",
+        "",
+        "/*",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "__acme_init",
+        "ifdef",
+        "USE_LUA",
+        "ACME",
+        "challenge_ready",
+        "crt",
+        "in"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "persistence_state",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "side_effect",
+              "resource_lifetime",
+              "output_format"
+            ],
+            "description": "Persistent or externally observable daemon state."
+          },
+          {
+            "name": "runtime_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Admin socket, stats, and runtime API commands"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "user_visible_output",
+          "network_protocol",
+          "persistence_state",
+          "runtime_api"
+        ],
+        "profile": "haproxy",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "__acme_init",
+        "snippet_start_line": 3663,
+        "snippet_end_line": 3750,
+        "snippet": "\n\t\t\tif (applet_putchk(appctx, &trash) == -1)\n\t\t\t\treturn 1;\n\t\t}\n\t\tnode = ebmb_next(node);\n\t}\nend:\n\tHA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);\n\treturn 1;\n}\n\nstatic int cli_acme_parse_status(char **args, char *payload, struct appctx *appctx, void *private)\n{\n\n\tif (!cli_has_level(appctx, ACCESS_LVL_ADMIN))\n\t\treturn 1;\n\n\treturn 0;\n}\n\n\n\nstatic struct cli_kw_list cli_kws = {{ },{\n\t{ { \"acme\", \"renew\", NULL },           \"acme renew <certfile>                   : renew a certificate using the ACME protocol\", cli_acme_renew_parse, NULL, NULL, NULL, 0 },\n\t{ { \"acme\", \"status\", NULL },          \"acme status                             : show status of certificates configured with ACME\", cli_acme_parse_status, cli_acme_status_io_handler, NULL, NULL, 0 },\n\t{ { \"acme\", \"challenge_ready\", NULL }, \"acme challenge_ready <certfile> domain <domain> : notify HAProxy that the ACME challenge is ready\", cli_acme_chall_ready_parse, NULL, NULL, NULL, 0 },\n\t{ { NULL }, NULL, NULL, NULL }\n}};\n\nINITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);\n\nstatic void __acme_init(void)\n{\n\thap_register_feature(\"ACME\");\n\tHA_RWLOCK_INIT(&acme_lock);\n}\nINITCALL0(STG_REGISTER, __acme_init);\n\n#ifdef USE_LUA\n/*\n * ACME.challenge_ready(crt, dns)\n *\n * Marks the ACME challenge for domain <dns> in certificate <crt> as ready.\n * Returns the number of remaining challenges, or 0 if all challenges are\n * ready and validation has been triggered.\n * Raises a Lua error if the certificate or domain is not found.\n */\n__LJMP static int hlua_acme_challenge_ready(lua_State *L)\n{\n\tconst char *crt;\n\tconst char *dns;\n\tint ret;\n\n\tif (lua_gettop(L) != 2)\n\t\tWILL_LJMP(luaL_error(L, \"'ACME.challenge_ready' needs 2 arguments.\"));\n\n\tcrt = MAY_LJMP(luaL_checkstring(L, 1));\n\tdns = MAY_LJMP(luaL_checkstring(L, 2));\n\n\tret = acme_challenge_ready(crt, dns);\n\tif (ret == -2)\n\t\tWILL_LJMP(luaL_error(L, \"ACME.challenge_ready: certificate '%s' not found\", crt));\n\tif (ret == -1)\n\t\tWILL_LJMP(luaL_error(L, \"ACME.challenge_ready: domain '%s' not found for certificate '%s'\", dns, crt));\n\n\tlua_pushinteger(L, ret);\n\treturn 1;\n}\n\nstatic int acme_hlua_init_state(lua_State *L, char **errmsg)\n{\n\tlua_newtable(L);\n\thlua_class_function(L, \"challenge_ready\", hlua_acme_challenge_ready);\n\tlua_setglobal(L, \"ACME\");\n\treturn ERR_NONE;\n}\n\nREGISTER_HLUA_STATE_INIT(acme_hlua_init_state);\n#endif /* USE_LUA */\n\n#endif /* ! HAVE_ACME */\n\n/*\n * Local variables:\n *  c-indent-level: 8\n *  c-basic-offset: 8\n * End:\n */\n"
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "status": "runnable_verified",
+      "command": "timeout 120 bash test-entry-work/PCA-0001/reproducer.sh",
+      "cwd": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/compatibility-testing",
+      "timeout_seconds": 120,
+      "exit_code": 0,
+      "stdout_tail": "ABI_CHANGE_DETECTED before_size=24 after_size=32 before_stride=24 after_stride=32\nBEFORE 24 8 16 18 20 24\nAFTER 32 8 16 18 20 32\ncompat_reserved_offset=24",
+      "stderr_tail": "",
+      "observed_signal": "GCC 编译并运行了真实 before/after input.h；结构体大小和数组步长均从 24 变为 32，新增字段偏移为 24。",
+      "reason": "期望信号与可达信号均观察到。",
+            "refinement_history": [
+        "raw include/uapi -I 编译被内核头保护和内部依赖拒绝",
+        "headers_install 因 benchmark 稀疏快照缺少已跟踪但未 checkout 的 scripts/Makefile.extrawarn 而不可运行",
+        "改用 -include 精确加载真实 input.h，并让依赖回落到系统 sanitized UAPI",
+                "按 headers_install 的导出语义将未清理的 __user 注解定义为空后验证成功"
+            ]
+        },
+        {
+            "finding_id": "PCA-0001",
+            "entry_id": "PCA-TE-0002",
+            "status": "runnable_verified",
+            "command": "timeout 600 bash test-entry-work/PCA-0001/runtime_evdev.sh",
+            "cwd": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P001/analysis/compatibility-testing",
+            "timeout_seconds": 600,
+            "exit_code": 0,
+            "stdout_tail": "EVDEV_RUNTIME_RESULT label=before compiled_size=24 old_write_ret=24 old_write_errno=0 native_write_ret=24 old_read_ret=24 old_read_errno=0 native_read_ret=24 native_read_errno=0\nEVDEV_RUNTIME_DONE label=before success=1\nEVDEV_RUNTIME_RESULT label=after compiled_size=32 old_write_ret=-1 old_write_errno=22 native_write_ret=32 old_read_ret=-1 old_read_errno=22 native_read_ret=32 native_read_errno=0\nEVDEV_RUNTIME_DONE label=after success=1",
+            "stderr_tail": "",
+            "observed_signal": "真实 before/after 内核均启动并完成 uinput/evdev syscall；旧 24 字节 write/read 从成功变为 EINVAL，而 native-size 路径在两侧均成功。",
+            "reason": "预期信号、调用链可达信号和 guest 成功关机标记全部观察到。",
+            "refinement_history": [
+                "初版 after 探针在旧写入被拒后发送 KEY_A=0，被输入核心作为未变化状态抑制，导致 poll 超时",
+                "native 控制事件改为依据旧写入结果选择能改变设备状态的值后，双 VM 验证成功"
+            ]
+        }
+    ]
+}

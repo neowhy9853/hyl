@@ -1,0 +1,96 @@
+{
+  "generated_at": "2026-07-23T15:45:00Z",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1/analysis.json",
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "ENTRY-0001",
+      "compatibility_type": "RESOURCE_LIFETIME_CHANGE",
+      "artifact_path": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1/compatibility-testing/test-entry-work/PCA-0001",
+      "run_command": "timeout 200 bash /home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1/compatibility-testing/test-entry-work/PCA-0001/run_test.sh",
+      "expected_signal": "TCP process for DNSSEC validation timed out",
+      "reachability_signal": "CHILD_LIFETIME timeout triggers SIGALRM → PIPE_OP_KILLED",
+      "execution": {
+        "cwd": "/tmp/pca-dnsmasq-after",
+        "before_binary": "/tmp/pca-dnsmasq-before/build-pca/dnsmasq",
+        "after_binary": "/tmp/pca-dnsmasq-after/build-pca/dnsmasq",
+        "config_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1/compatibility-testing/test-entry-work/PCA-0001/config"
+      },
+      "prerequisites": [
+        "nettle/hogweed/gmp development headers (installed)",
+        "Both binaries built with -DHAVE_DNSSEC (completed)",
+        "A DNS upstream that accepts TCP connection but never replies (needs controlled network environment)",
+        "Network namespace or container for isolated DNS testing"
+      ],
+      "limitations": [
+        "Full end-to-end test requires a controlled upstream that accepts TCP but never responds",
+        "The 150s CHILD_LIFETIME timeout makes automated testing time-consuming",
+        "Cannot bind low ports or create network namespaces in current sandbox (AGENTS.md confirms)"
+      ],
+      "input_strategy": {
+        "approach": "Start dnsmasq with DNSSEC enabled, configure upstream pointing to a black-hole TCP listener, send a DNS query with DO bit set that triggers TCP forwarding, observe log and child process termination",
+        "inputs": [
+          {
+            "input_id": "I1",
+            "description": "DNSSEC query that forces TCP forwarding with unresponsive upstream",
+            "command_template": "dig +dnssec @127.0.0.1 -p 15353 example.com A",
+            "expected_before": "Query hangs indefinitely (no response)",
+            "expected_after": "Query returns after ~150s with SERVFAIL or error; log shows 'TCP process for DNSSEC validation timed out'",
+            "reachability_signal": "grep 'DNSSEC validation timed out' /tmp/pca-dnsmasq.log",
+            "coverage_target_lines": ["src/dnsmasq.c:2262-2273", "src/dnsmasq.c:1343-1373", "src/cache.c:1002-1040"]
+          }
+        ]
+      },
+      "contract_probe": {
+        "type": "resource_lifetime_duration",
+        "before_command": "Start BEFORE dnsmasq, send DNSSEC query, measure child process lifetime (should be unbounded)",
+        "after_command": "Start AFTER dnsmasq, send same query, measure child process lifetime (should be ~150s)",
+        "comparison": "BEFORE child never terminates (until manual kill) → AFTER child terminates after ~150s with notification",
+        "oracle": "After binary: child PID disappears from ps after ~150s, parent log shows timeout message"
+      }
+    },
+    {
+      "finding_id": "PCA-0002",
+      "entry_id": "ENTRY-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "artifact_path": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/c090f1/compatibility-testing/test-entry-work/PCA-0002",
+      "run_command": "Same as PCA-0001 (concurrent test - both findings are triggered by the same timeout scenario)",
+      "expected_signal": "PIPE_OP_KILLED (op=6) sent through pipe, parent processes STAT_ABANDONED",
+      "reachability_signal": "Child calls read_write() with PIPE_OP_KILLED before _exit(0)",
+      "execution": {
+        "cwd": "/tmp/pca-dnsmasq-after",
+        "before_binary": "/tmp/pca-dnsmasq-before/build-pca/dnsmasq",
+        "after_binary": "/tmp/pca-dnsmasq-after/build-pca/dnsmasq"
+      },
+      "prerequisites": [
+        "Same as PCA-0001 (both findings are triggered by the same scenario)"
+      ],
+      "limitations": [
+        "PIPE_OP_KILLED is internal IPC - cannot be directly observed without strace or ptrace",
+        "Indirect observation: log message 'TCP process for DNSSEC validation timed out' confirms the handler ran",
+        "strace can confirm the write() syscall with PIPE_OP_KILLED data"
+      ],
+      "input_strategy": {
+        "approach": "Same as PCA-0001, with strace on child process to observe PIPE_OP_KILLED write",
+        "inputs": [
+          {
+            "input_id": "I2",
+            "description": "SIGALRM delivery to DNSSEC TCP child - verify PIPE_OP_KILLED notification",
+            "command_template": "strace -e trace=write -f dnsmasq -C <config> 2>&1 | grep -E 'PIPE_OP_KILLED|\\\\x06'",
+            "expected_before": "No PIPE_OP_KILLED (child silently exits with _exit(0))",
+            "expected_after": "write() call with op=6 (PIPE_OP_KILLED) before _exit(0)",
+            "reachability_signal": "Log message 'TCP process for DNSSEC validation timed out'",
+            "coverage_target_lines": ["src/dnsmasq.c:1338-1373", "src/cache.c:1002-1003"]
+          }
+        ]
+      },
+      "contract_probe": {
+        "type": "side_effect_manifest",
+        "before_command": "Same as PCA-0001 before scenario",
+        "after_command": "Same as PCA-0001 after scenario, additionally verify log message",
+        "comparison": "BEFORE: no log message, parent query blocked → AFTER: log message emitted, parent query unblocked with STAT_ABANDONED",
+        "oracle": "After binary: syslog has 'TCP process for DNSSEC validation timed out' message"
+      }
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/vim/pca-results/5fdb44/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/vim",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/vim/pca-results/5fdb44/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/5fdb44",
+  "patch_id": "5fdb44c438747d419a403110f3c2dd792f539497",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "term_start term_finish option",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/job.c",
+        "old_lines": [
+          386,
+          392
+        ],
+        "new_lines": [
+          386,
+          393
+        ],
+        "symbol": "get_job_options"
+      },
+      "old_behavior": "The get_job_options() function validates the \"term_finish\" option of term_start(). Previously, only \"open\" and \"close\" were accepted as valid values. Passing \"noclose\" would cause an E475 error: \"Invalid value for argument \"term_finish\": noclose\".",
+      "new_behavior": "The validation is relaxed to also accept \"noclose\" as a valid value for \"term_finish\". When set, the terminal window will not close (and no window will be opened) when the job finishes. The buffer remains hidden, listed, and loaded with terminal output available.",
+      "compatibility_reason": "This is an additive (relaxed) input contract change. The set of accepted values for the \"term_finish\" option of term_start() is expanded from {\"open\", \"close\"} to {\"open\", \"close\", \"noclose\"}. No existing callers are broken since previously \"noclose\" would simply error. However, Vimscript code that string-checks valid term_finish values may need updating if it validates against a hard-coded list.",
+      "test_recommendation": "Run existing terminal finish tests (open/close) to verify no regression. Run the new \"noclose\" test which verifies that a terminal with term_finish=noclose keeps the buffer hidden, listed, and loaded after job completion.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/5fdb44/compatibility-testing"
+}

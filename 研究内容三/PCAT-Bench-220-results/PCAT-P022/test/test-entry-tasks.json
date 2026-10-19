@@ -1,0 +1,135 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/vim/pca-results/e397c8/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/vim",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/vim/pca-results/e397c8/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/e397c8",
+  "patch_id": "e397c8",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "dict_extend_func / extend() / extendnew()",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/dict.c",
+        "old_lines": [
+          1335,
+          1340
+        ],
+        "new_lines": [
+          1335,
+          1340
+        ],
+        "symbol": "dict_extend_func"
+      },
+      "old_behavior": "When dict_extend_func is called with a NULL second argument (expr2), the early-return at the d2==NULL check (old lines 1338-1340) exits before the is_new block and the rettv assignment. For extendnew() (is_new=true), d1 is never copied and rettv is left uninitialized. For extend() (is_new=false), the return value for the caller is also left unset.",
+      "new_behavior": "The d2==NULL check is moved after the is_new copy block. When d2 is NULL, execution jumps to the 'theend:' label which properly sets rettv: for extendnew() returns a copied dict, for extend() returns the original dict reference via copy_tv().",
+      "compatibility_reason": "The return value contract for extend() and extendnew() changed when the second argument is NULL. Previously the return value was undefined/uninitialized (a bug). Now it returns a proper copy (extendnew) or the original reference (extend). Vim scripts that passed a NULL second argument would previously get garbage; now they get a valid result. This is a bug fix but technically changes observable behavior for the NULL expr2 input case.",
+      "test_recommendation": "Run existing test_listdict.vim tests, particularly Test_listdict_extend and Test_listdict_extendnew. Add assertions for extendnew() with test_null_dict() to verify the return value is a valid copy.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "return_value_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "return_contract_stability",
+        "comparison": "exit_code",
+        "required_observation": "return value, exit status, output value, and ownership convention",
+        "input_axes": [
+          "success",
+          "failure",
+          "boundary",
+          "null result",
+          "partial result"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "low",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "list_extend_func / extend() / extendnew()",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/list.c",
+        "old_lines": [
+          3014,
+          3022
+        ],
+        "new_lines": [
+          3014,
+          3020
+        ],
+        "symbol": "list_extend_func"
+      },
+      "old_behavior": "When list_extend_func is called with a NULL second argument, the condition at old line 3017-3019 'if ((is_new || !value_check_lock(...)) && l2 != NULL)' fails because l2 is NULL, skipping the entire block. The rettv is never set. For extendnew() (is_new=true), the list is never copied and rettv is uninitialized. For extend() (is_new=false), rettv is also left unset.",
+      "new_behavior": "The l2==NULL check is extracted from the if-condition and moved inside the block. The block is entered based on is_new/lock status alone. When l2 is NULL, execution jumps to 'theend:' label which properly sets rettv: for extendnew() returns a copied list, for extend() returns the original list reference via copy_tv().",
+      "compatibility_reason": "The return value contract for extend() and extendnew() changed when the second argument is NULL. Previously the return value was undefined/uninitialized (a bug). Now it returns a proper copy (extendnew) or the original reference (extend). Vim scripts that passed a NULL second argument would previously get garbage; now they get a valid result. This is a bug fix but technically changes observable behavior for the NULL expr2 input case.",
+      "test_recommendation": "Run existing test_listdict.vim tests, particularly Test_listdict_extend and Test_listdict_extendnew. Add assertions for extendnew() with test_null_list() to verify the return value is a valid copy.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "return_value_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "return_contract_stability",
+        "comparison": "exit_code",
+        "required_observation": "return value, exit status, output value, and ownership convention",
+        "input_axes": [
+          "success",
+          "failure",
+          "boundary",
+          "null result",
+          "partial result"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/e397c8/compatibility-testing"
+}

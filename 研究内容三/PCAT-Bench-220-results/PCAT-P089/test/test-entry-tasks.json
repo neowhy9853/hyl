@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P029/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P029/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P029",
+  "patch_id": "f2521324e6bdf331460abec7c2a88e2d3736b91c",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "asyncio.subprocess.Process.wait",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Lib/asyncio/base_subprocess.py",
+        "old_lines": [
+          242,
+          250
+        ],
+        "new_lines": [
+          242,
+          254
+        ],
+        "symbol": "_process_exited"
+      },
+      "old_behavior": "Process.wait() returned only after all pipe file descriptors were disconnected (EOF reached). If a grandchild process inherited an open pipe, the pipe would never close, causing wait() to hang indefinitely even though the returncode was already known.",
+      "new_behavior": "Process.wait() returns immediately when the child process exits (_process_exited is called), regardless of whether pipes are still open. The _exit_waiters are now woken up directly in _process_exited instead of waiting for _call_connection_lost or _try_finish to detect all pipes disconnected.",
+      "compatibility_reason": "Code that calls Process.wait() will now receive the return code sooner, which is the intended fix. However, any code that implicitly relied on wait() blocking until pipe EOF (e.g., to ensure all stdout/stderr data has been fully consumed before proceeding) may now proceed before consuming all data from pipes. This is a semantic behavior change in a public stdlib API.",
+      "test_recommendation": "Test with a subprocess whose stdout pipe is kept open by a grandchild process (as demonstrated in the patch's new test_wait_even_if_pipe_is_open). Verify that wait() returns within a timeout after the process exits even if the pipe never reaches EOF. Also verify that Process.communicate() continues to work correctly since it calls wait() internally.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P029/compatibility-testing"
+}

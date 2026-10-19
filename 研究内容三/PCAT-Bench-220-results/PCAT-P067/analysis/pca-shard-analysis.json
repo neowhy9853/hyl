@@ -1,0 +1,263 @@
+{
+  "meta": {
+    "patch": "net: add modern allowedSender ACLs",
+    "patch_id": "8aa55fd776d35f6d475a2fd5b5d9dcf8864c9f8a",
+    "analysis_mode": "heavy",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/8aa55f/_worktrees/patched",
+    "analyzed_shards": ["SHARD-0011", "SHARD-0012", "SHARD-0013", "SHARD-0014", "SHARD-0015"],
+    "total_findings": 5,
+    "confirmed_compatibility": 4,
+    "confirmed_non_compatibility": 1,
+    "test_only": 1
+  },
+  "shards": [
+    {
+      "shard_id": "SHARD-0011",
+      "surface": "plugin_api",
+      "analysis": {
+        "hunks_analyzed": ["HUNK-0052"],
+        "findings": [
+          {
+            "type": "confirmed_non_compatibility",
+            "severity": "none",
+            "hunk_id": "HUNK-0052",
+            "file": "plugins/imudp/imudp.c",
+            "old_lines": "993-999",
+            "new_lines": "1028-1034",
+            "description": "Signature change on static function processSocket: added 4th parameter lstnPrev",
+            "evidence": {
+              "old_call": {
+                "line": null,
+                "code": "processSocket(pWrkr, lstn, &frominetPrev, &bIsPermitted);"
+              },
+              "new_call": {
+                "line": 1031,
+                "code": "processSocket(pWrkr, lstn, &frominetPrev, &lstnPrev, &bIsPermitted);"
+              },
+              "function_signature": {
+                "file": "plugins/imudp/imudp.c",
+                "line": 625,
+                "code": "static rsRetVal processSocket(struct wrkrInfo_s *pWrkr, struct lstn_s *lstn, struct sockaddr_storage *frominetPrev, struct lstn_s **ppLstnPrev, int *pbIsPermitted)"
+              },
+              "visibility": "static — no external API/ABI impact"
+            },
+            "impact": "Local refactoring: processSocket is static, so the signature change is invisible outside imudp.c. The new lstnPrev parameter supports per-listener ACL caching for the modern allowedSender feature. No public compatibility impact."
+          }
+        ],
+        "summary": "No compatibility change. Internal-only static function signature change with zero external impact."
+      }
+    },
+    {
+      "shard_id": "SHARD-0012",
+      "surface": "public_headers",
+      "analysis": {
+        "hunks_analyzed": ["HUNK-0064", "HUNK-0065", "HUNK-0066"],
+        "findings": [
+          {
+            "type": "confirmed_compatibility",
+            "severity": "medium",
+            "dimension": "api_abi_addition",
+            "hunk_id": "HUNK-0064",
+            "file": "runtime/net.h",
+            "old_lines": "148-153",
+            "new_lines": "148-156",
+            "description": "Two new vtable entries added to the net interface struct: addAllowedSenderEntry and DestructAllowedSenders",
+            "evidence": {
+              "old_source": "runtime/net.h:148-153 (pre-patch): entries absent from BEGINinterface(net) block",
+              "new_source": "runtime/net.h:151-153 (patched)",
+              "added_entries": [
+                "rsRetVal (*addAllowedSenderEntry)(struct AllowedSenders **ppRoot, struct AllowedSenders **ppLast, uchar *pszAllowedSender);",
+                "void (*DestructAllowedSenders)(struct AllowedSenders **ppRoot);"
+              ],
+              "context": "Inserted into BEGINinterface(net) block between addAllowedSenderLine and PrintAllowedSenders"
+            },
+            "impact": "API/ABI addition: the net interface struct grows with two new function pointers. Previously these were internal net.c helpers; now they are public vtable entries accessible to all modules via net.addAllowedSenderEntry() and net.DestructAllowedSenders(). The struct layout changes (ABI shift), but the interface version is gated to 12 (see HUNK-0066)."
+          },
+          {
+            "type": "confirmed_compatibility",
+            "severity": "high",
+            "dimension": "api_abi_addition",
+            "hunk_id": "HUNK-0065",
+            "file": "runtime/net.h",
+            "old_lines": "165-170",
+            "new_lines": "168-175",
+            "description": "New isAllowedSenderList function pointer added to the net interface struct",
+            "evidence": {
+              "new_source": "runtime/net.h:171-172 (patched)",
+              "signature": "int (*isAllowedSenderList)(struct AllowedSenders *pAllowRoot, struct sockaddr *pFrom, const char *pszFromHost, int bChkDNS);",
+              "note": "This is the modern replacement for isAllowedSender2 (the old protocol-global ACL check). Unlike isAllowedSender2 which takes an opaque uchar *pszType, this takes an explicit AllowedSenders list pointer, enabling per-listener ACLs."
+            },
+            "impact": "High priority finding: new core API entry point for ACL checking. The isAllowedSenderList function pointer enables the modern per-listener allowedSender feature. This is an API addition (new public function), with ABI impact because the interface struct size grows. Gate-gated by interface version 12."
+          },
+          {
+            "type": "confirmed_compatibility",
+            "severity": "low",
+            "dimension": "api_abi_version_bump",
+            "hunk_id": "HUNK-0066",
+            "file": "runtime/net.h",
+            "old_lines": "229-235",
+            "new_lines": "234-240",
+            "description": "Interface version bumped: netCURR_IF_VERSION 11 → 12",
+            "evidence": {
+              "old_source": "#define netCURR_IF_VERSION 11",
+              "new_source": "runtime/net.h:237 (patched)",
+              "code": "#define netCURR_IF_VERSION 12 /* increment whenever you change the interface structure! */"
+            },
+            "impact": "Standard compatibility-gating: the version bump accompanies the new isAllowedSenderList, addAllowedSenderEntry, and DestructAllowedSenders entries. Modules that check netCURR_IF_VERSION will see the new API. This is a compatibility marker, not a breaking change — it correctly signals that the interface grew."
+          }
+        ],
+        "summary": "3 confirmed API/ABI additions in public header runtime/net.h. The net interface struct grows with 3 new function pointers (addAllowedSenderEntry, DestructAllowedSenders, isAllowedSenderList), gated by version bump 11→12. These are required for the modern allowedSender feature to work — modules like imtcp/imudp need net.isAllowedSenderList() instead of the legacy net.isAllowedSender2()."
+      }
+    },
+    {
+      "shard_id": "SHARD-0013",
+      "surface": "public_headers",
+      "analysis": {
+        "hunks_analyzed": ["HUNK-0067"],
+        "findings": [
+          {
+            "type": "confirmed_compatibility",
+            "severity": "high",
+            "dimension": "abi_layout",
+            "hunk_id": "HUNK-0067",
+            "file": "runtime/tcpsrv.h",
+            "old_lines": "64-69",
+            "new_lines": "64-71",
+            "description": "Two new fields added to public struct tcpLstnParams_s: pAllowedSenderRoot and bUseLegacyAllowedSender",
+            "evidence": {
+              "new_source": "runtime/tcpsrv.h:67-68 (patched)",
+              "added_fields": [
+                "struct AllowedSenders *pAllowedSenderRoot;  /* source-address ACL list */",
+                "sbool bUseLegacyAllowedSender;  /* if true, use protocol-global legacy ACLs */"
+              ],
+              "struct_context": "Inserted just before the closing brace of struct tcpLstnParams_s",
+              "old_struct_end": "uchar *pszRatelimitName; /* name of rate limit configuration */ };",
+              "new_struct_end": "uchar *pszRatelimitName; ... struct AllowedSenders *pAllowedSenderRoot; ... sbool bUseLegacyAllowedSender; ... };"
+            },
+            "impact": "ABI LAYOUT CHANGE to a public struct in an installed header. Adding fields to tcpLstnParams_s changes sizeof() and field offsets for all consuming modules (imtcp, imudp, and any external code that includes tcpsrv.h). The struct is passed by pointer (tcpLstnParams_t *) so existing callers that only forward pointers are safe, but any static allocation or field-offset assumptions break. This enables per-listener ACLs — pAllowedSenderRoot carries the modern ACL list, and bUseLegacyAllowedSender controls fallback to the old protocol-global mechanism."
+          }
+        ],
+        "summary": "1 confirmed ABI layout change: struct tcpLstnParams_s grows from 15 to 17 fields. This is a high-severity ABI change in a public header. The new fields wire the per-listener ACL list and legacy-fallback flag into the TCP listener parameter chain."
+      }
+    },
+    {
+      "shard_id": "SHARD-0014",
+      "surface": "syscall_wrappers",
+      "analysis": {
+        "hunks_analyzed": ["HUNK-0057"],
+        "findings": [
+          {
+            "type": "confirmed_non_compatibility",
+            "severity": "none",
+            "hunk_id": "HUNK-0057",
+            "file": "plugins/imudp/imudp.c",
+            "old_lines": "1420-1428",
+            "new_lines": "1492-1507",
+            "description": "Supplemental fallback check added to BEGINwillRun: after legacy net.HasRestrictions, also scan modern bAllowedSendersSet flags",
+            "evidence": {
+              "new_source": "plugins/imudp/imudp.c:1493-1505 (patched)",
+              "code": "BEGINwillRun\n    instanceConf_t *inst;\n    CODESTARTwillRun;\n    net.PrintAllowedSenders(1); /* UDP */\n    net.HasRestrictions(UCHAR_CONSTANT(\"UDP\"), &bDoACLCheck); /* UDP */\n    if (!bDoACLCheck) {\n        bDoACLCheck = runModConf->bAllowedSendersSet;\n        for (inst = runModConf->root; !bDoACLCheck && inst != NULL; inst = inst->next) {\n            bDoACLCheck = inst->bAllowedSendersSet;\n        }\n    }\nENDwillRun"
+            },
+            "impact": "No compatibility change. This is a supplemental fallback to the existing legacy HasRestrictions check. If legacy restrictions are found, bDoACLCheck stays set and the new code path is skipped. If no legacy restrictions exist, it checks for modern per-instance ACLs. The bDoACLCheck contract is unchanged — it remains a static variable controlling whether processSocket performs ACL checks. No syscall behavior is modified. The syscall_wrappers surface tag is a false classification for this hunk (the enclosing file uses syscalls but this hunk only adds config-flag scanning logic)."
+          }
+        ],
+        "summary": "No compatibility change. Additive fallback logic that extends existing mechanism. Zero syscall impact despite surface classification."
+      }
+    },
+    {
+      "shard_id": "SHARD-0015",
+      "surface": "tests",
+      "analysis": {
+        "hunks_analyzed": ["HUNK-0068", "HUNK-0069", "HUNK-0070", "HUNK-0071", "HUNK-0072", "HUNK-0073", "HUNK-0074", "HUNK-0075"],
+        "findings": [
+          {
+            "type": "confirmed_non_compatibility",
+            "severity": "none",
+            "hunk_id": "HUNK-0068",
+            "file": "tests/Makefile.am",
+            "old_lines": "258-263",
+            "new_lines": "258-265",
+            "description": "Adds allowed-sender-modern.sh and allowed-sender-empty-array.sh to TESTS_DEFAULT"
+          },
+          {
+            "type": "confirmed_non_compatibility",
+            "severity": "none",
+            "hunk_id": "HUNK-0069",
+            "file": "tests/Makefile.am",
+            "old_lines": "670-675",
+            "new_lines": "672-678",
+            "description": "Adds yaml-allowed-sender-modern.sh to TESTS_LIBYAML"
+          },
+          {
+            "type": "confirmed_non_compatibility",
+            "severity": "none",
+            "hunk_id": "HUNK-0070",
+            "file": "tests/Makefile.am",
+            "old_lines": "692-697",
+            "new_lines": "695-702",
+            "description": "Adds allowed-sender-modern.sh and allowed-sender-empty-array.sh to TESTS_IMTCP"
+          },
+          {
+            "type": "confirmed_non_compatibility",
+            "severity": "none",
+            "hunk_id": "HUNK-0071",
+            "file": "tests/Makefile.am",
+            "old_lines": "771-776",
+            "new_lines": "776-782",
+            "description": "Adds yaml-allowed-sender-modern.sh to TESTS_IMTCP_YAML"
+          },
+          {
+            "type": "confirmed_non_compatibility",
+            "severity": "none",
+            "hunk_id": "HUNK-0072",
+            "file": "tests/Makefile.am",
+            "old_lines": "1999-2005",
+            "new_lines": "2005-2013",
+            "description": "Extends serialization dependency chain: inserts allowed-sender-modern.log and allowed-sender-empty-array.log before allowed-sender-tcp-hostname-ok.log"
+          },
+          {
+            "type": "confirmed_non_compatibility",
+            "severity": "none",
+            "hunk_id": "HUNK-0073",
+            "file": "tests/allowed-sender-empty-array.sh",
+            "description": "New test script: verifies that empty allowedSender arrays are rejected by config validation",
+            "impact": "Security-sensitive test: empty ACL [] is treated as a config error (prevents accidental allow-all). Covers YAML module-level and input-level scopes for both imtcp and imudp."
+          },
+          {
+            "type": "confirmed_non_compatibility",
+            "severity": "none",
+            "hunk_id": "HUNK-0074",
+            "file": "tests/allowed-sender-modern.sh",
+            "description": "New test script: verifies modern allowedSender ACLs for imtcp and imudp",
+            "impact": "Covers module-level defaults, input-level overrides, /0 mask rejection, and disallowed-sender diagnostics. Oracle verifies expected file lines for allowed inputs and absent files for blocked inputs."
+          },
+          {
+            "type": "confirmed_non_compatibility",
+            "severity": "none",
+            "hunk_id": "HUNK-0075",
+            "file": "tests/yaml-allowed-sender-modern.sh",
+            "description": "New test script: YAML format version of modern allowedSender ACL tests"
+          }
+        ],
+        "summary": "All 8 hunks are test additions only — no compatibility changes. Three new test scripts (allowed-sender-modern.sh, allowed-sender-empty-array.sh, yaml-allowed-sender-modern.sh) plus Makefile.am wiring across 4 test variable lists and 1 serialization dependency chain. Surface is 'tests' with public=false, confirming these are reachability evidence, not public API."
+      }
+    }
+  ],
+  "cross_shard_dependencies": [
+    {
+      "from": "SHARD-0012 (net.h interface additions)",
+      "to": "SHARD-0011, SHARD-0014 (imudp.c consumers)",
+      "relationship": "imudp.c uses the new net.isAllowedSenderList, net.addAllowedSenderEntry, net.DestructAllowedSenders vtable entries added to net.h. SHARD-0014 shows where imudp.c checks bAllowedSendersSet to decide whether to use the new path."
+    },
+    {
+      "from": "SHARD-0013 (tcpsrv.h struct change)",
+      "to": "SHARD-0012 (net.h interface change)",
+      "relationship": "tcpLstnParams_s now carries pAllowedSenderRoot (the ACL list) and bUseLegacyAllowedSender (the fallback flag). The isAllowedSenderList function pointer in net.h consumes such AllowedSenders lists."
+    },
+    {
+      "from": "SHARD-0012/0013 (API/ABI changes)",
+      "to": "SHARD-0015 (tests)",
+      "relationship": "The new test scripts exercise the modern allowedSender feature enabled by the API additions in net.h and the struct changes in tcpsrv.h."
+    }
+  ]
+}

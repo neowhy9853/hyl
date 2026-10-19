@@ -1,0 +1,325 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/cpython",
+  "analysis_repo": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max-rerun-20260722/PCAT-P015/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max-rerun-20260722/PCAT-P015",
+  "base_ref": "d8ff4f8e56217133be6e22592aa60a1fab331d8e",
+  "base_commit": "d8ff4f8e56217133be6e22592aa60a1fab331d8e",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "24c6bbc92b6dd0ce9b7ff799049498299f70f97d",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/PCAT-Bench-220/items/PCAT-P015/patch.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "cpython",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 5805,
+    "patch_lines": 124,
+    "diff_added_lines": 35,
+    "diff_deleted_lines": 19,
+    "diff_context_lines": 38,
+    "churn": 54,
+    "raw_hunks": 5,
+    "candidate_hunks": 5,
+    "skipped_doc_hunks": 0,
+    "changed_files": 3,
+    "candidate_context_bytes": 13789,
+    "public_candidate_hunks": 2,
+    "surface_counts": {
+      "tests": 2,
+      "python_exceptions": 4,
+      "exceptions": 4,
+      "python_public_api": 2,
+      "user_visible_output": 1,
+      "python_stdlib": 2
+    },
+    "candidates_json_bytes": 33201
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 5,
+    "compatibility_changes": 2,
+    "high_priority": 1,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.92,
+      "package_profile": "cpython",
+      "affected_surface": "Public ZipInfo.FileHeader() and central directory filename encoding output",
+      "affected_api": {
+        "name": "ZipInfo._encodeFilenameFlags",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "location": {
+        "file": "Lib/zipfile/__init__.py",
+        "old_lines": [
+          566,
+          573
+        ],
+        "new_lines": [
+          566,
+          577
+        ],
+        "symbol": "_encodeFilenameFlags"
+      },
+      "old_behavior": "在 flag_bits 未设置 _MASK_UTF_FILENAME 时，始终尝试 ascii 编码。对非 ASCII 文件名触发 UnicodeEncodeError 后回退到 UTF-8 编码并设置 UTF-8 标志位。导致原始 cp437 编码文件名在重写中央目录时被转换为 UTF-8。",
+      "new_behavior": "在 flag_bits 未设置 _MASK_UTF_FILENAME 时使用 cp437 编码；设置时使用 ascii 编码。编码成功时清除 UTF-8 标志位（flag_bits & ~_MASK_UTF_FILENAME）。使得 cp437 编码的文件名在重写时保持 cp437 编码不变，不再被强制转换为 UTF-8。",
+      "compatibility_reason": "ZipInfo.FileHeader() 是公开 API（类注释明确说明供外部使用），其输出 bytes 格式发生变化：对于无 UTF-8 标志位的 ZipInfo 对象且文件名为 cp437 可编码时，返回的文件名字节从 UTF-8 编码变为 cp437 编码，且 flag_bits 中的 UTF-8 标志位被清除。依赖 FileHeader() 输出的 ZIP 生成/解析工具可能观察到字节差异。",
+      "evidence": [
+        {
+          "file": "Lib/zipfile/__init__.py",
+          "lines": [
+            568,
+            577
+          ],
+          "snippet": "def _encodeFilenameFlags(self):\n    if self.flag_bits & _MASK_UTF_FILENAME:\n        encoding = \"ascii\"\n    else:\n        encoding = \"cp437\"\n    try:\n        return self.filename.encode(encoding), self.flag_bits & ~_MASK_UTF_FILENAME\n    except UnicodeEncodeError:\n        return self.filename.encode(\"utf-8\"), self.flag_bits | _MASK_UTF_FILENAME"
+        },
+        {
+          "file": "Lib/zipfile/__init__.py",
+          "lines": [
+            560,
+            560
+          ],
+          "snippet": "filename, flag_bits = self._encodeFilenameFlags()"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "_encodeFilenameFlags 是私有方法，但被公开方法 FileHeader() 调用，FileHeader 的注释明确说明\"This remains for anyone using ZipInfo.FileHeader as a public API\"。该变更改变 FileHeader() 输出的 bytes 内容，直接影响 ZIP 文件格式中文件名字段的编码。",
+      "uncertainty": "ascii 可编码的纯英文文件名不受影响；仅当 flag_bits 无 UTF-8 标志位且文件名可通过 cp437 编码时输出发生变化。cp437 不可编码的字符仍通过 UTF-8 回退路径处理，行为不变。",
+      "manual_review_required": false,
+      "recommended_review": "确认 FileHeader() 输出的 bytes 变化是否被任何外部解析器或测试断言所依赖。验证 cp437→UTF-8 转换回退路径仍正确处理 cp437 不可编码的极端 Unicode 字符。",
+      "test_recommendation": "创建含非 ASCII cp437 可编码文件名的 ZIP，读取后调用 ZipInfo.FileHeader() 比较 old/new 输出 bytes。验证 append 模式下中央目录文件名编码是否保持原始编码而非被转换为 UTF-8。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=public_method on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "Lib/zipfile/__init__.py",
+            "old_lines": [
+              566,
+              573
+            ],
+            "new_lines": [
+              566,
+              577
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "python_public_api",
+              "python_exceptions",
+              "user_visible_output",
+              "python_stdlib",
+              "exceptions"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "python_public_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public Python module, class, function, method, and attribute behavior."
+              },
+              {
+                "name": "python_exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type, message, and failure-path compatibility."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "python_stdlib",
+                "test_priority": "high",
+                "public": true,
+                "description": "Python standard library public API"
+              },
+              {
+                "name": "exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type and message changes"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=public_method on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.8,
+      "package_profile": "cpython",
+      "affected_surface": "ZipFile write operations producing new entries",
+      "affected_api": {
+        "name": "ZipFile._open_to_write",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "location": {
+        "file": "Lib/zipfile/__init__.py",
+        "old_lines": [
+          1812,
+          1818
+        ],
+        "new_lines": [
+          1816,
+          1822
+        ],
+        "symbol": "_open_to_write"
+      },
+      "old_behavior": "新写入 ZIP 条目的 flag_bits 初始化为 0x00，表示不使用 UTF-8 文件名标志位。随后在 _encodeFilenameFlags 中通过 ascii→utf-8 回退机制处理编码。",
+      "new_behavior": "新写入 ZIP 条目的 flag_bits 初始化为 _MASK_UTF_FILENAME (0x800)，明确声明文件名使用 UTF-8 编码。随后在 _encodeFilenameFlags 中通过 ascii 编码（UTF-8 标志位已设时）处理，编码成功后清除 UTF-8 标志位。",
+      "compatibility_reason": "虽然 _open_to_write 是私有方法，但它是所有 ZipFile 写入操作（writestr/write/__init__ 写模式）的核心路径。flag_bits 的默认值变化结合 _encodeFilenameFlags 的逻辑变更（PCA-0001），影响新创建 ZIP 文件中条目的通用标志位初态。对纯 ASCII 文件名最终输出相同（flag_bits=0），但对非 ASCII 文件名确保一致的 UTF-8 编码路径。",
+      "evidence": [
+        {
+          "file": "Lib/zipfile/__init__.py",
+          "lines": [
+            1816,
+            1822
+          ],
+          "snippet": "zinfo.flag_bits = _MASK_UTF_FILENAME\nif zinfo.compress_type == ZIP_LZMA:\n    zinfo.flag_bits |= _MASK_COMPRESS_OPTION_1\nif not self._seekable:\n    zinfo.flag_bits |= _MASK_USE_DATA_DESCRIPTOR"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "_open_to_write 是私有方法，但被 ZipFile 的公共写入接口（writestr, write, __init__ 写模式）间接暴露。所有 ZIP 文件的创建和追加操作都经过此路径，影响 ZIP 条目的文件头标志位。",
+      "uncertainty": "对纯 ASCII 文件名最终 flag_bits 相同（均为 0），因 _encodeFilenameFlags 会在编码成功后清除 UTF-8 标志。仅当文件名编码出现异常时 flag_bits 的行为差异才会体现。",
+      "manual_review_required": false,
+      "recommended_review": "验证新创建的 ZIP 中 ASCII 文件名的 flag_bits 仍为 0，非 ASCII 文件名的 flag_bits 正确设置为 UTF-8 标志。确认 _MASK_COMPRESS_OPTION_1 和 _MASK_USE_DATA_DESCRIPTOR 的按位或运算不受影响。",
+      "test_recommendation": "创建含 ASCII 和非 ASCII 文件名的 ZIP，解析文件头验证 flag_bits 值。对比 old/new 创建的文件头字节序列，确认预期差异仅在文件名编码路径上。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=public_method on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0004",
+            "file": "Lib/zipfile/__init__.py",
+            "old_lines": [
+              1812,
+              1818
+            ],
+            "new_lines": [
+              1816,
+              1822
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "python_public_api",
+              "python_exceptions",
+              "python_stdlib",
+              "exceptions"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "python_public_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public Python module, class, function, method, and attribute behavior."
+              },
+              {
+                "name": "python_exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type, message, and failure-path compatibility."
+              },
+              {
+                "name": "python_stdlib",
+                "test_priority": "high",
+                "public": true,
+                "description": "Python standard library public API"
+              },
+              {
+                "name": "exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type and message changes"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=public_method on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

@@ -1,0 +1,305 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046",
+  "base_ref": "475b2384bb91576e7881bca8f17548a6bbee8ded",
+  "base_commit": "475b2384bb91576e7881bca8f17548a6bbee8ded",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "a23d8e124fbd",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "kernel_6_6",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 2379,
+    "patch_lines": 59,
+    "diff_added_lines": 10,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 30,
+    "churn": 12,
+    "raw_hunks": 5,
+    "candidate_hunks": 5,
+    "skipped_doc_hunks": 0,
+    "changed_files": 3,
+    "candidate_context_bytes": 10812,
+    "public_candidate_hunks": 3,
+    "surface_counts": {
+      "callbacks": 2,
+      "public_headers": 1,
+      "proc_sys_consumers": 1,
+      "procfs": 1
+    },
+    "candidates_json_bytes": 23865
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 5,
+    "compatibility_changes": 2,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "sysfs bonding attribute xmit_hash_policy and netlink IFLA_BOND_XMIT_HASH_POLICY",
+      "affected_api": {
+        "name": "bond_option_xmit_hash_policy_set",
+        "kind": "sysfs_attribute",
+        "language": "c"
+      },
+      "location": {
+        "file": "drivers/net/bonding/bond_options.c",
+        "old_lines": [
+          1592,
+          1597
+        ],
+        "new_lines": [
+          1592,
+          1599
+        ],
+        "symbol": "bond_option_xmit_hash_policy_set"
+      },
+      "old_behavior": "修改 bonding xmit_hash_policy 时，sysfs 或 netlink 接口直接接受新值并应用到 bond->params.xmit_policy，不会检查已加载 XDP 程序的兼容性。即使用户在 802.3ad/balance-xor 模式下已加载 XDP 程序，也能将 xmit_hash_policy 切换为不兼容的 vlan+srcmac。",
+      "new_behavior": "修改 xmit_hash_policy 时，新增长 guard 检查：若 bond->xdp_prog 已加载且 __bond_xdp_check(BOND_MODE(bond), newval->value) 返回 false（即 802.3ad/balance-xor 模式 + vlan+srcmac 策略），则返回 -EOPNOTSUPP，拒绝该变更。错误码经 bond_opt_tryset_rtnl 和 __bond_opt_set 向上传播至 sysfs store 操作（返回负错误码给 write 调用）和 netlink 操作（返回 err 给调用方）。",
+      "compatibility_reason": "该变更会破坏用户空间工具的兼容性。之前可以通过 `echo 'vlan+srcmac 2' > /sys/class/net/<bond>/bonding/xmit_hash_policy` 或 ip link netlink 消息在已加载 XDP 程序的 802.3ad/balance-xor 模式 bond 上更改哈希策略。现在该操作会失败并返回 EOPNOTSUPP（sysfs write 返回 -EOPNOTSUPP，netlink 返回 EOPNOTSUPP 错误）。依赖此行为的自动化脚本、网络配置工具和编排系统会受到影响。虽然这是修复一个 WARN_ON 崩溃的必要措施，但改变了既有的 sysfs/netlink 配置接口语义。",
+      "evidence": [
+        {
+          "file": "drivers/net/bonding/bond_options.c",
+          "lines": [
+            1592,
+            1599
+          ],
+          "snippet": "static int bond_option_xmit_hash_policy_set(struct bonding *bond,\n\t\t\t\t\t    const struct bond_opt_value *newval)\n{\n\tif (bond->xdp_prog && !__bond_xdp_check(BOND_MODE(bond), newval->value))\n\t\treturn -EOPNOTSUPP;\n\tnetdev_dbg(bond->dev, \"Setting xmit hash policy to %s (%llu)\\n\",\n\t\t   newval->string, newval->value);\n\tWRITE_ONCE(bond->params.xmit_policy, newval->value);"
+        },
+        {
+          "file": "drivers/net/bonding/bond_sysfs.c",
+          "lines": [
+            222,
+            224
+          ],
+          "snippet": "static DEVICE_ATTR(xmit_hash_policy, 0644,\n\t\t   bonding_show_xmit_hash, bonding_sysfs_store_option);"
+        },
+        {
+          "file": "drivers/net/bonding/bond_netlink.c",
+          "lines": [
+            432,
+            435
+          ],
+          "snippet": "\t\tint xmit_hash_policy =\n\t\t\tnla_get_u8(data[IFLA_BOND_XMIT_HASH_POLICY]);\n\t\tbond_opt_initval(&newval, xmit_hash_policy);\n\t\terr = __bond_opt_set(bond, BOND_OPT_XMIT_HASH, &newval,\n\t\t\t\t     data[IFLA_BOND_XMIT_HASH_POLICY], extack);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "bond_option_xmit_hash_policy_set 通过 sysfs 属性 xmit_hash_policy（/sys/class/net/<bond>/bonding/xmit_hash_policy）和 netlink IFLA_BOND_XMIT_HASH_POLICY 对用户空间暴露。返回值 -EOPNOTSUPP 直接传递给用户空间，影响所有通过 sysfs 或 netlink 操作 bonding 配置的外部工具和脚本。",
+      "uncertainty": "能触发此错误码的确切场景需要 bond 处于 802.3ad 或 balance-xor 模式、已加载 XDP 程序、且用户尝试将 xmit_hash_policy 设置为 vlan+srcmac。该场景在生产环境中是否常见有待进一步评估。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核，代码变更逻辑清晰，与已有 bond_option_mode_set 的 guard 模式一致。",
+      "test_recommendation": "创建 802.3ad 或 balance-xor 模式 bonding 设备，加载 XDP 程序，通过 sysfs 写 vlan+srcmac 策略，验证返回 -EOPNOTSUPP；再卸载 XDP 后验证可正常切换。同时通过 ip link set type bond 命令验证 netlink 接口同样拒绝。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=low from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=sysfs_attribute with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0004",
+            "file": "drivers/net/bonding/bond_options.c",
+            "old_lines": [
+              1592,
+              1597
+            ],
+            "new_lines": [
+              1592,
+              1599
+            ],
+            "is_public": false,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [],
+            "surface_test_priority": "low",
+            "matched_surfaces": []
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=low from 1 matched candidate hunk(s); high-value affected_api.kind=sysfs_attribute with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.9,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "bonding 子系统内核内部公共头文件 include/net/bonding.h",
+      "affected_api": {
+        "name": "__bond_xdp_check",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "include/net/bonding.h",
+        "old_lines": [
+          697,
+          702
+        ],
+        "new_lines": [
+          697,
+          703
+        ],
+        "symbol": "__bond_xdp_check"
+      },
+      "old_behavior": "bonding.h 仅声明 bond_xdp_check(struct bonding *bond, int mode)，该函数同时负责兼容性判断逻辑。",
+      "new_behavior": "bonding.h 新增 __bond_xdp_check(int mode, int xmit_policy) 声明。该函数将原 bond_xdp_check 的兼容性判断逻辑抽取为独立函数，接受 mode 和 xmit_policy 两个 int 参数（不再依赖 struct bonding 指针）。原有 bond_xdp_check 保留为 wrapper，内部调用 __bond_xdp_check(mode, bond->params.xmit_policy)。",
+      "compatibility_reason": "这是一个纯加法变更：新增了一个内核内部公共 API 函数 __bond_xdp_check。原有 bond_xdp_check 签名和行为完全不变。但该新符号是 bonding.h 中的公开声明（非 static），其他内核模块或驱动可以依赖它。这属于 API surface 扩展，不破坏现有调用方。",
+      "evidence": [
+        {
+          "file": "include/net/bonding.h",
+          "lines": [
+            700,
+            701
+          ],
+          "snippet": "bool __bond_xdp_check(int mode, int xmit_policy);\nbool bond_xdp_check(struct bonding *bond, int mode);"
+        },
+        {
+          "file": "drivers/net/bonding/bond_main.c",
+          "lines": [
+            325,
+            342
+          ],
+          "snippet": "bool __bond_xdp_check(int mode, int xmit_policy)\n{\n\tswitch (mode) {\n\tcase BOND_MODE_ROUNDROBIN:\n\tcase BOND_MODE_ACTIVEBACKUP:\n\t\treturn true;\n\tcase BOND_MODE_8023AD:\n\tcase BOND_MODE_XOR:\n\t\t/* vlan+srcmac is not supported with XDP as in most cases the 802.1q\n\t\t * payload is not in the packet due to hardware offload.\n\t\t */\n\t\tif (xmit_policy != BOND_XMIT_POLICY_VLAN_SRCMAC)\n\t\t\treturn true;\n\t\tfallthrough;\n\tdefault:\n\t\treturn false;\n\t}\n}"
+        },
+        {
+          "file": "drivers/net/bonding/bond_main.c",
+          "lines": [
+            344,
+            347
+          ],
+          "snippet": "bool bond_xdp_check(struct bonding *bond, int mode)\n{\n\treturn __bond_xdp_check(mode, bond->params.xmit_policy);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "__bond_xdp_check 在 include/net/bonding.h 中声明（非 static），是 bonding 子系统对其他内核模块的公共接口。虽然当前唯一外部调用方是 bond_options.c 中的 bond_option_xmit_hash_policy_set，但其非 static 声明意味着外部模块可链接调用。",
+      "uncertainty": "该函数的双下划线前缀 __ 暗示其为内部辅助函数，可能不应被外部模块直接使用。但它在 bonding.h 中的公开声明又使其成为事实上的公共 API。",
+      "manual_review_required": false,
+      "recommended_review": "建议确认 __bond_xdp_check 是否有意被外部模块使用。双下划线前缀通常暗示内部函数，但在公开头文件中的声明使其成为事实 API。",
+      "test_recommendation": "验证 bond_xdp_check 的原有调用方（bond_main.c:1874 和 bond_main.c:5705，以及 bond_options.c:913 bond_option_mode_set）行为不变。确保 __bond_xdp_check 对于所有 mode/policy 组合返回正确布尔值。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "include/net/bonding.h",
+            "old_lines": [
+              697,
+              702
+            ],
+            "new_lines": [
+              697,
+              703
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "proc_sys_consumers",
+              "procfs"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers and declarations."
+              },
+              {
+                "name": "proc_sys_consumers",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-space parsers or generators for /proc, /proc/sys, or /sys text output."
+              },
+              {
+                "name": "procfs",
+                "test_priority": "medium",
+                "public": true,
+                "description": "/proc entries and text output. Treat field addition/removal, ordering,\ndelimiter, unit, header, permission, missing-entry, and error behavior\nchanges as compatibility candidates, especially for documented or widely\nscraped entries.\n"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "analysis_summary": {
+    "notes": "该补丁在 bonding 驱动中修复一个兼容性问题：防止用户在已加载 XDP 程序的 802.3ad/balance-xor 模式 bond 上将 xmit_hash_policy 切换为 vlan+srcmac（该组合不兼容 XDP，会导致 bond 销毁时的 WARN_ON）。修复方式是将 bond_xdp_check 的兼容性判断逻辑抽取为 __bond_xdp_check(mode, xmit_policy)，并在 bond_option_xmit_hash_policy_set 中新增 XDP 兼容性 guard。这与已有的 bond_option_mode_set 的 guard 逻辑对称。"
+  }
+}

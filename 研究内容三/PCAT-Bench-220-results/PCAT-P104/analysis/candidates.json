@@ -1,0 +1,732 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P044/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P044/patch.diff",
+  "profile": "kernel_6_6",
+  "summary": {
+    "total_changed_files": 4,
+    "changed_files": [
+      "drivers/usb/gadget/function/f_ncm.c",
+      "drivers/usb/gadget/function/u_ether.h",
+      "drivers/usb/gadget/function/u_ether.c",
+      "drivers/usb/gadget/function/u_ncm.h"
+    ],
+    "total_hunks": 9,
+    "public_api_hunks": 3,
+    "patch_metrics": {
+      "patch_bytes": 8000,
+      "patch_lines": 215,
+      "diff_added_lines": 73,
+      "diff_deleted_lines": 12,
+      "diff_context_lines": 62,
+      "churn": 85,
+      "raw_hunks": 9,
+      "candidate_hunks": 9,
+      "skipped_doc_hunks": 0,
+      "changed_files": 4,
+      "candidate_context_bytes": 17156,
+      "public_candidate_hunks": 3,
+      "surface_counts": {
+        "exported_symbols": 1,
+        "public_headers": 2
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "drivers/usb/gadget/function/f_ncm.c",
+      "old_start": 1425,
+      "old_end": 1430,
+      "new_start": 1425,
+      "new_end": 1431,
+      "context_hint": "static int ncm_bind(struct usb_configuration *c, struct usb_function *f)",
+      "added_lines": [
+        "\tstruct net_device\t\t*net __free(detach_gadget) = NULL;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\tstruct f_ncm_opts\t*ncm_opts;",
+        "",
+        "\tstruct usb_os_desc_table\t*os_desc_table __free(kfree) = NULL;",
+        "\tstruct usb_request\t\t*request __free(free_usb_request) = NULL;",
+        "",
+        "\tif (!can_support_ecm(cdev->gadget))"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "usb_configuration",
+        "net_device",
+        "net",
+        "__free",
+        "detach_gadget",
+        "NULL",
+        "ncm_bind"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "usb_configuration",
+        "snippet_start_line": 1396,
+        "snippet_end_line": 1461,
+        "snippet": "\tspin_lock(&ncm->lock);\n\tncm->is_open = true;\n\tncm_notify(ncm);\n\tspin_unlock(&ncm->lock);\n}\n\nstatic void ncm_close(struct gether *geth)\n{\n\tstruct f_ncm\t\t*ncm = func_to_ncm(&geth->func);\n\n\tDBG(ncm->port.func.config->cdev, \"%s\\n\", __func__);\n\n\tspin_lock(&ncm->lock);\n\tncm->is_open = false;\n\tncm_notify(ncm);\n\tspin_unlock(&ncm->lock);\n}\n\n/*-------------------------------------------------------------------------*/\n\n/* ethernet function driver setup/binding */\n\nstatic int ncm_bind(struct usb_configuration *c, struct usb_function *f)\n{\n\tstruct usb_composite_dev *cdev = c->cdev;\n\tstruct f_ncm\t\t*ncm = func_to_ncm(f);\n\tstruct usb_string\t*us;\n\tint\t\t\tstatus = 0;\n\tstruct usb_ep\t\t*ep;\n\tstruct f_ncm_opts\t*ncm_opts;\n\n\tstruct usb_os_desc_table\t*os_desc_table __free(kfree) = NULL;\n\tstruct net_device\t\t*net __free(detach_gadget) = NULL;\n\tstruct usb_request\t\t*request __free(free_usb_request) = NULL;\n\n\tif (!can_support_ecm(cdev->gadget))\n\t\treturn -EINVAL;\n\n\tncm_opts = container_of(f->fi, struct f_ncm_opts, func_inst);\n\n\tif (cdev->use_os_string) {\n\t\tos_desc_table = kzalloc(sizeof(*os_desc_table), GFP_KERNEL);\n\t\tif (!os_desc_table)\n\t\t\treturn -ENOMEM;\n\t}\n\n\tscoped_guard(mutex, &ncm_opts->lock)\n\t\tif (ncm_opts->bind_count == 0) {\n\t\t\tif (!device_is_registered(&ncm_opts->net->dev)) {\n\t\t\t\tgether_set_gadget(ncm_opts->net, cdev->gadget);\n\t\t\t\tstatus = gether_register_netdev(ncm_opts->net);\n\t\t\t} else\n\t\t\t\tstatus = gether_attach_gadget(ncm_opts->net, cdev->gadget);\n\n\t\t\tif (status)\n\t\t\t\treturn status;\n\t\t\tnet = ncm_opts->net;\n\t\t}\n\n\tncm_string_defs[1].s = ncm->ethaddr;\n\n\tus = usb_gstrings_attach(cdev, ncm_strings,\n\t\t\t\t ARRAY_SIZE(ncm_string_defs));\n\tif (IS_ERR(us))\n\t\treturn PTR_ERR(us);\n\n"
+      }
+    },
+    {
+      "file": "drivers/usb/gadget/function/f_ncm.c",
+      "old_start": 1438,
+      "old_end": 1453,
+      "new_start": 1439,
+      "new_end": 1456,
+      "context_hint": "static int ncm_bind(struct usb_configuration *c, struct usb_function *f)",
+      "added_lines": [
+        "\tscoped_guard(mutex, &ncm_opts->lock)",
+        "\t\tif (ncm_opts->bind_count == 0) {",
+        "\t\t\tif (!device_is_registered(&ncm_opts->net->dev)) {",
+        "\t\t\t\tgether_set_gadget(ncm_opts->net, cdev->gadget);",
+        "\t\t\t\tstatus = gether_register_netdev(ncm_opts->net);",
+        "\t\t\t} else",
+        "\t\t\t\tstatus = gether_attach_gadget(ncm_opts->net, cdev->gadget);",
+        "",
+        "\t\t\tif (status)",
+        "\t\t\t\treturn status;",
+        "\t\t\tnet = ncm_opts->net;",
+        "\t\t}"
+      ],
+      "deleted_lines": [
+        "\tmutex_lock(&ncm_opts->lock);",
+        "\tgether_set_gadget(ncm_opts->net, cdev->gadget);",
+        "\tif (!ncm_opts->bound)",
+        "\t\tstatus = gether_register_netdev(ncm_opts->net);",
+        "\tmutex_unlock(&ncm_opts->lock);",
+        "",
+        "\tif (status)",
+        "\t\treturn status;",
+        "",
+        "\tncm_opts->bound = true;"
+      ],
+      "context_lines": [
+        "\t\t\treturn -ENOMEM;",
+        "\t}",
+        "",
+        "",
+        "\tncm_string_defs[1].s = ncm->ethaddr;",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "usb_configuration",
+        "scoped_guard",
+        "mutex",
+        "ncm_opts",
+        "lock",
+        "bind_count",
+        "gether_set_gadget",
+        "__free"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "usb_configuration",
+        "snippet_start_line": 1409,
+        "snippet_end_line": 1486,
+        "snippet": "\tncm->is_open = false;\n\tncm_notify(ncm);\n\tspin_unlock(&ncm->lock);\n}\n\n/*-------------------------------------------------------------------------*/\n\n/* ethernet function driver setup/binding */\n\nstatic int ncm_bind(struct usb_configuration *c, struct usb_function *f)\n{\n\tstruct usb_composite_dev *cdev = c->cdev;\n\tstruct f_ncm\t\t*ncm = func_to_ncm(f);\n\tstruct usb_string\t*us;\n\tint\t\t\tstatus = 0;\n\tstruct usb_ep\t\t*ep;\n\tstruct f_ncm_opts\t*ncm_opts;\n\n\tstruct usb_os_desc_table\t*os_desc_table __free(kfree) = NULL;\n\tstruct net_device\t\t*net __free(detach_gadget) = NULL;\n\tstruct usb_request\t\t*request __free(free_usb_request) = NULL;\n\n\tif (!can_support_ecm(cdev->gadget))\n\t\treturn -EINVAL;\n\n\tncm_opts = container_of(f->fi, struct f_ncm_opts, func_inst);\n\n\tif (cdev->use_os_string) {\n\t\tos_desc_table = kzalloc(sizeof(*os_desc_table), GFP_KERNEL);\n\t\tif (!os_desc_table)\n\t\t\treturn -ENOMEM;\n\t}\n\n\tscoped_guard(mutex, &ncm_opts->lock)\n\t\tif (ncm_opts->bind_count == 0) {\n\t\t\tif (!device_is_registered(&ncm_opts->net->dev)) {\n\t\t\t\tgether_set_gadget(ncm_opts->net, cdev->gadget);\n\t\t\t\tstatus = gether_register_netdev(ncm_opts->net);\n\t\t\t} else\n\t\t\t\tstatus = gether_attach_gadget(ncm_opts->net, cdev->gadget);\n\n\t\t\tif (status)\n\t\t\t\treturn status;\n\t\t\tnet = ncm_opts->net;\n\t\t}\n\n\tncm_string_defs[1].s = ncm->ethaddr;\n\n\tus = usb_gstrings_attach(cdev, ncm_strings,\n\t\t\t\t ARRAY_SIZE(ncm_string_defs));\n\tif (IS_ERR(us))\n\t\treturn PTR_ERR(us);\n\n\tncm_control_intf.iInterface = us[STRING_CTRL_IDX].id;\n\tncm_data_nop_intf.iInterface = us[STRING_DATA_IDX].id;\n\tncm_data_intf.iInterface = us[STRING_DATA_IDX].id;\n\tecm_desc.iMACAddress = us[STRING_MAC_IDX].id;\n\tncm_iad_desc.iFunction = us[STRING_IAD_IDX].id;\n\n\t/* allocate instance-specific interface IDs */\n\tstatus = usb_interface_id(c, f);\n\tif (status < 0)\n\t\treturn status;\n\tncm->ctrl_id = status;\n\tncm_iad_desc.bFirstInterface = status;\n\n\tncm_control_intf.bInterfaceNumber = status;\n\tncm_union_desc.bMasterInterface0 = status;\n\n\tstatus = usb_interface_id(c, f);\n\tif (status < 0)\n\t\treturn status;\n\tncm->data_id = status;\n\n\tncm_data_nop_intf.bInterfaceNumber = status;\n\tncm_data_intf.bInterfaceNumber = status;\n\tncm_union_desc.bSlaveInterface0 = status;\n\n"
+      }
+    },
+    {
+      "file": "drivers/usb/gadget/function/f_ncm.c",
+      "old_start": 1547,
+      "old_end": 1552,
+      "new_start": 1550,
+      "new_end": 1558,
+      "context_hint": "static int ncm_bind(struct usb_configuration *c, struct usb_function *f)",
+      "added_lines": [
+        "\tncm_opts->bind_count++;",
+        "\tno_free_ptr(net);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t}",
+        "\tncm->notify_req = no_free_ptr(request);",
+        "",
+        "\tDBG(cdev, \"CDC Network: IN/%s OUT/%s NOTIFY/%s\\n\",",
+        "\t\t\tncm->port.in_ep->name, ncm->port.out_ep->name,",
+        "\t\t\tncm->notify->name);"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "usb_configuration",
+        "ncm_opts",
+        "bind_count",
+        "no_free_ptr",
+        "net",
+        "hrtimer_init"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "usb_configuration",
+        "snippet_start_line": 1518,
+        "snippet_end_line": 1588,
+        "snippet": "\ths_ncm_in_desc.bEndpointAddress = fs_ncm_in_desc.bEndpointAddress;\n\ths_ncm_out_desc.bEndpointAddress = fs_ncm_out_desc.bEndpointAddress;\n\ths_ncm_notify_desc.bEndpointAddress =\n\t\tfs_ncm_notify_desc.bEndpointAddress;\n\n\tss_ncm_in_desc.bEndpointAddress = fs_ncm_in_desc.bEndpointAddress;\n\tss_ncm_out_desc.bEndpointAddress = fs_ncm_out_desc.bEndpointAddress;\n\tss_ncm_notify_desc.bEndpointAddress =\n\t\tfs_ncm_notify_desc.bEndpointAddress;\n\n\tstatus = usb_assign_descriptors(f, ncm_fs_function, ncm_hs_function,\n\t\t\tncm_ss_function, ncm_ss_function);\n\tif (status)\n\t\treturn status;\n\n\t/*\n\t * NOTE:  all that is done without knowing or caring about\n\t * the network link ... which is unavailable to this code\n\t * until we're activated via set_alt().\n\t */\n\n\tncm->port.open = ncm_open;\n\tncm->port.close = ncm_close;\n\n\thrtimer_init(&ncm->task_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_SOFT);\n\tncm->task_timer.function = ncm_tx_timeout;\n\n\tif (cdev->use_os_string) {\n\t\tos_desc_table[0].os_desc = &ncm_opts->ncm_os_desc;\n\t\tos_desc_table[0].if_id = ncm_iad_desc.bFirstInterface;\n\t\tf->os_desc_table = no_free_ptr(os_desc_table);\n\t\tf->os_desc_n = 1;\n\t}\n\tncm->notify_req = no_free_ptr(request);\n\n\tncm_opts->bind_count++;\n\tno_free_ptr(net);\n\n\tDBG(cdev, \"CDC Network: IN/%s OUT/%s NOTIFY/%s\\n\",\n\t\t\tncm->port.in_ep->name, ncm->port.out_ep->name,\n\t\t\tncm->notify->name);\n\treturn 0;\n}\n\nstatic inline struct f_ncm_opts *to_f_ncm_opts(struct config_item *item)\n{\n\treturn container_of(to_config_group(item), struct f_ncm_opts,\n\t\t\t    func_inst.group);\n}\n\n/* f_ncm_item_ops */\nUSB_ETHERNET_CONFIGFS_ITEM(ncm);\n\n/* f_ncm_opts_dev_addr */\nUSB_ETHERNET_CONFIGFS_ITEM_ATTR_DEV_ADDR(ncm);\n\n/* f_ncm_opts_host_addr */\nUSB_ETHERNET_CONFIGFS_ITEM_ATTR_HOST_ADDR(ncm);\n\n/* f_ncm_opts_qmult */\nUSB_ETHERNET_CONFIGFS_ITEM_ATTR_QMULT(ncm);\n\n/* f_ncm_opts_ifname */\nUSB_ETHERNET_CONFIGFS_ITEM_ATTR_IFNAME(ncm);\n\nstatic struct configfs_attribute *ncm_attrs[] = {\n\t&ncm_opts_attr_dev_addr,\n\t&ncm_opts_attr_host_addr,\n\t&ncm_opts_attr_qmult,\n\t&ncm_opts_attr_ifname,\n\tNULL,\n"
+      }
+    },
+    {
+      "file": "drivers/usb/gadget/function/f_ncm.c",
+      "old_start": 1593,
+      "old_end": 1599,
+      "new_start": 1599,
+      "new_end": 1605,
+      "context_hint": "static void ncm_free_inst(struct usb_function_instance *f)",
+      "added_lines": [
+        "\tif (device_is_registered(&opts->net->dev))"
+      ],
+      "deleted_lines": [
+        "\tif (opts->bound)"
+      ],
+      "context_lines": [
+        "\tstruct f_ncm_opts *opts;",
+        "",
+        "\topts = container_of(f, struct f_ncm_opts, func_inst);",
+        "\t\tgether_cleanup(netdev_priv(opts->net));",
+        "\telse",
+        "\t\tfree_netdev(opts->net);"
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "usb_function_instance",
+        "device_is_registered",
+        "opts",
+        "net",
+        "dev",
+        "bound",
+        "ncm_free_inst"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "usb_function_instance",
+        "snippet_start_line": 1564,
+        "snippet_end_line": 1635,
+        "snippet": "\treturn container_of(to_config_group(item), struct f_ncm_opts,\n\t\t\t    func_inst.group);\n}\n\n/* f_ncm_item_ops */\nUSB_ETHERNET_CONFIGFS_ITEM(ncm);\n\n/* f_ncm_opts_dev_addr */\nUSB_ETHERNET_CONFIGFS_ITEM_ATTR_DEV_ADDR(ncm);\n\n/* f_ncm_opts_host_addr */\nUSB_ETHERNET_CONFIGFS_ITEM_ATTR_HOST_ADDR(ncm);\n\n/* f_ncm_opts_qmult */\nUSB_ETHERNET_CONFIGFS_ITEM_ATTR_QMULT(ncm);\n\n/* f_ncm_opts_ifname */\nUSB_ETHERNET_CONFIGFS_ITEM_ATTR_IFNAME(ncm);\n\nstatic struct configfs_attribute *ncm_attrs[] = {\n\t&ncm_opts_attr_dev_addr,\n\t&ncm_opts_attr_host_addr,\n\t&ncm_opts_attr_qmult,\n\t&ncm_opts_attr_ifname,\n\tNULL,\n};\n\nstatic const struct config_item_type ncm_func_type = {\n\t.ct_item_ops\t= &ncm_item_ops,\n\t.ct_attrs\t= ncm_attrs,\n\t.ct_owner\t= THIS_MODULE,\n};\n\nstatic void ncm_free_inst(struct usb_function_instance *f)\n{\n\tstruct f_ncm_opts *opts;\n\n\topts = container_of(f, struct f_ncm_opts, func_inst);\n\tif (device_is_registered(&opts->net->dev))\n\t\tgether_cleanup(netdev_priv(opts->net));\n\telse\n\t\tfree_netdev(opts->net);\n\tkfree(opts->ncm_interf_group);\n\tkfree(opts);\n}\n\nstatic struct usb_function_instance *ncm_alloc_inst(void)\n{\n\tstruct f_ncm_opts *opts;\n\tstruct usb_os_desc *descs[1];\n\tchar *names[1];\n\tstruct config_group *ncm_interf_group;\n\n\topts = kzalloc(sizeof(*opts), GFP_KERNEL);\n\tif (!opts)\n\t\treturn ERR_PTR(-ENOMEM);\n\topts->ncm_os_desc.ext_compat_id = opts->ncm_ext_compat_id;\n\n\tmutex_init(&opts->lock);\n\topts->func_inst.free_func_inst = ncm_free_inst;\n\topts->net = gether_setup_default();\n\tif (IS_ERR(opts->net)) {\n\t\tstruct net_device *net = opts->net;\n\t\tkfree(opts);\n\t\treturn ERR_CAST(net);\n\t}\n\tINIT_LIST_HEAD(&opts->ncm_os_desc.ext_prop);\n\n\tdescs[0] = &opts->ncm_os_desc;\n\tnames[0] = \"ncm\";\n\n\tconfig_group_init_type_name(&opts->func_inst.group, \"\", &ncm_func_type);\n"
+      }
+    },
+    {
+      "file": "drivers/usb/gadget/function/f_ncm.c",
+      "old_start": 1655,
+      "old_end": 1663,
+      "new_start": 1661,
+      "new_end": 1672,
+      "context_hint": "static void ncm_free(struct usb_function *f)",
+      "added_lines": [
+        "\tstruct f_ncm_opts *ncm_opts;",
+        "\tncm_opts = container_of(f->fi, struct f_ncm_opts, func_inst);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "static void ncm_unbind(struct usb_configuration *c, struct usb_function *f)",
+        "{",
+        "\tstruct f_ncm *ncm = func_to_ncm(f);",
+        "",
+        "\tDBG(c->cdev, \"ncm unbind\\n\");",
+        "",
+        "\thrtimer_cancel(&ncm->task_timer);",
+        "",
+        "\tkfree(f->os_desc_table);"
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "usb_function",
+        "f_ncm_opts",
+        "ncm_opts",
+        "container_of",
+        "f",
+        "fi",
+        "ncm_unbind"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "usb_function",
+        "snippet_start_line": 1626,
+        "snippet_end_line": 1702,
+        "snippet": "\t\tstruct net_device *net = opts->net;\n\t\tkfree(opts);\n\t\treturn ERR_CAST(net);\n\t}\n\tINIT_LIST_HEAD(&opts->ncm_os_desc.ext_prop);\n\n\tdescs[0] = &opts->ncm_os_desc;\n\tnames[0] = \"ncm\";\n\n\tconfig_group_init_type_name(&opts->func_inst.group, \"\", &ncm_func_type);\n\tncm_interf_group =\n\t\tusb_os_desc_prepare_interf_dir(&opts->func_inst.group, 1, descs,\n\t\t\t\t\t       names, THIS_MODULE);\n\tif (IS_ERR(ncm_interf_group)) {\n\t\tncm_free_inst(&opts->func_inst);\n\t\treturn ERR_CAST(ncm_interf_group);\n\t}\n\topts->ncm_interf_group = ncm_interf_group;\n\n\treturn &opts->func_inst;\n}\n\nstatic void ncm_free(struct usb_function *f)\n{\n\tstruct f_ncm *ncm;\n\tstruct f_ncm_opts *opts;\n\n\tncm = func_to_ncm(f);\n\topts = container_of(f->fi, struct f_ncm_opts, func_inst);\n\tkfree(ncm);\n\tmutex_lock(&opts->lock);\n\topts->refcnt--;\n\tmutex_unlock(&opts->lock);\n}\n\nstatic void ncm_unbind(struct usb_configuration *c, struct usb_function *f)\n{\n\tstruct f_ncm *ncm = func_to_ncm(f);\n\tstruct f_ncm_opts *ncm_opts;\n\n\tDBG(c->cdev, \"ncm unbind\\n\");\n\n\tncm_opts = container_of(f->fi, struct f_ncm_opts, func_inst);\n\n\thrtimer_cancel(&ncm->task_timer);\n\n\tkfree(f->os_desc_table);\n\tf->os_desc_n = 0;\n\n\tncm_string_defs[0].id = 0;\n\tusb_free_all_descriptors(f);\n\n\tif (atomic_read(&ncm->notify_count)) {\n\t\tusb_ep_dequeue(ncm->notify, ncm->notify_req);\n\t\tatomic_set(&ncm->notify_count, 0);\n\t}\n\n\tkfree(ncm->notify_req->buf);\n\tusb_ep_free_request(ncm->notify, ncm->notify_req);\n\n\tncm_opts->bind_count--;\n\tif (ncm_opts->bind_count == 0)\n\t\tgether_detach_gadget(ncm_opts->net);\n}\n\nstatic struct usb_function *ncm_alloc(struct usb_function_instance *fi)\n{\n\tstruct f_ncm\t\t*ncm;\n\tstruct f_ncm_opts\t*opts;\n\tint status;\n\n\t/* allocate and initialize one new instance */\n\tncm = kzalloc(sizeof(*ncm), GFP_KERNEL);\n\tif (!ncm)\n\t\treturn ERR_PTR(-ENOMEM);\n\n\topts = container_of(fi, struct f_ncm_opts, func_inst);\n"
+      }
+    },
+    {
+      "file": "drivers/usb/gadget/function/f_ncm.c",
+      "old_start": 1673,
+      "old_end": 1678,
+      "new_start": 1682,
+      "new_end": 1691,
+      "context_hint": "static void ncm_unbind(struct usb_configuration *c, struct usb_function *f)",
+      "added_lines": [
+        "",
+        "\tncm_opts->bind_count--;",
+        "\tif (ncm_opts->bind_count == 0)",
+        "\t\tgether_detach_gadget(ncm_opts->net);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "\tkfree(ncm->notify_req->buf);",
+        "\tusb_ep_free_request(ncm->notify, ncm->notify_req);",
+        "}",
+        "",
+        "static struct usb_function *ncm_alloc(struct usb_function_instance *fi)"
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "usb_configuration",
+        "ncm_opts",
+        "bind_count",
+        "gether_detach_gadget",
+        "net",
+        "kfree"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "usb_configuration",
+        "snippet_start_line": 1644,
+        "snippet_end_line": 1721,
+        "snippet": "\n\treturn &opts->func_inst;\n}\n\nstatic void ncm_free(struct usb_function *f)\n{\n\tstruct f_ncm *ncm;\n\tstruct f_ncm_opts *opts;\n\n\tncm = func_to_ncm(f);\n\topts = container_of(f->fi, struct f_ncm_opts, func_inst);\n\tkfree(ncm);\n\tmutex_lock(&opts->lock);\n\topts->refcnt--;\n\tmutex_unlock(&opts->lock);\n}\n\nstatic void ncm_unbind(struct usb_configuration *c, struct usb_function *f)\n{\n\tstruct f_ncm *ncm = func_to_ncm(f);\n\tstruct f_ncm_opts *ncm_opts;\n\n\tDBG(c->cdev, \"ncm unbind\\n\");\n\n\tncm_opts = container_of(f->fi, struct f_ncm_opts, func_inst);\n\n\thrtimer_cancel(&ncm->task_timer);\n\n\tkfree(f->os_desc_table);\n\tf->os_desc_n = 0;\n\n\tncm_string_defs[0].id = 0;\n\tusb_free_all_descriptors(f);\n\n\tif (atomic_read(&ncm->notify_count)) {\n\t\tusb_ep_dequeue(ncm->notify, ncm->notify_req);\n\t\tatomic_set(&ncm->notify_count, 0);\n\t}\n\n\tkfree(ncm->notify_req->buf);\n\tusb_ep_free_request(ncm->notify, ncm->notify_req);\n\n\tncm_opts->bind_count--;\n\tif (ncm_opts->bind_count == 0)\n\t\tgether_detach_gadget(ncm_opts->net);\n}\n\nstatic struct usb_function *ncm_alloc(struct usb_function_instance *fi)\n{\n\tstruct f_ncm\t\t*ncm;\n\tstruct f_ncm_opts\t*opts;\n\tint status;\n\n\t/* allocate and initialize one new instance */\n\tncm = kzalloc(sizeof(*ncm), GFP_KERNEL);\n\tif (!ncm)\n\t\treturn ERR_PTR(-ENOMEM);\n\n\topts = container_of(fi, struct f_ncm_opts, func_inst);\n\tmutex_lock(&opts->lock);\n\topts->refcnt++;\n\n\t/* export host's Ethernet address in CDC format */\n\tstatus = gether_get_host_addr_cdc(opts->net, ncm->ethaddr,\n\t\t\t\t      sizeof(ncm->ethaddr));\n\tif (status < 12) { /* strlen(\"01234567890a\") */\n\t\tkfree(ncm);\n\t\tmutex_unlock(&opts->lock);\n\t\treturn ERR_PTR(-EINVAL);\n\t}\n\n\tspin_lock_init(&ncm->lock);\n\tncm_reset_values(ncm);\n\tncm->port.ioport = netdev_priv(opts->net);\n\tmutex_unlock(&opts->lock);\n\tncm->port.is_fixed = true;\n\tncm->port.supports_multi_frame = true;\n\n"
+      }
+    },
+    {
+      "file": "drivers/usb/gadget/function/u_ether.c",
+      "old_start": 896,
+      "old_end": 901,
+      "new_start": 896,
+      "new_end": 923,
+      "context_hint": "void gether_set_gadget(struct net_device *net, struct usb_gadget *g)",
+      "added_lines": [
+        "int gether_attach_gadget(struct net_device *net, struct usb_gadget *g)",
+        "{",
+        "\tint ret;",
+        "",
+        "\tret = device_move(&net->dev, &g->dev, DPM_ORDER_DEV_AFTER_PARENT);",
+        "\tif (ret)",
+        "\t\treturn ret;",
+        "",
+        "\tgether_set_gadget(net, g);",
+        "\treturn 0;",
+        "}",
+        "EXPORT_SYMBOL_GPL(gether_attach_gadget);",
+        "",
+        "void gether_detach_gadget(struct net_device *net)",
+        "{",
+        "\tstruct eth_dev *dev = netdev_priv(net);",
+        "",
+        "\tdevice_move(&net->dev, NULL, DPM_ORDER_NONE);",
+        "\tdev->gadget = NULL;",
+        "}",
+        "EXPORT_SYMBOL_GPL(gether_detach_gadget);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "}",
+        "EXPORT_SYMBOL_GPL(gether_set_gadget);",
+        "",
+        "int gether_set_dev_addr(struct net_device *net, const char *dev_addr)",
+        "{",
+        "\tstruct eth_dev *dev;"
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "net_device",
+        "gether_attach_gadget",
+        "net",
+        "usb_gadget",
+        "g",
+        "ret",
+        "device_move",
+        "gether_set_gadget",
+        "gether_detach_gadget"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": true,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "exported_symbols",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_symbol",
+              "return_contract",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Exported kernel symbols used by modules"
+          }
+        ],
+        "surface_reasons": [
+          "exported_symbols"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "net_device",
+        "snippet_start_line": 867,
+        "snippet_end_line": 953,
+        "snippet": "\n\teth_hw_addr_set(net, dev->dev_mac);\n\n\tstatus = register_netdev(net);\n\tif (status < 0) {\n\t\tdev_dbg(&g->dev, \"register_netdev failed, %d\\n\", status);\n\t\treturn status;\n\t} else {\n\t\tINFO(dev, \"HOST MAC %pM\\n\", dev->host_mac);\n\t\tINFO(dev, \"MAC %pM\\n\", dev->dev_mac);\n\n\t\t/* two kinds of host-initiated state changes:\n\t\t *  - iff DATA transfer is active, carrier is \"on\"\n\t\t *  - tx queueing enabled if open *and* carrier is \"on\"\n\t\t */\n\t\tnetif_carrier_off(net);\n\t}\n\n\treturn status;\n}\nEXPORT_SYMBOL_GPL(gether_register_netdev);\n\nvoid gether_set_gadget(struct net_device *net, struct usb_gadget *g)\n{\n\tstruct eth_dev *dev;\n\n\tdev = netdev_priv(net);\n\tdev->gadget = g;\n\tSET_NETDEV_DEV(net, &g->dev);\n}\nEXPORT_SYMBOL_GPL(gether_set_gadget);\n\nint gether_attach_gadget(struct net_device *net, struct usb_gadget *g)\n{\n\tint ret;\n\n\tret = device_move(&net->dev, &g->dev, DPM_ORDER_DEV_AFTER_PARENT);\n\tif (ret)\n\t\treturn ret;\n\n\tgether_set_gadget(net, g);\n\treturn 0;\n}\nEXPORT_SYMBOL_GPL(gether_attach_gadget);\n\nvoid gether_detach_gadget(struct net_device *net)\n{\n\tstruct eth_dev *dev = netdev_priv(net);\n\n\tdevice_move(&net->dev, NULL, DPM_ORDER_NONE);\n\tdev->gadget = NULL;\n}\nEXPORT_SYMBOL_GPL(gether_detach_gadget);\n\nint gether_set_dev_addr(struct net_device *net, const char *dev_addr)\n{\n\tstruct eth_dev *dev;\n\tu8 new_addr[ETH_ALEN];\n\n\tdev = netdev_priv(net);\n\tif (get_ether_addr(dev_addr, new_addr))\n\t\treturn -EINVAL;\n\tmemcpy(dev->dev_mac, new_addr, ETH_ALEN);\n\tnet->addr_assign_type = NET_ADDR_SET;\n\treturn 0;\n}\nEXPORT_SYMBOL_GPL(gether_set_dev_addr);\n\nint gether_get_dev_addr(struct net_device *net, char *dev_addr, int len)\n{\n\tstruct eth_dev *dev;\n\tint ret;\n\n\tdev = netdev_priv(net);\n\tret = get_ether_addr_str(dev->dev_mac, dev_addr, len);\n\tif (ret + 1 < len) {\n\t\tdev_addr[ret++] = '\\n';\n\t\tdev_addr[ret] = '\\0';\n\t}\n\n\treturn ret;\n}\nEXPORT_SYMBOL_GPL(gether_get_dev_addr);\n\nint gether_set_host_addr(struct net_device *net, const char *host_addr)\n{\n\tstruct eth_dev *dev;\n"
+      }
+    },
+    {
+      "file": "drivers/usb/gadget/function/u_ether.h",
+      "old_start": 150,
+      "old_end": 155,
+      "new_start": 150,
+      "new_end": 181,
+      "context_hint": "static inline struct net_device *gether_setup_default(void)",
+      "added_lines": [
+        "/**",
+        " * gether_attach_gadget - Reparent net_device to the gadget device.",
+        " * @net: The network device to reparent.",
+        " * @g: The target USB gadget device to parent to.",
+        " *",
+        " * This function moves the network device to be a child of the USB gadget",
+        " * device in the device hierarchy. This is typically done when the function",
+        " * is bound to a configuration.",
+        " *",
+        " * Returns 0 on success, or a negative error code on failure.",
+        " */",
+        "int gether_attach_gadget(struct net_device *net, struct usb_gadget *g);",
+        "",
+        "/**",
+        " * gether_detach_gadget - Detach net_device from its gadget parent.",
+        " * @net: The network device to detach.",
+        " *",
+        " * This function moves the network device to be a child of the virtual",
+        " * devices parent, effectively detaching it from the USB gadget device",
+        " * hierarchy. This is typically done when the function is unbound",
+        " * from a configuration but the instance is not yet freed.",
+        " */",
+        "void gether_detach_gadget(struct net_device *net);",
+        "",
+        "DEFINE_FREE(detach_gadget, struct net_device *, if (_T) gether_detach_gadget(_T))",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        " */",
+        "void gether_set_gadget(struct net_device *net, struct usb_gadget *g);",
+        "",
+        "/**",
+        " * gether_set_dev_addr - initialize an ethernet-over-usb link with eth address",
+        " * @net: device representing this link"
+      ],
+      "hunk_id": "HUNK-0008",
+      "changed_symbols": [
+        "net_device",
+        "gether_attach_gadget",
+        "Reparent",
+        "to",
+        "the",
+        "gadget",
+        "gether_setup_name_default"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          }
+        ],
+        "surface_reasons": [
+          "public_headers"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "net_device",
+        "snippet_start_line": 121,
+        "snippet_end_line": 211,
+        "snippet": "/*\n * gether_register_netdev - register the net device\n * @net: net device to register\n *\n * Registers the net device associated with this ethernet-over-usb link\n *\n */\nint gether_register_netdev(struct net_device *net);\n\n/* gether_setup_default - initialize one ethernet-over-usb link\n * Context: may sleep\n *\n * This sets up the single network link that may be exported by a\n * gadget driver using this framework.  The link layer addresses\n * are set to random values.\n *\n * Returns negative errno, or zero on success\n */\nstatic inline struct net_device *gether_setup_default(void)\n{\n\treturn gether_setup_name_default(\"usb\");\n}\n\n/**\n * gether_set_gadget - initialize one ethernet-over-usb link with a gadget\n * @net: device representing this link\n * @g: the gadget to initialize with\n *\n * This associates one ethernet-over-usb link with a gadget.\n */\nvoid gether_set_gadget(struct net_device *net, struct usb_gadget *g);\n\n/**\n * gether_attach_gadget - Reparent net_device to the gadget device.\n * @net: The network device to reparent.\n * @g: The target USB gadget device to parent to.\n *\n * This function moves the network device to be a child of the USB gadget\n * device in the device hierarchy. This is typically done when the function\n * is bound to a configuration.\n *\n * Returns 0 on success, or a negative error code on failure.\n */\nint gether_attach_gadget(struct net_device *net, struct usb_gadget *g);\n\n/**\n * gether_detach_gadget - Detach net_device from its gadget parent.\n * @net: The network device to detach.\n *\n * This function moves the network device to be a child of the virtual\n * devices parent, effectively detaching it from the USB gadget device\n * hierarchy. This is typically done when the function is unbound\n * from a configuration but the instance is not yet freed.\n */\nvoid gether_detach_gadget(struct net_device *net);\n\nDEFINE_FREE(detach_gadget, struct net_device *, if (_T) gether_detach_gadget(_T))\n\n/**\n * gether_set_dev_addr - initialize an ethernet-over-usb link with eth address\n * @net: device representing this link\n * @dev_addr: eth address of this device\n *\n * This sets the device-side Ethernet address of this ethernet-over-usb link\n * if dev_addr is correct.\n * Returns negative errno if the new address is incorrect.\n */\nint gether_set_dev_addr(struct net_device *net, const char *dev_addr);\n\n/**\n * gether_get_dev_addr - get an ethernet-over-usb link eth address\n * @net: device representing this link\n * @dev_addr: place to store device's eth address\n * @len: length of the @dev_addr buffer\n *\n * This gets the device-side Ethernet address of this ethernet-over-usb link.\n * Returns zero on success, else negative errno.\n */\nint gether_get_dev_addr(struct net_device *net, char *dev_addr, int len);\n\n/**\n * gether_set_host_addr - initialize an ethernet-over-usb link with host address\n * @net: device representing this link\n * @host_addr: eth address of the host\n *\n * This sets the host-side Ethernet address of this ethernet-over-usb link\n * if host_addr is correct.\n * Returns negative errno if the new address is incorrect.\n */\nint gether_set_host_addr(struct net_device *net, const char *host_addr);\n\n"
+      }
+    },
+    {
+      "file": "drivers/usb/gadget/function/u_ncm.h",
+      "old_start": 18,
+      "old_end": 24,
+      "new_start": 18,
+      "new_end": 24,
+      "context_hint": "",
+      "added_lines": [
+        "\tint\t\t\t\tbind_count;"
+      ],
+      "deleted_lines": [
+        "\tbool\t\t\t\tbound;"
+      ],
+      "context_lines": [
+        "struct f_ncm_opts {",
+        "\tstruct usb_function_instance\tfunc_inst;",
+        "\tstruct net_device\t\t*net;",
+        "",
+        "\tstruct config_group\t\t*ncm_interf_group;",
+        "\tstruct usb_os_desc\t\tncm_os_desc;",
+        ""
+      ],
+      "hunk_id": "HUNK-0009",
+      "changed_symbols": [
+        "bind_count",
+        "bound",
+        "Copyright"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          }
+        ],
+        "surface_reasons": [
+          "public_headers"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "Copyright",
+        "snippet_start_line": 1,
+        "snippet_end_line": 36,
+        "snippet": "/* SPDX-License-Identifier: GPL-2.0 */\n/*\n * u_ncm.h\n *\n * Utility definitions for the ncm function\n *\n * Copyright (c) 2013 Samsung Electronics Co., Ltd.\n *\t\thttp://www.samsung.com\n *\n * Author: Andrzej Pietrasiewicz <andrzejtp2010@gmail.com>\n */\n\n#ifndef U_NCM_H\n#define U_NCM_H\n\n#include <linux/usb/composite.h>\n\nstruct f_ncm_opts {\n\tstruct usb_function_instance\tfunc_inst;\n\tstruct net_device\t\t*net;\n\tint\t\t\t\tbind_count;\n\n\tstruct config_group\t\t*ncm_interf_group;\n\tstruct usb_os_desc\t\tncm_os_desc;\n\tchar\t\t\t\tncm_ext_compat_id[16];\n\t/*\n\t * Read/write access to configfs attributes is handled by configfs.\n\t *\n\t * This is to protect the data from concurrent access by read/write\n\t * and create symlink/remove symlink.\n\t */\n\tstruct mutex\t\t\tlock;\n\tint\t\t\t\trefcnt;\n};\n\n#endif /* U_NCM_H */\n"
+      }
+    }
+  ]
+}

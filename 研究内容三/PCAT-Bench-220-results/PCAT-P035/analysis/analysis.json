@@ -1,0 +1,189 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/ruby",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/ruby/pca-results/632838/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/ruby/pca-results/632838",
+  "base_ref": "6328380a3a83713ff6f55eec772358aadd2f9014~1",
+  "base_commit": "8ff8963995e6df14c0ec589a526a268dde4b9cc5",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "6328380a3a83713ff6f55eec772358aadd2f9014",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/ruby-patch/0001-ruby-time-Fix-Time.xmlschema-handling-leading-and-tr.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "ruby",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1565,
+    "patch_lines": 49,
+    "diff_added_lines": 11,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 16,
+    "churn": 13,
+    "raw_hunks": 2,
+    "candidate_hunks": 2,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 5247,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "ruby_exceptions": 2,
+      "exceptions": 2,
+      "tests": 1
+    },
+    "candidates_json_bytes": 11881
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 2,
+    "compatibility_changes": 1,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.92,
+      "package_profile": "ruby",
+      "affected_surface": "Ruby public API — Time.xmlschema / Time.iso8601 / Time.rfc3339",
+      "affected_api": {
+        "name": "Time.xmlschema / Time.iso8601 / Time.rfc3339",
+        "kind": "public_method",
+        "language": "ruby"
+      },
+      "location": {
+        "file": "lib/time.rb",
+        "old_lines": [
+          670,
+          676
+        ],
+        "new_lines": [
+          670,
+          676
+        ],
+        "symbol": "Time._xmlschema"
+      },
+      "old_behavior": "Time.xmlschema (and its aliases Time.iso8601, Time.rfc3339) passes the raw time string argument directly to internal constructor new(time). When the input string contains leading or trailing whitespace (space, tab, etc.), the regex pattern match succeeds (the pattern has \\A\\s*...\\s*\\z anchors), but the underlying new(time) call receives the whitespace-padded string and either raises ArgumentError or produces incorrect/unexpected Time object.",
+      "new_behavior": "Time.xmlschema (and aliases) calls time.strip on the input string before passing it to new(). Leading and trailing whitespace (spaces, tabs, etc.) are removed, and the cleaned string is correctly parsed into the expected Time object.",
+      "compatibility_reason": "The input contract of Time.xmlschema, Time.iso8601, and Time.rfc3339 has been relaxed. Strings with leading/trailing whitespace that previously caused an ArgumentError (or incorrect parsing) are now silently accepted and correctly parsed. Code that manually strips whitespace before these calls is now redundant (no functional breakage, but the error path changed). More importantly, code that depended on the ArgumentError being raised for whitespace-padded inputs will now silently get a Time object instead, potentially masking bugs. This affects all callers of these three public class methods on Time.",
+      "evidence": [
+        {
+          "file": "lib/time.rb",
+          "lines": [
+            670,
+            676
+          ],
+          "snippet": "        if pattern.match?(time)\n          new(time.strip)    # was: new(time)\n        else\n          raise ArgumentError.new(\"invalid xmlschema format: #{time.inspect}\")\n        end"
+        },
+        {
+          "file": "lib/time.rb",
+          "lines": [
+            629,
+            640
+          ],
+          "snippet": "    def xmlschema(time)\n      pattern = /\\A\\s*...\\s*\\z/ix\n      _xmlschema(pattern, time)\n    end\n    alias iso8601 xmlschema\n\n    def rfc3339(time)\n      pattern = /\\A\\s*...\\s*\\z/ix\n      _xmlschema(pattern, time)\n    end"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Time.xmlschema, Time.iso8601, and Time.rfc3339 are public class methods on the core Time class, part of Ruby's standard library public API. The change is in the private helper _xmlschema but directly affects the observable behavior of all three public entry points.",
+      "uncertainty": "The exact failure mode of the old code (ArgumentError vs incorrect Time object) depends on Ruby version (>= 3.2) and how Time.new handles whitespace-padded ISO 8601 strings, which may vary. However, the behavioral change is unambiguous: output for whitespace-padded inputs differs before/after the patch.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that no production code depends on Time.xmlschema raising ArgumentError for whitespace-padded strings as a validation mechanism.",
+      "test_recommendation": "Write directed tests for Time.xmlschema, Time.iso8601, and Time.rfc3339 with various leading/trailing whitespace patterns: spaces, tabs, mixed whitespace, edge cases like entirely whitespace strings. Verify old behavior (ArgumentError for whitespace-padded) vs new behavior (correct parsing).",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=public_method with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "lib/time.rb",
+            "old_lines": [
+              670,
+              676
+            ],
+            "new_lines": [
+              670,
+              676
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "ruby_exceptions",
+              "exceptions"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "ruby_exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception hierarchy, type, message, and failure behavior."
+              },
+              {
+                "name": "exceptions",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exception type and hierarchy changes"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=public_method with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

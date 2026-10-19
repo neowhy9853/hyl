@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup/pca-results/71ca70/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup/pca-results/71ca70/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup/pca-results/71ca70",
+  "patch_id": "71ca70a0f62cfc30dfacfd2ee0952a86e2e64055",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "SoupSession:tls-database / SoupSession:ssl-use-system-ca-file",
+        "kind": "public_method",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libsoup/soup-session.c",
+        "old_lines": [
+          270,
+          285
+        ],
+        "new_lines": [
+          270,
+          288
+        ],
+        "symbol": "soup_session_constructor"
+      },
+      "old_behavior": "只有 plain SoupSession (type == SOUP_TYPE_SESSION) 在构造时设置 tlsdb_use_default = TRUE，从而在首次使用时加载系统 CA 数据库。弃用的 SoupSessionAsync 和 SoupSessionSync 类型的 tlsdb_use_default 保持 FALSE（g_new0 零初始化），因此 ssl-use-system-ca-file 属性默认为 FALSE，tls-database 属性默认为 NULL。",
+      "new_behavior": "所有 SoupSession 子类型（包括弃用的 SoupSessionAsync 和 SoupSessionSync）在构造时均无条件设置 tlsdb_use_default = TRUE。这意味着 ssl-use-system-ca-file 属性对全部 session 类型均默认为 TRUE，tls-database 属性默认指向系统 CA 数据库。",
+      "compatibility_reason": "使用 SoupSessionAsync 或 SoupSessionSync 的现有应用程序如果未显式配置 TLS，将突然受到系统 CA 验证的约束。此前能正常工作的自签名证书或私有 CA 服务器的 HTTPS 连接，现在将因为证书无法通过系统 CA 验证而被拒绝（SOUP_STATUS_SSL_FAILED）。补丁作者在提交信息中明确承认：'This is a break in behavior however the security concerns are important.' 这是一个有意的行为破坏，意在为非安全配置的弃用 session 类型提供基线安全保障。",
+      "test_recommendation": "重点测试 SoupSessionAsync/SoupSessionSync 在默认构造下对 HTTPS 站点的连接行为：验证 use-system-ca-file 默认值为 TRUE，tls-database 默认值为非 NULL 系统 CA 数据库；验证之前可通过自签名证书的 HTTPS 连接现在是否因证书验证失败而返回 SOUP_STATUS_SSL_FAILED。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup/pca-results/71ca70/compatibility-testing"
+}

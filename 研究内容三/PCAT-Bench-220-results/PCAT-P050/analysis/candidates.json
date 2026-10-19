@@ -1,0 +1,849 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/900f55/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/900f55/patch.diff",
+  "profile": "networkmanager",
+  "summary": {
+    "total_changed_files": 3,
+    "changed_files": [
+      "src/core/ndisc/nm-ndisc.c",
+      "src/core/ndisc/nm-lndp-ndisc.c",
+      "src/core/ndisc/nm-ndisc.h"
+    ],
+    "total_hunks": 7,
+    "public_api_hunks": 7,
+    "patch_metrics": {
+      "patch_bytes": 5677,
+      "patch_lines": 108,
+      "diff_added_lines": 12,
+      "diff_deleted_lines": 29,
+      "diff_context_lines": 48,
+      "churn": 41,
+      "raw_hunks": 7,
+      "candidate_hunks": 7,
+      "skipped_doc_hunks": 0,
+      "changed_files": 3,
+      "candidate_context_bytes": 16470,
+      "public_candidate_hunks": 7,
+      "surface_counts": {
+        "cli_options": 4,
+        "user_visible_output": 2,
+        "logging": 2,
+        "dbus_api": 7,
+        "config_keys": 5,
+        "config": 5,
+        "cli": 2,
+        "public_headers": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/core/ndisc/nm-lndp-ndisc.c",
+      "old_start": 487,
+      "old_end": 493,
+      "new_start": 487,
+      "new_end": 494,
+      "context_hint": "send_ra(NMNDisc *ndisc, GError **error)",
+      "added_lines": [
+        "    nm_auto_str_buf NMStrBuf sbuf     = NM_STR_BUF_INIT(0, FALSE);",
+        "    gint64                   now_msec = nm_utils_get_monotonic_timestamp_msec();"
+      ],
+      "deleted_lines": [
+        "    nm_auto_str_buf NMStrBuf sbuf = NM_STR_BUF_INIT(0, FALSE);"
+      ],
+      "context_lines": [
+        "    struct in6_addr         *addr;",
+        "    struct ndp_msg          *msg;",
+        "    guint                    i;",
+        "",
+        "    errsv = ndp_msg_new(&msg, NDP_MSG_RA);",
+        "    if (errsv) {"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "send_ra",
+        "nm_auto_str_buf",
+        "NMStrBuf",
+        "sbuf",
+        "NM_STR_BUF_INIT",
+        "FALSE"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "cli_options",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "dbus_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Stable D-Bus interfaces, properties, signals, and methods"
+          }
+        ],
+        "surface_reasons": [
+          "cli_options",
+          "user_visible_output",
+          "logging",
+          "dbus_api"
+        ],
+        "profile": "networkmanager",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "send_ra",
+        "snippet_start_line": 458,
+        "snippet_end_line": 524,
+        "snippet": "    uint32_t          lifetime;\n    struct in6_addr   addrs[0];\n} NMLndpRdnssOption;\n\nG_STATIC_ASSERT(sizeof(NMLndpRdnssOption) == 8u);\n\n/*****************************************************************************/\n\n/* \"DNS Search List Option\" at https://tools.ietf.org/html/rfc8106#section-5.2 */\n\n#define NM_ND_OPT_DNSSL 31\n\ntypedef struct _nm_packed {\n    struct nd_opt_hdr header;\n    uint16_t          reserved;\n    uint32_t          lifetime;\n    uint8_t           search_list[0];\n} NMLndpDnsslOption;\n\nG_STATIC_ASSERT(sizeof(NMLndpDnsslOption) == 8u);\n\n/*****************************************************************************/\n\nstatic gboolean\nsend_ra(NMNDisc *ndisc, GError **error)\n{\n    NMLndpNDiscPrivate      *priv  = NM_LNDP_NDISC_GET_PRIVATE(ndisc);\n    NMNDiscDataInternal     *rdata = ndisc->rdata;\n    int                      errsv;\n    struct in6_addr         *addr;\n    struct ndp_msg          *msg;\n    guint                    i;\n    nm_auto_str_buf NMStrBuf sbuf     = NM_STR_BUF_INIT(0, FALSE);\n    gint64                   now_msec = nm_utils_get_monotonic_timestamp_msec();\n\n    errsv = ndp_msg_new(&msg, NDP_MSG_RA);\n    if (errsv) {\n        g_set_error_literal(error,\n                            NM_UTILS_ERROR,\n                            NM_UTILS_ERROR_UNKNOWN,\n                            \"cannot create a router advertisement\");\n        return FALSE;\n    }\n\n    ndp_msg_ifindex_set(msg, nm_ndisc_get_ifindex(ndisc));\n\n    /* Multicast to all nodes. */\n    addr               = ndp_msg_addrto(msg);\n    addr->s6_addr32[0] = htonl(0xff020000);\n    addr->s6_addr32[1] = 0;\n    addr->s6_addr32[2] = 0;\n    addr->s6_addr32[3] = htonl(0x1);\n\n    ndp_msgra_router_lifetime_set(ndp_msgra(msg), NM_NDISC_ROUTER_LIFETIME);\n\n    /* The device let us know about all addresses that the device got\n     * whose prefixes are suitable for delegating. Let's announce them. */\n    for (i = 0; i < rdata->addresses->len; i++) {\n        const NMNDiscAddress      *address = &nm_g_array_index(rdata->addresses, NMNDiscAddress, i);\n        struct nd_opt_prefix_info *prefix;\n\n        prefix = _ndp_msg_add_option(msg, sizeof(*prefix));\n        if (!prefix) {\n            /* Maybe we could send separate RAs, but why bother... */\n            _LOG_INVALID_RA(\n                ndisc,\n                &priv->msg_ratelimit.omit_prefix,\n"
+      }
+    },
+    {
+      "file": "src/core/ndisc/nm-lndp-ndisc.c",
+      "old_start": 531,
+      "old_end": 543,
+      "new_start": 532,
+      "new_end": 540,
+      "context_hint": "send_ra(NMNDisc *ndisc, GError **error)",
+      "added_lines": [
+        "            htonl(_nm_ndisc_lifetime_from_expiry(now_msec, address->expiry_msec, TRUE));",
+        "            htonl(_nm_ndisc_lifetime_from_expiry(now_msec, address->expiry_preferred_msec, TRUE));"
+      ],
+      "deleted_lines": [
+        "            htonl(_nm_ndisc_lifetime_from_expiry(NM_NDISC_EXPIRY_BASE_TIMESTAMP,",
+        "                                                 address->expiry_msec,",
+        "                                                 TRUE));",
+        "            htonl(_nm_ndisc_lifetime_from_expiry(NM_NDISC_EXPIRY_BASE_TIMESTAMP,",
+        "                                                 address->expiry_preferred_msec,",
+        "                                                 TRUE));"
+      ],
+      "context_lines": [
+        "        prefix->nd_opt_pi_flags_reserved |= ND_OPT_PI_FLAG_ONLINK;",
+        "        prefix->nd_opt_pi_flags_reserved |= ND_OPT_PI_FLAG_AUTO;",
+        "        prefix->nd_opt_pi_valid_time =",
+        "        prefix->nd_opt_pi_preferred_time =",
+        "        prefix->nd_opt_pi_prefix.s6_addr32[0] = address->address.s6_addr32[0];",
+        "        prefix->nd_opt_pi_prefix.s6_addr32[1] = address->address.s6_addr32[1];",
+        "        prefix->nd_opt_pi_prefix.s6_addr32[2] = 0;"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "send_ra",
+        "htonl",
+        "_nm_ndisc_lifetime_from_expiry",
+        "now_msec",
+        "address",
+        "expiry_msec",
+        "_LOG_INVALID_RA"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "cli_options",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "dbus_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Stable D-Bus interfaces, properties, signals, and methods"
+          }
+        ],
+        "surface_reasons": [
+          "cli_options",
+          "user_visible_output",
+          "logging",
+          "dbus_api"
+        ],
+        "profile": "networkmanager",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "send_ra",
+        "snippet_start_line": 502,
+        "snippet_end_line": 570,
+        "snippet": "    ndp_msg_ifindex_set(msg, nm_ndisc_get_ifindex(ndisc));\n\n    /* Multicast to all nodes. */\n    addr               = ndp_msg_addrto(msg);\n    addr->s6_addr32[0] = htonl(0xff020000);\n    addr->s6_addr32[1] = 0;\n    addr->s6_addr32[2] = 0;\n    addr->s6_addr32[3] = htonl(0x1);\n\n    ndp_msgra_router_lifetime_set(ndp_msgra(msg), NM_NDISC_ROUTER_LIFETIME);\n\n    /* The device let us know about all addresses that the device got\n     * whose prefixes are suitable for delegating. Let's announce them. */\n    for (i = 0; i < rdata->addresses->len; i++) {\n        const NMNDiscAddress      *address = &nm_g_array_index(rdata->addresses, NMNDiscAddress, i);\n        struct nd_opt_prefix_info *prefix;\n\n        prefix = _ndp_msg_add_option(msg, sizeof(*prefix));\n        if (!prefix) {\n            /* Maybe we could send separate RAs, but why bother... */\n            _LOG_INVALID_RA(\n                ndisc,\n                &priv->msg_ratelimit.omit_prefix,\n                \"the outgoing IPv6 router advertisement is too big: omitting some prefixes\");\n            break;\n        }\n\n        prefix->nd_opt_pi_type       = ND_OPT_PREFIX_INFORMATION;\n        prefix->nd_opt_pi_len        = 4;\n        prefix->nd_opt_pi_prefix_len = 64;\n        prefix->nd_opt_pi_flags_reserved |= ND_OPT_PI_FLAG_ONLINK;\n        prefix->nd_opt_pi_flags_reserved |= ND_OPT_PI_FLAG_AUTO;\n        prefix->nd_opt_pi_valid_time =\n            htonl(_nm_ndisc_lifetime_from_expiry(now_msec, address->expiry_msec, TRUE));\n        prefix->nd_opt_pi_preferred_time =\n            htonl(_nm_ndisc_lifetime_from_expiry(now_msec, address->expiry_preferred_msec, TRUE));\n        prefix->nd_opt_pi_prefix.s6_addr32[0] = address->address.s6_addr32[0];\n        prefix->nd_opt_pi_prefix.s6_addr32[1] = address->address.s6_addr32[1];\n        prefix->nd_opt_pi_prefix.s6_addr32[2] = 0;\n        prefix->nd_opt_pi_prefix.s6_addr32[3] = 0;\n    }\n\n    if (rdata->dns_servers->len > 0u) {\n        NMLndpRdnssOption *option;\n        gsize len = sizeof(*option) + (sizeof(option->addrs[0]) * rdata->dns_servers->len);\n\n        option = _ndp_msg_add_option(msg, len);\n        if (!option) {\n            _LOG_INVALID_RA(\n                ndisc,\n                &priv->msg_ratelimit.omit_dns,\n                \"the outgoing IPv6 router advertisement is too big: omitting DNS information\");\n            goto dns_servers_done;\n        }\n\n        option->header.nd_opt_type = NM_ND_OPT_RDNSS;\n        option->header.nd_opt_len  = len / 8;\n        option->lifetime           = htonl(900);\n\n        for (i = 0; i < rdata->dns_servers->len; i++) {\n            const NMNDiscDNSServer *dns_server =\n                &nm_g_array_index(rdata->dns_servers, NMNDiscDNSServer, i);\n\n            option->addrs[i] = dns_server->address;\n        }\n    }\ndns_servers_done:\n\n    if (rdata->dns_domains->len > 0u) {\n"
+      }
+    },
+    {
+      "file": "src/core/ndisc/nm-ndisc.c",
+      "old_start": 1124,
+      "old_end": 1130,
+      "new_start": 1124,
+      "new_end": 1131,
+      "context_hint": "nm_ndisc_set_config(NMNDisc *ndisc, const NML3ConfigData *l3cd)",
+      "added_lines": [
+        "    gint64             now_msec = nm_utils_get_monotonic_timestamp_msec();",
+        "    gint32             now      = now_msec / 1000;"
+      ],
+      "deleted_lines": [
+        "    gint32             fake_now = NM_NDISC_EXPIRY_BASE_TIMESTAMP / 1000;"
+      ],
+      "context_lines": [
+        "    const NMPObject   *obj;",
+        "    guint              len;",
+        "    guint              i;",
+        "",
+        "    nm_assert(NM_IS_NDISC(ndisc));",
+        "    nm_assert(nm_ndisc_get_node_type(ndisc) == NM_NDISC_NODE_TYPE_ROUTER);"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "nm_ndisc_set_config",
+        "gint64",
+        "now_msec",
+        "nm_utils_get_monotonic_timestamp_msec",
+        "gint32",
+        "now"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Connection profile and daemon configuration semantics"
+          },
+          {
+            "name": "dbus_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Stable D-Bus interfaces, properties, signals, and methods"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "config",
+          "dbus_api"
+        ],
+        "profile": "networkmanager",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "nm_ndisc_set_config",
+        "snippet_start_line": 1095,
+        "snippet_end_line": 1161,
+        "snippet": "    }\n}\n\nstatic void\nannounce_router_solicited(NMNDisc *ndisc)\n{\n    NMNDiscPrivate *priv = NM_NDISC_GET_PRIVATE(ndisc);\n\n    _LOGD(\"will send an solicited router advertisement\");\n\n    /* Unschedule an unsolicited resend if we are allowed to send now. */\n    if (nm_utils_get_monotonic_timestamp_sec() - priv->last_ra > NM_NDISC_ROUTER_ADVERT_DELAY)\n        nm_clear_g_source(&priv->send_ra_id);\n\n    if (!priv->send_ra_id) {\n        priv->send_ra_id = g_timeout_add(nm_random_u64_range(0, NM_NDISC_ROUTER_ADVERT_DELAY_MS),\n                                         (GSourceFunc) announce_router,\n                                         ndisc);\n    }\n}\n\n/*****************************************************************************/\n\nvoid\nnm_ndisc_set_config(NMNDisc *ndisc, const NML3ConfigData *l3cd)\n{\n    gboolean           changed = FALSE;\n    const char *const *strvarr;\n    NMDedupMultiIter   iter;\n    const NMPObject   *obj;\n    guint              len;\n    guint              i;\n    gint64             now_msec = nm_utils_get_monotonic_timestamp_msec();\n    gint32             now      = now_msec / 1000;\n\n    nm_assert(NM_IS_NDISC(ndisc));\n    nm_assert(nm_ndisc_get_node_type(ndisc) == NM_NDISC_NODE_TYPE_ROUTER);\n\n    nm_l3_config_data_iter_obj_for_each (&iter, l3cd, &obj, NMP_OBJECT_TYPE_IP6_ADDRESS) {\n        const NMPlatformIP6Address *addr = NMP_OBJECT_CAST_IP6_ADDRESS(obj);\n        guint32                     preferred;\n        guint32                     lifetime;\n        NMNDiscAddress              a;\n\n        if (IN6_IS_ADDR_UNSPECIFIED(&addr->address) || IN6_IS_ADDR_LINKLOCAL(&addr->address))\n            continue;\n\n        if (addr->n_ifa_flags & IFA_F_TENTATIVE || addr->n_ifa_flags & IFA_F_DADFAILED)\n            continue;\n\n        if (addr->plen != 64)\n            continue;\n\n        lifetime = nmp_utils_lifetime_get(addr->timestamp,\n                                          addr->lifetime,\n                                          addr->preferred,\n                                          &now,\n                                          &preferred);\n        if (!lifetime)\n            continue;\n\n        a = (NMNDiscAddress) {\n            .address               = addr->address,\n            .expiry_msec           = _nm_ndisc_lifetime_to_expiry(now_msec, lifetime),\n            .expiry_preferred_msec = _nm_ndisc_lifetime_to_expiry(now_msec, preferred),\n        };\n\n"
+      }
+    },
+    {
+      "file": "src/core/ndisc/nm-ndisc.c",
+      "old_start": 1147,
+      "old_end": 1162,
+      "new_start": 1148,
+      "new_end": 1162,
+      "context_hint": "nm_ndisc_set_config(NMNDisc *ndisc, const NML3ConfigData *l3cd)",
+      "added_lines": [
+        "                                          &now,",
+        "            .address               = addr->address,",
+        "            .expiry_msec           = _nm_ndisc_lifetime_to_expiry(now_msec, lifetime),",
+        "            .expiry_preferred_msec = _nm_ndisc_lifetime_to_expiry(now_msec, preferred),"
+      ],
+      "deleted_lines": [
+        "                                          &fake_now,",
+        "            .address     = addr->address,",
+        "            .expiry_msec = _nm_ndisc_lifetime_to_expiry(NM_NDISC_EXPIRY_BASE_TIMESTAMP, lifetime),",
+        "            .expiry_preferred_msec =",
+        "                _nm_ndisc_lifetime_to_expiry(NM_NDISC_EXPIRY_BASE_TIMESTAMP, preferred),"
+      ],
+      "context_lines": [
+        "        lifetime = nmp_utils_lifetime_get(addr->timestamp,",
+        "                                          addr->lifetime,",
+        "                                          addr->preferred,",
+        "                                          &preferred);",
+        "        if (!lifetime)",
+        "            continue;",
+        "",
+        "        a = (NMNDiscAddress) {",
+        "        };",
+        "",
+        "        if (nm_ndisc_add_address(ndisc, &a, 0, FALSE))"
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "nm_ndisc_set_config",
+        "now",
+        "address",
+        "addr",
+        "expiry_msec",
+        "_nm_ndisc_lifetime_to_expiry",
+        "nm_l3_config_data_iter_obj_for_each"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Connection profile and daemon configuration semantics"
+          },
+          {
+            "name": "dbus_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Stable D-Bus interfaces, properties, signals, and methods"
+          }
+        ],
+        "surface_reasons": [
+          "config_keys",
+          "config",
+          "dbus_api"
+        ],
+        "profile": "networkmanager",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "nm_ndisc_set_config",
+        "snippet_start_line": 1118,
+        "snippet_end_line": 1192,
+        "snippet": "void\nnm_ndisc_set_config(NMNDisc *ndisc, const NML3ConfigData *l3cd)\n{\n    gboolean           changed = FALSE;\n    const char *const *strvarr;\n    NMDedupMultiIter   iter;\n    const NMPObject   *obj;\n    guint              len;\n    guint              i;\n    gint64             now_msec = nm_utils_get_monotonic_timestamp_msec();\n    gint32             now      = now_msec / 1000;\n\n    nm_assert(NM_IS_NDISC(ndisc));\n    nm_assert(nm_ndisc_get_node_type(ndisc) == NM_NDISC_NODE_TYPE_ROUTER);\n\n    nm_l3_config_data_iter_obj_for_each (&iter, l3cd, &obj, NMP_OBJECT_TYPE_IP6_ADDRESS) {\n        const NMPlatformIP6Address *addr = NMP_OBJECT_CAST_IP6_ADDRESS(obj);\n        guint32                     preferred;\n        guint32                     lifetime;\n        NMNDiscAddress              a;\n\n        if (IN6_IS_ADDR_UNSPECIFIED(&addr->address) || IN6_IS_ADDR_LINKLOCAL(&addr->address))\n            continue;\n\n        if (addr->n_ifa_flags & IFA_F_TENTATIVE || addr->n_ifa_flags & IFA_F_DADFAILED)\n            continue;\n\n        if (addr->plen != 64)\n            continue;\n\n        lifetime = nmp_utils_lifetime_get(addr->timestamp,\n                                          addr->lifetime,\n                                          addr->preferred,\n                                          &now,\n                                          &preferred);\n        if (!lifetime)\n            continue;\n\n        a = (NMNDiscAddress) {\n            .address               = addr->address,\n            .expiry_msec           = _nm_ndisc_lifetime_to_expiry(now_msec, lifetime),\n            .expiry_preferred_msec = _nm_ndisc_lifetime_to_expiry(now_msec, preferred),\n        };\n\n        if (nm_ndisc_add_address(ndisc, &a, 0, FALSE))\n            changed = TRUE;\n    }\n\n    strvarr = NULL;\n    len     = 0;\n    if (l3cd)\n        strvarr = nm_l3_config_data_get_nameservers(l3cd, AF_INET6, &len);\n    for (i = 0; i < len; i++) {\n        NMIPAddr         a;\n        NMNDiscDNSServer n;\n\n        if (!nm_dns_uri_parse_plain(AF_INET6, strvarr[i], NULL, &a))\n            continue;\n\n        n = (NMNDiscDNSServer) {\n            .address     = a.addr6,\n            .expiry_msec = _nm_ndisc_lifetime_to_expiry(now_msec, NM_NDISC_ROUTER_LIFETIME),\n        };\n        if (nm_ndisc_add_dns_server(ndisc, &n, G_MININT64))\n            changed = TRUE;\n    }\n\n    strvarr = NULL;\n    len     = 0;\n    if (l3cd)\n        strvarr = nm_l3_config_data_get_searches(l3cd, AF_INET6, &len);\n    for (i = 0; i < len; i++) {\n        NMNDiscDNSDomain n;\n\n        n = (NMNDiscDNSDomain) {\n"
+      }
+    },
+    {
+      "file": "src/core/ndisc/nm-ndisc.c",
+      "old_start": 1176,
+      "old_end": 1183,
+      "new_start": 1176,
+      "new_end": 1182,
+      "context_hint": "nm_ndisc_set_config(NMNDisc *ndisc, const NML3ConfigData *l3cd)",
+      "added_lines": [
+        "            .expiry_msec = _nm_ndisc_lifetime_to_expiry(now_msec, NM_NDISC_ROUTER_LIFETIME),"
+      ],
+      "deleted_lines": [
+        "            .expiry_msec = _nm_ndisc_lifetime_to_expiry(NM_NDISC_EXPIRY_BASE_TIMESTAMP,",
+        "                                                        NM_NDISC_ROUTER_LIFETIME),"
+      ],
+      "context_lines": [
+        "",
+        "        n = (NMNDiscDNSServer) {",
+        "            .address     = a.addr6,",
+        "        };",
+        "        if (nm_ndisc_add_dns_server(ndisc, &n, G_MININT64))",
+        "            changed = TRUE;"
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "nm_ndisc_set_config",
+        "expiry_msec",
+        "_nm_ndisc_lifetime_to_expiry",
+        "now_msec",
+        "NM_NDISC_ROUTER_LIFETIME",
+        "NM_NDISC_EXPIRY_BASE_TIMESTAMP",
+        "nm_l3_config_data_iter_obj_for_each"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "cli_options",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+          },
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "cli",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Command-line interface"
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Connection profile and daemon configuration semantics"
+          },
+          {
+            "name": "dbus_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Stable D-Bus interfaces, properties, signals, and methods"
+          }
+        ],
+        "surface_reasons": [
+          "cli_options",
+          "config_keys",
+          "cli",
+          "config",
+          "dbus_api"
+        ],
+        "profile": "networkmanager",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "nm_ndisc_set_config",
+        "snippet_start_line": 1147,
+        "snippet_end_line": 1212,
+        "snippet": "\n        lifetime = nmp_utils_lifetime_get(addr->timestamp,\n                                          addr->lifetime,\n                                          addr->preferred,\n                                          &now,\n                                          &preferred);\n        if (!lifetime)\n            continue;\n\n        a = (NMNDiscAddress) {\n            .address               = addr->address,\n            .expiry_msec           = _nm_ndisc_lifetime_to_expiry(now_msec, lifetime),\n            .expiry_preferred_msec = _nm_ndisc_lifetime_to_expiry(now_msec, preferred),\n        };\n\n        if (nm_ndisc_add_address(ndisc, &a, 0, FALSE))\n            changed = TRUE;\n    }\n\n    strvarr = NULL;\n    len     = 0;\n    if (l3cd)\n        strvarr = nm_l3_config_data_get_nameservers(l3cd, AF_INET6, &len);\n    for (i = 0; i < len; i++) {\n        NMIPAddr         a;\n        NMNDiscDNSServer n;\n\n        if (!nm_dns_uri_parse_plain(AF_INET6, strvarr[i], NULL, &a))\n            continue;\n\n        n = (NMNDiscDNSServer) {\n            .address     = a.addr6,\n            .expiry_msec = _nm_ndisc_lifetime_to_expiry(now_msec, NM_NDISC_ROUTER_LIFETIME),\n        };\n        if (nm_ndisc_add_dns_server(ndisc, &n, G_MININT64))\n            changed = TRUE;\n    }\n\n    strvarr = NULL;\n    len     = 0;\n    if (l3cd)\n        strvarr = nm_l3_config_data_get_searches(l3cd, AF_INET6, &len);\n    for (i = 0; i < len; i++) {\n        NMNDiscDNSDomain n;\n\n        n = (NMNDiscDNSDomain) {\n            .domain      = (char *) strvarr[i],\n            .expiry_msec = _nm_ndisc_lifetime_to_expiry(now_msec, NM_NDISC_ROUTER_LIFETIME),\n        };\n        if (nm_ndisc_add_dns_domain(ndisc, &n, G_MININT64))\n            changed = TRUE;\n    }\n\n    if (changed)\n        announce_router_initial(ndisc);\n}\n\n/**\n * nm_ndisc_set_iid:\n * @ndisc: the #NMNDisc\n * @iid: the new interface ID\n *\n * Sets the \"Modified EUI-64\" interface ID to be used when generating\n * IPv6 addresses using received prefixes. Identifiers are either generated\n * from the hardware addresses or manually set by the operator with\n * \"ip token\" command.\n"
+      }
+    },
+    {
+      "file": "src/core/ndisc/nm-ndisc.c",
+      "old_start": 1192,
+      "old_end": 1199,
+      "new_start": 1191,
+      "new_end": 1197,
+      "context_hint": "nm_ndisc_set_config(NMNDisc *ndisc, const NML3ConfigData *l3cd)",
+      "added_lines": [
+        "            .expiry_msec = _nm_ndisc_lifetime_to_expiry(now_msec, NM_NDISC_ROUTER_LIFETIME),"
+      ],
+      "deleted_lines": [
+        "            .expiry_msec = _nm_ndisc_lifetime_to_expiry(NM_NDISC_EXPIRY_BASE_TIMESTAMP,",
+        "                                                        NM_NDISC_ROUTER_LIFETIME),"
+      ],
+      "context_lines": [
+        "",
+        "        n = (NMNDiscDNSDomain) {",
+        "            .domain      = (char *) strvarr[i],",
+        "        };",
+        "        if (nm_ndisc_add_dns_domain(ndisc, &n, G_MININT64))",
+        "            changed = TRUE;"
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "nm_ndisc_set_config",
+        "expiry_msec",
+        "_nm_ndisc_lifetime_to_expiry",
+        "now_msec",
+        "NM_NDISC_ROUTER_LIFETIME",
+        "NM_NDISC_EXPIRY_BASE_TIMESTAMP",
+        "nm_l3_config_data_iter_obj_for_each"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "cli_options",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+          },
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "cli",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Command-line interface"
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Connection profile and daemon configuration semantics"
+          },
+          {
+            "name": "dbus_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Stable D-Bus interfaces, properties, signals, and methods"
+          }
+        ],
+        "surface_reasons": [
+          "cli_options",
+          "config_keys",
+          "cli",
+          "config",
+          "dbus_api"
+        ],
+        "profile": "networkmanager",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "nm_ndisc_set_config",
+        "snippet_start_line": 1163,
+        "snippet_end_line": 1227,
+        "snippet": "            changed = TRUE;\n    }\n\n    strvarr = NULL;\n    len     = 0;\n    if (l3cd)\n        strvarr = nm_l3_config_data_get_nameservers(l3cd, AF_INET6, &len);\n    for (i = 0; i < len; i++) {\n        NMIPAddr         a;\n        NMNDiscDNSServer n;\n\n        if (!nm_dns_uri_parse_plain(AF_INET6, strvarr[i], NULL, &a))\n            continue;\n\n        n = (NMNDiscDNSServer) {\n            .address     = a.addr6,\n            .expiry_msec = _nm_ndisc_lifetime_to_expiry(now_msec, NM_NDISC_ROUTER_LIFETIME),\n        };\n        if (nm_ndisc_add_dns_server(ndisc, &n, G_MININT64))\n            changed = TRUE;\n    }\n\n    strvarr = NULL;\n    len     = 0;\n    if (l3cd)\n        strvarr = nm_l3_config_data_get_searches(l3cd, AF_INET6, &len);\n    for (i = 0; i < len; i++) {\n        NMNDiscDNSDomain n;\n\n        n = (NMNDiscDNSDomain) {\n            .domain      = (char *) strvarr[i],\n            .expiry_msec = _nm_ndisc_lifetime_to_expiry(now_msec, NM_NDISC_ROUTER_LIFETIME),\n        };\n        if (nm_ndisc_add_dns_domain(ndisc, &n, G_MININT64))\n            changed = TRUE;\n    }\n\n    if (changed)\n        announce_router_initial(ndisc);\n}\n\n/**\n * nm_ndisc_set_iid:\n * @ndisc: the #NMNDisc\n * @iid: the new interface ID\n *\n * Sets the \"Modified EUI-64\" interface ID to be used when generating\n * IPv6 addresses using received prefixes. Identifiers are either generated\n * from the hardware addresses or manually set by the operator with\n * \"ip token\" command.\n *\n * Upon token change (or initial setting) all addresses generated using\n * the old identifier are removed. The caller should ensure the addresses\n * will be reset by soliciting router advertisements.\n *\n * In case the stable privacy addressing is used %FALSE is returned and\n * addresses are left untouched.\n *\n * Returns: %TRUE if addresses need to be regenerated, %FALSE otherwise.\n **/\ngboolean\nnm_ndisc_set_iid(NMNDisc *ndisc, const NMUtilsIPv6IfaceId iid, gboolean is_token)\n{\n    NMNDiscPrivate      *priv;\n    NMNDiscDataInternal *rdata;\n"
+      }
+    },
+    {
+      "file": "src/core/ndisc/nm-ndisc.h",
+      "old_start": 50,
+      "old_end": 67,
+      "new_start": 50,
+      "new_end": 55,
+      "context_hint": "const char *nm_ndisc_dhcp_level_to_string(NMNDiscDHCPLevel level);",
+      "added_lines": [],
+      "deleted_lines": [
+        "/* in common cases, the expiry_msec tracks the timestamp in nm_utils_get_monotonic_timestamp_mses()",
+        " * timestamp when the item expires.",
+        " *",
+        " * When we configure an NMNDiscAddress to be announced via the router advertisement,",
+        " * then that address does not have a fixed expiry point in time, instead, the expiry",
+        " * really contains the lifetime from the moment when we send the router advertisement.",
+        " * In that case, the expiry_msec is more a \"lifetime\" that starts counting at timestamp",
+        " * zero.",
+        " *",
+        " * The unit is milliseconds (but of course, the timestamp is zero, so it doesn't really matter). */",
+        "#define NM_NDISC_EXPIRY_BASE_TIMESTAMP ((gint64) 0)",
+        ""
+      ],
+      "context_lines": [
+        " * unit of it is milliseconds. But of course, infinity has not really a unit. */",
+        "#define NM_NDISC_EXPIRY_INFINITY G_MAXINT64",
+        "",
+        "static inline gint64",
+        "_nm_ndisc_lifetime_to_expiry(gint64 now_msec, guint32 lifetime)",
+        "{",
+        ""
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "nm_ndisc_dhcp_level_to_string",
+        "in",
+        "common",
+        "cases",
+        "the",
+        "expiry_msec",
+        "MIN"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers"
+          },
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Connection profile and daemon configuration semantics"
+          },
+          {
+            "name": "dbus_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Stable D-Bus interfaces, properties, signals, and methods"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "config_keys",
+          "config",
+          "dbus_api"
+        ],
+        "profile": "networkmanager",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "nm_ndisc_dhcp_level_to_string",
+        "snippet_start_line": 21,
+        "snippet_end_line": 85,
+        "snippet": "\n#define NM_TYPE_NDISC            (nm_ndisc_get_type())\n#define NM_NDISC(obj)            (_NM_G_TYPE_CHECK_INSTANCE_CAST((obj), NM_TYPE_NDISC, NMNDisc))\n#define NM_NDISC_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST((klass), NM_TYPE_NDISC, NMNDiscClass))\n#define NM_IS_NDISC(obj)         (G_TYPE_CHECK_INSTANCE_TYPE((obj), NM_TYPE_NDISC))\n#define NM_IS_NDISC_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass), NM_TYPE_NDISC))\n#define NM_NDISC_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj), NM_TYPE_NDISC, NMNDiscClass))\n\n#define NM_NDISC_CONFIG \"config\"\n\n#define NM_NDISC_CONFIG_RECEIVED   \"config-received\"\n#define NM_NDISC_RA_TIMEOUT_SIGNAL \"ra-timeout-signal\"\n\ntypedef enum {\n    NM_NDISC_DHCP_LEVEL_UNKNOWN,\n    NM_NDISC_DHCP_LEVEL_NONE,\n    NM_NDISC_DHCP_LEVEL_OTHERCONF,\n    NM_NDISC_DHCP_LEVEL_MANAGED\n} NMNDiscDHCPLevel;\n\nconst char *nm_ndisc_dhcp_level_to_string(NMNDiscDHCPLevel level);\n\n#define NM_NDISC_INFINITY_U32 ((uint32_t) -1)\n\n/* It's important that this is G_MAXINT64, so that we can meaningfully do\n * MIN(e1, e2) to find the minimum expiry time (and properly handle if any\n * of them is infinity).\n *\n * While usually you assign this to \"expiry_msec\", you might say the\n * unit of it is milliseconds. But of course, infinity has not really a unit. */\n#define NM_NDISC_EXPIRY_INFINITY G_MAXINT64\n\nstatic inline gint64\n_nm_ndisc_lifetime_to_expiry(gint64 now_msec, guint32 lifetime)\n{\n    if (lifetime == NM_NDISC_INFINITY_U32)\n        return NM_NDISC_EXPIRY_INFINITY;\n    return now_msec + (((gint64) lifetime) * 1000);\n}\n\nstatic inline gint64\n_nm_ndisc_lifetime_from_expiry(gint64 now_msec, gint64 expiry_msec, gboolean ceil)\n{\n    gint64 diff;\n\n    if (expiry_msec == NM_NDISC_EXPIRY_INFINITY)\n        return NM_NDISC_INFINITY_U32;\n\n    /* we don't expect nor handle integer overflow. The time stamp and expiry\n     * should be reasonably small so that it cannot happen. */\n\n    diff = expiry_msec - now_msec;\n\n    if (diff <= 0)\n        return 0;\n\n    if (ceil) {\n        /* we ceil() towards the next full second (instead of floor()). */\n        diff += 999;\n    }\n\n    return NM_MIN(diff / 1000, (gint64) (G_MAXUINT32 - 1));\n}\n\n/*****************************************************************************/\n"
+      }
+    }
+  ]
+}

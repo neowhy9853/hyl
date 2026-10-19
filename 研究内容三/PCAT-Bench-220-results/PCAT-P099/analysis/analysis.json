@@ -1,0 +1,426 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/linux",
+  "analysis_repo": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis",
+  "base_ref": "09b8a7aa5a341bb345dc492aac139525efa13515",
+  "base_commit": "09b8a7aa5a341bb345dc492aac139525efa13515",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly after worktree-local sparse expansion of drivers/infiniband and include/rdma",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "09dc18894148381d3bfc550083b1236043870dce",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/PCAT-Bench-220/items/PCAT-P099/patch.patch",
+    "resolved_patch": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis/patch.diff"
+  },
+  "package_profile": "kernel_6_6",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 6579,
+    "patch_lines": 169,
+    "diff_added_lines": 45,
+    "diff_deleted_lines": 1,
+    "diff_context_lines": 58,
+    "churn": 46,
+    "raw_hunks": 9,
+    "candidate_hunks": 9,
+    "skipped_doc_hunks": 0,
+    "changed_files": 7,
+    "candidate_context_bytes": 14580,
+    "public_candidate_hunks": 3,
+    "surface_counts": {
+      "exported_symbols": 1,
+      "public_headers": 2
+    },
+    "candidates_json_bytes": 35283
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 7,
+    "total_candidates": 9,
+    "compatibility_changes": 3,
+    "high_priority": 2,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.99,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "用户态 ibv_rereg_mr/IB_USER_VERBS_CMD_REREG_MR 经 uverbs 到各驱动 rereg_user_mr 回调的 access-only 重新注册契约",
+      "affected_api": {
+        "name": "ibv_rereg_mr / IB_USER_VERBS_CMD_REREG_MR",
+        "kind": "public_function",
+        "language": "c",
+        "signature_old": "ibv_rereg_mr(mr, flags, pd, addr, length, access)",
+        "signature_new": "ibv_rereg_mr(mr, flags, pd, addr, length, access)"
+      },
+      "location": {
+        "file": "drivers/infiniband/core/umem.c",
+        "old_lines": [
+          326,
+          328
+        ],
+        "new_lines": [
+          334,
+          342
+        ],
+        "symbol": "ib_umem_check_rereg"
+      },
+      "old_behavior": "补丁前 hns_roce、irdma、mlx5 和 rxe 的 rereg_user_mr 在仅设置 IB_MR_REREG_ACCESS 时不会核对原 ib_umem 是否以 writable 方式 pin；只读 umem 可继续进入驱动的重新注册流程，并可能被接受为带写权限的 MR。mlx4 自带较晚的 writable 检查，因此该驱动已拒绝该输入。",
+      "new_behavior": "补丁后五个驱动在处理重新注册前调用 ib_umem_check_rereg()。当 umem 非 NULL、设置 IB_MR_REREG_ACCESS、未设置 IB_MR_REREG_TRANS、新 access 含 IB_ACCESS_LOCAL_WRITE、IB_ACCESS_REMOTE_WRITE、IB_ACCESS_REMOTE_ATOMIC 或 IB_ACCESS_MW_BIND 且原 umem->writable 为 false 时，helper 返回 -EACCES；NULL umem、原 umem writable、新 access 只读、未设置 REREG_ACCESS，或同时设置 REREG_TRANS 时返回 0。",
+      "compatibility_reason": "这是经公共 uverbs 命令可触发的输入接受范围收紧。既有应用若对最初只读注册的 MR 调用 access-only ibv_rereg_mr() 升级为可写，hns_roce、irdma、mlx5 和 rxe 从可能成功变为确定失败；应用必须连同 IB_MR_REREG_TRANS 重新 pin 内存，或从一开始以 writable access 注册。",
+      "evidence": [
+        {
+          "file": "drivers/infiniband/core/umem.c",
+          "lines": [
+            334,
+            342
+          ],
+          "snippet": "int ib_umem_check_rereg(...) { if (!umem) return 0; if ((flags & IB_MR_REREG_ACCESS) && !(flags & IB_MR_REREG_TRANS)) if (ib_access_writable(new_access_flags) && !umem->writable) return -EACCES; return 0; }"
+        },
+        {
+          "file": "drivers/infiniband/core/uverbs_cmd.c",
+          "lines": [
+            802,
+            836
+          ],
+          "snippet": "uverbs 校验 access_flags 后调用 ib_dev->ops.rereg_user_mr(mr, cmd.flags, ..., cmd.access_flags, ...)，并在 IS_ERR(new_mr) 时把 PTR_ERR(new_mr) 作为命令返回值。"
+        },
+        {
+          "file": "include/rdma/ib_verbs.h",
+          "lines": [
+            4390,
+            4400
+          ],
+          "snippet": "ib_access_writable() 对 LOCAL_WRITE、REMOTE_WRITE、REMOTE_ATOMIC 或 MW_BIND 返回 true。"
+        },
+        {
+          "file": "drivers/infiniband/sw/rxe/rxe_verbs.c",
+          "lines": [
+            1324,
+            1344
+          ],
+          "snippet": "rxe 先校验支持的 rereg flags，再调用 ib_umem_check_rereg()；成功后才更新 PD 引用和 mr->access。"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "虽然 helper 和各驱动回调属于内核内部实现，但 ib_uverbs_rereg_mr() 直接把用户命令的 flags/access 传入回调，并把 ERR_PTR 错误返回用户态；因此输入接受性和 errno 可由 ibv_rereg_mr() 客户端观察。",
+      "uncertainty": "C AST 调用链依赖 tree_sitter 缺失，按 Skill 要求未使用词法扫描伪造 static_call_chains；公共入口到回调的直接分派已通过有界源码读取确认。不同驱动补丁前最终成功与否仍取决于硬件/驱动后续路径。",
+      "manual_review_required": false,
+      "recommended_review": "确认 rdma-core 对内核 -EACCES 的 errno 映射，并检查既有应用是否依赖对只读 MR 的 access-only 写权限升级。",
+      "test_recommendation": "优先用 RXE 创建只读 MR 后分别以只读、LOCAL_WRITE、REMOTE_WRITE、REMOTE_ATOMIC 执行 ibv_rereg_mr；覆盖 ACCESS 缺失、ACCESS|TRANS、PD 组合、无效 flag、原 umem writable、NULL umem，以及 CONFIG_INFINIBAND_USER_MEM=y/n。",
+      "test_priority_reason": "公共用户态入口的旧可接受输入被收紧，且触发条件可由普通 RDMA 应用直接构造。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "公共用户态入口的旧可接受输入被收紧，且触发条件可由普通 RDMA 应用直接构造。",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=public_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "drivers/infiniband/core/umem.c",
+            "old_lines": [
+              326,
+              328
+            ],
+            "new_lines": [
+              326,
+              344
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "exported_symbols"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "exported_symbols",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported kernel symbols used by modules"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.99,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "ibv_rereg_mr/uverbs 重新注册失败的返回值与 errno",
+      "affected_api": {
+        "name": "ibv_rereg_mr / IB_USER_VERBS_CMD_REREG_MR",
+        "kind": "public_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "drivers/infiniband/core/umem.c",
+        "old_lines": [
+          326,
+          328
+        ],
+        "new_lines": [
+          339,
+          341
+        ],
+        "symbol": "ib_umem_check_rereg"
+      },
+      "old_behavior": "对 non-writable umem 的 access-only 写权限升级，hns_roce、irdma、mlx5 和 rxe 没有统一的前置错误，可能成功或返回各自后续硬件路径的错误；mlx4 在取得 MPT 后以 -EPERM 拒绝。",
+      "new_behavior": "相同输入在五个驱动中于回调早期统一返回 ERR_PTR(-EACCES)，ib_uverbs_rereg_mr() 通过 PTR_ERR 把 -EACCES 返回到用户态；rdma-core/ibverbs 客户端观察为 ibv_rereg_mr 失败并设置 errno=EACCES。无效 rereg flag 仍先返回 -EOPNOTSUPP；CONFIG_INFINIBAND_USER_MEM=n 的 header stub 也返回 -EOPNOTSUPP。",
+      "compatibility_reason": "既有客户端的成功/失败分支和错误处理断言会变化；对 mlx4，错误类别还从 EPERM 改为 EACCES。应用若按 errno 决定重试、重新注册或降级策略，行为将不同。",
+      "evidence": [
+        {
+          "file": "drivers/infiniband/core/umem.c",
+          "lines": [
+            339,
+            341
+          ],
+          "snippet": "满足 access-only RO->RW 条件时新增 return -EACCES。"
+        },
+        {
+          "file": "drivers/infiniband/hw/mlx4/mr.c",
+          "lines": [
+            469,
+            493
+          ],
+          "snippet": "新增 helper 在 mlx4_mr_hw_get_mpt() 前返回 -EACCES；原有后置 writable 检查仍把未被 helper 拦截的组合返回为 -EPERM。"
+        },
+        {
+          "file": "drivers/infiniband/core/uverbs_cmd.c",
+          "lines": [
+            830,
+            838
+          ],
+          "snippet": "new_mr = ib_dev->ops.rereg_user_mr(...); if (IS_ERR(new_mr)) { ret = PTR_ERR(new_mr); ... }"
+        },
+        {
+          "file": "include/rdma/ib_umem.h",
+          "lines": [
+            208,
+            212
+          ],
+          "snippet": "CONFIG_INFINIBAND_USER_MEM=n 时 ib_umem_check_rereg() 的 inline stub 固定返回 -EOPNOTSUPP。"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "驱动 ERR_PTR 由 uverbs 原样转换为用户命令错误，libibverbs 的 ibv_rereg_mr 调用者能直接观察返回值和 errno。",
+      "uncertainty": "实际 rdma-core errno 设置需动态端到端验证；静态内核路径已确认 -EACCES 传播到 uverbs 返回值。",
+      "manual_review_required": false,
+      "recommended_review": "核对 mlx4 既有 -EPERM 用户兼容性，并确认所有内核/rdma-core 组合都把负错误稳定映射为 errno=EACCES。",
+      "test_recommendation": "before/after 比较同一输入矩阵的返回值和 errno，单独断言 invalid flag=-EOPNOTSUPP、access-only RO->RW=-EACCES(after)、mlx4 ACCESS|TRANS 仍走原有 -EPERM 特例。",
+      "test_priority_reason": "公共 API 的确定性 errno 发生变化，容易破坏现有错误处理与回归断言。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "公共 API 的确定性 errno 发生变化，容易破坏现有错误处理与回归断言。",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=public_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "drivers/infiniband/core/umem.c",
+            "old_lines": [
+              326,
+              328
+            ],
+            "new_lines": [
+              326,
+              344
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "exported_symbols"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "exported_symbols",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported kernel symbols used by modules"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.98,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "五个 RDMA 驱动 rereg_user_mr 的硬件操作、PD 引用、MR 字段和 umem 生命周期顺序",
+      "affected_api": {
+        "name": "rereg_user_mr driver callbacks",
+        "kind": "callback_type",
+        "language": "c"
+      },
+      "location": {
+        "file": "drivers/infiniband/sw/rxe/rxe_verbs.c",
+        "old_lines": [
+          1325,
+          1330
+        ],
+        "new_lines": [
+          1329,
+          1344
+        ],
+        "symbol": "rxe_rereg_user_mr"
+      },
+      "old_behavior": "补丁前非法 RO->RW access-only 输入可先执行副作用：hns 分配 mailbox、查询/销毁 MPT 并修改 enabled/iova/size/access；irdma 先硬件 dereg 再修改 access/PD，TRANS 时还释放旧 umem；mlx4 获取 MPT，且包含 PD 时可先改 PD，随后才以 -EPERM 检查 writable；mlx5 可进入 UMR/revoke/recreate 与 umem/reg_pages 更新；rxe 可先变更 PD 引用和 mr->access。",
+      "new_behavior": "五个回调都把 ib_umem_check_rereg() 放在上述硬件、引用计数、字段和资源生命周期操作之前。helper 返回 -EACCES 时这些副作用计数应全部为零，MR/PD/umem 状态保持不变。设置 REREG_TRANS 时 helper 返回 0，允许需要重新 pin 的原路径继续；mlx4 的 REREG_ACCESS|REREG_TRANS 仍由其后置检查返回 -EPERM，并保留原有特殊处理顺序。",
+      "compatibility_reason": "失败路径从可能已撤销硬件 MR、改变 PD 引用/MR 字段或分配资源，变为无副作用的前置拒绝。依赖失败后对象状态、可继续使用性或清理顺序的客户端和驱动测试会观察到变化；这同时修复了 non-writable pin 被错误升级的安全/一致性问题。",
+      "evidence": [
+        {
+          "file": "drivers/infiniband/hw/hns/hns_roce_mr.c",
+          "lines": [
+            280,
+            308
+          ],
+          "snippet": "helper 位于 mailbox 分配、MPT query/destroy 及 mr->enabled/iova/size/pd/access 修改之前。"
+        },
+        {
+          "file": "drivers/infiniband/hw/irdma/verbs.c",
+          "lines": [
+            3247,
+            3276
+          ],
+          "snippet": "helper 位于 irdma_hwdereg_mr、access/PD 更新、PBL/umem 释放和重新注册之前。"
+        },
+        {
+          "file": "drivers/infiniband/hw/mlx4/mr.c",
+          "lines": [
+            469,
+            503
+          ],
+          "snippet": "helper 位于 MPT 获取与 PD/access 修改之前；原有 writable/-EPERM 检查保留，用于 ACCESS|TRANS 特例。"
+        },
+        {
+          "file": "drivers/infiniband/hw/mlx5/mr.c",
+          "lines": [
+            1701,
+            1737
+          ],
+          "snippet": "helper 位于 UMR fast path、MR revoke、umem 脱离和 reg_pages 更新之前。"
+        },
+        {
+          "file": "drivers/infiniband/sw/rxe/rxe_verbs.c",
+          "lines": [
+            1329,
+            1344
+          ],
+          "snippet": "helper 返回错误后不会执行 rxe_put/rxe_get、mr->ibmr.pd 或 mr->access 修改。"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "这些内部副作用决定同一个用户 MR 在 ibv_rereg_mr 失败后的 PD、access、硬件注册和资源状态；用户可通过后续 MR 操作、注销和错误结果观察。",
+      "uncertainty": "无对应硬件时只能通过编译和可控 mock 验证五个 wrapper 的调用顺序；真实硬件 mailbox/firmware、PD 引用和 MR 可用性仍需设备环境。",
+      "manual_review_required": true,
+      "recommended_review": "重点审计所有早退前后是否有隐式锁、统计计数或 uobject 生命周期变化，并在真实硬件上验证失败后旧 MR 仍可安全使用和注销。",
+      "test_recommendation": "为 hns、irdma、mlx4、mlx5、rxe 构造 before/after wrapper，记录 helper、mailbox、硬件 dereg/MPT/UMR、PD get/put、MR 字段和 umem release 的次数与严格顺序；helper=-EACCES 时断言驱动副作用为零。",
+      "test_priority_reason": "副作用变化明确且外部可触发，但候选落在驱动内部回调且真实验证分别依赖特定设备；公共输入与 errno 契约已由 High findings 单独覆盖，因此该项作为调用顺序和硬件状态专项低优先级跟进。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "low",
+        "deterministic_priority": "low",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "副作用变化明确且外部可触发，但每个硬件驱动的真实运行验证依赖特定设备，因此优先级低于公共输入和 errno 契约。",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=low from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0007",
+            "file": "drivers/infiniband/sw/rxe/rxe_verbs.c",
+            "old_lines": [
+              1325,
+              1330
+            ],
+            "new_lines": [
+              1326,
+              1335
+            ],
+            "is_public": false,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [],
+            "surface_test_priority": "low",
+            "matched_surfaces": []
+          }
+        ]
+      }
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "静态分析与定向测试均已完成；analysis worktree 已按用户要求清理。若要补齐真实硬件覆盖，使用本次 analysis.json 重建隔离环境并在支持 rereg_mr 的 RXE provider 或对应 RDMA 硬件上复测。"
+}

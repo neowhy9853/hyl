@@ -1,0 +1,204 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/openldap",
+  "analysis_repo": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P080/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P080",
+  "base_ref": "f8ec414d7dad8fe5f235c4df2ddf98e111108adc",
+  "base_commit": "f8ec414d7dad8fe5f235c4df2ddf98e111108adc",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "11ebc033d258da3b3f76b1be77bac750768ef2ae",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P080/patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "openldap",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1423,
+    "patch_lines": 43,
+    "diff_added_lines": 15,
+    "diff_deleted_lines": 0,
+    "diff_context_lines": 13,
+    "churn": 15,
+    "raw_hunks": 2,
+    "candidate_hunks": 2,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 4886,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "public_headers": 1,
+      "user_visible_output": 1,
+      "network_protocol": 1,
+      "persistence_state": 1
+    },
+    "candidates_json_bytes": 11820
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 2,
+    "compatibility_changes": 1,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "openldap",
+      "affected_surface": "public_headers — Public C/C++ headers",
+      "affected_api": {
+        "name": "mdb_txn_flags",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libraries/liblmdb/lmdb.h",
+        "old_lines": [
+          1177,
+          1182
+        ],
+        "new_lines": [
+          1177,
+          1190
+        ],
+        "symbol": "mdb_txn_flags"
+      },
+      "old_behavior": "Function mdb_txn_flags() does not exist. Any reference to this symbol results in a compilation error (missing declaration) or linker error (undefined symbol).",
+      "new_behavior": "New public function mdb_txn_flags(MDB_txn *txn, unsigned int *flags) retrieves the flags of an active transaction. If txn is NULL, returns EINVAL. Otherwise, sets *flags to (txn->mt_flags & MDB_RDONLY) and returns MDB_SUCCESS.",
+      "compatibility_reason": "A new public API function is added to the LMDB public header (libraries/liblmdb/lmdb.h) and implemented in mdb.c. The change is purely additive: no existing functions, types, or macros are modified. Existing callers are unaffected, but the API surface is expanded. Downstream code that calls mdb_txn_flags() will not link against older versions of the LMDB library.",
+      "evidence": [
+        {
+          "file": "libraries/liblmdb/lmdb.h",
+          "lines": [
+            1182,
+            1188
+          ],
+          "snippet": "/** @brief Retrieve the transaction's flags\n *\n * @param[in] txn A transaction handle returned by #mdb_txn_begin()\n * @param[out] flags Address where the flags will be returned.\n * @return A non-zero error value on failure and 0 on success.\n */\nint mdb_txn_flags(MDB_txn *txn, unsigned int *flags);"
+        },
+        {
+          "file": "libraries/liblmdb/mdb.c",
+          "lines": [
+            3645,
+            3650
+          ],
+          "snippet": "int mdb_txn_flags(MDB_txn *txn, unsigned int *flags)\n{\n\tif(!txn) return EINVAL;\n\t*flags = txn->mt_flags & MDB_RDONLY;\n\treturn MDB_SUCCESS;\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The declaration is in libraries/liblmdb/lmdb.h, which is a public C header shipped as part of the LMDB library API (matched by public_headers surface with path **/*.h). The function is an exported symbol available to all downstream consumers of the LMDB library.",
+      "uncertainty": "None. The change is a clear additive API signature change.",
+      "manual_review_required": false,
+      "recommended_review": "Verify the function signature and contract match the LMDB project conventions. The NULL → EINVAL contract and the flag mask (MDB_RDONLY only) should be confirmed against intended behavior.",
+      "test_recommendation": "Write a small C test program that: (1) calls mdb_txn_flags with a NULL txn and asserts EINVAL; (2) calls mdb_txn_flags on a read-only transaction and asserts *flags has MDB_RDONLY set; (3) calls mdb_txn_flags on a write transaction and asserts *flags does not have MDB_RDONLY set.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "libraries/liblmdb/lmdb.h",
+            "old_lines": [
+              1177,
+              1182
+            ],
+            "new_lines": [
+              1177,
+              1190
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "user_visible_output",
+              "network_protocol",
+              "persistence_state"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

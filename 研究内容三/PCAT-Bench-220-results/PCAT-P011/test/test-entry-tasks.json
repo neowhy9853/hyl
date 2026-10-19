@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/3a052d/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/3a052d/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/3a052d",
+  "patch_id": "3a052d55fbfca49d8d435cdd2110fb2667594c61",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "tcp_request",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/forward.c",
+        "old_lines": [
+          2568,
+          2574
+        ],
+        "new_lines": [
+          2570,
+          2576
+        ],
+        "symbol": "tcp_request"
+      },
+      "old_behavior": "Non-QUERY DNS requests over TCP (e.g. NOTIFY, UPDATE) with m=0 and ede=EDE_UNSET would fall through to the forwarding logic block even when flags was set to F_RCODE (from the OPCODE != QUERY branch). This caused non-QUERY requests to be incorrectly forwarded to upstream servers.",
+      "new_behavior": "Non-QUERY DNS requests over TCP with flags set to F_RCODE (non-zero) are now blocked from entering the forwarding logic by the added '!flags' guard. They receive an RCODE rejection instead of being forwarded.",
+      "compatibility_reason": "DNS clients sending non-QUERY requests (NOTIFY, UPDATE, etc.) over TCP to dnsmasq will now receive RCODE responses instead of having their requests forwarded to upstream servers. This restores the correct behavior from before the regression in 729c16a, but clients that depended on the broken forwarding behavior will observe different responses.",
+      "test_recommendation": "Send non-QUERY DNS requests (e.g. DNS NOTIFY) over TCP to dnsmasq and verify they receive an RCODE response instead of being forwarded. Compare behavior before and after the patch.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/3a052d/compatibility-testing"
+}

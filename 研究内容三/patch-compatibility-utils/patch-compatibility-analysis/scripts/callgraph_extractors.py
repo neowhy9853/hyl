@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Set
 
 from callgraph_types import (
     FunctionInfo,
@@ -162,12 +162,17 @@ def extract_tree_sitter_functions(
 
         body = node.child_by_field_name("body")
         call_root = body or node
-        calls = {
-            ts_call_name(source, call_node)
-            for call_node in all_ts_nodes(call_root)
-            if call_node.type in {"call_expression", "call", "command", "method_call"}
-        }
-        calls.discard("")
+        call_sites: Dict[str, Set[int]] = {}
+        for call_node in all_ts_nodes(call_root):
+            if call_node.type not in {"call_expression", "call", "command", "method_call"}:
+                continue
+            call_name = ts_call_name(source, call_node)
+            if not call_name:
+                continue
+            call_sites.setdefault(call_name, set()).add(
+                ts_point_row(call_node.start_point) + 1
+            )
+        calls = set(call_sites)
 
         function_text = node_text(source, node)
         header_text = function_text[: max(0, function_text.find("{"))]
@@ -180,6 +185,7 @@ def extract_tree_sitter_functions(
             language=language,
             is_static=language == "c" and "static" in header_text.split(),
             calls=calls,
+            call_sites=call_sites,
         )
         fn.entry_kind = classify_entry(fn)
         functions.append(fn)
@@ -220,6 +226,7 @@ class PythonAstCollector(ast.NodeVisitor):
             end_line=getattr(node, "end_lineno", getattr(node, "lineno", 1)),
             language="python",
             calls=collector.calls,
+            call_sites=collector.call_sites,
         )
         fn.entry_kind = classify_entry(fn)
         self.functions.append(fn)
@@ -228,11 +235,13 @@ class PythonAstCollector(ast.NodeVisitor):
 class PythonCallCollector(ast.NodeVisitor):
     def __init__(self) -> None:
         self.calls = set()
+        self.call_sites: Dict[str, Set[int]] = {}
 
     def visit_Call(self, node: ast.Call) -> None:
         name = python_call_name(node.func)
         if name:
             self.calls.add(name)
+            self.call_sites.setdefault(name, set()).add(getattr(node, "lineno", 0))
         self.generic_visit(node)
 
 

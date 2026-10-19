@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/git/pca-results/pca-gi/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/pca-gi/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/pca-gi",
+  "patch_id": "pca-git-sideband-patch",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "demultiplex_sideband",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "sideband.c",
+        "old_lines": [
+          129,
+          143
+        ],
+        "new_lines": [
+          129,
+          146
+        ],
+        "symbol": "demultiplex_sideband"
+      },
+      "old_behavior": "On TTY terminals, the ANSI clear-to-eol sequence \\033[K was appended after each non-empty line of sideband output (band 2) as a suffix. Error messages (band 3) received no ANSI sequence at all. On dumb/piped terminals, 8-space padding was appended as suffix and 'remote: ' was used as prefix unchanged.",
+      "new_behavior": "On TTY terminals, the ANSI clear-to-eol sequence \\033[K is prepended before the 'remote: ' prefix on EVERY line, including error messages (band 3). On TTY, the suffix is now empty. On dumb/piped terminals, behavior is identical to before (prefix='remote: ', suffix=8 spaces).",
+      "compatibility_reason": "The raw byte stream to stderr on TTY terminals has changed: ANSI escape sequence \\033[K moved from line-end to line-start position. Error messages (band 3) on TTY now also start with \\033[K where before they had none. While the visual terminal output looks effectively the same, any tool that captures raw TTY stderr and parses ANSI sequences could observe different output. Programmatic consumers that pipe stderr are unaffected (they hit the dumb terminal path where behavior is identical).",
+      "test_recommendation": "Run existing sideband-related tests with instrumentation to verify no test assertions break due to the changed ANSI sequence position. Build with gcov and run t5516-fetch-push.sh as primary regression. Focus on tests that capture or assert on the exact format of remote: prefixed output.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/pca-gi/compatibility-testing"
+}

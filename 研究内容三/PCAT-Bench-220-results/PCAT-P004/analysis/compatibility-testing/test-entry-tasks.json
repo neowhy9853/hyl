@@ -1,0 +1,75 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P004/analysis/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/kernel",
+  "analysis_repo": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P004/analysis/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P004/analysis",
+  "patch_id": "c6d4181a1e8281b4e446ba83aa8eb06021cafdc7",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "CTL_MAXNAME",
+        "kind": "macro",
+        "language": "c",
+        "signature_old": "#define CTL_MAXNAME 10",
+        "signature_new": "#define CTL_MAXNAME 8"
+      },
+      "target_location": {
+        "file": "include/uapi/linux/sysctl.h",
+        "old_lines": [
+          30,
+          30
+        ],
+        "new_lines": [
+          30,
+          30
+        ],
+        "symbol": "CTL_MAXNAME"
+      },
+      "old_behavior": "包含 <linux/sysctl.h> 的用户态 C 代码在编译时得到 CTL_MAXNAME == 10；该公开常量将 sysctl 二进制接口的 name/nlen 最大路径分量数描述为 10。",
+      "new_behavior": "同一用户态源码针对补丁后安装头文件编译时得到 CTL_MAXNAME == 8；依赖该公开常量的数组上限、长度校验或静态断言随之收紧为 8。",
+      "compatibility_reason": "CTL_MAXNAME 位于 include/uapi/linux/sysctl.h，并由相邻注释明确规定 struct __sysctl_args.nlen 的最大可接受值。把 10 改为 8 会让针对新头文件重编译的既有消费者改变长度校验、缓冲区大小或编译期断言，原先按公开常量允许 9 或 10 个路径分量的源码不再满足同一契约，因此构成输入契约收紧。",
+      "test_recommendation": "分别执行 before/after headers_install，用两套安装头文件编译同一 C 探针并比较 CTL_MAXNAME、由其决定的数组容量及 8/9/10 边界判定；再用要求 CTL_MAXNAME >= 9 的静态断言证明既有源码从可编译变为编译失败。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "kselftest, syzkaller program, shell command, or minimal module only when no user-space path exists",
+        "trigger_surface": "drive the externally reachable subsystem path that reaches the changed line",
+        "seed_sources": [
+          "tools/testing/selftests",
+          "static_call_chains",
+          "subsystem docs"
+        ],
+        "surface_entry_kind": "kernel_reachability_reproducer",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P004/analysis/compatibility-testing"
+}

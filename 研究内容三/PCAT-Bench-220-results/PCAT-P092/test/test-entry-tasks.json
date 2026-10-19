@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032",
+  "patch_id": "2a95a616e9da16f49dfc55b11d7ca9f079bbb430",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "CrossOriginProtection.AddTrustedOrigin",
+        "kind": "exported_function",
+        "language": "go"
+      },
+      "target_location": {
+        "file": "src/net/http/csrf.go",
+        "old_lines": [
+          68,
+          69
+        ],
+        "new_lines": [
+          68,
+          69
+        ],
+        "symbol": "AddTrustedOrigin"
+      },
+      "old_behavior": "接受包含 userinfo 部分的 origin 字符串（例如 \"https://@example.com\"、\"https://user:pass@example.com\"），只要 scheme 和 host 存在即通过 AddTrustedOrigin 验证并被加入信任列表。",
+      "new_behavior": "拒绝包含 userinfo 部分的 origin 字符串，返回错误 \"invalid origin %q: userinfo, path, query, and fragment are not allowed\"。同时，原本因 path/query/fragment 被拒绝时的错误信息中增加了 \"userinfo\" 一词。",
+      "compatibility_reason": "输入契约收紧：原本被 AddTrustedOrigin 接受并信任的 origin（含 userinfo）现在会被拒绝并返回错误。虽然浏览器发出的合法 Origin 头从不含 userinfo（RFC 6454），但通过代码直接调用此 API 并传入含 userinfo 的 origin 字符串时，行为会从不报错变为报错。错误消息文本也发生了变化，可能影响依赖错误消息字符串进行判断的调用方。",
+      "test_recommendation": "构造含 userinfo 的 origin 字符串（如 \"https://@example.com\"、\"https://user:pass@example.com\"）分别调用 before/after 版本的 AddTrustedOrigin，验证 before 返回 nil、after 返回 non-nil error；同时验证不含 userinfo 的有效 origin 在两个版本中都返回 nil。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P032/compatibility-testing"
+}

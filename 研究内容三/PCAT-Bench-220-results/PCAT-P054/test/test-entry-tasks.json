@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnf/pca-results/aeb975/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/dnf",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnf/pca-results/aeb975/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnf/pca-results/aeb975",
+  "patch_id": "aeb975e5486fa3bb5cd7db9d35af1eebd4bc8e64",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "usr_drift_protected_paths",
+        "kind": "config_key",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "dnf/cli/cli.py",
+        "old_lines": [
+          254,
+          256
+        ],
+        "new_lines": [
+          255,
+          257
+        ],
+        "symbol": "BaseCli.do_transaction"
+      },
+      "old_behavior": "Entries in usr_drift_protected_paths are treated as path prefixes. For each package file path, the code checks `pkg_file_path.startswith(\"%s/\" % protected_path) or pkg_file_path == protected_path`. A value like `/usr/lib` matches `/usr/lib/foo`, `/usr/lib/bar`, and `/usr/lib` itself.",
+      "new_behavior": "Entries in usr_drift_protected_paths are treated as glob patterns via fnmatch(). A value like `/usr/lib` (no wildcards) matches ONLY the exact path `/usr/lib`. To match files under `/usr/lib/`, users must now use `/usr/lib/*`. Glob special characters (*, ?, []) now have pattern semantics.",
+      "compatibility_reason": "The semantic contract of usr_drift_protected_paths configuration values changed from 'path prefix matching' to 'glob pattern matching'. Users with existing configurations that rely on prefix matching (e.g., `/usr/lib` protecting all files under `/usr/lib/`) will find those paths no longer matched after the patch. This can cause false negatives where previously protected file modifications in bootc transactions are no longer detected and blocked. The fnmatch() function without wildcards performs exact matching, which is narrower than the old prefix-or-exact behavior.",
+      "test_recommendation": "Test with multiple usr_drift_protected_paths values:\n1. Bare path without wildcard (e.g., `/usr/lib`) — verify files under `/usr/lib/` are NOT matched (behavior change from old)\n2. Path with wildcard suffix (e.g., `/usr/lib/*`) — verify files under `/usr/lib/` ARE matched (new way to get old behavior)\n3. Path with glob meta-characters (e.g., `/usr/local/*/bin`) — verify glob matching works as expected\n4. Exact path match (e.g., `/etc/os-release`) — verify exact file is still matched (unchanged behavior)\n5. Verify the `--setopt=usr_drift_protected_paths=` override still works.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/dnf/pca-results/aeb975/compatibility-testing"
+}

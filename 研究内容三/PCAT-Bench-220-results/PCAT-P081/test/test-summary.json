@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P021/analysis.json",
+  "patch_id": "c6fd7de64ac7591a9708c14a34737eb9baf050bc",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P021/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/cpython",
+    "base_commit": "b45319e13273ee17e84e6b8c459f03b141518289",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P021/_worktrees/patched",
+    "package_profile": "c_project"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc",
+    "optimization": "O2 (default CPython build; no C coverage instrumentation)",
+    "coverage_tool": "none",
+    "notes": [
+      "Before-build from parent commit b45319e1 in isolated worktree",
+      "After-build from patched worktree at commit c6fd7de",
+      "Both builds use --with-pydebug for fast build"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 1,
+    "inputs_executed": 1,
+    "contracts_total": 1,
+    "contracts_passed": 0,
+    "contracts_breached": 1,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 1,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 1,
+    "patch_line_coverage_rate": 0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "status": "partial",
+      "target_location": {
+        "file": "Modules/clinic/_functoolsmodule.c.h",
+        "new_lines": [71, 73],
+        "symbol": "_functools_reduce__doc__"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+          "run_command": "python verify_output.py --version after",
+          "expected_signal": "help output shows initial=_initial_missing (not <unrepresentable>); inspect.signature returns valid Signature",
+          "reachability_signal": "help output contains _initial_missing; inspect.signature(functools.reduce) succeeds with initial parameter"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "functools_reduce_docstring_format",
+          "status": "breached",
+          "detail": "help(functools.reduce): before='initial=<unrepresentable>' vs after='initial=_initial_missing'; inspect.signature: before=ValueError vs after=valid Signature"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 0,
+        "uncovered_lines": ["Modules/clinic/_functoolsmodule.c.h:73-75 (PyDoc_STRVAR line; C gcov not applicable)"],
+        "rate": 0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I1",
+          "diff_type": "OUTPUT_FORMAT_CHANGE",
+          "before": "help: reduce(function, iterable, /, initial=<unrepresentable>); inspect.signature: ValueError raised",
+          "after": "help: reduce(function, iterable, /, initial=_initial_missing); inspect.signature: valid Signature returned",
+          "evidence": "Contract breach confirmed via before/after CPython build comparison. help() output format changed; inspect.signature() now succeeds. functools.reduce functional behavior unchanged."
+        }
+      ],
+      "notes": [
+        "功能行为完全一致：reduce 的 4 个功能测试用例在 before 和 after 版本中表现相同",
+        "goc C 代码覆盖率不适用于此文档字符串变更（PyDoc_STRVAR 是编译时常量）",
+        "这是正向改进（bug fix），<unrepresentable> 本身即表明之前无法正确表示默认值"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "none",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": false,
+    "rationale": "functools.reduce 的 help() 输出格式从 initial=<unrepresentable> 变更为 initial=_initial_missing。inspect.signature() 从抛出 ValueError 变为返回有效 Signature。虽然功能行为不变，但输出格式的精确匹配（exact comparison）结果确认为 BREACH, 因为文档生成工具或帮助输出解析器可能受影响。覆盖率门禁未达到（0% < 80%），因为此变更为文档字符串常量变更，不适用 C 代码行级覆盖率检测。",
+    "recommended_actions": [
+      "确认下游工具（Sphinx、IDE 插件）对 functools.reduce 的 docstring 变更无不良反应",
+      "原有的 functools 模块功能回归测试保持不变，所有测试通过",
+      "不需要回滚此变更，它是一个正向的 bug 修复"
+    ]
+  }
+}

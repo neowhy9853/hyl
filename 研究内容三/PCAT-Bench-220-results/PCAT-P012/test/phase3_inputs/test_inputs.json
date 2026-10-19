@@ -1,0 +1,64 @@
+{
+  "inputs": [
+    {
+      "input_id": "I1",
+      "finding_id": "PCA-0001",
+      "target_lines": ["src/rfc3315.c:123-126"],
+      "branch_targeted": "sz < 4 early return (new code path)",
+      "input_type": "raw_packet",
+      "description": "DHCPv6 packet with sz=0 (empty buffer)",
+      "expected_output": "Before: UB/crash; After: return 0 (clean reject)",
+      "reachability_signal": "gcov shows coverage on return 0 path",
+      "setup_required": "Root/sudo for raw socket, network namespace",
+      "dependencies": ["raw socket access", "python3 + struct"]
+    },
+    {
+      "input_id": "I2",
+      "finding_id": "PCA-0001",
+      "target_lines": ["src/rfc3315.c:123-126"],
+      "branch_targeted": "sz < 4 early return",
+      "input_type": "raw_packet",
+      "description": "DHCPv6 packet with sz=3 (under boundary)",
+      "expected_output": "Before: UB; After: return 0",
+      "reachability_signal": "gcov early return path hit",
+      "setup_required": "Root/sudo for raw socket",
+      "dependencies": ["raw socket access"]
+    },
+    {
+      "input_id": "I3",
+      "finding_id": "PCA-0001",
+      "target_lines": ["src/rfc3315.c:126-130"],
+      "branch_targeted": "sz >= 4 (normal path)",
+      "input_type": "raw_packet",
+      "description": "DHCPv6 packet with sz=4 (exact boundary, accepted)",
+      "expected_output": "Before & After: function continues to process (no early return)",
+      "reachability_signal": "gcov no hit on early return, hit on msg_type = *inbuff",
+      "setup_required": "Root/sudo for raw socket",
+      "dependencies": ["raw socket access"]
+    },
+    {
+      "input_id": "I4",
+      "finding_id": "PCA-0002",
+      "target_lines": ["src/rfc3315.c:241-248"],
+      "branch_targeted": "opts > end, opt6_first returns NULL (new code path)",
+      "input_type": "raw_packet",
+      "description": "DHCPv6 RELAY-FORW with sz=20 (truncated, opts past end)",
+      "expected_output": "Before: UB in inline check; After: loop skipped gracefully",
+      "reachability_signal": "gcov on opt6_first (rfc3315.c:2118-2136) with NULL return",
+      "setup_required": "Root/sudo for raw socket",
+      "dependencies": ["raw socket access"]
+    },
+    {
+      "input_id": "I5",
+      "finding_id": "PCA-0002",
+      "target_lines": ["src/rfc3315.c:241-248"],
+      "branch_targeted": "normal RELAY-FORW, opts within bounds",
+      "input_type": "raw_packet",
+      "description": "DHCPv6 RELAY-FORW with sz=37 (minimum valid)",
+      "expected_output": "Before & After: loop enters and processes options normally",
+      "reachability_signal": "gcov on opt6_first with non-NULL return",
+      "setup_required": "Root/sudo for raw socket",
+      "dependencies": ["raw socket access"]
+    }
+  ]
+}

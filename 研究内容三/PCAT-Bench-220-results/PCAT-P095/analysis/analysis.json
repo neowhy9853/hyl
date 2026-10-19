@@ -1,0 +1,219 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P035/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P035",
+  "base_ref": "10981ef1378830f88ff1efba68a98c56a1a33d6f^",
+  "base_commit": "1e28d9f5801c526403651cab6fe2b4912cd0ce8c",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "10981ef1378830f88ff1efba68a98c56a1a33d6f",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/golang/go/commit/10981ef1378830f88ff1efba68a98c56a1a33d6f",
+    "download_url": "https://github.com/golang/go/commit/10981ef1378830f88ff1efba68a98c56a1a33d6f.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P035/_patch-cache/10981ef13788.patch",
+    "commit": "10981ef1378830f88ff1efba68a98c56a1a33d6f",
+    "base_ref_inferred": "10981ef1378830f88ff1efba68a98c56a1a33d6f^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "golang",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 3448,
+    "patch_lines": 70,
+    "diff_added_lines": 13,
+    "diff_deleted_lines": 3,
+    "diff_context_lines": 16,
+    "churn": 16,
+    "raw_hunks": 2,
+    "candidate_hunks": 2,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 4322,
+    "public_candidate_hunks": 0,
+    "surface_counts": {
+      "go_errors": 1,
+      "go_commands": 2,
+      "cli_options": 1,
+      "user_visible_output": 1,
+      "cmd_go": 2,
+      "errors": 1,
+      "tests": 1
+    },
+    "candidates_json_bytes": 13502
+  },
+  "shard_artifacts": {},
+  "analysis_summary": {
+    "notes": "单发现：补丁修复了 go test 在 package list 模式下 pass 时输出的多余空行 bug，该变更属于输出格式变化，优先级 medium。第二个候选仅添加测试数据，无兼容性影响。"
+  },
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 2,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "golang",
+      "affected_surface": "CLI output format of `go test` command in package list mode",
+      "affected_api": {
+        "name": "go test output newline-before-summary guard",
+        "kind": "cli_command",
+        "language": "go"
+      },
+      "location": {
+        "file": "src/cmd/go/internal/test/test.go",
+        "old_lines": [
+          1733,
+          1741
+        ],
+        "new_lines": [
+          1733,
+          1743
+        ],
+        "symbol": "Act"
+      },
+      "old_behavior": "当 go test 在 package list 模式下（非 -v 非 -json）运行，且被测试进程输出不以换行符结尾时，之前的逻辑检查的是 out（buf.Reset() 之前拍下的快照），导致在一次 pass 的测试中 buf 已被 Reset() 清空时仍然向 stdout 写入了一个多余的换行符，使其在 \"ok\" 摘要行之前出现一个多余的空行。",
+      "new_behavior": "新逻辑改为检查 buf（buf.Reset() 之后的状态）；当非 verbose 非 JSON 模式下 buf 已被 Reset() 清空时，不再写入多余换行符，\"ok\" 摘要行直接紧接上一行输出（或作为该测试输出的第一行），消除了多余空行。",
+      "compatibility_reason": "该变更修复了一个可见的输出格式 bug（消除了 go test pass 输出中的多余空行）。虽然是对既有错误的修正，但脚本或工具若依赖于该多余空行作为输出段分隔符，解析逻辑可能会失败。大多数解析器使用 ^ok\\s+ 正则匹配来定位 OK 行，不受该空行的影响。变更仅影响 package list 模式 + 测试 pass + 输出不以换行结尾 + 非 verbose + 非 JSON 的组合场景，影响面较窄。",
+      "evidence": [
+        {
+          "file": "src/cmd/go/internal/test/test.go",
+          "lines": [
+            1733,
+            1743
+          ],
+          "snippet": "\t\t// Ensure the output ends with a newline before the \"ok\" line\n\t\t// (https://golang.org/issue/49317). Check buf, which holds the\n\t\t// output still to be printed; out may include output that was\n\t\t// discarded above (https://go.dev/issue/79786).\n\t\tif buf.Len() > 0 && !bytes.HasSuffix(buf.Bytes(), []byte(\"\\n\")) {\n\t\t\tcmd.Stdout.Write([]byte(\"\\n\"))\n\t\t}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "虽然 change 在 src/cmd/go/internal/test/ 目录（属 internal 包），但变更直接影响 go test CLI 命令在用户终端上的可见输出格式。go test 是 Go 工具链的公开 CLI 命令，其 stdout 格式的任一变化都属于外部可观察行为。",
+      "uncertainty": "需要确认是否有下游工具（如 CI 面板、IDE 插件）依赖该多余空行作为输出段边界。",
+      "manual_review_required": true,
+      "recommended_review": "建议审查 go test 输出格式的消费者（如 go test -json 模式之外的解析工具），确认是否利用空行做分段。",
+      "test_recommendation": "重点回归测试 go test 在 package list 模式、非 verbose、非 JSON、测试 pass 且输出尾部无换行场景下的输出格式。同时验证 FAIL 路径下原有 NEWLINE 插入逻辑未被影响。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=low from 1 matched candidate hunk(s)",
+          "matched only test/doc surfaces; priority forced to low",
+          "high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/cmd/go/internal/test/test.go",
+            "old_lines": [
+              1733,
+              1741
+            ],
+            "new_lines": [
+              1733,
+              1743
+            ],
+            "is_public": false,
+            "is_test": true,
+            "is_doc": false,
+            "surface_reasons": [
+              "go_errors",
+              "go_commands",
+              "cli_options",
+              "user_visible_output",
+              "cmd_go",
+              "errors"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "go_errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel value, wrapping, and comparison behavior."
+              },
+              {
+                "name": "go_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "Go command-line tool options, output, and exit behavior."
+              },
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cmd_go",
+                "test_priority": "high",
+                "public": true,
+                "description": "Go command behavior"
+              },
+              {
+                "name": "errors",
+                "test_priority": "high",
+                "public": true,
+                "description": "Error type, sentinel errors, error wrapping"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=low from 1 matched candidate hunk(s); matched only test/doc surfaces; priority forced to low; high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

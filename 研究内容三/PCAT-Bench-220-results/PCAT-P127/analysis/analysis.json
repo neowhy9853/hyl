@@ -1,0 +1,1421 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P067/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P067",
+  "base_ref": "8b68438b2e0b38909b5b2f76e22ceccd2fa48278^",
+  "base_commit": "d7ec293abc89a0dde9cc730acfa7ba838601a197",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "8b68438b2e0b38909b5b2f76e22ceccd2fa48278",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/apache/httpd/commit/8b68438b2e0b38909b5b2f76e22ceccd2fa48278",
+    "download_url": "https://github.com/apache/httpd/commit/8b68438b2e0b38909b5b2f76e22ceccd2fa48278.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P067/_patch-cache/8b68438b2e0b.patch",
+    "commit": "8b68438b2e0b38909b5b2f76e22ceccd2fa48278",
+    "base_ref_inferred": "8b68438b2e0b38909b5b2f76e22ceccd2fa48278^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "httpd",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "soft threshold exceeded",
+    "churn=275 >= 250",
+    "candidates_json_bytes=148993 >= 100000"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 23612,
+    "patch_lines": 578,
+    "diff_added_lines": 127,
+    "diff_deleted_lines": 148,
+    "diff_context_lines": 223,
+    "churn": 275,
+    "raw_hunks": 25,
+    "candidate_hunks": 24,
+    "skipped_doc_hunks": 1,
+    "changed_files": 10,
+    "candidate_context_bytes": 53874,
+    "public_candidate_hunks": 22,
+    "surface_counts": {
+      "network_protocol": 12,
+      "user_visible_output": 7,
+      "plugin_api": 21,
+      "logging": 5,
+      "persistence_state": 5,
+      "module_api": 21,
+      "config_keys": 10,
+      "request_handling": 3,
+      "config_directives": 3,
+      "cli_options": 2,
+      "cli": 2,
+      "public_headers": 5,
+      "callbacks": 1,
+      "tests": 2
+    },
+    "candidates_json_bytes": 148993
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 10
+  },
+  "summary": {
+    "total_changed_files": 10,
+    "total_candidates": 24,
+    "compatibility_changes": 10,
+    "high_priority": 9,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "httpd",
+      "affected_surface": "Apache httpd configuration directive H2HeaderStrictness",
+      "affected_api": {
+        "name": "H2HeaderStrictness",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/http2/h2_config.c",
+        "old_lines": [
+          964,
+          965
+        ],
+        "new_lines": [
+          937,
+          939
+        ],
+        "symbol": "h2_cmds"
+      },
+      "old_behavior": "H2HeaderStrictness directive was available to control HTTP/2 header strictness level (rfc7540, rfc9113, or highest). Configs using this directive were valid and accepted by httpd.",
+      "new_behavior": "The H2HeaderStrictness directive and its handler function h2_conf_set_header_strictness are completely removed. Any httpd configuration that uses this directive will cause a startup failure with an 'unknown directive' error.",
+      "compatibility_reason": "Existing httpd configurations that use H2HeaderStrictness will fail to start after the update. This is a hard compatibility break for any deployment that configured this directive (server config or virtual host).",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_config.c",
+          "lines": [
+            964,
+            965
+          ],
+          "snippet": "    AP_INIT_TAKE1(\"H2HeaderStrictness\", h2_conf_set_header_strictness, NULL,\n                  RSRC_CONF, \"set strictness of header value checks\"),"
+        },
+        {
+          "file": "modules/http2/h2_config.c",
+          "lines": [
+            712,
+            726
+          ],
+          "snippet": "static const char *h2_conf_set_header_strictness(\n    cmd_parms *cmd, void *dirconf, const char *value)\n{\n    if (!strcasecmp(value, \"highest\")) {\n        CONFIG_CMD_SET(cmd, dirconf, H2_CONF_HEADER_STRICTNESS, 1000000);\n        return NULL;\n    }\n    else if (!strcasecmp(value, \"rfc7540\")) {\n        CONFIG_CMD_SET(cmd, dirconf, H2_CONF_HEADER_STRICTNESS, 7540);\n        return NULL;\n    }\n    else if (!strcasecmp(value, \"rfc9113\")) {\n        CONFIG_CMD_SET(cmd, dirconf, H2_CONF_HEADER_STRICTNESS, 9113);\n        return NULL;\n    }\n    return \"value must be one of highest|rfc7540|rfc9113\";\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "H2HeaderStrictness was a documented public configuration directive exposed via AP_INIT_TAKE1 in the Apache command table, usable in server config and virtual host contexts. It was user-facing with described semantics.",
+      "uncertainty": "None - the directive and its handler are completely deleted, and any reference to it in configuration files will cause httpd to abort startup.",
+      "manual_review_required": true,
+      "recommended_review": "Confirm that the intent is to permanently remove this directive rather than deprecate it. Users will need migration guidance if they relied on this directive for security or RFC compliance.",
+      "test_recommendation": "Verify httpd fails to start with old configurations containing H2HeaderStrictness. Document the appropriate upgrade path.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0011",
+            "file": "modules/http2/h2_config.c",
+            "old_lines": [
+              964,
+              971
+            ],
+            "new_lines": [
+              937,
+              942
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "config_keys",
+              "cli",
+              "plugin_api",
+              "module_api",
+              "config_directives"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "cli",
+                "test_priority": "medium",
+                "public": true,
+                "description": "httpd and support utility command-line behavior"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "config_directives",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration directive parsing and behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "httpd",
+      "affected_surface": "Public header API in h2_util.h - response header ignore function renamed",
+      "affected_api": {
+        "name": "h2_util_ignore_header",
+        "kind": "exported_function",
+        "language": "c",
+        "signature_old": "int h2_util_ignore_header(const char *name)",
+        "signature_new": "int h2_util_ignore_resp_header(const char *name)"
+      },
+      "location": {
+        "file": "modules/http2/h2_util.h",
+        "old_lines": [
+          490,
+          492
+        ],
+        "new_lines": [
+          377,
+          377
+        ],
+        "symbol": "h2_util_ignore_header"
+      },
+      "old_behavior": "h2_util_ignore_header(const char *name) returned true for connection, proxy-connection, upgrade, keep-alive, and transfer-encoding headers. It was declared in the public header h2_util.h and called from h2_c2_filter.c and h2_util.c.",
+      "new_behavior": "h2_util_ignore_header is removed from public header and implementation. It is functionally replaced by h2_util_ignore_resp_header(const char *name) which checks only upgrade, connection, keep-alive, and transfer-encoding (no longer checks proxy-connection). Internal callers are updated to use the new name.",
+      "compatibility_reason": "Any external code or third-party module that declares or calls h2_util_ignore_header will fail to link (undefined symbol). The replacement function has a different name and slightly different semantics (proxy-connection no longer filtered).",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_util.h",
+          "lines": [
+            490,
+            492
+          ],
+          "snippet": "int h2_util_ignore_header(const char *name);"
+        },
+        {
+          "file": "modules/http2/h2_util.c",
+          "lines": [
+            1390,
+            1400
+          ],
+          "snippet": "int h2_util_ignore_header(const char *name)\n{\n    /* never forward, ch. 8.1.2.2 */\n    return (H2_HD_MATCH_LIT_CS(\"connection\", name)\n            || H2_HD_MATCH_LIT_CS(\"proxy-connection\", name)\n            || H2_HD_MATCH_LIT_CS(\"upgrade\", name)\n            || H2_HD_MATCH_LIT_CS(\"keep-alive\", name)\n            || H2_HD_MATCH_LIT_CS(\"transfer-encoding\", name));\n}"
+        },
+        {
+          "file": "modules/http2/h2_util.c",
+          "lines": [
+            1660,
+            1667
+          ],
+          "snippet": "int h2_util_ignore_resp_header(const char *name)\n{\n    nghttp2_nv nv;\n    nv.name = (uint8_t*)name;\n    nv.namelen = strlen(name);\n    return contains_name(H2_LIT_ARGS(IgnoredResponseHeaders), &nv);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "h2_util_ignore_header was a non-static function declared in a public header (h2_util.h) installed as part of the mod_http2 module. It was callable by other Apache modules and its removal breaks symbol linkage.",
+      "uncertainty": "The proxy-connection header check removal appears intentional since proxy-connection is in IgnoredRequestHeaders but not in IgnoredResponseHeaders. This is a deliberate design change.",
+      "manual_review_required": true,
+      "recommended_review": "Verify no external Apache modules depend on h2_util_ignore_header outside the mod_http2 module itself. Confirm the proxy-connection exclusion from response headers is correct.",
+      "test_recommendation": "Verify that all internal callers are updated (h2_c2_filter.c, h2_util.c). Test that connection-related headers are correctly filtered in both request and response contexts.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0021",
+            "file": "modules/http2/h2_util.h",
+            "old_lines": [
+              375,
+              399
+            ],
+            "new_lines": [
+              374,
+              380
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "plugin_api",
+              "network_protocol",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "httpd",
+      "affected_surface": "Public header API - request header ignore function removed",
+      "affected_api": {
+        "name": "h2_req_ignore_header",
+        "kind": "exported_function",
+        "language": "c",
+        "signature_old": "int h2_req_ignore_header(const char *name, size_t len)",
+        "signature_new": "static int h2_req_ignore_header(nghttp2_nv *nv)"
+      },
+      "location": {
+        "file": "modules/http2/h2_util.h",
+        "old_lines": [
+          345,
+          345
+        ],
+        "new_lines": [
+          345,
+          346
+        ],
+        "symbol": "h2_req_ignore_header"
+      },
+      "old_behavior": "h2_req_ignore_header was a public function declared in h2_util.h that checked if a request header name should be ignored (connection, proxy-connection, upgrade, keep-alive, transfer-encoding, http2-settings).",
+      "new_behavior": "The public declaration is removed from h2_util.h. The implementation is made static (internal only, signature changed to accept nghttp2_nv* instead of char*/size_t). External callers can no longer access this function.",
+      "compatibility_reason": "Any code that previously called h2_req_ignore_header(name, len) will fail to compile or link. The function is now private to h2_util.c.",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_util.h",
+          "lines": [
+            342,
+            345
+          ],
+          "snippet": "int h2_req_ignore_header(const char *name, size_t len);\nint h2_req_ignore_trailer(const char *name, size_t len);\nint h2_res_ignore_trailer(const char *name, size_t len);"
+        },
+        {
+          "file": "modules/http2/h2_util.c",
+          "lines": [
+            1670,
+            1672
+          ],
+          "snippet": "static int h2_req_ignore_header(nghttp2_nv *nv)\n{\n    return contains_name(H2_LIT_ARGS(IgnoredRequestHeaders), nv);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The function was previously a public, non-static function declared in a public header file. Other modules could call it to check header names.",
+      "uncertainty": "It is unclear if any external Apache modules or hooks outside mod_http2 used this function. Within mod_http2, the callers have been refactored.",
+      "manual_review_required": true,
+      "recommended_review": "Audit other Apache modules for usage of h2_req_ignore_header before merging this change into a stable release branch.",
+      "test_recommendation": "Verify that all internal callers of request header ignore functionality still work correctly after the refactor.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0020",
+            "file": "modules/http2/h2_util.h",
+            "old_lines": [
+              342,
+              350
+            ],
+            "new_lines": [
+              342,
+              349
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "plugin_api",
+              "network_protocol",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "httpd",
+      "affected_surface": "Public header API - request trailer ignore function renamed",
+      "affected_api": {
+        "name": "h2_req_ignore_trailer",
+        "kind": "exported_function",
+        "language": "c",
+        "signature_old": "int h2_req_ignore_trailer(const char *name, size_t len)",
+        "signature_new": "int h2_ignore_req_trailer(const char *name, size_t len)"
+      },
+      "location": {
+        "file": "modules/http2/h2_util.h",
+        "old_lines": [
+          344,
+          344
+        ],
+        "new_lines": [
+          345,
+          345
+        ],
+        "symbol": "h2_req_ignore_trailer"
+      },
+      "old_behavior": "h2_req_ignore_trailer checked if the name was an ignored request header OR an ignored request trailer (te, host, range, cookie, expect, pragma, max-forwards, cache-control, authorization, content-length, proxy-authorization).",
+      "new_behavior": "Renamed to h2_ignore_req_trailer. Same external signature (const char *name, size_t len) but internally refactored to use contains_name() and the new nghttp2_nv-based infrastructure. Semantically equivalent for the same input.",
+      "compatibility_reason": "Any code that calls h2_req_ignore_trailer will fail to link (undefined symbol). The replacement function has a different name despite identical semantics.",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_util.h",
+          "lines": [
+            344,
+            345
+          ],
+          "snippet": "int h2_req_ignore_trailer(const char *name, size_t len);\nint h2_res_ignore_trailer(const char *name, size_t len);"
+        },
+        {
+          "file": "modules/http2/h2_stream.c",
+          "lines": [
+            657,
+            657
+          ],
+          "snippet": "    if (h2_ignore_req_trailer(name, nlen)) {"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "This function was declared in a public header (h2_util.h) and used by other compilation units (h2_stream.c). It is part of the mod_http2 module API surface.",
+      "uncertainty": "Callers within mod_http2 are updated (h2_stream.c), but external module callers are unknown.",
+      "manual_review_required": true,
+      "recommended_review": "Check if any modules outside mod_http2 reference the old symbol h2_req_ignore_trailer.",
+      "test_recommendation": "Verify that request trailer handling in h2_stream.c works correctly with the renamed function.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0020",
+            "file": "modules/http2/h2_util.h",
+            "old_lines": [
+              342,
+              350
+            ],
+            "new_lines": [
+              342,
+              349
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "plugin_api",
+              "network_protocol",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0005",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "httpd",
+      "affected_surface": "Public header API - response trailer ignore function renamed with expanded scope",
+      "affected_api": {
+        "name": "h2_res_ignore_trailer",
+        "kind": "exported_function",
+        "language": "c",
+        "signature_old": "int h2_res_ignore_trailer(const char *name, size_t len)",
+        "signature_new": "int h2_ignore_resp_trailer(const char *name, size_t len)"
+      },
+      "location": {
+        "file": "modules/http2/h2_util.h",
+        "old_lines": [
+          345,
+          345
+        ],
+        "new_lines": [
+          346,
+          346
+        ],
+        "symbol": "h2_res_ignore_trailer"
+      },
+      "old_behavior": "h2_res_ignore_trailer checked only the IgnoredResponseTrailers list (age, date, vary, cookie, expires, warning, location, retry-after, cache-control, www-authenticate, proxy-authenticate).",
+      "new_behavior": "h2_ignore_resp_trailer now checks BOTH IgnoredResponseHeaders (upgrade, connection, keep-alive, transfer-encoding) AND IgnoredResponseTrailers. Response trailers matching connection-related header names will now also be silently dropped.",
+      "compatibility_reason": "Link failure for old symbol name, plus a behavioral expansion: response trailers matching upgrade, connection, keep-alive, or transfer-encoding are now additionally filtered. This could cause trailers to disappear that were previously forwarded.",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_util.c",
+          "lines": [
+            1685,
+            1693
+          ],
+          "snippet": "int h2_ignore_resp_trailer(const char *name, size_t len)\n{\n    nghttp2_nv nv;\n    nv.name = (uint8_t*)name;\n    nv.namelen = strlen(name);\n    return (contains_name(H2_LIT_ARGS(IgnoredResponseHeaders), &nv)\n            || contains_name(H2_LIT_ARGS(IgnoredResponseTrailers), &nv));\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Public header declaration in h2_util.h, accessible to other Apache modules.",
+      "uncertainty": "The expanded filtering (now also checking IgnoredResponseHeaders for trailers) may be intentional and desirable, but could affect clients that depended on those trailers being forwarded.",
+      "manual_review_required": true,
+      "recommended_review": "Verify that the expanded filtering of response trailers (now including connection-related headers from IgnoredResponseHeaders) is intentional.",
+      "test_recommendation": "Test that response trailers matching upgrade, connection, keep-alive, transfer-encoding are correctly filtered.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0020",
+            "file": "modules/http2/h2_util.h",
+            "old_lines": [
+              342,
+              350
+            ],
+            "new_lines": [
+              342,
+              349
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "plugin_api",
+              "network_protocol",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0006",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "httpd",
+      "affected_surface": "Public header macros in h2_util.h - nghttp2 helper macros removed",
+      "affected_api": {
+        "name": "H2_HD_MATCH_LIT_CS / H2_CREATE_NV_* macros",
+        "kind": "macro",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/http2/h2_util.h",
+        "old_lines": [
+          375,
+          389
+        ],
+        "new_lines": [
+          374,
+          377
+        ],
+        "symbol": "H2_HD_MATCH_LIT_CS"
+      },
+      "old_behavior": "Four macros were publicly available in h2_util.h: H2_HD_MATCH_LIT_CS (case-insensitive header name match), H2_CREATE_NV_LIT_CS, H2_CREATE_NV_CS_LIT, H2_CREATE_NV_CS_CS (nghttp2_nv struct creation helpers). These were meant for constructing nghttp2 name-value pairs with string literals.",
+      "new_behavior": "All four macros are removed from the public header. H2_HD_MATCH_LIT_CS usage is replaced by the contains_name() function using IgnoredResponseHeaders literal array internally.",
+      "compatibility_reason": "Any code that includes h2_util.h and uses any of these four macros will fail to compile. These macros were part of the public API surface and their removal is an ABI break for any code that depended on them.",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_util.h",
+          "lines": [
+            375,
+            389
+          ],
+          "snippet": "#define H2_HD_MATCH_LIT_CS(l, name)  \\\n    ((strlen(name) == sizeof(l) - 1) && !apr_strnatcasecmp(l, name))\n\n#define H2_CREATE_NV_LIT_CS(nv, NAME, VALUE) nv->name = (uint8_t *)NAME;\n#define H2_CREATE_NV_CS_LIT(nv, NAME, VALUE) nv->name = (uint8_t *)NAME;\n#define H2_CREATE_NV_CS_CS(nv, NAME, VALUE) nv->name = (uint8_t *)NAME;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "These macros were defined in a public header included by other Apache modules, without any internal-only guard.",
+      "uncertainty": "These macros were likely intended as internal helpers for mod_http2 implementation details. If any external module used them, it will break at compile time.",
+      "manual_review_required": false,
+      "recommended_review": "None - the macros are clearly removed as part of the code clean-up. The H2_HD_MATCH_LIT macro (without _CS suffix) is preserved.",
+      "test_recommendation": "Full compilation of the httpd tree without these macros. Verify mod_http2 compiles and operates correctly after their removal.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=macro with contract/signature type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0021",
+            "file": "modules/http2/h2_util.h",
+            "old_lines": [
+              375,
+              399
+            ],
+            "new_lines": [
+              374,
+              380
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "plugin_api",
+              "network_protocol",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=macro with contract/signature type=ABI_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0007",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "httpd",
+      "affected_surface": "Public enum h2_config_var_t in h2_config.h",
+      "affected_api": {
+        "name": "H2_CONF_HEADER_STRICTNESS",
+        "kind": "enum_type",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/http2/h2_config.h",
+        "old_lines": [
+          43,
+          46
+        ],
+        "new_lines": [
+          43,
+          45
+        ],
+        "symbol": "H2_CONF_HEADER_STRICTNESS"
+      },
+      "old_behavior": "The h2_config_var_t enum contained H2_CONF_HEADER_STRICTNESS as the last value. This enum value could be passed to h2_config_sgeti/sgeti64/cgeti/cgeti64 to retrieve the header strictness setting.",
+      "new_behavior": "H2_CONF_HEADER_STRICTNESS is removed from the enum. Any code using this enum value will fail to compile. The getter/setter functions no longer handle this case, falling through to the default branch.",
+      "compatibility_reason": "The enum value H2_CONF_HEADER_STRICTNESS is removed from the public header without a deprecation cycle or compatibility macro. Code referencing this enum value will fail to compile.",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_config.h",
+          "lines": [
+            40,
+            46
+          ],
+          "snippet": "    H2_CONF_COPY_FILES,\n    H2_CONF_EARLY_HINTS,\n    H2_CONF_PADDING_BITS,\n    H2_CONF_PADDING_ALWAYS,\n    H2_CONF_OUTPUT_BUFFER,\n    H2_CONF_STREAM_TIMEOUT,\n    H2_CONF_HEADER_STRICTNESS\n} h2_config_var_t;"
+        },
+        {
+          "file": "modules/http2/h2_config.c",
+          "lines": [
+            281,
+            283
+          ],
+          "snippet": "        case H2_CONF_HEADER_STRICTNESS:\n            return H2_CONFIG_GET(conf, &defconf, header_strictness);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "This enum is in a public header (h2_config.h) and its values are used as parameters to public API functions like h2_config_sgeti and h2_config_geti64 available to other modules.",
+      "uncertainty": "Since H2_CONF_HEADER_STRICTNESS was the last enum value, its removal does not shift subsequent values. However, code that assigns or compares against this value will not compile.",
+      "manual_review_required": true,
+      "recommended_review": "Consider preserving H2_CONF_HEADER_STRICTNESS as a deprecated sentinel with a comment to avoid compile errors in external code.",
+      "test_recommendation": "Compile and link all Apache modules that reference h2_config_var_t enum values.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=enum_type with contract/signature type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0012",
+            "file": "modules/http2/h2_config.h",
+            "old_lines": [
+              43,
+              49
+            ],
+            "new_lines": [
+              43,
+              48
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "cli_options",
+              "config_keys",
+              "cli",
+              "plugin_api",
+              "network_protocol",
+              "module_api",
+              "config_directives",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "cli",
+                "test_priority": "medium",
+                "public": true,
+                "description": "httpd and support utility command-line behavior"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "config_directives",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration directive parsing and behavior"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=enum_type with contract/signature type=ABI_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0008",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "httpd",
+      "affected_surface": "HTTP/2 field value whitespace handling - nghttp2 validation always disabled, manual stripping added",
+      "affected_api": {
+        "name": "nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation",
+        "kind": "plugin_api",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/http2/h2_session.c",
+        "old_lines": [
+          957,
+          968
+        ],
+        "new_lines": [
+          957,
+          966
+        ],
+        "symbol": "h2_session_create"
+      },
+      "old_behavior": "The nghttp2 library would optionally RST (reject) HTTP/2 streams containing field values with leading or trailing whitespace. The behavior was configurable via H2HeaderStrictness: rfc7540 value (< 9113) allowed it, while rfc9113 (>= 9113) caused stream rejection.",
+      "new_behavior": "The RFC 9113 whitespace validation in nghttp2 is always disabled (parameter always 1). Instead, mod_http2 itself strips whitespace from field values using strip_field_value_ws(). Whitespace in HTTP/2 field values is silently accepted and removed rather than causing stream rejection.",
+      "compatibility_reason": "This is a significant behavioral change: 1) Clients that previously received RST_STREAM for whitespace-containing headers will now succeed, and 2) Backend applications will see field values that differ from what the client sent (spaces/tabs stripped). Applications with exact header value comparisons may behave differently.",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_session.c",
+          "lines": [
+            959,
+            963
+          ],
+          "snippet": "    /* nghttp2 v1.50.0 introduces the strictness checks on leading/trailing\n     * whitespace of RFC 9113 for fields. But, by default, it RST streams\n     * carrying such. We do not want that. We want to strip the ws and\n     * handle them, just like the HTTP/1.1 parser does. */\n    nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation(options, 1);"
+        },
+        {
+          "file": "modules/http2/h2_util.c",
+          "lines": [
+            1416,
+            1424
+          ],
+          "snippet": "static void strip_field_value_ws(nghttp2_nv *nv)\n{\n    while(nv->valuelen && (nv->value[0] == ' ' || nv->value[0] == '\\t')) {\n        nv->value++; nv->valuelen--;\n    }\n    while(nv->valuelen && (nv->value[nv->valuelen-1] == ' '\n                           || nv->value[nv->valuelen-1] == '\\t')) {\n        nv->valuelen--;\n    }\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "This changes the observable HTTP/2 protocol behavior visible to all HTTP/2 clients and backends. The field values received by Apache modules and applications will differ from the original client-sent values.",
+      "uncertainty": "Applications that rely on exact field value bytes (e.g., cryptographic signing of header values) could see modified inputs. The change aims to align HTTP/2 behavior with HTTP/1.1 but the switch from configurable to always-on is noteworthy.",
+      "manual_review_required": true,
+      "recommended_review": "Consider whether preserving the ability to reject streams with whitespace (rather than silently stripping) is needed for security-critical deployments. Verify no HTTP/2 extension headers carry whitespace-sensitive values.",
+      "test_recommendation": "Test HTTP/2 requests/responses with leading/trailing whitespace in header field values. Match behavior between HTTP/1.1 and HTTP/2 for whitespace-containing headers. Verify the test suite (test_203_rfc9113.py) covers all whitespace scenarios.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0013",
+            "file": "modules/http2/h2_session.c",
+            "old_lines": [
+              957,
+              968
+            ],
+            "new_lines": [
+              957,
+              966
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "config_keys",
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "network_protocol",
+              "module_api",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    },
+    {
+      "id": "PCA-0009",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "httpd",
+      "affected_surface": "h2_req_add_header function - input header value whitespace now stripped",
+      "affected_api": {
+        "name": "h2_req_add_header",
+        "kind": "exported_function",
+        "language": "c",
+        "signature_old": "apr_status_t h2_req_add_header(apr_table_t *headers, apr_pool_t *pool, const char *name, size_t nlen, const char *value, size_t vlen, size_t max_field_len, int *pwas_added)",
+        "signature_new": "apr_status_t h2_req_add_header(...) [same public signature]"
+      },
+      "location": {
+        "file": "modules/http2/h2_util.c",
+        "old_lines": [
+          1634,
+          1648
+        ],
+        "new_lines": [
+          1776,
+          1786
+        ],
+        "symbol": "h2_req_add_header"
+      },
+      "old_behavior": "h2_req_add_header processed header names and values directly without whitespace stripping. The old implementation directly used the name/len/value/vlen parameters to perform ignore checks and table insertion.",
+      "new_behavior": "h2_req_add_header now delegates to a static req_add_header() which calls strip_field_value_ws(nv) before processing. Leading and trailing whitespace in header values is silently stripped during HTTP/2 to HTTP/1.1 header conversion for all requests.",
+      "compatibility_reason": "Header values with leading/trailing whitespace will be silently stripped. Backend applications (PHP, CGI, proxy) will receive modified header values. Code that compares or validates exact header bytes may fail. The public signature is unchanged but the input contract has changed: whitespace-padded values are now accepted where previously they would be passed through verbatim.",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_util.c",
+          "lines": [
+            1695,
+            1702
+          ],
+          "snippet": "static apr_status_t req_add_header(apr_table_t *headers, apr_pool_t *pool,\n                                   nghttp2_nv *nv, size_t max_field_len,\n                                   int *pwas_added)\n{\n    char *hname, *hvalue;\n    const char *existing;\n    *pwas_added = 0;\n    strip_field_value_ws(nv);"
+        },
+        {
+          "file": "modules/http2/h2_util.c",
+          "lines": [
+            1776,
+            1786
+          ],
+          "snippet": "apr_status_t h2_req_add_header(apr_table_t *headers, apr_pool_t *pool,\n                              const char *name, size_t nlen,\n                              const char *value, size_t vlen,\n                              size_t max_field_len, int *pwas_added)\n{\n    nghttp2_nv nv;\n    nv.name = (uint8_t*)name;\n    nv.namelen = nlen;\n    nv.value = (uint8_t*)value;\n    nv.valuelen = vlen;\n    return req_add_header(headers, pool, &nv, max_field_len, pwas_added);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "h2_req_add_header is declared in the public header h2_util.h and is the standard way HTTP/2 request headers are added to the request_rec headers table. Every HTTP/2 request passes through this code path.",
+      "uncertainty": "The whitespace stripping is consistent with HTTP/1.1 parser behavior (RFC 7230 Section 3.2.4). Practical impact should be minimal since HTTP/1.1 already strips whitespace. However, applications that receive headers via HTTP/2 with the expectation of exact byte fidelity may be affected.",
+      "manual_review_required": false,
+      "recommended_review": "The change aligns HTTP/2 header handling with HTTP/1.1 behavior. The test suite (test_203_rfc9113.py) explicitly tests this new behavior.",
+      "test_recommendation": "Verify header value whitespace stripping via HTTP/2 using the new test_h2_203_02 parametrized test cases. Test with PHP, CGI, and proxy backends to confirm whitespace-stripped values are received.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0019",
+            "file": "modules/http2/h2_util.c",
+            "old_lines": [
+              1634,
+              1722
+            ],
+            "new_lines": [
+              1642,
+              1767
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "plugin_api",
+              "persistence_state",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0010",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "confidence": 1.0,
+      "package_profile": "httpd",
+      "affected_surface": "mod_http2 version string and numerical constant",
+      "affected_api": {
+        "name": "MOD_HTTP2_VERSION / MOD_HTTP2_VERSION_NUM",
+        "kind": "macro",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/http2/h2_version.h",
+        "old_lines": [
+          27,
+          35
+        ],
+        "new_lines": [
+          27,
+          38
+        ],
+        "symbol": "MOD_HTTP2_VERSION"
+      },
+      "old_behavior": "MOD_HTTP2_VERSION was \"2.0.10\" and MOD_HTTP2_VERSION_NUM was 0x02000a.",
+      "new_behavior": "MOD_HTTP2_VERSION is bumped to \"2.0.11\" and MOD_HTTP2_VERSION_NUM to 0x02000b.",
+      "compatibility_reason": "Version number change is visible in server identification and any code that checks MOD_HTTP2_VERSION_NUM for feature detection. A patch-level bump should be forward-compatible, but strict equality checks could be affected.",
+      "evidence": [
+        {
+          "file": "modules/http2/h2_version.h",
+          "lines": [
+            30,
+            38
+          ],
+          "snippet": "#define MOD_HTTP2_VERSION \"2.0.11\"\n...\n#define MOD_HTTP2_VERSION_NUM 0x02000b"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "These macros are in a public header and visible in server identification strings and to any code doing version comparison.",
+      "uncertainty": "Standard patch version bump. No known code does strict equality checks against the version number.",
+      "manual_review_required": false,
+      "recommended_review": "Routine version bump accompanying a significant code change.",
+      "test_recommendation": "Verify the server identification output reflects the updated mod_http2 version.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=macro on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0022",
+            "file": "modules/http2/h2_version.h",
+            "old_lines": [
+              27,
+              33
+            ],
+            "new_lines": [
+              27,
+              33
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "plugin_api",
+              "persistence_state",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0023",
+            "file": "modules/http2/h2_version.h",
+            "old_lines": [
+              35,
+              41
+            ],
+            "new_lines": [
+              35,
+              41
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "plugin_api",
+              "persistence_state",
+              "module_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=macro on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "shards_completed": true
+}

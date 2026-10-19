@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P038/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P038/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P038",
+  "patch_id": "5bbd22ff78daf010c5bd19c466a0c45ac78503d4",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "net/http.Server.ReadHeaderTimeout",
+        "kind": "config_key",
+        "language": "go"
+      },
+      "target_location": {
+        "file": "src/net/http/server.go",
+        "old_lines": [
+          1970,
+          1984
+        ],
+        "new_lines": [
+          1970,
+          1980
+        ],
+        "symbol": "c.serve"
+      },
+      "old_behavior": "当服务器配置了 UnencryptedHTTP2=true 时，`conn.serve()` 在检测 HTTP/2 客户端前言（PRI * HTTP/2.0）期间不对连接设置读超时。`maybeServeUnencryptedHTTP2()` 调用 `c.bufr.Peek()` 读取客户端前言字节时不设超时，恶意或慢速客户端可以永久占用连接。`ReadHeaderTimeout` 仅在进入 `readRequest()` 读取 HTTP/1.x 请求头时才生效。",
+      "new_behavior": "在 `conn.serve()` 中，检测 HTTP/2 客户端前言之前先设置基于 `ReadHeaderTimeout` 的读截止时间。`maybeServeUnencryptedHTTP2()` 中的 `Peek()` 调用现在受该超时约束。若客户端在 `ReadHeaderTimeout` 时间内未完成 HTTP/2 前言发送，连接将被关闭。同时，`ReadHeaderTimeout` 的截止时间管理从 `readRequest()` 移至 `serve()` 循环中，使同一超时覆盖 HTTP/2 前言检测和 HTTP/1.x 请求头读取两个阶段。",
+      "compatibility_reason": "`ReadHeaderTimeout` 配置项的语义范围扩大了：之前仅控制 HTTP/1.x 请求头读取超时，现在同时控制非加密 HTTP/2 客户端前言检测的超时。这意味着：1) 部署了非加密 HTTP/2 的服务器现在会在 `ReadHeaderTimeout` 后断开慢速/恶意客户端连接，此前这类连接可无限期占用；2) 依赖此无超时行为进行慢速连接的客户端将收到连接重置错误。这是 CVE-2026-56853 的安全修复，但改变了 `ReadHeaderTimeout` 的有效语义，属于向后不兼容的行为变更。",
+      "test_recommendation": "使用 `testing/synctest` 验证：1) 设置 `ReadHeaderTimeout=1s` 的非加密 HTTP/2 服务器，模拟客户端无响应时应触发超时；2) 模拟客户端缓慢发送前言时不应扩展超时；3) 验证 `ReadHeaderTimeout` 同时也被用于请求头读取阶段。补丁中新增的 `TestServerUnencryptedHTTP2HeaderTimeout` 测试覆盖了这些场景。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P038/compatibility-testing"
+}

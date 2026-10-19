@@ -1,0 +1,204 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965",
+  "base_ref": "ca30c826476ba01ad1383f0fbb4e3d51fd998ea3",
+  "base_commit": "ca30c826476ba01ad1383f0fbb4e3d51fd998ea3",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "66d9658f5f557e0e525e5db5449ef94686df50d3",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "dnsmasq",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1172,
+    "patch_lines": 39,
+    "diff_added_lines": 5,
+    "diff_deleted_lines": 3,
+    "diff_context_lines": 21,
+    "churn": 8,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 1656,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "user_visible_output": 1
+    },
+    "candidates_json_bytes": 5053
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "dnsmasq",
+      "affected_surface": "Internal utility function safe_strncpy: input contract relaxed to accept NULL src",
+      "affected_api": {
+        "name": "safe_strncpy",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/util.c",
+        "old_lines": [
+          327,
+          339
+        ],
+        "new_lines": [
+          327,
+          341
+        ],
+        "symbol": "safe_strncpy"
+      },
+      "old_behavior": "safe_strncpy called strncpy(dest, src, size-1) without NULL-checking src. If src was NULL (e.g., empty DHCP SNAME option dhcp-option=66,), strncpy receives NULL and causes segfault (undefined behavior). dest[size-1] was set to \\0 but dest[0] was not explicitly zeroed before strncpy.",
+      "new_behavior": "safe_strncpy now checks if (src) before calling strncpy; if src is NULL, it returns an empty string (dest[0] = \\0). Additionally, dest[0] = dest[size-1] = \\0 zeroes both first and last byte before strncpy, providing defense-in-depth. The function contract is documented: \"src may be NULL in which case we return an empty string.\"",
+      "compatibility_reason": "Internal utility fix for NULL-safety. For callers that already pass valid non-NULL strings (vast majority of 30+ call sites), behavior is byte-identical after strncpy. For callers that may pass NULL (specifically DHCP SNAME/file code paths via rfc2131.c), behavior changes from crash (segfault) to defined empty-string output. This is a contract relaxation: previously-Undefined input (NULL) now produces defined behavior. No existing correct caller behavior is broken. The dest[0] initialization is a minor side-effect change but matches what strncpy would write for typical non-NULL short strings.",
+      "evidence": [
+        {
+          "file": "src/util.c",
+          "lines": [
+            329,
+            341
+          ],
+          "snippet": "/* Ensure limited size string is always terminated.\n   Can be replaced by (void)strlcpy() on some platforms.\n   src may be NULL in which case we return an empty string. */\nvoid safe_strncpy(char *dest, const char *src, size_t size)\n{\n  if (size != 0)\n    {\n      dest[0] = dest[size-1] = '\\0';\n      if (src)\n\tstrncpy(dest, src, size-1);\n    }\n}"
+        },
+        {
+          "file": "src/rfc2131.c",
+          "lines": [
+            2685,
+            2685
+          ],
+          "snippet": "safe_strncpy((char *)mess->sname, boot->sname, sizeof(mess->sname));"
+        },
+        {
+          "file": "src/rfc2131.c",
+          "lines": [
+            2719,
+            2719
+          ],
+          "snippet": "safe_strncpy((char *)mess->sname, (char *)opt->val, sizeof(mess->sname));"
+        },
+        {
+          "file": "src/rfc2131.c",
+          "lines": [
+            1014,
+            1014
+          ],
+          "snippet": "safe_strncpy((char *)mess->file, boot->file, sizeof(mess->file));"
+        },
+        {
+          "file": "src/rfc2131.c",
+          "lines": [
+            2712,
+            2712
+          ],
+          "snippet": "safe_strncpy((char *)mess->file, (char *)opt->val, sizeof(mess->file));"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "safe_strncpy is an internal utility, but the fix addresses externally-triggered crashes via DHCP option parsing (dhcp-option=66, with empty value). The change in behavior for NULL src is externally observable: DHCP responses with empty SNAME/file field transition from crashing dnsmasq to producing valid DHCP responses with empty fields.",
+      "uncertainty": "The user_visible_output surface match was a diff_parser artifact; the primary impact is on DHCP protocol response correctness, not user-visible log/diagnostic text. However, this does not affect the semantic judgment of the INPUT_CONTRACT_CHANGE.",
+      "manual_review_required": false,
+      "recommended_review": "Confirm that all callers of safe_strncpy with non-NULL strings continue to produce identical results. The dest[0] zeroing before strncpy is safe (strncpy never reads dest[0] before writing), but could theoretically mask a pre-existing bug where caller expected dest content beyond size-1 to survive.",
+      "test_recommendation": "Test DHCP option dhcp-option=66, (empty SNAME) and dhcp-boot with empty filename to confirm no crash and correct DHCP response. Test safe_strncpy with NULL src, empty src (\"\"), and normal src to confirm all three paths produce correct null-terminated strings.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=medium from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/util.c",
+            "old_lines": [
+              327,
+              339
+            ],
+            "new_lines": [
+              327,
+              341
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=medium from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Analysis complete. Finding confirmed: INPUT_CONTRACT_CHANGE (LOW). Ready for directed testing."
+}

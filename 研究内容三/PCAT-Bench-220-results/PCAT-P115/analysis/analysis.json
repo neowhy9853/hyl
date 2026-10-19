@@ -1,0 +1,471 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P055/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P055",
+  "base_ref": "71ca70a0f62cfc30dfacfd2ee0952a86e2e64055^",
+  "base_commit": "4e0fe0f16215b2f481356e879bc05661862ae4ad",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "71ca70a0f62cfc30dfacfd2ee0952a86e2e64055",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/GNOME/libsoup/commit/71ca70a0f62cfc30dfacfd2ee0952a86e2e64055",
+    "download_url": "https://github.com/GNOME/libsoup/commit/71ca70a0f62cfc30dfacfd2ee0952a86e2e64055.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P055/_patch-cache/71ca70a0f62c.patch",
+    "commit": "71ca70a0f62cfc30dfacfd2ee0952a86e2e64055",
+    "base_ref_inferred": "71ca70a0f62cfc30dfacfd2ee0952a86e2e64055^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "libsoup",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 6277,
+    "patch_lines": 150,
+    "diff_added_lines": 18,
+    "diff_deleted_lines": 27,
+    "diff_context_lines": 59,
+    "churn": 45,
+    "raw_hunks": 7,
+    "candidate_hunks": 7,
+    "skipped_doc_hunks": 0,
+    "changed_files": 3,
+    "candidate_context_bytes": 15922,
+    "public_candidate_hunks": 4,
+    "surface_counts": {
+      "user_visible_output": 4,
+      "network_protocol": 1,
+      "http_semantics": 6,
+      "persistence_state": 5,
+      "tests": 3
+    },
+    "candidates_json_bytes": 39564
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 7,
+    "compatibility_changes": 3,
+    "high_priority": 3,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "libsoup",
+      "affected_surface": "SoupSession GObject constructor — TLS default initialization behavior for all session types",
+      "affected_api": {
+        "name": "soup_session_constructor",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-session.c",
+        "old_lines": [
+          270,
+          285
+        ],
+        "new_lines": [
+          270,
+          288
+        ],
+        "symbol": "soup_session_constructor"
+      },
+      "old_behavior": "priv->tlsdb_use_default = TRUE 仅在 type == SOUP_TYPE_SESSION（plain SoupSession）时执行。SoupSessionAsync 和 SoupSessionSync 子类在构造时不设置 tlsdb_use_default，因此其 ssl-use-system-ca-file 属性默认值为 FALSE，tls-database 属性默认值为 NULL。这意味着这些子类默认不会使用系统 CA 数据库验证 TLS 证书，HTTPS 连接即使遇到自签名或非公共 CA 签发的证书也会成功。",
+      "new_behavior": "priv->tlsdb_use_default = TRUE 被移到 if (type == SOUP_TYPE_SESSION) 条件判断之前，对所有通过 soup_session_constructor 构造的 session 类型均生效，包括 SoupSessionAsync 和 SoupSessionSync。所有 session 类型现在默认启用系统 CA 数据库进行 TLS 证书验证，ssl-use-system-ca-file 默认值为 TRUE，tls-database 默认指向系统 CA 数据库。",
+      "compatibility_reason": "任何使用 SoupSessionAsync 或 SoupSessionSync 且依赖旧默认行为（不验证证书）的应用，升级到新版本后 HTTPS 连接将默认启用证书验证。若目标服务器使用自签名证书或非公共 CA 签发的证书，连接将失败。这是一个有意的向后不兼容变更，patch 作者在提交信息中明确将其描述为 'a break in behavior'。影响面广泛：所有未显式配置 TLS 数据库的 SoupSessionAsync/SoupSessionSync 用户都将受到影响。",
+      "evidence": [
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            272,
+            280
+          ],
+          "snippet": "\tGObject *object;\n\tSoupSession *session;\n\tSoupSessionPrivate *priv;\n\n\tobject = G_OBJECT_CLASS (soup_session_parent_class)->constructor (type, n_construct_properties, construct_params);\n\tsession = SOUP_SESSION (object);\n\tpriv = soup_session_get_instance_private (session);\n\n\tpriv->tlsdb_use_default = TRUE;"
+        },
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            296,
+            299
+          ],
+          "snippet": "\t\tpriv->proxy_use_default = TRUE;\n-\t\tpriv->tlsdb_use_default = TRUE;\n\n\t\tsoup_session_add_feature_by_type (session, SOUP_TYPE_CONTENT_DECODER);"
+        },
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            3415,
+            3420
+          ],
+          "snippet": "\t * If you are using #SoupSessionAsync or\n\t * #SoupSessionSync, on libsoup older than 2.72.1, the default value\n\t * is %FALSE, for backward compatibility."
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "soup_session_constructor 是 SoupSession GObject 类的构造器，被所有子类（SoupSessionAsync、SoupSessionSync 等）继承调用。其行为变更直接影响所有 libsoup 消费者的运行时行为，特别是 TLS/SSL 证书验证这一安全性关键路径。该函数的变更不属于内部实现细节。",
+      "uncertainty": "实际影响程度取决于有多少下游应用依赖 SoupSessionAsync/SoupSessionSync 连接使用非公共 CA 证书的 HTTPS 服务器。提交信息本身表明这是一个经过评估的有意变更。",
+      "manual_review_required": false,
+      "recommended_review": "确认下游应用中是否有代码显式依赖 SoupSessionAsync/SoupSessionSync 的旧默认 TLS 行为（即不验证证书即可连接）。重点审查那些连接内网自签名证书服务的应用。",
+      "test_recommendation": "分别创建 SoupSessionAsync 和 SoupSessionSync 实例，不设置任何 TLS 相关属性，读取 ssl-use-system-ca-file 和 tls-database 属性，验证默认值是否均为启用状态。同时测试使用自签名证书的 HTTPS 连接是否现在正确地失败（返回 SOUP_STATUS_SSL_FAILED）而非成功。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "libsoup/soup-session.c",
+            "old_lines": [
+              270,
+              285
+            ],
+            "new_lines": [
+              270,
+              288
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "network_protocol",
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "libsoup/soup-session.c",
+            "old_lines": [
+              293,
+              299
+            ],
+            "new_lines": [
+              296,
+              301
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "libsoup",
+      "affected_surface": "SoupSession HTTPS 连接错误行为 — TLS 证书验证失败的错误状态变更",
+      "affected_api": {
+        "name": "SoupSession (ssl-use-system-ca-file / tls-database GObject properties)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-session.c",
+        "old_lines": [
+          270,
+          285
+        ],
+        "new_lines": [
+          270,
+          288
+        ],
+        "symbol": "soup_session_constructor"
+      },
+      "old_behavior": "在使用 SoupSessionAsync 或 SoupSessionSync 创建的默认 session 中，TLS 证书验证默认关闭（ssl-use-system-ca-file = FALSE, tls-database = NULL）。应用可以连接任意 HTTPS 服务器而不会收到 SSL 验证失败错误。SoupMessage 的状态码不会出现 SOUP_STATUS_SSL_FAILED（除非用户显式启用了证书验证）。",
+      "new_behavior": "所有 session 类型（包括 SoupSessionAsync 和 SoupSessionSync）默认启用 TLS 证书验证。连接使用自签名证书或非系统 CA 信任链签发的 HTTPS 服务器时，SoupMessage 将收到 SOUP_STATUS_SSL_FAILED 状态码，连接将失败。之前无需任何 TLS 配置即可成功连接的场景现在会触发错误。",
+      "compatibility_reason": "用户可见的错误行为发生根本性变化：之前成功的 HTTPS 连接现在会失败。下游应用的消息处理回调中原本不会遇到的 SOUP_STATUS_SSL_FAILED 错误现在将成为可能。任何未处理此错误状态的代码路径可能产生未预期的行为（如 UI 空白、静默失败、崩溃）。提交信息明确指出此变更是安全的但会破坏兼容性（'This is a break in behavior however the security concerns are important'）。",
+      "evidence": [
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            272,
+            280
+          ],
+          "snippet": "\tobject = G_OBJECT_CLASS (soup_session_parent_class)->constructor (type, n_construct_properties, construct_params);\n\tsession = SOUP_SESSION (object);\n\tpriv = soup_session_get_instance_private (session);\n\n\tpriv->tlsdb_use_default = TRUE;\n\n\t/* If this is a \"plain\" SoupSession, fix up the default\n\t * properties values, etc.\n\t */\n\tif (type == SOUP_TYPE_SESSION) {"
+        },
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            3480,
+            3486
+          ],
+          "snippet": "\t * Normally, if #SoupSession:tls-database is set (including if\n\t * it was set via #SoupSession:ssl-use-system-ca-file or\n\t * #SoupSession:ssl-ca-file), then libsoup will reject any\n\t * certificate that is invalid (ie, expired) or that is not\n\t * signed by one of the given CA certificates, and the\n\t * #SoupMessage will fail with the status\n\t * %SOUP_STATUS_SSL_FAILED."
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "SOUP_STATUS_SSL_FAILED 是 libsoup 公共 API 的一部分，定义在 soup-status.h 中。下游应用的消息处理回调通过 SoupMessage::status_code 接收此状态。此错误码的可达性变化直接影响所有 libsoup 消费者的错误处理逻辑。",
+      "uncertainty": "受影响的 HTTPS 端点数量和严重程度取决于下游应用实际连接的服务器类型。面向公共互联网且使用公共 CA 证书的应用不会受影响。面向内网或使用自签名证书的应用会受到直接影响。",
+      "manual_review_required": true,
+      "recommended_review": "建议下游应用维护者检查所有使用 SoupSessionAsync/SoupSessionSync 的代码路径，确认是否正确处理了 SOUP_STATUS_SSL_FAILED 错误。如果在生产环境中连接使用自签名证书的服务器，需要显式配置 tls-database 或设置 ssl-strict = FALSE。",
+      "test_recommendation": "使用 SoupSessionAsync 和 SoupSessionSync 创建默认 session，向使用自签名证书的 HTTPS 端点发起请求，验证返回 SOUP_STATUS_SSL_FAILED。同时验证向使用公共 CA 证书的 HTTPS 端点发起请求仍然成功。对比补丁前后的行为差异。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "libsoup/soup-session.c",
+            "old_lines": [
+              270,
+              285
+            ],
+            "new_lines": [
+              270,
+              288
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "network_protocol",
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "libsoup",
+      "affected_surface": "SoupSession GObject 属性默认值契约 — ssl-use-system-ca-file 和 tls-database 属性的构造后默认值变更",
+      "affected_api": {
+        "name": "SoupSession:ssl-use-system-ca-file / SoupSession:tls-database",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-session.c",
+        "old_lines": [
+          270,
+          285
+        ],
+        "new_lines": [
+          270,
+          288
+        ],
+        "symbol": "soup_session_constructor"
+      },
+      "old_behavior": "SoupSessionAsync 和 SoupSessionSync 构造完成后，g_object_get(session, \"ssl-use-system-ca-file\", ...) 返回 FALSE；g_object_get(session, \"tls-database\", ...) 返回 NULL。开发者可以安全地检查 tls-database 是否为 NULL 来判断是否需要配置 TLS。",
+      "new_behavior": "所有 session 类型（包括 SoupSessionAsync 和 SoupSessionSync）构造完成后，ssl-use-system-ca-file 默认返回 TRUE（因为 tlsdb_use_default = TRUE 在构造阶段即设置，并且在后续属性 getter 中触发 tls-database 的延迟初始化，将系统 CA 数据库赋值给 tls-database 属性，同时设置 ssl-use-system-ca-file = TRUE）。开发者不能再依赖 tls-database == NULL 作为未配置 TLS 的判断条件。",
+      "compatibility_reason": "GObject 属性的默认值契约发生了不兼容变化。任何在 SoupSessionAsync/SoupSessionSync 构造后读取这些属性并根据其值决定后续行为的代码都会受到影响。特别值得注意的是 g_object_get() 的 gboolean 输出从 FALSE 变为 TRUE，指针输出从 NULL 变为非 NULL（指向系统 CA 数据库对象），这些返回值变化可能会破坏下游的条件判断逻辑。",
+      "evidence": [
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            272,
+            280
+          ],
+          "snippet": "\tGObject *object;\n\tSoupSession *session;\n\tSoupSessionPrivate *priv;\n\n\tobject = G_OBJECT_CLASS (soup_session_parent_class)->constructor (type, n_construct_properties, construct_params);\n\tsession = SOUP_SESSION (object);\n\tpriv = soup_session_get_instance_private (session);\n\n\tpriv->tlsdb_use_default = TRUE;"
+        },
+        {
+          "file": "tests/no-ssl-test.c",
+          "lines": [
+            75,
+            76
+          ],
+          "snippet": "\tsoup_test_assert (use_system, \"ssl-use-system-ca-file defaults to FALSE\");\n\tsoup_test_assert (tlsdb != NULL, \"tls-database not set by default\");"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "ssl-use-system-ca-file 和 tls-database 是 SoupSession 类的公共 GObject 属性，通过 g_object_get/g_object_set 和 GObject property notify 信号暴露给所有消费者。属性默认值的变化是 API 契约的一部分，不是内部实现细节。测试代码的修改也反映了此契约变化。",
+      "uncertainty": "边界情况：如果应用在构造时通过 GObject construct properties 覆盖了 ssl-use-system-ca-file 或 tls-database，则此默认值变更不会生效。只有使用默认构造的应用会受影响。",
+      "manual_review_required": false,
+      "recommended_review": "检查下游应用中在 SoupSessionAsync/SoupSessionSync 构造后立即通过 g_object_get 读取 ssl-use-system-ca-file 或 tls-database 属性的代码。确认这些代码在属性值发生变化时仍能正确工作。",
+      "test_recommendation": "构造 SoupSessionAsync 和 SoupSessionSync 实例后，立即通过 g_object_get 读取 ssl-use-system-ca-file 和 tls-database 属性，验证返回值是否符合新的默认值。对比补丁前后的行为差异。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "libsoup/soup-session.c",
+            "old_lines": [
+              270,
+              285
+            ],
+            "new_lines": [
+              270,
+              288
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "network_protocol",
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "analysis_summary": {
+    "notes": "该补丁将 priv->tlsdb_use_default = TRUE 从 SoupSession 专属初始化代码块移动到所有 session 类型的共享构造路径中，使得 SoupSessionAsync 和 SoupSessionSync 现在默认启用系统 CA 证书验证。补丁作者在提交信息中明确承认这是一次有意的兼容性破坏变更（'This is a break in behavior however the security concerns are important'），7 个候选 hunk 中有 4 个公共 API surface 候选被确认为兼容性变更，另外 3 个测试文件候选仅反映预期的测试断言更新，不属于独立兼容性变更。"
+  }
+}

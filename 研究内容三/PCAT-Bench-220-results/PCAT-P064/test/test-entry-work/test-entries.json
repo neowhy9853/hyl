@@ -1,0 +1,36 @@
+{
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "state_and_side_effect_probe",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0001",
+      "build_command": "make -j$(nproc) TARGET=linux-glibc USE_OPENSSL=1 USE_QUIC=1 USE_QUIC_OPENSSL_COMPAT=1 USE_LUA=1 USE_PCRE2=1 ARCH_FLAGS='-O0 -g --coverage' LDFLAGS='--coverage'",
+      "run_command": "cd {VERSION_DIR} && ./haproxy -f /tmp/pca-quic-test.cfg -c 2>&1",
+      "target_location": {
+        "file": "src/quic_tx.c",
+        "new_lines": [2038, 2044],
+        "symbol": "qc_do_build_pkt"
+      },
+      "reachability_signal": "gcov on src/quic_tx.c showing coverage of lines 2041 (added len -= len_sz_diff)",
+      "expected_signal": "haproxy -c returns exit code 0 for valid QUIC config; gcov shows changed lines executed when QUIC Initial packet is built",
+      "execution": {
+        "cwd": "result_dir",
+        "timeout_seconds": 300,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Build haproxy with QUIC support. Create a minimal config with a QUIC (HTTP/3) frontend listener. Validate config parsing via -c flag. For runtime packet building: run haproxy as daemon, connect with a QUIC client (e.g. ngtcp2-client or quic-client) to trigger Initial packet exchange, send SIGTERM, collect gcov data.",
+      "contract_probe": {
+        "probe_id": "quic_initial_packet_length",
+        "command": "{VERSION_DIR}/haproxy -c -f /tmp/pca-quic-test.cfg > /dev/null 2>&1; echo EXIT:$?",
+        "before_command": null,
+        "after_command": null,
+        "comparison": "success",
+        "cwd": "{VERSION_DIR}",
+        "timeout_seconds": 30
+      },
+      "limitations": "1) vtest/varnishtest not installed, so QUIC reg-tests cannot run. 2) No QUIC client tool (ngtcp2, quiche, aioquic) available for runtime packet-level testing. 3) Runtime QUIC packet building probe requires external QUIC client and root/loopback setup. 4) OpenSSL headers 3.0.18 vs runtime 3.0.13 - do not use for cryptographic compatibility conclusions. 5) Coverage instrumentation (-O0 -g --coverage) may not produce identical binaries to production builds."
+    }
+  ]
+}

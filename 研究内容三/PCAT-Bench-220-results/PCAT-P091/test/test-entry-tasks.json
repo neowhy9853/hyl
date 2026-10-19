@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P031/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/go",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P031/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P031",
+  "patch_id": "efbecbbb465c99ed608b06d72fa1982122382d00",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "ConnectionState.LocalCertificate",
+        "kind": "struct_type",
+        "language": "go"
+      },
+      "target_location": {
+        "file": "src/crypto/tls/common.go",
+        "old_lines": [
+          325,
+          330
+        ],
+        "new_lines": [
+          325,
+          335
+        ],
+        "symbol": "ConnectionState"
+      },
+      "old_behavior": "ConnectionState 结构体不包含 LocalCertificate 字段。调用 Conn.ConnectionState() 后无法获知本端在 TLS 握手中向对端出示了哪个证书链。",
+      "new_behavior": "ConnectionState 新增导出字段 LocalCertificate [][]byte，TLS 握手期间会记录本端向对端出示的证书链（DER 编码）。该字段仅在非恢复连接（DidResume 为 false）时填充。",
+      "compatibility_reason": "crypto/tls.ConnectionState 是 Go 标准库公开导出结构体。新增字段 LocalCertificate 改变了结构体布局（ABI），并使得 TLS 握手产生新的外部可观察副作用：调用者现在可通过 Conn.ConnectionState().LocalCertificate 获取本端证书链信息。该 change 为纯增量变更，不影响既有字段语义或旧代码编译，但改变了公开 API surface。",
+      "test_recommendation": "验证 ConnectionState.LocalCertificate 在 TLS 1.0-1.3 各版本、client/server 两侧、callback/Certificates 两种方式下均正确填充；验证恢复连接（DidResume=true）时 LocalCertificate 为 nil。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P031/compatibility-testing"
+}

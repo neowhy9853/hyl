@@ -1,0 +1,288 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P053/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P053",
+  "base_ref": "a8982b0376885b5007b5c6bbbfedfde7bb941a54^",
+  "base_commit": "a6d1d7aa49c264efc9d520ffe555299b7a92466e",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "a8982b0376885b5007b5c6bbbfedfde7bb941a54",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/GNOME/libsoup/commit/a8982b0376885b5007b5c6bbbfedfde7bb941a54.patch",
+    "download_url": "https://github.com/GNOME/libsoup/commit/a8982b0376885b5007b5c6bbbfedfde7bb941a54.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P053/_patch-cache/a8982b037688.patch",
+    "commit": "a8982b0376885b5007b5c6bbbfedfde7bb941a54",
+    "base_ref_inferred": "a8982b0376885b5007b5c6bbbfedfde7bb941a54^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "c_project",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 5091,
+    "patch_lines": 136,
+    "diff_added_lines": 78,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 27,
+    "churn": 80,
+    "raw_hunks": 4,
+    "candidate_hunks": 4,
+    "skipped_doc_hunks": 0,
+    "changed_files": 2,
+    "candidate_context_bytes": 12555,
+    "public_candidate_hunks": 0,
+    "surface_counts": {
+      "tests": 2
+    },
+    "candidates_json_bytes": 25727
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 2,
+    "total_candidates": 4,
+    "compatibility_changes": 2,
+    "high_priority": 1,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "c_project",
+      "affected_surface": "HTTP Authorization header manipulation in auth manager pipeline, reachable via soup_session_send_message() and soup_session_requeue_message()",
+      "affected_api": {
+        "name": "update_authorization_header",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-auth-manager.c",
+        "old_lines": [
+          446,
+          452
+        ],
+        "new_lines": [
+          446,
+          454
+        ],
+        "symbol": "update_authorization_header"
+      },
+      "old_behavior": "Authorization/Proxy-Authorization header unconditionally removed from every message, even those with user-provided Authorization headers. Messages without a cached auth would have their manually-set Authorization header stripped, causing authentication failure when SOUP_MESSAGE_DO_NOT_USE_AUTH_CACHE is set.",
+      "new_behavior": "Authorization/Proxy-Authorization header only removed when soup_message_get_auth(msg) returns non-NULL, i.e., when the message already has an associated SoupAuth from cached credentials. User-provided Authorization headers on messages without cached auth are preserved, allowing manual authentication to succeed.",
+      "compatibility_reason": "This change may cause behaviors observable to applications that rely on Authorization headers not being preserved when no cached credentials exist (to trigger 401 challenges for cache-less re-authentication). The new behavior allows user-provided headers to survive even without cached credentials.",
+      "evidence": [
+        {
+          "file": "libsoup/soup-auth-manager.c",
+          "lines": [
+            446,
+            450
+          ],
+          "snippet": "-\tsoup_message_headers_remove (msg->request_headers, authorization_header);\n+\tif (soup_message_get_auth (msg))\n+\t\tsoup_message_headers_remove (msg->request_headers, authorization_header);"
+        },
+        {
+          "file": "libsoup/soup-auth-manager.c",
+          "lines": [
+            737,
+            737
+          ],
+          "snippet": "\t\tupdate_authorization_header (msg, auth, FALSE);"
+        },
+        {
+          "file": "libsoup/soup-auth-manager.c",
+          "lines": [
+            653,
+            653
+          ],
+          "snippet": "\t\t\tupdate_authorization_header (msg, auth, FALSE);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "static函数update_authorization_header通过信号回调链被public接口调用:soup_session_send_message()→request_queued信号→soup_auth_manager_request_queued()→g_signal_connect('starting')→auth_msg_starting()→update_authorization_header()，以及auth_got_body()和proxy_auth_got_body()路径。函数控制HTTP Authorization/Proxy-Authorization请求头的发送，对HTTP服务器完全可见，属于协议行为变更。",
+      "uncertainty": "补丁修复的是efcb377引入的回归，旧行为本身是bug而非设计意图。依赖buggy行为的上游消费者可能观察到差异，但此类消费者本身在旧版本中也面临认证失败的问题。置信度因修复的是已知回归而降低。",
+      "manual_review_required": false,
+      "recommended_review": "验证补丁前(pre-patch)用户手动设置Authorization header但不使用认证缓存时，header是否会被移除从而改变HTTP请求行为。确认补丁后这些header被保留并正确发送。",
+      "test_recommendation": "建议使用带有手动Authorization头的请求进行回归测试:在已认证session中，清除credentials缓存后，用soup_message_headers_replace设置Authorization头且设置SOUP_MESSAGE_DO_NOT_USE_AUTH_CACHE标志发送消息，验证Authorization头被保留且服务器正确响应。这是commit中新增的测试覆盖场景。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "low",
+        "deterministic_priority": "low",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=low from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "libsoup/soup-auth-manager.c",
+            "old_lines": [
+              446,
+              452
+            ],
+            "new_lines": [
+              446,
+              454
+            ],
+            "is_public": false,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [],
+            "surface_test_priority": "low",
+            "matched_surfaces": []
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is low: candidate_surface_priority=low from 1 matched candidate hunk(s)"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "c_project",
+      "affected_surface": "HTTP Authorization/Proxy-Authorization header value replacement vs appending semantics",
+      "affected_api": {
+        "name": "update_authorization_header",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-auth-manager.c",
+        "old_lines": [
+          454,
+          460
+        ],
+        "new_lines": [
+          456,
+          462
+        ],
+        "symbol": "update_authorization_header"
+      },
+      "old_behavior": "使用soup_message_headers_append()将认证token追加到Authorization请求头。如果该头已存在值（例如用户手动设置的），会导致发送重复的Authorization头。",
+      "new_behavior": "使用soup_message_headers_replace()替换Authorization请求头中的任何现有值为新的认证token，确保只有一个Authorization头被发送。",
+      "compatibility_reason": "从append到replace的语义变化影响HTTP请求头的构造。旧行为可能发送重复的Authorization头（某些HTTP中间件可能处理方式不同），新行为保证单一值。在极端场景下，依赖旧行为发送特定重复header的HTTP服务器或中间件可能观察到差异。",
+      "evidence": [
+        {
+          "file": "libsoup/soup-auth-manager.c",
+          "lines": [
+            454,
+            459
+          ],
+          "snippet": "-\tsoup_message_headers_append (msg->request_headers, authorization_header, token);\n+\tsoup_message_headers_replace (msg->request_headers, authorization_header, token);"
+        },
+        {
+          "file": "libsoup/soup-auth-manager.c",
+          "lines": [
+            747,
+            747
+          ],
+          "snippet": "\tupdate_authorization_header (msg, auth, TRUE);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "与PCA-0001相同，函数通过session→auth manager信号链从public API可达。soup_message_headers_append与soup_message_headers_replace均为libsoup public API，其语义差异直接影响HTTP协议层行为。",
+      "uncertainty": "append→replace的变化在大多数正常场景下行为一致（头通常只应存在单一值），仅在手动设置Authorization头+触发认证更新的竞争场景下可观察到差异（重复头 vs 替换）。",
+      "manual_review_required": false,
+      "recommended_review": "确认在认证更新场景中，补丁前的append行为是否会导致发送重复Authorization头（违反HTTP语义），补丁后的replace行为是否正确处理。",
+      "test_recommendation": "针对同一message先后设置不同的Authorization值并触发认证刷新，验证最终发送的HTTP请求中Authorization头为单一最新值而非包含旧值和新值的重复头。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "low",
+        "deterministic_priority": "low",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=low from 2 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "libsoup/soup-auth-manager.c",
+            "old_lines": [
+              454,
+              460
+            ],
+            "new_lines": [
+              456,
+              462
+            ],
+            "is_public": false,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [],
+            "surface_test_priority": "low",
+            "matched_surfaces": []
+          },
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "libsoup/soup-auth-manager.c",
+            "old_lines": [
+              446,
+              452
+            ],
+            "new_lines": [
+              446,
+              454
+            ],
+            "is_public": false,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [],
+            "surface_test_priority": "low",
+            "matched_surfaces": []
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is low: candidate_surface_priority=low from 2 matched candidate hunk(s)"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Analysis complete. Validate with validate_analysis.py, then either hand off to patch-compatibility-testing or await user instructions."
+}

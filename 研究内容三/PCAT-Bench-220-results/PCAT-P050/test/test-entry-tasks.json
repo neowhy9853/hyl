@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/900f55/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/NetworkManager",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/900f55/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/900f55",
+  "patch_id": "96cab112a257",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "send_ra",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/core/ndisc/nm-lndp-ndisc.c",
+        "old_lines": [
+          531,
+          543
+        ],
+        "new_lines": [
+          532,
+          540
+        ],
+        "symbol": "send_ra"
+      },
+      "old_behavior": "send_ra() announces prefix valid lifetime and preferred lifetime in Router Advertisements using the original DHCPv6-PD lease lifetime regardless of elapsed time. _nm_ndisc_lifetime_from_expiry is called with NM_NDISC_EXPIRY_BASE_TIMESTAMP (0) as now_msec, so the calculated lifetime is always the full original lease lifetime (e.g., 3600 seconds for a 1-hour lease).",
+      "new_behavior": "send_ra() announces prefix valid lifetime and preferred lifetime using the actual remaining time. _nm_ndisc_lifetime_from_expiry is called with now_msec (actual monotonic timestamp), so the calculated lifetime is max(0, (expiry_msec - now_msec + 500) / 1000), which decreases as time passes. This complies with RFC 9096: CE routers must not advertise prefixes using lifetimes exceeding the remaining lifetimes.",
+      "compatibility_reason": "Downstream devices receiving Router Advertisements from NetworkManager acting as a CE router will see decreasing prefix valid/preferred lifetimes instead of the constant original lease lifetime. SLAAC clients may deprecate or expire addresses earlier than before. Tools and scripts that inspect RA prefix lifetimes (e.g., tcpdump, wireshark, rdisc6) will observe different values. The lifetime field in the Prefix Information Option (type 3) of ICMPv6 RA messages now reflects actual time remaining rather than the original delegated lifetime.",
+      "test_recommendation": "Verify RA prefix lifetime values match remaining lease time rather than original lease time. Use tcpdump or equivalent to capture RAs and validate the prefix valid lifetime decreases between successive RAs. Check that downstream SLAAC address lifetimes reflect the decreasing values.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/900f55/compatibility-testing"
+}

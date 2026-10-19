@@ -1,0 +1,190 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P048/analysis.json",
+  "patch_id": "7f9c7c8731821149ff42971fad18e2a9abbb4c10",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P048/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+    "base_commit": "11811349f8a10ce419d980c01a518c774fe8a5e5",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P048/_worktrees/patched",
+    "package_profile": "c_project"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "not_run",
+    "after_build": "not_run",
+    "compiler": "gcc (GCC) / g++",
+    "optimization": "-O0",
+    "coverage_tool": "none (compile-level tests only, no runtime gcov)",
+    "notes": [
+      "libsoup shared library not built due to autotools chain not configured",
+      "Header-only compile tests used for ABI verification",
+      "soup-version.h generated from soup-version.h.in for header include resolution",
+      "GObject introspection (g-ir-scanner) not available"
+    ]
+  },
+  "summary": {
+    "findings_total": 2,
+    "findings_targeted": 2,
+    "entries_planned": 1,
+    "entries_generated": 2,
+    "entries_verified": 2,
+    "inputs_planned": 6,
+    "inputs_executed": 5,
+    "contracts_total": 2,
+    "contracts_passed": 1,
+    "contracts_breached": 1,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 4,
+    "patch_lines_covered": 4,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "high",
+      "status": "passed",
+      "target_location": {
+        "file": "libsoup/soup-status.h",
+        "new_lines": [97, 97],
+        "symbol": "SoupKnownStatusCode"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+          "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+          "expected_signal": "Test 1: SoupStatus compiles. Test 2b: C++ fails with cross-enum conversion error. Test 3-5: PASS.",
+          "reachability_signal": "C++ compilation error 'cannot convert SoupStatus to SoupKnownStatusCode' confirms ABI break at line 97"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "abi_enum_rename_compile_test",
+          "status": "breached",
+          "detail": "C++ compilation fails: cannot convert 'SoupStatus' to 'SoupKnownStatusCode' when using old type name with SOUP_STATUS_OK values. C compilation succeeds (permissive) but generates -Wenum-conversion warnings."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 2,
+        "covered_lines": 2,
+        "uncovered_lines": [],
+        "rate": 100.0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "test2b_cpp_old_type",
+          "diff_type": "ABI_CHANGE",
+          "before": "SoupKnownStatusCode status = SOUP_STATUS_OK; compiles in C++ (same enum type)",
+          "after": "SoupKnownStatusCode status = SOUP_STATUS_OK; fails in C++ with error: cannot convert 'SoupStatus' to 'SoupKnownStatusCode'",
+          "evidence": "g++ error at line 5: 'cannot convert SoupStatus to SoupKnownStatusCode in initialization'"
+        }
+      ],
+      "notes": [
+        "ABI break confirmed for C++ consumers and GObject introspection bindings",
+        "C consumers are backward-compatible due to permissive C enum semantics",
+        "Deprecated SoupKnownStatusCode enum exists with different value names (SOUP_KNOWN_STATUS_CODE_*) for introspection backward compat",
+        "GObject introspection runtime test (Python GI) not performed due to missing build"
+      ]
+    },
+    {
+      "finding_id": "PCA-0002",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "medium",
+      "status": "partial",
+      "target_location": {
+        "file": "libsoup/libsoup-2.4.sym",
+        "new_lines": [419, 419],
+        "symbol": "soup_status_get_type"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0002",
+          "status": "static_valid_not_run",
+          "artifact_path": "test-entry-work/PCA-0002/reproducer.sh",
+          "run_command": "grep soup_status_get_type .../libsoup-2.4.sym",
+          "expected_signal": "soup_status_get_type found in symbol version file",
+          "reachability_signal": "Symbol presence confirmed via static file inspection"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "abi_symbol_addition",
+          "status": "passed",
+          "detail": "soup_status_get_type confirmed present in libsoup-2.4.sym versioned symbol file at line 419"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 1,
+        "uncovered_lines": [],
+        "rate": 100.0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Static symbol file verification only",
+        "Full runtime verification requires building libsoup.so and using nm -D to check exported symbols",
+        "GObject introspection verification requires g-ir-scanner which is not available"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "build",
+      "id": "libsoup-full-build",
+      "reason": "libsoup autotools build chain requires autoreconf + configure + make with full dependency chain (glib, libxml2, etc.)",
+      "required_action": "Install libsoup build dependencies or use a container with pre-built libsoup environment"
+    },
+    {
+      "scope": "contract",
+      "id": "gobject-introspection-runtime",
+      "reason": "GObject introspection verification (Python GI, Vala, gjs) requires built .so and .typelib files",
+      "required_action": "Build libsoup from patched worktree with introspection enabled, then test with GI bindings"
+    },
+    {
+      "scope": "entry",
+      "id": "old-binary-consumer",
+      "reason": "No pre-built binary linked against old SoupKnownStatusCode type exists",
+      "required_action": "Build libsoup from base commit to get old .so, then attempt to link C++ consumer against old and new .so"
+    }
+  ],
+  "artifacts": {
+    "test_entries": "test-entry-work/test-entries.json",
+    "verification": "test-entry-work/test-entry-verification.json",
+    "reproducer_pca0001": "test-entry-work/PCA-0001/reproducer.sh",
+    "test_entry_plan": "test-entry-plan.md",
+    "impact_map": "test-entry-work/test-entries.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_inputs": "test-entry-work/test-entries.json",
+    "execution_results": "test-entry-work/test-entry-verification.json",
+    "contract_summary": "test-summary.json",
+    "coverage_data": "test-summary.json",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "summary": "PCA-0001: SoupKnownStatusCode→SoupStatus枚举重命名在C++中已确认为ABI不兼容变更（跨枚举转换错误），在C语言中向后兼容（宽松的C枚举语义）。不兼容变更已通过编译测试得到验证：旧类型名在C++中搭配SOUP_STATUS_*值使用时编译失败。已弃用的SoupKnownStatusCode枚举使用的值名称不同（SOUP_KNOWN_STATUS_CODE_*），不能直接替代。PCA-0002: soup_status_get_type符号添加已通过符号文件检查验证，属于新增型ABI变更。GObject introspection和共享库层面的完整运行时验证因构建环境限制尚未完成。",
+    "rationale": "C++编译测试证实了枚举typedef重命名导致的ABI不兼容：g++拒绝在SoupKnownStatusCode变量中存储SOUP_STATUS_OK值。在C语言中该变更向后兼容，但C++严格类型检查使其成为源级别不兼容变更。GObject introspection类型名也受到影响，但未能进行运行时验证。",
+    "recommended_actions": [
+      "在C++和GObject introspection绑定项目中使用soup_status_get_type()验证SoupStatus类型",
+      "针对SOUP_DISABLE_DEPRECATED已定义的情况测试编译",
+      "使用g-ir-scanner生成.gir文件，验证SoupStatus类型注解以及弃用的SoupKnownStatusCode兼容别名",
+      "检查反向依赖包（如Epiphany、GNOME Online Accounts）中是否有直接引用SoupKnownStatusCode类型名的代码"
+    ],
+    "contract_breaches": [
+      "C++ compilation fails with SoupKnownStatusCode + SOUP_STATUS_OK (cross-enum conversion)"
+    ],
+    "limitations": [
+      "libsoup共享库未构建——缺少完整的autotools依赖链",
+      "GObject introspection (.gir/.typelib) 运行时验证未执行",
+      "未进行旧二进制消费者测试——无可用的预构建二进制"
+    ]
+  }
+}

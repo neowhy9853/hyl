@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P054/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P054/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P054",
+  "patch_id": "824a60e614bb7ea57f59c09b819a8f1dcb2f5b11",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "soup_cache_send_response",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libsoup/soup-cache.c",
+        "old_lines": [
+          670,
+          716
+        ],
+        "new_lines": [
+          670,
+          708
+        ],
+        "symbol": "soup_cache_send_response"
+      },
+      "old_behavior": "soup_cache_send_response() added an Age HTTP header to every cached response, including responses served after revalidation (which are technically first-hand). The Age header' was set to the result of soup_cache_entry_get_current_age(entry), formatted as a decimal integer.",
+      "new_behavior": "soup_cache_send_response() no longer adds the Age HTTP header to cached responses. This aligns with RFC 7234 (which obsoleted the RFC 2616 requirement for mandatory Age headers) and matches the behavior of other browsers.",
+      "compatibility_reason": "这是一个协议级别的副作用变更。补丁前，通过 SoupCache 发出的所有缓存 HTTP 响应都包含 Age 头，客户端代码（包括上层应用、测试断言、HTTP 中介）可能依赖该头的存在来计算缓存新鲜度或做条件请求决策。补丁后 Age 头不再出现，依赖该头的下游行为将变化。该函数虽声明在 soup-cache-private.h 私有头中，但通过 soup-session.c 的 async_respond_from_cache() 和 get_request_conditional() 回调被公共 SoupSession API 调用，响应头变更通过 SoupMessage 对象对用户可见。",
+      "test_recommendation": "1. 验证通过 SoupCache 返回的缓存响应不再包含 Age HTTP 头；2. 验证通过 SoupCache 的后续条件请求（304 Not Modified）在重新验证后不会因 Age 头而发出不必要的条件请求；3. 对比补丁前后的 HTTP 响应头集，确认除 Age 头外其他头不受影响。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P054/compatibility-testing"
+}

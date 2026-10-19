@@ -1,0 +1,189 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P054/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P054/patch.diff",
+  "profile": "c_project",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "libsoup/soup-cache.c"
+    ],
+    "total_hunks": 2,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 2445,
+      "patch_lines": 60,
+      "diff_added_lines": 0,
+      "diff_deleted_lines": 8,
+      "diff_context_lines": 14,
+      "churn": 8,
+      "raw_hunks": 2,
+      "candidate_hunks": 2,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 3576,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "callbacks": 1,
+        "user_visible_output": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "libsoup/soup-cache.c",
+      "old_start": 670,
+      "old_end": 676,
+      "new_start": 670,
+      "new_end": 675,
+      "context_hint": "GInputStream *",
+      "added_lines": [],
+      "deleted_lines": [
+        "\tchar *current_age;"
+      ],
+      "context_lines": [
+        "soup_cache_send_response (SoupCache *cache, SoupMessage *msg)",
+        "{",
+        "\tSoupCacheEntry *entry;",
+        "\tGInputStream *file_stream, *body_stream, *cache_stream;",
+        "\tGFile *file;",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "current_age",
+        "soup_cache_send_response"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "c_project",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "make_room_for_new_entry",
+        "snippet_start_line": 641,
+        "snippet_end_line": 705,
+        "snippet": "\telse\n\t\tcache->priv->lru_start = g_list_prepend (cache->priv->lru_start, entry);\n\n\tg_assert (g_list_length (cache->priv->lru_start) == g_hash_table_size (cache->priv->cache));\n\n\treturn TRUE;\n}\n\nstatic SoupCacheEntry*\nsoup_cache_entry_lookup (SoupCache *cache,\n\t\t\t SoupMessage *msg)\n{\n\tSoupCacheEntry *entry;\n\tguint32 key;\n\tchar *uri = NULL;\n\n\turi = soup_uri_to_string (soup_message_get_uri (msg), FALSE);\n\tkey = get_cache_key_from_uri ((const char *) uri);\n\n\tentry = g_hash_table_lookup (cache->priv->cache, GUINT_TO_POINTER (key));\n\n\tif (entry != NULL && (strcmp (entry->uri, uri) != 0))\n\t\tentry = NULL;\n\n\tg_free (uri);\n\treturn entry;\n}\n\nGInputStream *\nsoup_cache_send_response (SoupCache *cache, SoupMessage *msg)\n{\n\tSoupCacheEntry *entry;\n\tGInputStream *file_stream, *body_stream, *cache_stream;\n\tGFile *file;\n\n\tg_return_val_if_fail (SOUP_IS_CACHE (cache), NULL);\n\tg_return_val_if_fail (SOUP_IS_MESSAGE (msg), NULL);\n\n\tentry = soup_cache_entry_lookup (cache, msg);\n\tg_return_val_if_fail (entry, NULL);\n\n\tfile = get_file_from_entry (cache, entry);\n\tfile_stream = G_INPUT_STREAM (g_file_read (file, NULL, NULL));\n\tg_object_unref (file);\n\n\t/* Do not change the original message if there is no resource */\n\tif (!file_stream)\n\t\treturn NULL;\n\n\tbody_stream = soup_body_input_stream_new (file_stream, SOUP_ENCODING_CONTENT_LENGTH, entry->length);\n\tg_object_unref (file_stream);\n\n\tif (!body_stream)\n\t\treturn NULL;\n\n\t/* If we are told to send a response from cache any validation\n\t   in course is over by now */\n\tentry->being_validated = FALSE;\n\n\t/* Status */\n\tsoup_message_set_status (msg, entry->status_code);\n\n\t/* Headers */\n\tcopy_end_to_end_headers (entry->headers, msg->response_headers);\n\n"
+      }
+    },
+    {
+      "file": "libsoup/soup-cache.c",
+      "old_start": 704,
+      "old_end": 716,
+      "new_start": 703,
+      "new_end": 708,
+      "context_hint": "soup_cache_send_response (SoupCache *cache, SoupMessage *msg)",
+      "added_lines": [],
+      "deleted_lines": [
+        "\t/* Add 'Age' header with the current age */",
+        "\tcurrent_age = g_strdup_printf (\"%d\", soup_cache_entry_get_current_age (entry));",
+        "\tsoup_message_headers_replace (msg->response_headers,",
+        "\t\t\t\t      \"Age\",",
+        "\t\t\t\t      current_age);",
+        "\tg_free (current_age);",
+        ""
+      ],
+      "context_lines": [
+        "\t/* Headers */",
+        "\tcopy_end_to_end_headers (entry->headers, msg->response_headers);",
+        "",
+        "\t/* Create the cache stream. */",
+        "\tsoup_message_disable_feature (msg, SOUP_TYPE_CACHE);",
+        "\tcache_stream = soup_message_setup_body_istream (body_stream, msg,",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "soup_cache_send_response",
+        "Add",
+        "Age",
+        "header",
+        "with",
+        "the",
+        "soup_cache_entry_get_current_age",
+        "g_return_val_if_fail"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "callbacks",
+            "public": true,
+            "test_priority": "high",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "signature",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Library callback function type changes"
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "callbacks",
+          "user_visible_output"
+        ],
+        "profile": "c_project",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "soup_cache_send_response",
+        "snippet_start_line": 675,
+        "snippet_end_line": 738,
+        "snippet": "\n\tg_return_val_if_fail (SOUP_IS_CACHE (cache), NULL);\n\tg_return_val_if_fail (SOUP_IS_MESSAGE (msg), NULL);\n\n\tentry = soup_cache_entry_lookup (cache, msg);\n\tg_return_val_if_fail (entry, NULL);\n\n\tfile = get_file_from_entry (cache, entry);\n\tfile_stream = G_INPUT_STREAM (g_file_read (file, NULL, NULL));\n\tg_object_unref (file);\n\n\t/* Do not change the original message if there is no resource */\n\tif (!file_stream)\n\t\treturn NULL;\n\n\tbody_stream = soup_body_input_stream_new (file_stream, SOUP_ENCODING_CONTENT_LENGTH, entry->length);\n\tg_object_unref (file_stream);\n\n\tif (!body_stream)\n\t\treturn NULL;\n\n\t/* If we are told to send a response from cache any validation\n\t   in course is over by now */\n\tentry->being_validated = FALSE;\n\n\t/* Status */\n\tsoup_message_set_status (msg, entry->status_code);\n\n\t/* Headers */\n\tcopy_end_to_end_headers (entry->headers, msg->response_headers);\n\n\t/* Create the cache stream. */\n\tsoup_message_disable_feature (msg, SOUP_TYPE_CACHE);\n\tcache_stream = soup_message_setup_body_istream (body_stream, msg,\n\t\t\t\t\t\t\tcache->priv->session,\n\t\t\t\t\t\t\tSOUP_STAGE_ENTITY_BODY);\n\tg_object_unref (body_stream);\n\n\treturn cache_stream;\n}\n\nstatic void\nmsg_got_headers_cb (SoupMessage *msg, gpointer user_data)\n{\n\tg_object_set_data (G_OBJECT (msg), \"response-time\", GINT_TO_POINTER (time (NULL)));\n\tg_signal_handlers_disconnect_by_func (msg, msg_got_headers_cb, user_data);\n}\n\nstatic void\nrequest_started (SoupSessionFeature *feature, SoupSession *session,\n\t\t SoupMessage *msg, SoupSocket *socket)\n{\n\tg_object_set_data (G_OBJECT (msg), \"request-time\", GINT_TO_POINTER (time (NULL)));\n\tg_signal_connect (msg, \"got-headers\", G_CALLBACK (msg_got_headers_cb), NULL);\n}\n\nstatic void\nattach (SoupSessionFeature *feature, SoupSession *session)\n{\n\tSoupCache *cache = SOUP_CACHE (feature);\n\tcache->priv->session = session;\n\n\tsoup_cache_default_feature_interface->attach (feature, session);\n}\n"
+      }
+    }
+  ]
+}

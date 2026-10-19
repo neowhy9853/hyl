@@ -1,0 +1,195 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P042/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P042/patch.diff",
+  "profile": "kernel_6_6",
+  "summary": {
+    "total_changed_files": 2,
+    "changed_files": [
+      "tools/testing/selftests/ftrace/test.d/dynevent/eprobes_syntax_errors.tc",
+      "kernel/trace/trace_probe.c"
+    ],
+    "total_hunks": 2,
+    "public_api_hunks": 1,
+    "patch_metrics": {
+      "patch_bytes": 2674,
+      "patch_lines": 54,
+      "diff_added_lines": 1,
+      "diff_deleted_lines": 3,
+      "diff_context_lines": 16,
+      "churn": 4,
+      "raw_hunks": 2,
+      "candidate_hunks": 2,
+      "skipped_doc_hunks": 0,
+      "changed_files": 2,
+      "candidate_context_bytes": 2819,
+      "public_candidate_hunks": 1,
+      "surface_counts": {
+        "syscall": 1,
+        "syscall_wrappers": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "kernel/trace/trace_probe.c",
+      "old_start": 933,
+      "old_end": 940,
+      "new_start": 933,
+      "new_end": 938,
+      "context_hint": "static int parse_probe_vars(char *orig_arg, const struct fetch_type *t,",
+      "added_lines": [],
+      "deleted_lines": [
+        "\t\t/* backward compatibility */",
+        "\t\tctx->offset = 0;"
+      ],
+      "context_lines": [
+        "\t\t\tcode->op = FETCH_OP_COMM;",
+        "\t\t\treturn 0;",
+        "\t\t}",
+        "\t\tgoto inval;",
+        "\t}",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "fetch_type",
+        "backward",
+        "compatibility",
+        "ctx",
+        "offset",
+        "parse_probe_vars"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "fetch_type",
+        "snippet_start_line": 904,
+        "snippet_end_line": 968,
+        "snippet": "\t}\nend:\n\treturn;\n}\nNOKPROBE_SYMBOL(store_trace_entry_data)\n#endif\n\n#define PARAM_MAX_STACK (THREAD_SIZE / sizeof(unsigned long))\n\n/* Parse $vars. @orig_arg points '$', which syncs to @ctx->offset */\nstatic int parse_probe_vars(char *orig_arg, const struct fetch_type *t,\n\t\t\t    struct fetch_insn **pcode,\n\t\t\t    struct fetch_insn *end,\n\t\t\t    struct traceprobe_parse_context *ctx)\n{\n\tstruct fetch_insn *code = *pcode;\n\tint err = TP_ERR_BAD_VAR;\n\tchar *arg = orig_arg + 1;\n\tunsigned long param;\n\tint ret = 0;\n\tint len;\n\n\tif (ctx->flags & TPARG_FL_TEVENT) {\n\t\tif (code->data)\n\t\t\treturn -EFAULT;\n\t\tret = parse_trace_event_arg(arg, code, ctx);\n\t\tif (!ret)\n\t\t\treturn 0;\n\t\tif (strcmp(arg, \"comm\") == 0 || strcmp(arg, \"COMM\") == 0) {\n\t\t\tcode->op = FETCH_OP_COMM;\n\t\t\treturn 0;\n\t\t}\n\t\tgoto inval;\n\t}\n\n\tif (str_has_prefix(arg, \"retval\")) {\n\t\tif (!(ctx->flags & TPARG_FL_RETURN)) {\n\t\t\terr = TP_ERR_RETVAL_ON_PROBE;\n\t\t\tgoto inval;\n\t\t}\n\t\tif (!(ctx->flags & TPARG_FL_KERNEL) ||\n\t\t    !IS_ENABLED(CONFIG_PROBE_EVENTS_BTF_ARGS)) {\n\t\t\tcode->op = FETCH_OP_RETVAL;\n\t\t\treturn 0;\n\t\t}\n\t\treturn parse_btf_arg(orig_arg, pcode, end, ctx);\n\t}\n\n\tlen = str_has_prefix(arg, \"stack\");\n\tif (len) {\n\n\t\tif (arg[len] == '\\0') {\n\t\t\tcode->op = FETCH_OP_STACKP;\n\t\t\treturn 0;\n\t\t}\n\n\t\tif (isdigit(arg[len])) {\n\t\t\tret = kstrtoul(arg + len, 10, &param);\n\t\t\tif (ret)\n\t\t\t\tgoto inval;\n\n\t\t\tif ((ctx->flags & TPARG_FL_KERNEL) &&\n\t\t\t    param > PARAM_MAX_STACK) {\n\t\t\t\terr = TP_ERR_BAD_STACK_NUM;\n\t\t\t\tgoto inval;\n"
+      }
+    },
+    {
+      "file": "tools/testing/selftests/ftrace/test.d/dynevent/eprobes_syntax_errors.tc",
+      "old_start": 20,
+      "old_end": 26,
+      "new_start": 20,
+      "new_end": 26,
+      "context_hint": "check_error 'e:foo/^123456789012345678901234567890123456789012345678901234567890",
+      "added_lines": [
+        "check_error 'e:foo/bar syscalls/sys_enter_openat arg=^$foo'\t# BAD_ATTACH_ARG"
+      ],
+      "deleted_lines": [
+        "check_error 'e:foo/bar syscalls/sys_enter_openat ^arg=$foo'\t# BAD_ATTACH_ARG"
+      ],
+      "context_lines": [
+        "check_error 'e:foo/^bar.1 syscalls/sys_enter_openat'\t# BAD_EVENT_NAME",
+        "",
+        "check_error 'e:foo/bar syscalls/sys_enter_openat arg=^dfd'\t# BAD_FETCH_ARG",
+        "",
+        "if grep -q '<attached-group>\\.<attached-event>.*\\[if <filter>\\]' README; then",
+        "  check_error 'e:foo/bar syscalls/sys_enter_openat if ^'\t# NO_EP_FILTER",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "check_error",
+        "e",
+        "foo",
+        "bar",
+        "syscalls",
+        "sys_enter_openat"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall_wrappers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry"
+            ],
+            "description": "User-space syscall wrappers, fallbacks, flags, errno, and retry behavior."
+          }
+        ],
+        "surface_reasons": [
+          "syscall_wrappers"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 1,
+        "snippet_end_line": 29,
+        "snippet": "#!/bin/sh\n# SPDX-License-Identifier: GPL-2.0\n# description: Event probe event parser error log check\n# requires: dynamic_events events/syscalls/sys_enter_openat \"<attached-group>.<attached-event> [<args>]\":README error_log\n\ncheck_error() { # command-with-error-pos-by-^\n    ftrace_errlog_check 'event_probe' \"$1\" 'dynamic_events'\n}\n\ncheck_error 'e ^a.'\t\t\t# NO_EVENT_INFO\ncheck_error 'e ^.b'\t\t\t# NO_EVENT_INFO\ncheck_error 'e ^a.b'\t\t\t# BAD_ATTACH_EVENT\ncheck_error 'e syscalls/sys_enter_openat ^foo'\t# BAD_ATTACH_ARG\ncheck_error 'e:^/bar syscalls/sys_enter_openat'\t# NO_GROUP_NAME\ncheck_error 'e:^12345678901234567890123456789012345678901234567890123456789012345/bar syscalls/sys_enter_openat'\t# GROUP_TOO_LONG\n\ncheck_error 'e:^foo.1/bar syscalls/sys_enter_openat'\t# BAD_GROUP_NAME\ncheck_error 'e:^ syscalls/sys_enter_openat'\t\t# NO_EVENT_NAME\ncheck_error 'e:foo/^12345678901234567890123456789012345678901234567890123456789012345 syscalls/sys_enter_openat'\t# EVENT_TOO_LONG\ncheck_error 'e:foo/^bar.1 syscalls/sys_enter_openat'\t# BAD_EVENT_NAME\n\ncheck_error 'e:foo/bar syscalls/sys_enter_openat arg=^dfd'\t# BAD_FETCH_ARG\ncheck_error 'e:foo/bar syscalls/sys_enter_openat arg=^$foo'\t# BAD_ATTACH_ARG\n\nif grep -q '<attached-group>\\.<attached-event>.*\\[if <filter>\\]' README; then\n  check_error 'e:foo/bar syscalls/sys_enter_openat if ^'\t# NO_EP_FILTER\nfi\n\nexit 0\n"
+      }
+    }
+  ]
+}

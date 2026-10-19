@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/ruby/pca-results/183c9f/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/ruby",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/ruby/pca-results/183c9f/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/ruby/pca-results/183c9f",
+  "patch_id": "183c9f8f5c7367a65ff6b0574ba966ad158c1ad8",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "Time.parse",
+        "kind": "public_method",
+        "language": "ruby"
+      },
+      "target_location": {
+        "file": "lib/time.rb",
+        "old_lines": [
+          382,
+          393
+        ],
+        "new_lines": [
+          385,
+          396
+        ],
+        "symbol": "Time.parse"
+      },
+      "old_behavior": "Time.parse accepts two arguments: date (String) and now (Time, defaults to self.now). The parsed timezone from the date string is passed directly to make_time as the zone parameter. If the date string has no timezone or offset, d[:zone] is nil and make_time treats the parsed time as local time. Passing an unknown keyword argument like zone: raises ArgumentError.",
+      "new_behavior": "Time.parse accepts an optional keyword argument zone: (defaults to nil). When the parsed date string does not include a time zone or offset (d[:zone] is nil), the zone: value is used as the fallback timezone. If zone: is provided and the date has no timezone, make_time receives the zone: value instead of nil, causing the parsed time to be interpreted in that zone rather than local time. If the date string already contains a timezone or offset, zone: is ignored (d[:zone] takes precedence via the || operator).",
+      "compatibility_reason": "The new zone: keyword argument relaxes the input contract: previously, passing zone: to Time.parse would raise ArgumentError (unknown keyword). Now it is accepted and used as a fallback timezone when the parsed date lacks a timezone. This is a backward-compatible additive change because: (1) existing callers without zone: continue to work identically (default nil makes d[:zone] || nil === d[:zone]), (2) existing callers with date strings that include a timezone or offset are unaffected (d[:zone] is truthy and takes precedence), and (3) the zone: argument only affects behavior when explicitly passed and the parsed date has no timezone. This enables easier migration from DateTime.parse (which defaults to UTC) to Time.parse.",
+      "test_recommendation": "Verify backward compatibility: (1) existing calls without zone: produce identical results to before the patch, (2) existing calls with date strings that include timezone/offset are unaffected when zone: is also passed, (3) new zone: argument works correctly for dates without timezone, (4) passing zone: nil (explicitly) behaves same as not passing zone: at all.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/ruby/pca-results/183c9f/compatibility-testing"
+}

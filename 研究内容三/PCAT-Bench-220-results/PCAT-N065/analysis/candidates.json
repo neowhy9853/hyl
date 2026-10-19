@@ -1,0 +1,1387 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-N025/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-N025/patch.diff",
+  "profile": "cpython",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "Lib/test/test_socket.py"
+    ],
+    "total_hunks": 16,
+    "public_api_hunks": 0,
+    "patch_metrics": {
+      "patch_bytes": 6845,
+      "patch_lines": 145,
+      "diff_added_lines": 18,
+      "diff_deleted_lines": 0,
+      "diff_context_lines": 99,
+      "churn": 18,
+      "raw_hunks": 16,
+      "candidate_hunks": 16,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 52637,
+      "public_candidate_hunks": 0,
+      "surface_counts": {
+        "tests": 16,
+        "python_exceptions": 1,
+        "user_visible_output": 12,
+        "exceptions": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 59,
+      "old_end": 64,
+      "new_start": 59,
+      "new_end": 67,
+      "context_hint": "",
+      "added_lines": [
+        "# OpenBSD and DragonFly fail recvmsg() with EMSGSIZE, instead of setting",
+        "# MSG_CTRUNC, when the ancillary data buffer is too small for a cmsghdr.",
+        "CMSG_TRUNC_RAISES_EMSGSIZE = sys.platform.startswith((\"openbsd\", \"dragonfly\"))"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "# SCM_RIGHTS control message when several are sent in a single sendmsg().",
+        "BSD_COMBINES_SCM_RIGHTS = sys.platform.startswith(",
+        "    (\"netbsd\", \"openbsd\", \"dragonfly\"))",
+        "WSL = \"microsoft-standard-WSL\" in platform.release()",
+        "",
+        "try:"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "OpenBSD",
+        "and",
+        "DragonFly",
+        "fail",
+        "recvmsg",
+        "with"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and message changes"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "python_exceptions",
+          "user_visible_output",
+          "exceptions"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 30,
+        "snippet_end_line": 97,
+        "snippet": "import tempfile\nimport threading\nimport time\nimport traceback\nimport warnings\nfrom weakref import proxy\ntry:\n    import multiprocessing\nexcept ImportError:\n    multiprocessing = False\ntry:\n    import fcntl\nexcept ImportError:\n    fcntl = None\ntry:\n    import _testcapi\nexcept ImportError:\n    _testcapi = None\n\nsupport.requires_working_socket(module=True)\n\nHOST = socket_helper.HOST\n# test unicode string and carriage return\nMSG = 'Michael Gilfix was here\\u1234\\r\\n'.encode('utf-8')\n\nVSOCKPORT = 1234\nAIX = platform.system() == \"AIX\"\nSOLARIS = sys.platform.startswith(\"sunos\")\n# NetBSD, OpenBSD and DragonFly deliver the file descriptors from only one\n# SCM_RIGHTS control message when several are sent in a single sendmsg().\nBSD_COMBINES_SCM_RIGHTS = sys.platform.startswith(\n    (\"netbsd\", \"openbsd\", \"dragonfly\"))\n# OpenBSD and DragonFly fail recvmsg() with EMSGSIZE, instead of setting\n# MSG_CTRUNC, when the ancillary data buffer is too small for a cmsghdr.\nCMSG_TRUNC_RAISES_EMSGSIZE = sys.platform.startswith((\"openbsd\", \"dragonfly\"))\nWSL = \"microsoft-standard-WSL\" in platform.release()\n\ntry:\n    import _socket\nexcept ImportError:\n    _socket = None\n\ndef skipForRefleakHuntinIf(condition, issueref):\n    if not condition:\n        def decorator(f):\n            f.client_skip = lambda f: f\n            return f\n\n    else:\n        def decorator(f):\n            @contextlib.wraps(f)\n            def wrapper(*args, **kwds):\n                if refleak_helper.hunting_for_refleaks():\n                    raise unittest.SkipTest(f\"ignore while hunting for refleaks, see {issueref}\")\n\n                return f(*args, **kwds)\n\n            def client_skip(f):\n                @contextlib.wraps(f)\n                def wrapper(*args, **kwds):\n                    if refleak_helper.hunting_for_refleaks():\n                        return\n\n                    return f(*args, **kwds)\n\n                return wrapper\n            wrapper.client_skip = client_skip\n            return wrapper\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4351,
+      "old_end": 4356,
+      "new_start": 4354,
+      "new_end": 4360,
+      "context_hint": "def _testCmsgTrunc0(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    # (but still too small) buffer sizes.",
+        "",
+        "    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")",
+        "    def testCmsgTrunc1(self):",
+        "        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG), 1))",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "_testCmsgTrunc0",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          }
+        ],
+        "surface_reasons": [
+          "tests"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testCmsgTrunc0",
+        "snippet_start_line": 4322,
+        "snippet_end_line": 4390,
+        "snippet": "        msg, ancdata, flags, addr = result\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.assertEqual(ancdata, [])\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC,\n                        ignore=ignoreflags)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    def testCmsgTruncNoBufSize(self):\n        # Check that no ancillary data is received when no buffer size\n        # is specified.\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG)),\n                                  # BSD seems to set MSG_CTRUNC only\n                                  # if an item has been partially\n                                  # received.\n                                  ignoreflags=socket.MSG_CTRUNC)\n\n    @testCmsgTruncNoBufSize.client_skip\n    def _testCmsgTruncNoBufSize(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    def testCmsgTrunc0(self):\n        # Check that no ancillary data is received when buffer size is 0.\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG), 0),\n                                  ignoreflags=socket.MSG_CTRUNC)\n\n    @testCmsgTrunc0.client_skip\n    def _testCmsgTrunc0(self):\n        self.createAndSendFDs(1)\n\n    # Check that no ancillary data is returned for various non-zero\n    # (but still too small) buffer sizes.\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTrunc1(self):\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG), 1))\n\n    @testCmsgTrunc1.client_skip\n    def _testCmsgTrunc1(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTrunc2Int(self):\n        # The cmsghdr structure has at least three members, two of\n        # which are ints, so we still shouldn't see any ancillary\n        # data.\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG),\n                                                 SIZEOF_INT * 2))\n\n    @testCmsgTrunc2Int.client_skip\n    def _testCmsgTrunc2Int(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0Minus1(self):\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG),\n                                                 socket.CMSG_LEN(0) - 1))\n\n    @testCmsgTruncLen0Minus1.client_skip\n    def _testCmsgTruncLen0Minus1(self):\n        self.createAndSendFDs(1)\n\n    # The following tests try to truncate the control message in the\n    # middle of the FD array.\n\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4359,
+      "old_end": 4364,
+      "new_start": 4363,
+      "new_end": 4369,
+      "context_hint": "def _testCmsgTrunc1(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        self.createAndSendFDs(1)",
+        "",
+        "    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")",
+        "    def testCmsgTrunc2Int(self):",
+        "        # The cmsghdr structure has at least three members, two of",
+        "        # which are ints, so we still shouldn't see any ancillary"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "_testCmsgTrunc1",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testCmsgTrunc1",
+        "snippet_start_line": 4330,
+        "snippet_end_line": 4399,
+        "snippet": "    def testCmsgTruncNoBufSize(self):\n        # Check that no ancillary data is received when no buffer size\n        # is specified.\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG)),\n                                  # BSD seems to set MSG_CTRUNC only\n                                  # if an item has been partially\n                                  # received.\n                                  ignoreflags=socket.MSG_CTRUNC)\n\n    @testCmsgTruncNoBufSize.client_skip\n    def _testCmsgTruncNoBufSize(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    def testCmsgTrunc0(self):\n        # Check that no ancillary data is received when buffer size is 0.\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG), 0),\n                                  ignoreflags=socket.MSG_CTRUNC)\n\n    @testCmsgTrunc0.client_skip\n    def _testCmsgTrunc0(self):\n        self.createAndSendFDs(1)\n\n    # Check that no ancillary data is returned for various non-zero\n    # (but still too small) buffer sizes.\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTrunc1(self):\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG), 1))\n\n    @testCmsgTrunc1.client_skip\n    def _testCmsgTrunc1(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTrunc2Int(self):\n        # The cmsghdr structure has at least three members, two of\n        # which are ints, so we still shouldn't see any ancillary\n        # data.\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG),\n                                                 SIZEOF_INT * 2))\n\n    @testCmsgTrunc2Int.client_skip\n    def _testCmsgTrunc2Int(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0Minus1(self):\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG),\n                                                 socket.CMSG_LEN(0) - 1))\n\n    @testCmsgTruncLen0Minus1.client_skip\n    def _testCmsgTruncLen0Minus1(self):\n        self.createAndSendFDs(1)\n\n    # The following tests try to truncate the control message in the\n    # middle of the FD array.\n\n    def checkTruncatedArray(self, ancbuf, maxdata, mindata=0):\n        # Check that file descriptor data is truncated to between\n        # mindata and maxdata bytes when received with buffer size\n        # ancbuf, and that any complete file descriptor numbers are\n        # valid.\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n            msg, ancdata, flags, addr = self.doRecvmsg(self.serv_sock,\n                                                       len(MSG), ancbuf)\n        self.assertEqual(msg, MSG)\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4371,
+      "old_end": 4376,
+      "new_start": 4376,
+      "new_end": 4382,
+      "context_hint": "def _testCmsgTrunc2Int(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        self.createAndSendFDs(1)",
+        "",
+        "    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")",
+        "    def testCmsgTruncLen0Minus1(self):",
+        "        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG),",
+        "                                                 socket.CMSG_LEN(0) - 1))"
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "_testCmsgTrunc2Int",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testCmsgTrunc2Int",
+        "snippet_start_line": 4342,
+        "snippet_end_line": 4412,
+        "snippet": "\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    def testCmsgTrunc0(self):\n        # Check that no ancillary data is received when buffer size is 0.\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG), 0),\n                                  ignoreflags=socket.MSG_CTRUNC)\n\n    @testCmsgTrunc0.client_skip\n    def _testCmsgTrunc0(self):\n        self.createAndSendFDs(1)\n\n    # Check that no ancillary data is returned for various non-zero\n    # (but still too small) buffer sizes.\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTrunc1(self):\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG), 1))\n\n    @testCmsgTrunc1.client_skip\n    def _testCmsgTrunc1(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTrunc2Int(self):\n        # The cmsghdr structure has at least three members, two of\n        # which are ints, so we still shouldn't see any ancillary\n        # data.\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG),\n                                                 SIZEOF_INT * 2))\n\n    @testCmsgTrunc2Int.client_skip\n    def _testCmsgTrunc2Int(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0Minus1(self):\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG),\n                                                 socket.CMSG_LEN(0) - 1))\n\n    @testCmsgTruncLen0Minus1.client_skip\n    def _testCmsgTruncLen0Minus1(self):\n        self.createAndSendFDs(1)\n\n    # The following tests try to truncate the control message in the\n    # middle of the FD array.\n\n    def checkTruncatedArray(self, ancbuf, maxdata, mindata=0):\n        # Check that file descriptor data is truncated to between\n        # mindata and maxdata bytes when received with buffer size\n        # ancbuf, and that any complete file descriptor numbers are\n        # valid.\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n            msg, ancdata, flags, addr = self.doRecvmsg(self.serv_sock,\n                                                       len(MSG), ancbuf)\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC)\n\n        if mindata == 0 and ancdata == []:\n            return\n        self.assertEqual(len(ancdata), 1)\n        cmsg_level, cmsg_type, cmsg_data = ancdata[0]\n        self.assertEqual(cmsg_level, socket.SOL_SOCKET)\n        self.assertEqual(cmsg_type, socket.SCM_RIGHTS)\n        self.assertGreaterEqual(len(cmsg_data), mindata)\n        self.assertLessEqual(len(cmsg_data), maxdata)\n        fds = array.array(\"i\")\n        fds.frombytes(cmsg_data[:\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4408,
+      "old_end": 4413,
+      "new_start": 4414,
+      "new_end": 4420,
+      "context_hint": "def checkTruncatedArray(self, ancbuf, maxdata, mindata=0):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        self.checkFDs(fds)",
+        "",
+        "    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")",
+        "    def testCmsgTruncLen0(self):",
+        "        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(0), maxdata=0)",
+        ""
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "checkTruncatedArray",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "checkTruncatedArray",
+        "snippet_start_line": 4379,
+        "snippet_end_line": 4450,
+        "snippet": "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0Minus1(self):\n        self.checkTruncatedHeader(self.doRecvmsg(self.serv_sock, len(MSG),\n                                                 socket.CMSG_LEN(0) - 1))\n\n    @testCmsgTruncLen0Minus1.client_skip\n    def _testCmsgTruncLen0Minus1(self):\n        self.createAndSendFDs(1)\n\n    # The following tests try to truncate the control message in the\n    # middle of the FD array.\n\n    def checkTruncatedArray(self, ancbuf, maxdata, mindata=0):\n        # Check that file descriptor data is truncated to between\n        # mindata and maxdata bytes when received with buffer size\n        # ancbuf, and that any complete file descriptor numbers are\n        # valid.\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n            msg, ancdata, flags, addr = self.doRecvmsg(self.serv_sock,\n                                                       len(MSG), ancbuf)\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC)\n\n        if mindata == 0 and ancdata == []:\n            return\n        self.assertEqual(len(ancdata), 1)\n        cmsg_level, cmsg_type, cmsg_data = ancdata[0]\n        self.assertEqual(cmsg_level, socket.SOL_SOCKET)\n        self.assertEqual(cmsg_type, socket.SCM_RIGHTS)\n        self.assertGreaterEqual(len(cmsg_data), mindata)\n        self.assertLessEqual(len(cmsg_data), maxdata)\n        fds = array.array(\"i\")\n        fds.frombytes(cmsg_data[:\n                len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])\n        self.checkFDs(fds)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(0), maxdata=0)\n\n    @testCmsgTruncLen0.client_skip\n    def _testCmsgTruncLen0(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0Plus1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(0) + 1, maxdata=1)\n\n    @testCmsgTruncLen0Plus1.client_skip\n    def _testCmsgTruncLen0Plus1(self):\n        self.createAndSendFDs(2)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(SIZEOF_INT),\n                                 maxdata=SIZEOF_INT)\n\n    @testCmsgTruncLen1.client_skip\n    def _testCmsgTruncLen1(self):\n        self.createAndSendFDs(2)\n\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen2Minus1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(2 * SIZEOF_INT) - 1,\n                                 maxdata=(2 * SIZEOF_INT) - 1)\n\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4416,
+      "old_end": 4421,
+      "new_start": 4423,
+      "new_end": 4429,
+      "context_hint": "def _testCmsgTruncLen0(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        self.createAndSendFDs(1)",
+        "",
+        "    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")",
+        "    def testCmsgTruncLen0Plus1(self):",
+        "        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(0) + 1, maxdata=1)",
+        ""
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "_testCmsgTruncLen0",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testCmsgTruncLen0",
+        "snippet_start_line": 4387,
+        "snippet_end_line": 4459,
+        "snippet": "\n    # The following tests try to truncate the control message in the\n    # middle of the FD array.\n\n    def checkTruncatedArray(self, ancbuf, maxdata, mindata=0):\n        # Check that file descriptor data is truncated to between\n        # mindata and maxdata bytes when received with buffer size\n        # ancbuf, and that any complete file descriptor numbers are\n        # valid.\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n            msg, ancdata, flags, addr = self.doRecvmsg(self.serv_sock,\n                                                       len(MSG), ancbuf)\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC)\n\n        if mindata == 0 and ancdata == []:\n            return\n        self.assertEqual(len(ancdata), 1)\n        cmsg_level, cmsg_type, cmsg_data = ancdata[0]\n        self.assertEqual(cmsg_level, socket.SOL_SOCKET)\n        self.assertEqual(cmsg_type, socket.SCM_RIGHTS)\n        self.assertGreaterEqual(len(cmsg_data), mindata)\n        self.assertLessEqual(len(cmsg_data), maxdata)\n        fds = array.array(\"i\")\n        fds.frombytes(cmsg_data[:\n                len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])\n        self.checkFDs(fds)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(0), maxdata=0)\n\n    @testCmsgTruncLen0.client_skip\n    def _testCmsgTruncLen0(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0Plus1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(0) + 1, maxdata=1)\n\n    @testCmsgTruncLen0Plus1.client_skip\n    def _testCmsgTruncLen0Plus1(self):\n        self.createAndSendFDs(2)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(SIZEOF_INT),\n                                 maxdata=SIZEOF_INT)\n\n    @testCmsgTruncLen1.client_skip\n    def _testCmsgTruncLen1(self):\n        self.createAndSendFDs(2)\n\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen2Minus1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(2 * SIZEOF_INT) - 1,\n                                 maxdata=(2 * SIZEOF_INT) - 1)\n\n    @testCmsgTruncLen2Minus1.client_skip\n    def _testCmsgTruncLen2Minus1(self):\n        self.createAndSendFDs(2)\n\n\nclass RFC3542AncillaryTest(SendrecvmsgServerTimeoutBase):\n    # Test sendmsg() and recvmsg[_into]() using the ancillary data\n    # features of the RFC 3542 Advanced Sockets API for IPv6.\n    # Currently we can only handle certain data items (e.g. traffic\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4424,
+      "old_end": 4429,
+      "new_start": 4432,
+      "new_end": 4438,
+      "context_hint": "def _testCmsgTruncLen0Plus1(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        self.createAndSendFDs(2)",
+        "",
+        "    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")",
+        "    def testCmsgTruncLen1(self):",
+        "        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(SIZEOF_INT),",
+        "                                 maxdata=SIZEOF_INT)"
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "_testCmsgTruncLen0Plus1",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testCmsgTruncLen0Plus1",
+        "snippet_start_line": 4395,
+        "snippet_end_line": 4468,
+        "snippet": "        # valid.\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n            msg, ancdata, flags, addr = self.doRecvmsg(self.serv_sock,\n                                                       len(MSG), ancbuf)\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC)\n\n        if mindata == 0 and ancdata == []:\n            return\n        self.assertEqual(len(ancdata), 1)\n        cmsg_level, cmsg_type, cmsg_data = ancdata[0]\n        self.assertEqual(cmsg_level, socket.SOL_SOCKET)\n        self.assertEqual(cmsg_type, socket.SCM_RIGHTS)\n        self.assertGreaterEqual(len(cmsg_data), mindata)\n        self.assertLessEqual(len(cmsg_data), maxdata)\n        fds = array.array(\"i\")\n        fds.frombytes(cmsg_data[:\n                len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])\n        self.checkFDs(fds)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(0), maxdata=0)\n\n    @testCmsgTruncLen0.client_skip\n    def _testCmsgTruncLen0(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0Plus1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(0) + 1, maxdata=1)\n\n    @testCmsgTruncLen0Plus1.client_skip\n    def _testCmsgTruncLen0Plus1(self):\n        self.createAndSendFDs(2)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(SIZEOF_INT),\n                                 maxdata=SIZEOF_INT)\n\n    @testCmsgTruncLen1.client_skip\n    def _testCmsgTruncLen1(self):\n        self.createAndSendFDs(2)\n\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen2Minus1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(2 * SIZEOF_INT) - 1,\n                                 maxdata=(2 * SIZEOF_INT) - 1)\n\n    @testCmsgTruncLen2Minus1.client_skip\n    def _testCmsgTruncLen2Minus1(self):\n        self.createAndSendFDs(2)\n\n\nclass RFC3542AncillaryTest(SendrecvmsgServerTimeoutBase):\n    # Test sendmsg() and recvmsg[_into]() using the ancillary data\n    # features of the RFC 3542 Advanced Sockets API for IPv6.\n    # Currently we can only handle certain data items (e.g. traffic\n    # class, hop limit, MTU discovery and fragmentation settings)\n    # without resorting to unportable means such as the struct module,\n    # but the tests here are aimed at testing the ancillary data\n    # handling in sendmsg() and recvmsg() rather than the IPv6 API\n    # itself.\n\n    # Test value to use when setting hop limit of packet\n    hop_limit = 2\n\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4434,
+      "old_end": 4439,
+      "new_start": 4443,
+      "new_end": 4449,
+      "context_hint": "def _testCmsgTruncLen1(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "",
+        "    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")",
+        "    def testCmsgTruncLen2Minus1(self):",
+        "        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(2 * SIZEOF_INT) - 1,",
+        "                                 maxdata=(2 * SIZEOF_INT) - 1)"
+      ],
+      "hunk_id": "HUNK-0008",
+      "changed_symbols": [
+        "_testCmsgTruncLen1",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          }
+        ],
+        "surface_reasons": [
+          "tests"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testCmsgTruncLen1",
+        "snippet_start_line": 4405,
+        "snippet_end_line": 4479,
+        "snippet": "        self.assertEqual(len(ancdata), 1)\n        cmsg_level, cmsg_type, cmsg_data = ancdata[0]\n        self.assertEqual(cmsg_level, socket.SOL_SOCKET)\n        self.assertEqual(cmsg_type, socket.SCM_RIGHTS)\n        self.assertGreaterEqual(len(cmsg_data), mindata)\n        self.assertLessEqual(len(cmsg_data), maxdata)\n        fds = array.array(\"i\")\n        fds.frombytes(cmsg_data[:\n                len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])\n        self.checkFDs(fds)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(0), maxdata=0)\n\n    @testCmsgTruncLen0.client_skip\n    def _testCmsgTruncLen0(self):\n        self.createAndSendFDs(1)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen0Plus1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(0) + 1, maxdata=1)\n\n    @testCmsgTruncLen0Plus1.client_skip\n    def _testCmsgTruncLen0Plus1(self):\n        self.createAndSendFDs(2)\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(SIZEOF_INT),\n                                 maxdata=SIZEOF_INT)\n\n    @testCmsgTruncLen1.client_skip\n    def _testCmsgTruncLen1(self):\n        self.createAndSendFDs(2)\n\n\n    @skipForRefleakHuntinIf(sys.platform == \"darwin\", \"#80931\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testCmsgTruncLen2Minus1(self):\n        self.checkTruncatedArray(ancbuf=socket.CMSG_LEN(2 * SIZEOF_INT) - 1,\n                                 maxdata=(2 * SIZEOF_INT) - 1)\n\n    @testCmsgTruncLen2Minus1.client_skip\n    def _testCmsgTruncLen2Minus1(self):\n        self.createAndSendFDs(2)\n\n\nclass RFC3542AncillaryTest(SendrecvmsgServerTimeoutBase):\n    # Test sendmsg() and recvmsg[_into]() using the ancillary data\n    # features of the RFC 3542 Advanced Sockets API for IPv6.\n    # Currently we can only handle certain data items (e.g. traffic\n    # class, hop limit, MTU discovery and fragmentation settings)\n    # without resorting to unportable means such as the struct module,\n    # but the tests here are aimed at testing the ancillary data\n    # handling in sendmsg() and recvmsg() rather than the IPv6 API\n    # itself.\n\n    # Test value to use when setting hop limit of packet\n    hop_limit = 2\n\n    # Test value to use when setting traffic class of packet.\n    # -1 means \"use kernel default\".\n    traffic_class = -1\n\n    def ancillaryMapping(self, ancdata):\n        # Given ancillary data list ancdata, return a mapping from\n        # pairs (cmsg_level, cmsg_type) to corresponding cmsg_data.\n        # Check that no (level, type) pair appears more than once.\n        d = {}\n        for cmsg_level, cmsg_type, cmsg_data in ancdata:\n            self.assertNotIn((cmsg_level, cmsg_type), d)\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4706,
+      "old_end": 4711,
+      "new_start": 4716,
+      "new_end": 4722,
+      "context_hint": "def _testSingleCmsgTrunc0(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "    # (but still too small) buffer sizes.",
+        "",
+        "    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")",
+        "    def testSingleCmsgTrunc1(self):",
+        "        self.checkHopLimitTruncatedHeader(ancbufsize=1)",
+        ""
+      ],
+      "hunk_id": "HUNK-0009",
+      "changed_symbols": [
+        "_testSingleCmsgTrunc0",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          }
+        ],
+        "surface_reasons": [
+          "tests"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testSingleCmsgTrunc0",
+        "snippet_start_line": 4677,
+        "snippet_end_line": 4752,
+        "snippet": "        args = () if ancbufsize is None else (ancbufsize,)\n        msg, ancdata, flags, addr = self.doRecvmsg(self.serv_sock,\n                                                   len(MSG), *args)\n\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.assertEqual(ancdata, [])\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC,\n                        ignore=ignoreflags)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    def testCmsgTruncNoBufSize(self):\n        # Check that no ancillary data is received when no ancillary\n        # buffer size is provided.\n        self.checkHopLimitTruncatedHeader(ancbufsize=None,\n                                          # BSD seems to set\n                                          # MSG_CTRUNC only if an item\n                                          # has been partially\n                                          # received.\n                                          ignoreflags=socket.MSG_CTRUNC)\n\n    @testCmsgTruncNoBufSize.client_skip\n    def _testCmsgTruncNoBufSize(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    def testSingleCmsgTrunc0(self):\n        # Check that no ancillary data is received when ancillary\n        # buffer size is zero.\n        self.checkHopLimitTruncatedHeader(ancbufsize=0,\n                                          ignoreflags=socket.MSG_CTRUNC)\n\n    @testSingleCmsgTrunc0.client_skip\n    def _testSingleCmsgTrunc0(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    # Check that no ancillary data is returned for various non-zero\n    # (but still too small) buffer sizes.\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTrunc1(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=1)\n\n    @testSingleCmsgTrunc1.client_skip\n    def _testSingleCmsgTrunc1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTrunc2Int(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=2 * SIZEOF_INT)\n\n    @testSingleCmsgTrunc2Int.client_skip\n    def _testSingleCmsgTrunc2Int(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTruncLen0Minus1(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=socket.CMSG_LEN(0) - 1)\n\n    @testSingleCmsgTruncLen0Minus1.client_skip\n    def _testSingleCmsgTruncLen0Minus1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTruncInData(self):\n        # Test truncation of a control message inside its associated\n        # data.  The message may be returned with its data truncated,\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4715,
+      "old_end": 4720,
+      "new_start": 4726,
+      "new_end": 4732,
+      "context_hint": "def _testSingleCmsgTrunc1(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        self.sendToServer(MSG)",
+        "",
+        "    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")",
+        "    def testSingleCmsgTrunc2Int(self):",
+        "        self.checkHopLimitTruncatedHeader(ancbufsize=2 * SIZEOF_INT)",
+        ""
+      ],
+      "hunk_id": "HUNK-0010",
+      "changed_symbols": [
+        "_testSingleCmsgTrunc1",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testSingleCmsgTrunc1",
+        "snippet_start_line": 4686,
+        "snippet_end_line": 4762,
+        "snippet": "\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    def testCmsgTruncNoBufSize(self):\n        # Check that no ancillary data is received when no ancillary\n        # buffer size is provided.\n        self.checkHopLimitTruncatedHeader(ancbufsize=None,\n                                          # BSD seems to set\n                                          # MSG_CTRUNC only if an item\n                                          # has been partially\n                                          # received.\n                                          ignoreflags=socket.MSG_CTRUNC)\n\n    @testCmsgTruncNoBufSize.client_skip\n    def _testCmsgTruncNoBufSize(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    def testSingleCmsgTrunc0(self):\n        # Check that no ancillary data is received when ancillary\n        # buffer size is zero.\n        self.checkHopLimitTruncatedHeader(ancbufsize=0,\n                                          ignoreflags=socket.MSG_CTRUNC)\n\n    @testSingleCmsgTrunc0.client_skip\n    def _testSingleCmsgTrunc0(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    # Check that no ancillary data is returned for various non-zero\n    # (but still too small) buffer sizes.\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTrunc1(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=1)\n\n    @testSingleCmsgTrunc1.client_skip\n    def _testSingleCmsgTrunc1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTrunc2Int(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=2 * SIZEOF_INT)\n\n    @testSingleCmsgTrunc2Int.client_skip\n    def _testSingleCmsgTrunc2Int(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTruncLen0Minus1(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=socket.CMSG_LEN(0) - 1)\n\n    @testSingleCmsgTruncLen0Minus1.client_skip\n    def _testSingleCmsgTruncLen0Minus1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTruncInData(self):\n        # Test truncation of a control message inside its associated\n        # data.  The message may be returned with its data truncated,\n        # or not returned at all.\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVHOPLIMIT, 1)\n        self.misc_event.set()\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n            msg, ancdata, flags, addr = self.doRecvmsg(\n                self.serv_sock, len(MSG), socket.CMSG_LEN(SIZEOF_INT) - 1)\n\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4724,
+      "old_end": 4729,
+      "new_start": 4736,
+      "new_end": 4742,
+      "context_hint": "def _testSingleCmsgTrunc2Int(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        self.sendToServer(MSG)",
+        "",
+        "    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")",
+        "    def testSingleCmsgTruncLen0Minus1(self):",
+        "        self.checkHopLimitTruncatedHeader(ancbufsize=socket.CMSG_LEN(0) - 1)",
+        ""
+      ],
+      "hunk_id": "HUNK-0011",
+      "changed_symbols": [
+        "_testSingleCmsgTrunc2Int",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testSingleCmsgTrunc2Int",
+        "snippet_start_line": 4695,
+        "snippet_end_line": 4772,
+        "snippet": "                                          # received.\n                                          ignoreflags=socket.MSG_CTRUNC)\n\n    @testCmsgTruncNoBufSize.client_skip\n    def _testCmsgTruncNoBufSize(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    def testSingleCmsgTrunc0(self):\n        # Check that no ancillary data is received when ancillary\n        # buffer size is zero.\n        self.checkHopLimitTruncatedHeader(ancbufsize=0,\n                                          ignoreflags=socket.MSG_CTRUNC)\n\n    @testSingleCmsgTrunc0.client_skip\n    def _testSingleCmsgTrunc0(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    # Check that no ancillary data is returned for various non-zero\n    # (but still too small) buffer sizes.\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTrunc1(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=1)\n\n    @testSingleCmsgTrunc1.client_skip\n    def _testSingleCmsgTrunc1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTrunc2Int(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=2 * SIZEOF_INT)\n\n    @testSingleCmsgTrunc2Int.client_skip\n    def _testSingleCmsgTrunc2Int(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTruncLen0Minus1(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=socket.CMSG_LEN(0) - 1)\n\n    @testSingleCmsgTruncLen0Minus1.client_skip\n    def _testSingleCmsgTruncLen0Minus1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTruncInData(self):\n        # Test truncation of a control message inside its associated\n        # data.  The message may be returned with its data truncated,\n        # or not returned at all.\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVHOPLIMIT, 1)\n        self.misc_event.set()\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n            msg, ancdata, flags, addr = self.doRecvmsg(\n                self.serv_sock, len(MSG), socket.CMSG_LEN(SIZEOF_INT) - 1)\n\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC)\n\n        self.assertLessEqual(len(ancdata), 1)\n        if ancdata:\n            cmsg_level, cmsg_type, cmsg_data = ancdata[0]\n            self.assertEqual(cmsg_level, socket.IPPROTO_IPV6)\n            self.assertEqual(cmsg_type, socket.IPV6_HOPLIMIT)\n            self.assertLess(len(cmsg_data), SIZEOF_INT)\n\n    @testSingleCmsgTruncInData.client_skip\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4733,
+      "old_end": 4738,
+      "new_start": 4746,
+      "new_end": 4752,
+      "context_hint": "def _testSingleCmsgTruncLen0Minus1(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "        self.sendToServer(MSG)",
+        "",
+        "    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")",
+        "    def testSingleCmsgTruncInData(self):",
+        "        # Test truncation of a control message inside its associated",
+        "        # data.  The message may be returned with its data truncated,"
+      ],
+      "hunk_id": "HUNK-0012",
+      "changed_symbols": [
+        "_testSingleCmsgTruncLen0Minus1",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testSingleCmsgTruncLen0Minus1",
+        "snippet_start_line": 4704,
+        "snippet_end_line": 4782,
+        "snippet": "    def testSingleCmsgTrunc0(self):\n        # Check that no ancillary data is received when ancillary\n        # buffer size is zero.\n        self.checkHopLimitTruncatedHeader(ancbufsize=0,\n                                          ignoreflags=socket.MSG_CTRUNC)\n\n    @testSingleCmsgTrunc0.client_skip\n    def _testSingleCmsgTrunc0(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    # Check that no ancillary data is returned for various non-zero\n    # (but still too small) buffer sizes.\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTrunc1(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=1)\n\n    @testSingleCmsgTrunc1.client_skip\n    def _testSingleCmsgTrunc1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTrunc2Int(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=2 * SIZEOF_INT)\n\n    @testSingleCmsgTrunc2Int.client_skip\n    def _testSingleCmsgTrunc2Int(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTruncLen0Minus1(self):\n        self.checkHopLimitTruncatedHeader(ancbufsize=socket.CMSG_LEN(0) - 1)\n\n    @testSingleCmsgTruncLen0Minus1.client_skip\n    def _testSingleCmsgTruncLen0Minus1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSingleCmsgTruncInData(self):\n        # Test truncation of a control message inside its associated\n        # data.  The message may be returned with its data truncated,\n        # or not returned at all.\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVHOPLIMIT, 1)\n        self.misc_event.set()\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n            msg, ancdata, flags, addr = self.doRecvmsg(\n                self.serv_sock, len(MSG), socket.CMSG_LEN(SIZEOF_INT) - 1)\n\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC)\n\n        self.assertLessEqual(len(ancdata), 1)\n        if ancdata:\n            cmsg_level, cmsg_type, cmsg_data = ancdata[0]\n            self.assertEqual(cmsg_level, socket.IPPROTO_IPV6)\n            self.assertEqual(cmsg_type, socket.IPV6_HOPLIMIT)\n            self.assertLess(len(cmsg_data), SIZEOF_INT)\n\n    @testSingleCmsgTruncInData.client_skip\n    def _testSingleCmsgTruncInData(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    def checkTruncatedSecondHeader(self, ancbufsize, ignoreflags=0):\n        # Receive traffic class and hop limit into ancbufsize bytes of\n        # ancillary data space, which should be large enough to\n        # contain the first item, but too small to contain the header\n        # of the second.  Check that data is MSG, MSG_CTRUNC is set\n        # (unless included in ignoreflags), and only one ancillary\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4805,
+      "old_end": 4810,
+      "new_start": 4819,
+      "new_end": 4825,
+      "context_hint": "def _testSecondCmsgTrunc0(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",",
+        "                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")",
+        "    def testSecondCmsgTrunc1(self):",
+        "        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) + 1)",
+        ""
+      ],
+      "hunk_id": "HUNK-0013",
+      "changed_symbols": [
+        "_testSecondCmsgTrunc0",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          }
+        ],
+        "surface_reasons": [
+          "tests"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testSecondCmsgTrunc0",
+        "snippet_start_line": 4776,
+        "snippet_end_line": 4855,
+        "snippet": "\n    def checkTruncatedSecondHeader(self, ancbufsize, ignoreflags=0):\n        # Receive traffic class and hop limit into ancbufsize bytes of\n        # ancillary data space, which should be large enough to\n        # contain the first item, but too small to contain the header\n        # of the second.  Check that data is MSG, MSG_CTRUNC is set\n        # (unless included in ignoreflags), and only one ancillary\n        # data item is returned.\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVHOPLIMIT, 1)\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVTCLASS, 1)\n        self.misc_event.set()\n        msg, ancdata, flags, addr = self.doRecvmsg(self.serv_sock,\n                                                   len(MSG), ancbufsize)\n\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC,\n                        ignore=ignoreflags)\n\n        self.assertEqual(len(ancdata), 1)\n        cmsg_level, cmsg_type, cmsg_data = ancdata[0]\n        self.assertEqual(cmsg_level, socket.IPPROTO_IPV6)\n        self.assertIn(cmsg_type, {socket.IPV6_TCLASS, socket.IPV6_HOPLIMIT})\n        self.assertEqual(len(cmsg_data), SIZEOF_INT)\n        a = array.array(\"i\")\n        a.frombytes(cmsg_data)\n        self.assertGreaterEqual(a[0], 0)\n        self.assertLessEqual(a[0], 255)\n\n    # Try the above test with various buffer sizes.\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    def testSecondCmsgTrunc0(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT),\n                                        ignoreflags=socket.MSG_CTRUNC)\n\n    @testSecondCmsgTrunc0.client_skip\n    def _testSecondCmsgTrunc0(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTrunc1(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) + 1)\n\n    @testSecondCmsgTrunc1.client_skip\n    def _testSecondCmsgTrunc1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTrunc2Int(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) +\n                                        2 * SIZEOF_INT)\n\n    @testSecondCmsgTrunc2Int.client_skip\n    def _testSecondCmsgTrunc2Int(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTruncLen0Minus1(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) +\n                                        socket.CMSG_LEN(0) - 1)\n\n    @testSecondCmsgTruncLen0Minus1.client_skip\n    def _testSecondCmsgTruncLen0Minus1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4815,
+      "old_end": 4820,
+      "new_start": 4830,
+      "new_end": 4836,
+      "context_hint": "def _testSecondCmsgTrunc1(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",",
+        "                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")",
+        "    def testSecondCmsgTrunc2Int(self):",
+        "        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) +",
+        "                                        2 * SIZEOF_INT)"
+      ],
+      "hunk_id": "HUNK-0014",
+      "changed_symbols": [
+        "_testSecondCmsgTrunc1",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testSecondCmsgTrunc1",
+        "snippet_start_line": 4786,
+        "snippet_end_line": 4866,
+        "snippet": "        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVTCLASS, 1)\n        self.misc_event.set()\n        msg, ancdata, flags, addr = self.doRecvmsg(self.serv_sock,\n                                                   len(MSG), ancbufsize)\n\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC,\n                        ignore=ignoreflags)\n\n        self.assertEqual(len(ancdata), 1)\n        cmsg_level, cmsg_type, cmsg_data = ancdata[0]\n        self.assertEqual(cmsg_level, socket.IPPROTO_IPV6)\n        self.assertIn(cmsg_type, {socket.IPV6_TCLASS, socket.IPV6_HOPLIMIT})\n        self.assertEqual(len(cmsg_data), SIZEOF_INT)\n        a = array.array(\"i\")\n        a.frombytes(cmsg_data)\n        self.assertGreaterEqual(a[0], 0)\n        self.assertLessEqual(a[0], 255)\n\n    # Try the above test with various buffer sizes.\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    def testSecondCmsgTrunc0(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT),\n                                        ignoreflags=socket.MSG_CTRUNC)\n\n    @testSecondCmsgTrunc0.client_skip\n    def _testSecondCmsgTrunc0(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTrunc1(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) + 1)\n\n    @testSecondCmsgTrunc1.client_skip\n    def _testSecondCmsgTrunc1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTrunc2Int(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) +\n                                        2 * SIZEOF_INT)\n\n    @testSecondCmsgTrunc2Int.client_skip\n    def _testSecondCmsgTrunc2Int(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTruncLen0Minus1(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) +\n                                        socket.CMSG_LEN(0) - 1)\n\n    @testSecondCmsgTruncLen0Minus1.client_skip\n    def _testSecondCmsgTruncLen0Minus1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTruncInData(self):\n        # Test truncation of the second of two control messages inside\n        # its associated data.\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVHOPLIMIT, 1)\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVTCLASS, 1)\n        self.misc_event.set()\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4826,
+      "old_end": 4831,
+      "new_start": 4842,
+      "new_end": 4848,
+      "context_hint": "def _testSecondCmsgTrunc2Int(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",",
+        "                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")",
+        "    def testSecondCmsgTruncLen0Minus1(self):",
+        "        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) +",
+        "                                        socket.CMSG_LEN(0) - 1)"
+      ],
+      "hunk_id": "HUNK-0015",
+      "changed_symbols": [
+        "_testSecondCmsgTrunc2Int",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testSecondCmsgTrunc2Int",
+        "snippet_start_line": 4797,
+        "snippet_end_line": 4878,
+        "snippet": "        self.assertEqual(len(ancdata), 1)\n        cmsg_level, cmsg_type, cmsg_data = ancdata[0]\n        self.assertEqual(cmsg_level, socket.IPPROTO_IPV6)\n        self.assertIn(cmsg_type, {socket.IPV6_TCLASS, socket.IPV6_HOPLIMIT})\n        self.assertEqual(len(cmsg_data), SIZEOF_INT)\n        a = array.array(\"i\")\n        a.frombytes(cmsg_data)\n        self.assertGreaterEqual(a[0], 0)\n        self.assertLessEqual(a[0], 255)\n\n    # Try the above test with various buffer sizes.\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    def testSecondCmsgTrunc0(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT),\n                                        ignoreflags=socket.MSG_CTRUNC)\n\n    @testSecondCmsgTrunc0.client_skip\n    def _testSecondCmsgTrunc0(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTrunc1(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) + 1)\n\n    @testSecondCmsgTrunc1.client_skip\n    def _testSecondCmsgTrunc1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTrunc2Int(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) +\n                                        2 * SIZEOF_INT)\n\n    @testSecondCmsgTrunc2Int.client_skip\n    def _testSecondCmsgTrunc2Int(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTruncLen0Minus1(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) +\n                                        socket.CMSG_LEN(0) - 1)\n\n    @testSecondCmsgTruncLen0Minus1.client_skip\n    def _testSecondCmsgTruncLen0Minus1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTruncInData(self):\n        # Test truncation of the second of two control messages inside\n        # its associated data.\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVHOPLIMIT, 1)\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVTCLASS, 1)\n        self.misc_event.set()\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n            msg, ancdata, flags, addr = self.doRecvmsg(\n                self.serv_sock, len(MSG),\n                socket.CMSG_SPACE(SIZEOF_INT) + socket.CMSG_LEN(SIZEOF_INT) - 1)\n\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC)\n\n        cmsg_types = {socket.IPV6_TCLASS, socket.IPV6_HOPLIMIT}\n\n        cmsg_level, cmsg_type, cmsg_data = ancdata.pop(0)\n        self.assertEqual(cmsg_level, socket.IPPROTO_IPV6)\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 4837,
+      "old_end": 4842,
+      "new_start": 4854,
+      "new_end": 4860,
+      "context_hint": "def _testSecondCmsgTruncLen0Minus1(self):",
+      "added_lines": [
+        "    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",",
+        "                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")",
+        "    def testSecondCmsgTruncInData(self):",
+        "        # Test truncation of the second of two control messages inside",
+        "        # its associated data.",
+        ""
+      ],
+      "hunk_id": "HUNK-0016",
+      "changed_symbols": [
+        "_testSecondCmsgTruncLen0Minus1",
+        "unittest",
+        "skipIf",
+        "CMSG_TRUNC_RAISES_EMSGSIZE",
+        "skipping",
+        "see"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "_testSecondCmsgTruncLen0Minus1",
+        "snippet_start_line": 4808,
+        "snippet_end_line": 4890,
+        "snippet": "\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    def testSecondCmsgTrunc0(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT),\n                                        ignoreflags=socket.MSG_CTRUNC)\n\n    @testSecondCmsgTrunc0.client_skip\n    def _testSecondCmsgTrunc0(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTrunc1(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) + 1)\n\n    @testSecondCmsgTrunc1.client_skip\n    def _testSecondCmsgTrunc1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTrunc2Int(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) +\n                                        2 * SIZEOF_INT)\n\n    @testSecondCmsgTrunc2Int.client_skip\n    def _testSecondCmsgTrunc2Int(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTruncLen0Minus1(self):\n        self.checkTruncatedSecondHeader(socket.CMSG_SPACE(SIZEOF_INT) +\n                                        socket.CMSG_LEN(0) - 1)\n\n    @testSecondCmsgTruncLen0Minus1.client_skip\n    def _testSecondCmsgTruncLen0Minus1(self):\n        self.assertTrue(self.misc_event.wait(timeout=self.fail_timeout))\n        self.sendToServer(MSG)\n\n    @requireAttrs(socket, \"CMSG_SPACE\", \"IPV6_RECVHOPLIMIT\", \"IPV6_HOPLIMIT\",\n                  \"IPV6_RECVTCLASS\", \"IPV6_TCLASS\")\n    @unittest.skipIf(CMSG_TRUNC_RAISES_EMSGSIZE, \"skipping, see gh-154240\")\n    def testSecondCmsgTruncInData(self):\n        # Test truncation of the second of two control messages inside\n        # its associated data.\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVHOPLIMIT, 1)\n        self.serv_sock.setsockopt(socket.IPPROTO_IPV6,\n                                  socket.IPV6_RECVTCLASS, 1)\n        self.misc_event.set()\n        with downgrade_malformed_data_warning():  # TODO: gh-110012\n            msg, ancdata, flags, addr = self.doRecvmsg(\n                self.serv_sock, len(MSG),\n                socket.CMSG_SPACE(SIZEOF_INT) + socket.CMSG_LEN(SIZEOF_INT) - 1)\n\n        self.assertEqual(msg, MSG)\n        self.checkRecvmsgAddress(addr, self.cli_addr)\n        self.checkFlags(flags, eor=True, checkset=socket.MSG_CTRUNC)\n\n        cmsg_types = {socket.IPV6_TCLASS, socket.IPV6_HOPLIMIT}\n\n        cmsg_level, cmsg_type, cmsg_data = ancdata.pop(0)\n        self.assertEqual(cmsg_level, socket.IPPROTO_IPV6)\n        cmsg_types.remove(cmsg_type)\n        self.assertEqual(len(cmsg_data), SIZEOF_INT)\n        a = array.array(\"i\")\n        a.frombytes(cmsg_data)\n        self.assertGreaterEqual(a[0], 0)\n        self.assertLessEqual(a[0], 255)\n\n        if ancdata:\n            cmsg_level, cmsg_type, cmsg_data = ancdata.pop(0)\n            self.assertEqual(cmsg_level, socket.IPPROTO_IPV6)\n            cmsg_types.remove(cmsg_type)\n            self.assertLess(len(cmsg_data), SIZEOF_INT)\n"
+      }
+    }
+  ]
+}

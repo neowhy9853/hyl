@@ -1,0 +1,144 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/d33525/analysis.json",
+  "patch_id": "d3352554e4c1f052b914cda7b415d06b7eab5dfa",
+  "result_dir": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/d33525/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/libxml2",
+    "base_commit": "6be0acd2afb3f55af3c721e1e35ac6675df3057a",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/d33525/_worktrees/patched",
+    "package_profile": "libxml2"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "GCC 13.3.0",
+    "optimization": "-O0 -g",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Both before (6be0acd) and after (d335255) builds completed successfully with Ninja.",
+      "Coverage flags: --coverage for compile and link."
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 7,
+    "inputs_executed": 7,
+    "contracts_total": 5,
+    "contracts_passed": 4,
+    "contracts_breached": 1,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 6,
+    "patch_lines_covered": 6,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "medium",
+      "status": "passed",
+      "target_location": {
+        "file": "xmllint.c",
+        "new_lines": [
+          3075,
+          3083
+        ],
+        "symbol": "xmllintMain"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+          "run_command": "bash test-entry-work/PCA-0001/reproducer.sh <xmllint-binary>",
+          "expected_signal": "Without --maxmem/--maxmem 0: exit 0. With --maxmem 1: exit 9 (OOM). With --maxmem 100000+: exit 0.",
+          "reachability_signal": "xmllint --maxmem code path at xmllint.c:3078-3083 is reached when --maxmem specified with non-zero value"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "config_cli_behavior_stability",
+          "status": "breached",
+          "detail": "BEFORE(6be0acd): --maxmem 100000 fails exit 9. AFTER(d335255): --maxmem 100000 succeeds exit 0. Expected breach - bug fix."
+        },
+        {
+          "contract_id": "config_cli_default_behavior",
+          "status": "passed",
+          "detail": "No --maxmem and --maxmem 0: both before and after behave identically (exit 0)."
+        },
+        {
+          "contract_id": "config_cli_oom_behavior",
+          "status": "passed",
+          "detail": "--maxmem 1: both before and after OOM with exit 9 (1 byte too small)."
+        },
+        {
+          "contract_id": "config_cli_error_message",
+          "status": "breached",
+          "detail": "BEFORE: Maximum memory exceeded (0 bytes). AFTER: Maximum memory exceeded (1 bytes). Error message now reflects actual limit."
+        },
+        {
+          "contract_id": "config_cli_large_limit",
+          "status": "passed",
+          "detail": "--maxmem 10000000: AFTER succeeds (exit 0), BEFORE OOMs (exit 9)."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 6,
+        "covered_lines": 6,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [
+        {
+          "input_id": "cov-3-maxmem-100000",
+          "diff_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+          "before": "exit 9, Maximum memory exceeded (0 bytes)",
+          "after": "exit 0",
+          "evidence": "gcov confirms xmllint.c:3080 executed 4 times. BEFORE always OOMs. AFTER works correctly."
+        },
+        {
+          "input_id": "cov-4-maxmem-10000000",
+          "diff_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+          "before": "exit 9, Maximum memory exceeded (0 bytes)",
+          "after": "exit 0",
+          "evidence": "Same root cause. BEFORE OOMs on any non-zero --maxmem. AFTER works correctly."
+        }
+      ],
+      "notes": [
+        "Bug fix restoring documented --maxmem behavior.",
+        "Old: xmllintMaxmem=0 inside if(lint->maxmem!=0). New: xmllintMaxmem=lint->maxmem.",
+        "gcov: all changed lines (3078-3083) covered."
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "",
+    "coverage_data": "/tmp/pca-libxml2-after/build/xmllint.c.gcov",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "The --maxmem CLI option behavior changed. Old: always OOM. New: correctly enforces limit. Bug fix restoring documented behavior. Users who never used --maxmem are unaffected.",
+    "recommended_actions": [
+      "No remediation needed - bug fix restoring intended behavior.",
+      "Update any workflows using --maxmem that relied on broken behavior."
+    ]
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/haproxy",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd",
+  "base_ref": "HEAD",
+  "base_commit": "0748799ad18db4eeb72b33b30c5e0c420a8216ea",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "98b1fd4ff9a719f34131fa04cbd93f92c0c362f7",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "haproxy",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1369,
+    "patch_lines": 34,
+    "diff_added_lines": 3,
+    "diff_deleted_lines": 3,
+    "diff_context_lines": 9,
+    "churn": 6,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 1972,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "user_visible_output": 1,
+      "protocol_behavior": 1
+    },
+    "candidates_json_bytes": 5943
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "haproxy",
+      "affected_surface": "H3 protocol error handling for PUSH_PROMISE on backend connections",
+      "affected_api": {
+        "name": "h3_rcv_buf",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/h3.c",
+        "old_lines": [
+          2074,
+          2076
+        ],
+        "new_lines": [
+          2074,
+          2079
+        ],
+        "symbol": "h3_rcv_buf"
+      },
+      "old_behavior": "When receiving an unexpected H3 PUSH_PROMISE frame on a backend connection, the code sets ret = H3_ERR_ID_ERROR (0x108 = 264, a positive value) and falls through via break. Since ret > 0 at line 2097, the error code is incorrectly consumed as a byte count: b_del(b, 264) drops bytes and total += 264 corrupts the stream accounting. The connection error is never signaled via qcc_set_error(), so the connection continues operating in an inconsistent state.",
+      "new_behavior": "When receiving an unexpected H3 PUSH_PROMISE frame on a backend connection, the code logs a TRACE_ERROR diagnostic, properly signals the connection error via qcc_set_error() with H3_ERR_ID_ERROR and muxc_tevt_type_proto_err, then jumps to the err label for proper error cleanup and connection termination.",
+      "compatibility_reason": "The old error handling was buggy: H3_ERR_ID_ERROR (0x108) is a positive value that would be misinterpreted as consumed bytes via b_del() and the total counter, leading to buffer accounting corruption. The fix changes the error handling to properly signal the connection error and abort. Although this is a bug fix, it changes observable protocol behavior: previously a malformed peer sending PUSH_PROMISE on a backend connection would cause buffer corruption; now the connection is properly terminated with H3_ID_ERROR. Additionally, a new TRACE_ERROR diagnostic message is emitted.",
+      "evidence": [
+        {
+          "file": "src/h3.c",
+          "lines": [
+            2074,
+            2079
+          ],
+          "snippet": "case H3_FT_PUSH_PROMISE:\n\t\t\tBUG_ON(!conn_is_back(qcs->qcc->conn));\n\n\t\t\t/* RFC 9114 ... */\n\t\t\tTRACE_ERROR(\"Received unexpected PUSH_PROMISE frame\", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);\n\t\t\tqcc_set_error(qcs->qcc, H3_ERR_ID_ERROR, 1, muxc_tevt_type_proto_err);\n\t\t\tgoto err;"
+        },
+        {
+          "file": "src/h3.c",
+          "lines": [
+            2067,
+            2076
+          ],
+          "snippet": "case H3_FT_PUSH_PROMISE:\n\t\t\tBUG_ON(!conn_is_back(qcs->qcc->conn));\n\n\t\t\t/* RFC 9114 ... */\n\t\t\tret = H3_ERR_ID_ERROR;\n\t\t\tbreak;"
+        },
+        {
+          "file": "src/h3.c",
+          "lines": [
+            2097,
+            2102
+          ],
+          "snippet": "if (ret > 0) {\n\t\t\tBUG_ON(h3s->demux_frame_len < ret);\n\t\t\th3s->demux_frame_len -= ret;\n\t\t\tb_del(b, ret);\n\t\t\ttotal += ret;\n\t\t}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "h3_rcv_buf is the core H3 frame receiver in the QUIC mux path. The PUSH_PROMISE frame handling affects HTTP/3 protocol-level connection behavior and diagnostics. The TRACE_ERROR output is visible in debug traces and error logs consumed by operators.",
+      "uncertainty": "The exact impact depends on whether a backend connection actually receives an unexpected PUSH_PROMISE frame in practice. Most H3 peers would not send this, so this edge case is rarely triggered.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that the qcc_set_error() call and goto err path correctly terminate the connection without resource leaks (stream cleanup, buffer release).",
+      "test_recommendation": "Test by simulating an H3 client sending PUSH_PROMISE on a backend QUIC connection and verifying: (1) connection error is reported, (2) no buffer corruption occurs, (3) the TRACE_ERROR message appears in debug output.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=daemon_handler with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/h3.c",
+            "old_lines": [
+              2074,
+              2081
+            ],
+            "new_lines": [
+              2074,
+              2082
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "protocol_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "Proxy protocol, HTTP/TCP/TLS/QUIC behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=daemon_handler with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "analysis_complete"
+}

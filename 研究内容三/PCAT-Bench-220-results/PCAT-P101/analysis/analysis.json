@@ -1,0 +1,296 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P041/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P041",
+  "base_ref": "922a03b26e354a74a30b4a8220822072df3e54c4~1",
+  "base_commit": "36c85f7029484d5ede769f8873d16e9c8e35533c",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "922a03b26e354a74a30b4a8220822072df3e54c4",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/gregkh/linux/commit/922a03b26e354a74a30b4a8220822072df3e54c4",
+    "download_url": "https://github.com/gregkh/linux/commit/922a03b26e354a74a30b4a8220822072df3e54c4.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/fn_rerun_20260724_155026/PCIA-P041/_patch-cache/922a03b26e35.patch",
+    "commit": "922a03b26e354a74a30b4a8220822072df3e54c4"
+  },
+  "package_profile": "kernel_6_6",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1868,
+    "patch_lines": 45,
+    "diff_added_lines": 2,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 8,
+    "churn": 4,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 1595,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "exported_symbols": 1
+    },
+    "candidates_json_bytes": 4958
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 2,
+    "high_priority": 2,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "EXPORT_SYMBOL_GPL: btmtk_usb_hci_wmt_sync",
+      "affected_api": {
+        "name": "btmtk_usb_hci_wmt_sync",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "drivers/bluetooth/btmtk.c",
+        "old_lines": [
+          681,
+          682
+        ],
+        "new_lines": [
+          682,
+          683
+        ],
+        "symbol": "btmtk_usb_hci_wmt_sync"
+      },
+      "old_behavior": "当 WMT FUNC_CTRL 事件过短、不包含 status 字段时（skb_pull_data 返回 NULL），函数设置 err = -EINVAL 并跳转到 err_free_skb 标签，释放 SKB 并返回 -EINVAL。调用方通过 `err < 0` 检测到此错误条件后中止操作并打印 \"Failed to send wmt func ctrl (-22)\"。",
+      "new_behavior": "当 WMT FUNC_CTRL 事件过短时，设置 status = BTMTK_WMT_ON_UNDONE，然后 break 退出 switch。随后执行 `if (wmt_params->status) *wmt_params->status = status;`（仅当 status 非 NULL 时写入），然后 fall-through 到 err_free_skb/err_free_wc 清理路径，返回 err（此时通常为 0，因为走到此路径意味着之前所有操作成功）。调用方的 `err < 0` 检查不再触发，将继续执行后续操作。",
+      "compatibility_reason": "该函数是 EXPORT_SYMBOL_GPL 导出的公共内核 API，被 btusb.c 中的多个调用点使用。调用方均使用 `err < 0` 来检测失败。此补丁前，在特定硬件（MT7925）上，设备发送不包含 status 字段的短事件，导致返回 -EINVAL 并使设备不可用。此补丁将短事件解释为 BTMTK_WMT_ON_UNDONE 并返回成功，从兼容性角度看是一种 return contract 放宽——原先返回错误的输入现在返回成功。该变更是有意为之的 bug fix，恢复了引入长度验证之前的原始行为，但从外部可观察接口语义来看，返回值约定已发生改变。",
+      "evidence": [
+        {
+          "file": "drivers/bluetooth/btmtk.c",
+          "lines": [
+            679,
+            694
+          ],
+          "snippet": "\tcase BTMTK_WMT_FUNC_CTRL:\n\t\tif (!skb_pull_data(data->evt_skb,\n\t\t\t\t   sizeof(wmt_evt_funcc->status))) {\n\t\t\tstatus = BTMTK_WMT_ON_UNDONE;\n\t\t\tbreak;\n\t\t}\n\n\t\twmt_evt_funcc = (struct btmtk_hci_wmt_evt_funcc *)wmt_evt;\n\t\tif (be16_to_cpu(wmt_evt_funcc->status) == 0x404)\n\t\t\tstatus = BTMTK_WMT_ON_DONE;\n\t\telse if (be16_to_cpu(wmt_evt_funcc->status) == 0x420)\n\t\t\tstatus = BTMTK_WMT_ON_PROGRESS;\n\t\telse\n\t\t\tstatus = BTMTK_WMT_ON_UNDONE;\n\t\tbreak;"
+        },
+        {
+          "file": "drivers/bluetooth/btusb.c",
+          "lines": [
+            2968,
+            2974
+          ],
+          "snippet": "\t\twmt_params.status = NULL;\n\n\t\terr = btmtk_usb_hci_wmt_sync(hdev, &wmt_params);\n\t\tif (err < 0) {\n\t\t\tbt_dev_err(hdev, \"Failed to send wmt func ctrl (%d)\", err);\n\t\t\treturn err;\n\t\t}"
+        },
+        {
+          "file": "drivers/bluetooth/btusb.c",
+          "lines": [
+            3032,
+            3038
+          ],
+          "snippet": "\t\twmt_params.status = NULL;\n\n\t\terr = btmtk_usb_hci_wmt_sync(hdev, &wmt_params);\n\t\tif (err < 0) {\n\t\t\tbt_dev_err(hdev, \"Failed to send wmt func ctrl (%d)\", err);\n\t\t\treturn err;\n\t\t}"
+        },
+        {
+          "file": "drivers/bluetooth/btusb.c",
+          "lines": [
+            3078,
+            3084
+          ],
+          "snippet": "\t\twmt_params.status = NULL;\n\n\t\terr = btmtk_usb_hci_wmt_sync(hdev, &wmt_params);\n\t\tif (err < 0) {\n\t\t\tbt_dev_err(hdev, \"Failed to send wmt func ctrl (%d)\", err);\n\t\t\treturn err;\n\t\t}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "btmtk_usb_hci_wmt_sync 是 EXPORT_SYMBOL_GPL 导出的符号，被外部模块 btusb.c 中的 btusb_mtk_setup 和 btusb_mtk_shutdown 函数直接调用。函数签名 int btmtk_usb_hci_wmt_sync(struct hci_dev *, struct btmtk_hci_wmt_params *) 作为指针传递给 btmtk_setup_firmware_79xx，属于公共驱动 API。返回值语义变化直接影响调用方的控制流。",
+      "uncertainty": "该补丁旨在修复 MT7925 设备兼容性回归。原回归引入前的行为是从超边界内存读取 status 字段，结果通常为 BTMTK_WMT_ON_UNDONE。新行为显式设置 BTMTK_WMT_ON_UNDONE，与旧的不安全但巧合正确的结果一致。从功能角度看，该行为是更兼容的，但严格来说，API 返回值约定已改变。该变化是否有实际负面影响取决于是否有调用方依赖 -EINVAL 返回值来区分不同的错误条件。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核。补丁逻辑清晰：将过短事件统一处理为 ON_UNDONE。所有调用点对 FUNC_CTRL 均设置 wmt_params.status = NULL 且仅检查 err < 0，因此旧代码在短事件时会导致设备初始化/shutdown 失败并打印错误日志，新代码允许继续执行。",
+      "test_recommendation": "在 MT7925 (USB ID 0e8d:e025) 硬件上测试 WMT FUNC_CTRL 命令的发送和响应处理，验证设备初始化流程完成后蓝牙功能正常可用；在没有该硬件的环境下，可通过编写内核模块测试桩模拟数据路径中 skb_pull_data 返回 NULL 的条件，验证函数返回 0 且调用方流程正确继续执行。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "drivers/bluetooth/btmtk.c",
+            "old_lines": [
+              679,
+              686
+            ],
+            "new_lines": [
+              679,
+              686
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "exported_symbols"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "exported_symbols",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported kernel symbols used by modules"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "EXPORT_SYMBOL_GPL: btmtk_usb_hci_wmt_sync",
+      "affected_api": {
+        "name": "btmtk_usb_hci_wmt_sync",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "drivers/bluetooth/btmtk.c",
+        "old_lines": [
+          681,
+          682
+        ],
+        "new_lines": [
+          682,
+          683
+        ],
+        "symbol": "btmtk_usb_hci_wmt_sync"
+      },
+      "old_behavior": "当 WMT FUNC_CTRL 事件不包含 status 字段时，函数将短事件视为错误条件，设置 err = -EINVAL 并终止处理。调用方收到错误返回值后打印错误日志并中止设备设置/关闭流程。",
+      "new_behavior": "当 WMT FUNC_CTRL 事件不包含 status 字段时，函数不再将短事件视为错误，而是将其解释为 BTMTK_WMT_ON_UNDONE（操作未完成但可继续），正常返回 0。调用方不会收到错误信号，设备设置/关闭流程继续执行。",
+      "compatibility_reason": "从信号语义来看，-EINVAL 返回值是调用方唯一的错误指示。补丁将某个意外但存在的硬件行为从错误条件重新分类为正常条件。这改变了该函数的错误模型：过去的 -EINVAL 表示 '无效输入，不应继续'，现在对于特定设备返回的短事件来说则变为 '可以继续'。如果其他 MediaTek 设备在正常操作中也发送短 FUNC_CTRL 事件，该变化将导致原本被正确中止的设置流程在数据不足的情况下继续执行。",
+      "evidence": [
+        {
+          "file": "drivers/bluetooth/btmtk.c",
+          "lines": [
+            679,
+            694
+          ],
+          "snippet": "\tcase BTMTK_WMT_FUNC_CTRL:\n\t\tif (!skb_pull_data(data->evt_skb,\n\t\t\t\t   sizeof(wmt_evt_funcc->status))) {\n\t\t\tstatus = BTMTK_WMT_ON_UNDONE;\n\t\t\tbreak;\n\t\t}\n\n\t\twmt_evt_funcc = (struct btmtk_hci_wmt_evt_funcc *)wmt_evt;\n\t\tif (be16_to_cpu(wmt_evt_funcc->status) == 0x404)\n\t\t\tstatus = BTMTK_WMT_ON_DONE;\n\t\telse if (be16_to_cpu(wmt_evt_funcc->status) == 0x420)\n\t\t\tstatus = BTMTK_WMT_ON_PROGRESS;\n\t\telse\n\t\t\tstatus = BTMTK_WMT_ON_UNDONE;\n\t\tbreak;"
+        },
+        {
+          "file": "drivers/bluetooth/btmtk.c",
+          "lines": [
+            704,
+            712
+          ],
+          "snippet": "\tif (wmt_params->status)\n\t\t*wmt_params->status = status;\n\nerr_free_skb:\n\tkfree_skb(data->evt_skb);\n\tdata->evt_skb = NULL;\nerr_free_wc:\n\tkfree(wc);\n\treturn err;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "同 PCA-0001：btmtk_usb_hci_wmt_sync 是 EXPORT_SYMBOL_GPL 导出的符号，调用方通过检查 err 返回值来判定错误。短事件的处理从错误重新分类为带 BTMTK_WMT_ON_UNDONE 状态的正常返回，改变了外部调用方可观察的错误模型。",
+      "uncertainty": "该补丁仅影响发送短 FUNC_CTRL 事件的具体硬件（MT7925，fw version 20260106153314）。在其他 MediaTek 蓝牙设备驱动路径中，FUNC_CTRL 事件的长度是否一致尚无证据。如果其他设备也以短事件作为错误或特殊指示，则此变化可能导致错误被静默忽略，造成驱动在异常状态下继续运行。",
+      "manual_review_required": false,
+      "recommended_review": "建议确认是否只有特定 MT7925 固件版本会发送短事件。如果是为了修复与某个已知固件版本的互操作性问题，该变更是安全且有意的。如果未来其他 MediaTek 设备固件版本的短事件具有不同的语义（例如确实应该返回 -EINVAL），则需要增加对设备/固件版本的判断。",
+      "test_recommendation": "测试 FUNC_CTRL 短事件的边界条件：构造或模拟 skb 长度小于 sizeof(wmt_evt_funcc->status) 的情况，验证函数返回 0 且 *wmt_params->status（若非 NULL）被设置为 BTMTK_WMT_ON_UNDONE，而非早期的 -EINVAL 错误返回。可在 MediaTek 蓝牙设备设置和关闭流程中注入短事件并验证驱动行为正常。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "drivers/bluetooth/btmtk.c",
+            "old_lines": [
+              679,
+              686
+            ],
+            "new_lines": [
+              679,
+              686
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "exported_symbols"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "exported_symbols",
+                "test_priority": "high",
+                "public": true,
+                "description": "Exported kernel symbols used by modules"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=ERROR_EXCEPTION_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

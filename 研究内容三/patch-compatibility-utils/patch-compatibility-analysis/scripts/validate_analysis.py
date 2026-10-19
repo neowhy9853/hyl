@@ -66,6 +66,16 @@ LANGUAGES = {"c", "cpp", "python", "go", "ruby", "tcl"}
 PRIORITIES = {"high", "medium", "low"}
 PATCH_APPLY_STATUSES = {"applied", "already_applied", "applied_3way"}
 WORKTREE_STATUSES = {"available", "cleaned"}
+AFFECTED_SCOPE_STATUSES = {"computed", "degraded", "agent_review", "not_available"}
+AFFECTED_SCOPE_ARRAY_FIELDS = [
+    "direct_callers",
+    "transitive_dependents",
+    "affected_files",
+    "affected_entry_points",
+    "test_dependents",
+    "external_dependents",
+    "notes",
+]
 
 
 def load_json(path: Path) -> dict:
@@ -89,11 +99,55 @@ def check_required(obj: dict, keys: list[str], path: str, errors: list[str]) -> 
             errors.append(f"{path}: missing required field `{key}`")
 
 
+def validate_affected_scope(
+    finding: dict,
+    path: str,
+    errors: list[str],
+    required: bool,
+) -> None:
+    scope = finding.get("affected_scope")
+    if scope is None:
+        if required:
+            errors.append(
+                f"{path}.affected_scope: required by --require-affected-scope"
+            )
+        return
+    if not isinstance(scope, dict):
+        errors.append(f"{path}.affected_scope: expected object")
+        return
+    status = scope.get("status")
+    if status not in AFFECTED_SCOPE_STATUSES:
+        errors.append(
+            f"{path}.affected_scope.status: expected one of "
+            + "|".join(sorted(AFFECTED_SCOPE_STATUSES))
+        )
+    summary = scope.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
+        errors.append(f"{path}.affected_scope.summary: required non-empty string")
+    for field in AFFECTED_SCOPE_ARRAY_FIELDS:
+        if field in scope and not isinstance(scope[field], list):
+            errors.append(f"{path}.affected_scope.{field}: expected array")
+        elif field != "notes" and isinstance(scope.get(field), list):
+            if not all(isinstance(item, dict) for item in scope[field]):
+                errors.append(
+                    f"{path}.affected_scope.{field}: every item must be an object"
+                )
+    for field in ("max_depth",):
+        value = scope.get(field)
+        if field in scope and (
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+        ):
+            errors.append(
+                f"{path}.affected_scope.{field}: expected non-negative integer"
+            )
+
+
 def validate_finding(
     finding: dict,
     index: int,
     errors: list[str],
     allow_legacy_ids: bool = False,
+    require_affected_scope: bool = False,
 ) -> None:
     path = f"findings[{index}]"
     check_required(
@@ -174,8 +228,14 @@ def validate_finding(
             if not item.get("snippet"):
                 errors.append(f"{ev_path}.snippet: required")
 
+    validate_affected_scope(finding, path, errors, require_affected_scope)
 
-def validate_analysis(path: Path, allow_legacy_ids: bool = False) -> list[str]:
+
+def validate_analysis(
+    path: Path,
+    allow_legacy_ids: bool = False,
+    require_affected_scope: bool = False,
+) -> list[str]:
     data = load_json(path)
     errors: list[str] = []
     check_required(
@@ -219,7 +279,9 @@ def validate_analysis(path: Path, allow_legacy_ids: bool = False) -> list[str]:
 
     for index, finding in enumerate(findings):
         if isinstance(finding, dict):
-            validate_finding(finding, index, errors, allow_legacy_ids)
+            validate_finding(
+                finding, index, errors, allow_legacy_ids, require_affected_scope
+            )
         else:
             errors.append(f"findings[{index}]: expected object")
 
@@ -248,10 +310,17 @@ def main() -> int:
         action="store_true",
         help="Accept legacy PCIA-0001 IDs when ingesting older analysis results",
     )
+    parser.add_argument(
+        "--require-affected-scope",
+        action="store_true",
+        help="Require findings[].affected_scope with status and summary on new analyses",
+    )
     args = parser.parse_args()
 
     try:
-        errors = validate_analysis(Path(args.analysis), args.allow_legacy_ids)
+        errors = validate_analysis(
+            Path(args.analysis), args.allow_legacy_ids, args.require_affected_scope
+        )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2

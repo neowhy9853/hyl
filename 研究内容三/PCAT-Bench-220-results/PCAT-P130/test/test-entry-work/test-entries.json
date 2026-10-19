@@ -1,0 +1,59 @@
+{
+  "source": "test-entry-tasks.json",
+  "generated_by": "pca-test-entry-generator",
+  "entries": [
+    {
+      "task_id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "artifact_path": "test-entry-work/PCA-TE-0001/test_module.c",
+      "run_command": "# See artifact for build instructions. Requires built httpd.\n# apxs -c -i mod_test_again.c\n# httpd -X -f test_config.conf\n# curl http://localhost:8080/test",
+      "expected_signal": "OK+CONN_STATE_PROCESSING should trigger lingering close (connection closed); AGAIN+CONN_STATE_PROCESSING should keep connection alive for I/O wait",
+      "reachability_signal": "GCOV shows coverage on process_socket() lines 1142-1160 (switch/case for AGAIN handling)",
+      "execution": {
+        "cwd": "test-entry-work/PCA-TE-0001/",
+        "requires_build": true,
+        "build_command": "apxs -c mod_test_again.c -Wc,-fprofile-arcs,-ftest-coverage,-O0,-g -Wl,-lgcov,--coverage"
+      },
+      "input_strategy": "Generate HTTP requests to trigger process_connection hook with different return codes and connection states",
+      "contract_probe": "return_contract_stability: compare connection close behavior between old (OK -> POLLIN/POLLOUT) and new (OK -> lingering_close, AGAIN -> POLLIN/POLLOUT) contracts",
+      "prerequisites": [
+        "patched httpd binary built with event MPM and GCOV",
+        "APR/APR-util installed",
+        "apxs tool available for module compilation"
+      ],
+      "limitations": [
+        "Requires running httpd instance with event MPM configured",
+        "GCOV data collection needs httpd graceful restart or shutdown",
+        "Test module must be carefully written to correctly set cs->state and return appropriate codes"
+      ],
+      "verification_status": "blocked"
+    },
+    {
+      "task_id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "artifact_path": "test-entry-work/PCA-TE-0002/h2_test.sh",
+      "run_command": "See artifact for build and execution instructions. Requires httpd with mod_http2 + nghttp2.\n# Build: configure --enable-http2 --with-nghttp2=/path && make\n# Run: httpd -X -f h2_test.conf\n# Test: curl --http2 -k https://localhost:8443/test",
+      "expected_signal": "h2_c1_run returns AGAIN when MPM supports AP_MPMQ_CAN_AGAIN; clogging_input_filters=1 when not",
+      "reachability_signal": "GCOV shows coverage on h2_c1_run() lines 155-190 (AGAIN/clogging branch) and lines 305-311 (return propagation)",
+      "execution": {
+        "cwd": "test-entry-work/PCA-TE-0002/",
+        "requires_build": true,
+        "build_command": "make CFLAGS='-fprofile-arcs -ftest-coverage -O0 -g' LDFLAGS='-lgcov --coverage'"
+      },
+      "input_strategy": "HTTP/2 requests triggering h2_send_flow_blocked to return to MPM monitoring; test with and without AP_MPMQ_CAN_AGAIN capable MPM",
+      "contract_probe": "return_contract_stability: verify h2_c1_run return value propagates correctly through h2_c1_hook_process_connection to MPM",
+      "prerequisites": [
+        "patched httpd binary built with event MPM, mod_http2, mod_ssl, GCOV",
+        "nghttp2 library and headers installed",
+        "SSL certificates for HTTPS/2 testing",
+        "curl with HTTP/2 support"
+      ],
+      "limitations": [
+        "mod_http2 only works with event MPM (which supports AP_MPMQ_CAN_AGAIN in this patch)",
+        "Full HTTP/2 session lifecycle may be complex to trigger specific flow-blocked conditions",
+        "clogging_input_filters fallback path only triggered on MPMs without AP_MPMQ_CAN_AGAIN"
+      ],
+      "verification_status": "blocked"
+    }
+  ]
+}

@@ -1,0 +1,293 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/openldap/pca-results/fbf682/analysis.json",
+  "patch_id": "fbf682a6c684db5e0b6928b511f8fc57d6c8eb7c",
+  "result_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/fbf682/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/openldap",
+    "base_commit": "bb64b0b55b5aa77fae077209f26b015f6a86275f",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/openldap/pca-results/fbf682/_worktrees/patched",
+    "package_profile": "openldap"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "not_run",
+    "after_build": "passed",
+    "compiler": "gcc (Ubuntu 13.3.0)",
+    "optimization": "-O0",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Coverage build with --coverage succeeded (421 gcno files)",
+      "IPv4 loopback socket confirmed operational",
+      "Non-root LDAP bind auth setup failed due to userPassword schema constraints"
+    ]
+  },
+  "summary": {
+    "findings_total": 4,
+    "findings_targeted": 4,
+    "entries_planned": 7,
+    "entries_generated": 7,
+    "entries_verified": 4,
+    "inputs_planned": 6,
+    "inputs_executed": 4,
+    "contracts_total": 6,
+    "contracts_passed": 4,
+    "contracts_breached": 1,
+    "contracts_skipped": 1,
+    "patch_executable_lines": 44,
+    "patch_lines_covered": 15,
+    "patch_lines_uncovered": 29,
+    "patch_line_coverage_rate": 34.09
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "status": "passed",
+      "target_location": {
+        "file": "servers/slapd/aclparse.c",
+        "new_lines": [1691, 1741],
+        "symbol": "parse_acl"
+      },
+      "entries": [
+        {
+          "entry_id": "E1",
+          "status": "passed",
+          "artifact_path": "slapd -T test",
+          "run_command": "slapd -T test with op=search config",
+          "expected_signal": "Config accepted with op=search in ACL output",
+          "reachability_signal": "gcov shows parse_acl new code executed 6-9 times"
+        },
+        {
+          "entry_id": "E2",
+          "status": "passed",
+          "artifact_path": "slapd -T test",
+          "run_command": "slapd -T test with control=<numeric_oid> config",
+          "expected_signal": "Config accepted with numeric OID control",
+          "reachability_signal": "gcov shows control= parsing code executed 3 times"
+        },
+        {
+          "entry_id": "E3",
+          "status": "failed",
+          "artifact_path": "slapd -T test",
+          "run_command": "slapd -T test with control=manageDSAiT config",
+          "expected_signal": "Config accepted with manageDSAiT control name",
+          "reachability_signal": "Got 'bad control OID manageDSAiT'; oidm_find returned NULL"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "C1",
+          "status": "passed",
+          "detail": "op=search keyword correctly parsed by slapd ACL config parser"
+        },
+        {
+          "contract_id": "C2",
+          "status": "passed",
+          "detail": "control=<numeric_oid> keyword correctly parsed by slapd ACL config parser"
+        },
+        {
+          "contract_id": "C3",
+          "status": "breached",
+          "detail": "control=manageDSAiT fails: named OID alias not registered as objectIdentifier"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 14,
+        "covered_lines": 13,
+        "uncovered_lines": ["servers/slapd/aclparse.c:1722-1725 (op=<oid> extended OID path)"],
+        "rate": 92.86
+      },
+      "behavior_differences": [
+        {
+          "input_id": "E3",
+          "diff_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+          "before": "control=manageDSAiT: not applicable (old parser rejects)",
+          "after": "control=manageDSAiT: rejected with 'bad control OID' error",
+          "evidence": "slapd -T test output: 'bad control OID manageDSAiT in to clause'"
+        }
+      ],
+      "notes": [
+        "Config parsing of op= and control= numeric OID works correctly",
+        "Named OID aliases for controls not registered as objectIdentifiers fail",
+        "Patch's own test config (slapd-acl.conf) uses control=manageDSAiT and will fail"
+      ]
+    },
+    {
+      "finding_id": "PCA-0002",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "medium",
+      "status": "passed",
+      "target_location": {
+        "file": "servers/slapd/aclparse.c",
+        "new_lines": [2869, 2888],
+        "symbol": "acl_unparse"
+      },
+      "entries": [
+        {
+          "entry_id": "E4",
+          "status": "passed",
+          "artifact_path": "gcov on aclparse.c",
+          "run_command": "slapd -T test with op=/control= config, then gcov",
+          "expected_signal": "acl_unparse new code executed",
+          "reachability_signal": "gcov: lines 2872-2886 executed 2-10 times"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "C4",
+          "status": "passed",
+          "detail": "acl_unparse outputs op= and control= lines when configured"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 8,
+        "covered_lines": 8,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Output format change is additive - only appears when op=/control= is configured",
+        "Old configs without these keywords produce identical output"
+      ]
+    },
+    {
+      "finding_id": "PCA-0003",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "medium",
+      "status": "not_run",
+      "target_location": {
+        "file": "servers/slapd/slap.h",
+        "new_lines": [1612, 1624],
+        "symbol": "AccessControl"
+      },
+      "entries": [
+        {
+          "entry_id": "E5",
+          "status": "blocked",
+          "artifact_path": "",
+          "run_command": "Build slapd backend with old slap.h, load into new slapd",
+          "expected_signal": "Old module accesses acl_access with correct offset",
+          "reachability_signal": "Static analysis: struct layout changed - 5 fields added between acl_attrval and acl_access"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "C5",
+          "status": "skipped",
+          "detail": "ABI verification requires separate slapd module build with old headers"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 0,
+        "uncovered_lines": ["servers/slapd/slap.h:1612-1618 (struct layout change - static analysis only)"],
+        "rate": 0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Static analysis confirms 5 new fields before acl_access",
+        "Old slapd modules compiled against old slap.h will have wrong offset for acl_access",
+        "In-tree builds (backends always recompiled with slapd) are not affected"
+      ]
+    },
+    {
+      "finding_id": "PCA-0004",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "status": "partial",
+      "target_location": {
+        "file": "servers/slapd/acl.c",
+        "new_lines": [545, 564],
+        "symbol": "slap_acl_get"
+      },
+      "entries": [
+        {
+          "entry_id": "E6",
+          "status": "blocked",
+          "artifact_path": "",
+          "run_command": "ldapsearch as non-root user on op=search-restricted subtree",
+          "expected_signal": "Search succeeds (op matches), modify fails (op doesn't match)",
+          "reachability_signal": "Requires non-root bind with proper schema-compatible user entry"
+        },
+        {
+          "entry_id": "E7",
+          "status": "blocked",
+          "artifact_path": "",
+          "run_command": "ldapmodify -M on control-restricted subtree",
+          "expected_signal": "Modify fails with insufficientAccess (50) when ManageDSAiT control used",
+          "reachability_signal": "Blocked by: (1) manageDSAiT OID not registered, (2) non-root auth"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "C6",
+          "status": "skipped",
+          "detail": "Runtime ACL enforcement (op=/control= filtering in slap_acl_get) not dynamically tested"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 2,
+        "covered_lines": 0,
+        "uncovered_lines": [
+          "servers/slapd/acl.c:548-560 (all new op/control filtering code)",
+          "acl.c new code unreachable: rootdn bypasses ACLs"
+        ],
+        "rate": 0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Config parsing succeeded, proving the new ACL entries are registered in the ACL chain",
+        "Runtime enforcement requires non-root LDAP operations to exercise slap_acl_get",
+        "rootdn bypasses ACLs entirely, so admin bind cannot test ACL enforcement"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "BLOCKER-NONROOT-AUTH",
+      "reason": "Non-root LDAP bind authentication failed (userPassword schema constraint on inetOrgPerson)",
+      "required_action": "Create test user with proper LDIF (simpleSecurityObject or pre-encoded password)"
+    },
+    {
+      "scope": "environment",
+      "id": "BLOCKER-NAMED-OID",
+      "reason": "control=manageDSAiT fails because manageDSAiT is not registered as an objectIdentifier macro",
+      "required_action": "Add objectIdentifier manageDSAiT 2.16.840.1.113730.3.4.2 to slapd config or schema"
+    },
+    {
+      "scope": "entry",
+      "id": "BLOCKER-ABI-MODULE",
+      "reason": "ABI verification requires building a slapd module against old slap.h headers",
+      "required_action": "Set up separate module build environment with old headers for ABI comparison"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "not_generated",
+    "test_entry_tasks": "compatibility-testing/test-entry-tasks.json",
+    "test_entries": "not_generated_separately",
+    "test_inputs": "not_generated_separately",
+    "execution_results": "test-summary.json",
+    "contract_summary": "embedded_in_finding_results",
+    "coverage_data": "servers/slapd/acl.c.gcov+aclparse.c.gcov",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": false,
+    "rationale": "The patch introduces new ACL config keywords op= and control= as additive extensions - existing configs work unchanged. However, a critical bug was found: control= with named OID aliases (e.g. manageDSAiT) fails because these aliases aren't registered as objectIdentifier macros. The patch's own test data (slapd-acl.conf) uses control=manageDSAiT which will not parse. Runtime ACL enforcement code (slap_acl_get) could not be dynamically verified due to non-root authentication constraints. Config parsing, acl_free, and acl_unparse code are fully covered and verified. The AccessControl struct ABI changed for slapd modules.",
+    "recommended_actions": [
+      "Register manageDSAiT (and other well-known LDAP control OIDs) as default objectIdentifier macros in slapd",
+      "Run test006-acls with fixed OID registration to exercise runtime ACL enforcement",
+      "Verify slap_acl_get new code path with non-root LDAP operations",
+      "Consider adding oidm_find fallback resolution for well-known LDAP control names",
+      "Recompile any slapd backend/overlay modules against the updated slap.h"
+    ]
+  }
+}

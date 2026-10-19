@@ -1,0 +1,204 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/b8cda1/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/b8cda1",
+  "base_ref": "HEAD",
+  "base_commit": "ea97ad8d017de0c9037451a78008a0fd60abea0c",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "available",
+  "patch_id": "888054aadda3",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/_repos/git/pca-results/b8cda1/patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "git",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 805,
+    "patch_lines": 27,
+    "diff_added_lines": 13,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 7,
+    "churn": 15,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 1924,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "user_visible_output": 1,
+      "wire_protocol": 1
+    },
+    "candidates_json_bytes": 6035
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "git",
+      "affected_surface": "user-visible daemon output (IP address for IPv6 clients)",
+      "affected_api": {
+        "name": "lookup_hostname / get_ip_address",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "daemon.c",
+        "old_lines": [
+          674,
+          682
+        ],
+        "new_lines": [
+          674,
+          693
+        ],
+        "symbol": "lookup_hostname"
+      },
+      "old_behavior": "When getaddrinfo() returns an AF_INET6 (IPv6) address, lookup_hostname() casts ai->ai_addr to struct sockaddr_in* and reads sin_addr, which is at the wrong offset for struct sockaddr_in6. The resulting IP address string is corrupted/garbage for IPv6 clients. For unexpected address families (e.g. AF_UNSPEC), the same corruption occurs silently.",
+      "new_behavior": "lookup_hostname() checks ai->ai_family: for AF_INET reads struct sockaddr_in::sin_addr, for AF_INET6 reads struct sockaddr_in6::sin6_addr correctly. For any unexpected address family, it calls die() which terminates the daemon connection with a diagnostic message. inet_ntop() is called with the correct address family.",
+      "compatibility_reason": "The IP address string stored in hi->ip_address and returned by get_ip_address() changes for IPv6 clients from corrupted to correct. This IP address is used in: (1) daemon repository path interpolation via %%IP format specifier, (2) access hook arguments, (3) daemon logging. The change is a bug fix, but any scripts or hooks that consumed the corrupted IPv6 address will observe a different value. Additionally, unexpected address families now cause daemon connection termination (die()) instead of silent garbage output.",
+      "evidence": [
+        {
+          "file": "daemon.c",
+          "lines": [
+            674,
+            693
+          ],
+          "snippet": "\t\t\tvoid *addr;\n\n\t\t\tif (ai->ai_family == AF_INET) {\n\t\t\t\tstruct sockaddr_in *sa = (void *)ai->ai_addr;\n\t\t\t\taddr = &sa->sin_addr;\n\t\t\t} else if (ai->ai_family == AF_INET6) {\n\t\t\t\tstruct sockaddr_in6 *sa6 = (void *)ai->ai_addr;\n\t\t\t\taddr = &sa6->sin6_addr;\n\t\t\t} else {\n\t\t\t\tdie(\"unexpected address family: %d\",\n\t\t\t\t    ai->ai_family);\n\t\t\t}\n\n\t\t\tinet_ntop(ai->ai_family, addr,\n\t\t\t\t  addrbuf, sizeof(addrbuf));"
+        },
+        {
+          "file": "daemon.c",
+          "lines": [
+            89,
+            93
+          ],
+          "snippet": "static const char *get_ip_address(struct hostinfo *hi)\n{\n\tlookup_hostname(hi);\n\treturn hi->ip_address.buf;\n}"
+        },
+        {
+          "file": "daemon.c",
+          "lines": [
+            208,
+            210
+          ],
+          "snippet": "else if (skip_prefix(format, \"IP\", &format))\n\tstrbuf_addstr(&expanded_path,\n\t\t      get_ip_address(hi));"
+        },
+        {
+          "file": "daemon.c",
+          "lines": [
+            322,
+            325
+          ],
+          "snippet": "strvec_push(&child.args, hi->hostname.buf);\nstrvec_push(&child.args, get_canon_hostname(hi));\nstrvec_push(&child.args, get_ip_address(hi));\nstrvec_push(&child.args, hi->tcp_port.buf);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "lookup_hostname() is static but its output reaches external consumers via get_ip_address(), which is used in daemon path interpolation (%%IP) and passed as an argument to the access hook script. Both paths are user/script-facing.",
+      "uncertainty": "Unlikely that any production script depends on the corrupted IPv6 address, but the output string change and new die() path for unusual families are real behavioral changes.",
+      "manual_review_required": false,
+      "recommended_review": "Review if any deployment relies on parsing daemon-IP from logs or hooks when IPv6 clients are connected. The corrupted IPv6 output would have been wrong before, so this fix is almost certainly desired, but the address string content changes.",
+      "test_recommendation": "Test git daemon with an IPv6 client connection and verify the IP address is correctly formatted. Test with a dual-stack host. Test the die() path by simulating an unexpected address family return.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "daemon.c",
+            "old_lines": [
+              674,
+              682
+            ],
+            "new_lines": [
+              674,
+              693
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "wire_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "wire_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Repository wire protocol and capability behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

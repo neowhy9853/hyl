@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P060/analysis.json",
+  "repo": "/data7/wanghy/tmp/opencode/grub2_analysis",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P060/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P060",
+  "patch_id": "bacb99f6b960485a4ef4aea761c07e1849d80b15",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "grub_xfs_iterate_dir",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "grub-core/fs/xfs.c",
+        "old_lines": [
+          899,
+          963
+        ],
+        "new_lines": [
+          905,
+          987
+        ],
+        "symbol": "grub_xfs_iterate_dir"
+      },
+      "old_behavior": "对于所有 XFS 目录块（无论 extent 数量），均假设数据块末尾存在 trailer 和 leaf 信息。从 trailer 读取 leaf_count/leaf_stale 计算目录项数量，并根据 trailer 指针 (`tail`) 确定迭代终止边界。对于多 extent 目录，数据块实际上不包含 trailer/leaf，导致错误地将 leaf 数据解释为目录项，产生虚假的目录条目或错误地触发 'invalid XFS directory entry' 错误。",
+      "new_behavior": "正确区分单 extent 和多 extent 目录：单 extent 时从 trailer 读取 leaf 信息并计算 end 指针（在 leaf 信息之前终止，并跟踪 entries 计数）。多 extent 时 end 指针设为块末尾 (`dirblock + dirblk_size`)，不跟踪 entries 计数，依赖 end 指针边界终止迭代。多 extent 目录的目录项现在被正确解析。",
+      "compatibility_reason": "grub_xfs_iterate_dir 通过 grub_fshelp_find_file 被 GRUB 通用文件系统层调用，影响所有 XFS 目录操作（ls、文件查找、启动文件枚举）。对于多 extent XFS 目录（常见于 /boot/grub/<arch>/ 等大型目录），补丁前后枚举到的目录项列表不同：(1) 之前不可见的合法文件现在可能可见；(2) 之前因错误解析而产生的虚假条目不再出现；(3) 之前错误触发的 'invalid XFS directory entry' 错误不再出现。此行为变化可影响启动文件发现和 kernel/initrd 加载。",
+      "test_recommendation": "在包含多 extent 目录的 XFS 文件系统上测试 ls 命令输出、文件查找和启动文件枚举，验证目录项列表完整性。重点对比单 extent 和多 extent 目录场景下的行为差异。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P060/compatibility-testing"
+}

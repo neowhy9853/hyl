@@ -1,0 +1,161 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-N037/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-N037/patch.diff",
+  "profile": "kernel_6_6",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "tools/testing/selftests/bpf/progs/verifier_spill_fill.c"
+    ],
+    "total_hunks": 2,
+    "public_api_hunks": 0,
+    "patch_metrics": {
+      "patch_bytes": 2240,
+      "patch_lines": 43,
+      "diff_added_lines": 2,
+      "diff_deleted_lines": 2,
+      "diff_context_lines": 15,
+      "churn": 4,
+      "raw_hunks": 2,
+      "candidate_hunks": 2,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 4045,
+      "public_candidate_hunks": 0,
+      "surface_counts": {}
+    }
+  },
+  "candidates": [
+    {
+      "file": "tools/testing/selftests/bpf/progs/verifier_spill_fill.c",
+      "old_start": 392,
+      "old_end": 398,
+      "new_start": 392,
+      "new_end": 398,
+      "context_hint": "__naked void spill_32bit_of_64bit_fail(void)",
+      "added_lines": [
+        "\t/* Compare r2 with another register to trigger sync_linked_regs.\\"
+      ],
+      "deleted_lines": [
+        "\t/* Compare r2 with another register to trigger find_equal_scalars.\\"
+      ],
+      "context_lines": [
+        "\t*(u32*)(r10 - 8) = r1;\t\t\t\t\\",
+        "\t/* 32-bit fill r2 from stack. */\t\t\\",
+        "\tr2 = *(u32*)(r10 - 8);\t\t\t\t\\",
+        "\t * Having one random bit is important here, otherwise the verifier cuts\\",
+        "\t * the corners. If the ID was mistakenly preserved on spill, this would\\",
+        "\t * cause the verifier to think that r1 is also equal to zero in one of\\"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "spill_32bit_of_64bit_fail",
+        "Compare",
+        "r2",
+        "with",
+        "another",
+        "to",
+        "volatile"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "spill_32bit_of_64bit_fail",
+        "snippet_start_line": 363,
+        "snippet_end_line": 428,
+        "snippet": "__naked void and_then_at_fp_8(void)\n{\n\tasm volatile (\"\t\t\t\t\t\\\n\tw4 = 4321;\t\t\t\t\t\\\n\t*(u32*)(r10 - 4) = r4;\t\t\t\t\\\n\t*(u32*)(r10 - 8) = r4;\t\t\t\t\\\n\tr4 = *(u64*)(r10 - 8);\t\t\t\t\\\n\tr0 = 0;\t\t\t\t\t\t\\\n\texit;\t\t\t\t\t\t\\\n\"\t::: __clobber_all);\n}\n\nSEC(\"xdp\")\n__description(\"32-bit spill of 64-bit reg should clear ID\")\n__failure __msg(\"math between ctx pointer and 4294967295 is not allowed\")\n__naked void spill_32bit_of_64bit_fail(void)\n{\n\tasm volatile (\"\t\t\t\t\t\\\n\tr6 = r1;\t\t\t\t\t\\\n\t/* Roll one bit to force the verifier to track both branches. */\\\n\tcall %[bpf_get_prandom_u32];\t\t\t\\\n\tr0 &= 0x8;\t\t\t\t\t\\\n\t/* Put a large number into r1. */\t\t\\\n\tr1 = 0xffffffff;\t\t\t\t\\\n\tr1 <<= 32;\t\t\t\t\t\\\n\tr1 += r0;\t\t\t\t\t\\\n\t/* Assign an ID to r1. */\t\t\t\\\n\tr2 = r1;\t\t\t\t\t\\\n\t/* 32-bit spill r1 to stack - should clear the ID! */\\\n\t*(u32*)(r10 - 8) = r1;\t\t\t\t\\\n\t/* 32-bit fill r2 from stack. */\t\t\\\n\tr2 = *(u32*)(r10 - 8);\t\t\t\t\\\n\t/* Compare r2 with another register to trigger sync_linked_regs.\\\n\t * Having one random bit is important here, otherwise the verifier cuts\\\n\t * the corners. If the ID was mistakenly preserved on spill, this would\\\n\t * cause the verifier to think that r1 is also equal to zero in one of\\\n\t * the branches, and equal to eight on the other branch.\\\n\t */\t\t\t\t\t\t\\\n\tr3 = 0;\t\t\t\t\t\t\\\n\tif r2 != r3 goto l0_%=;\t\t\t\t\\\nl0_%=:\tr1 >>= 32;\t\t\t\t\t\\\n\t/* At this point, if the verifier thinks that r1 is 0, an out-of-bounds\\\n\t * read will happen, because it actually contains 0xffffffff.\\\n\t */\t\t\t\t\t\t\\\n\tr6 += r1;\t\t\t\t\t\\\n\tr0 = *(u32*)(r6 + 0);\t\t\t\t\\\n\texit;\t\t\t\t\t\t\\\n\"\t:\n\t: __imm(bpf_get_prandom_u32)\n\t: __clobber_all);\n}\n\nSEC(\"xdp\")\n__description(\"16-bit spill of 32-bit reg should clear ID\")\n__failure __msg(\"dereference of modified ctx ptr R6 off=65535 disallowed\")\n__naked void spill_16bit_of_32bit_fail(void)\n{\n\tasm volatile (\"\t\t\t\t\t\\\n\tr6 = r1;\t\t\t\t\t\\\n\t/* Roll one bit to force the verifier to track both branches. */\\\n\tcall %[bpf_get_prandom_u32];\t\t\t\\\n\tr0 &= 0x8;\t\t\t\t\t\\\n\t/* Put a large number into r1. */\t\t\\\n\tw1 = 0xffff0000;\t\t\t\t\\\n\tr1 += r0;\t\t\t\t\t\\\n\t/* Assign an ID to r1. */\t\t\t\\\n"
+      }
+    },
+    {
+      "file": "tools/testing/selftests/bpf/progs/verifier_spill_fill.c",
+      "old_start": 431,
+      "old_end": 437,
+      "new_start": 431,
+      "new_end": 437,
+      "context_hint": "__naked void spill_16bit_of_32bit_fail(void)",
+      "added_lines": [
+        "\t/* Compare r2 with another register to trigger sync_linked_regs.\\"
+      ],
+      "deleted_lines": [
+        "\t/* Compare r2 with another register to trigger find_equal_scalars.\\"
+      ],
+      "context_lines": [
+        "\t*(u16*)(r10 - 8) = r1;\t\t\t\t\\",
+        "\t/* 16-bit fill r2 from stack. */\t\t\\",
+        "\tr2 = *(u16*)(r10 - 8);\t\t\t\t\\",
+        "\t * Having one random bit is important here, otherwise the verifier cuts\\",
+        "\t * the corners. If the ID was mistakenly preserved on spill, this would\\",
+        "\t * cause the verifier to think that r1 is also equal to zero in one of\\",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "spill_16bit_of_32bit_fail",
+        "Compare",
+        "r2",
+        "with",
+        "another",
+        "to",
+        "volatile"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "spill_16bit_of_32bit_fail",
+        "snippet_start_line": 402,
+        "snippet_end_line": 467,
+        "snippet": "\tif r2 != r3 goto l0_%=;\t\t\t\t\\\nl0_%=:\tr1 >>= 32;\t\t\t\t\t\\\n\t/* At this point, if the verifier thinks that r1 is 0, an out-of-bounds\\\n\t * read will happen, because it actually contains 0xffffffff.\\\n\t */\t\t\t\t\t\t\\\n\tr6 += r1;\t\t\t\t\t\\\n\tr0 = *(u32*)(r6 + 0);\t\t\t\t\\\n\texit;\t\t\t\t\t\t\\\n\"\t:\n\t: __imm(bpf_get_prandom_u32)\n\t: __clobber_all);\n}\n\nSEC(\"xdp\")\n__description(\"16-bit spill of 32-bit reg should clear ID\")\n__failure __msg(\"dereference of modified ctx ptr R6 off=65535 disallowed\")\n__naked void spill_16bit_of_32bit_fail(void)\n{\n\tasm volatile (\"\t\t\t\t\t\\\n\tr6 = r1;\t\t\t\t\t\\\n\t/* Roll one bit to force the verifier to track both branches. */\\\n\tcall %[bpf_get_prandom_u32];\t\t\t\\\n\tr0 &= 0x8;\t\t\t\t\t\\\n\t/* Put a large number into r1. */\t\t\\\n\tw1 = 0xffff0000;\t\t\t\t\\\n\tr1 += r0;\t\t\t\t\t\\\n\t/* Assign an ID to r1. */\t\t\t\\\n\tr2 = r1;\t\t\t\t\t\\\n\t/* 16-bit spill r1 to stack - should clear the ID! */\\\n\t*(u16*)(r10 - 8) = r1;\t\t\t\t\\\n\t/* 16-bit fill r2 from stack. */\t\t\\\n\tr2 = *(u16*)(r10 - 8);\t\t\t\t\\\n\t/* Compare r2 with another register to trigger sync_linked_regs.\\\n\t * Having one random bit is important here, otherwise the verifier cuts\\\n\t * the corners. If the ID was mistakenly preserved on spill, this would\\\n\t * cause the verifier to think that r1 is also equal to zero in one of\\\n\t * the branches, and equal to eight on the other branch.\\\n\t */\t\t\t\t\t\t\\\n\tr3 = 0;\t\t\t\t\t\t\\\n\tif r2 != r3 goto l0_%=;\t\t\t\t\\\nl0_%=:\tr1 >>= 16;\t\t\t\t\t\\\n\t/* At this point, if the verifier thinks that r1 is 0, an out-of-bounds\\\n\t * read will happen, because it actually contains 0xffff.\\\n\t */\t\t\t\t\t\t\\\n\tr6 += r1;\t\t\t\t\t\\\n\tr0 = *(u32*)(r6 + 0);\t\t\t\t\\\n\texit;\t\t\t\t\t\t\\\n\"\t:\n\t: __imm(bpf_get_prandom_u32)\n\t: __clobber_all);\n}\n\nSEC(\"raw_tp\")\n__log_level(2)\n__success\n__msg(\"fp-8=0m??mmmm\")\n__msg(\"fp-16=00mm??mm\")\n__msg(\"fp-24=00mm???m\")\n__naked void spill_subregs_preserve_stack_zero(void)\n{\n\tasm volatile (\n\t\t\"call %[bpf_get_prandom_u32];\"\n\n\t\t/* 32-bit subreg spill with ZERO, MISC, and INVALID */\n\t\t\".8byte %[fp1_u8_st_zero];\"   /* ZERO, LLVM-18+: *(u8 *)(r10 -1) = 0; */\n\t\t\"*(u8 *)(r10 -2) = r0;\"       /* MISC */\n"
+      }
+    }
+  ]
+}

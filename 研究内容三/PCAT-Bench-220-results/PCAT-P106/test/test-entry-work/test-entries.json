@@ -1,0 +1,70 @@
+{
+  "source": "test_entry_planner.py",
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P046/compatibility-testing",
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "config_reproducer",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+      "build_command": "make -C /lib/modules/$(uname -r)/build M=$(pwd)/drivers/net/bonding CONFIG_BONDING=m GCOV_PROFILE_bonding.o=y KCFLAGS=\"-fprofile-arcs -ftest-coverage -Og -g\"",
+      "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+      "target_location": {
+        "file": "drivers/net/bonding/bond_options.c",
+        "new_lines": [1592, 1599],
+        "symbol": "bond_option_xmit_hash_policy_set"
+      },
+      "reachability_signal": "The reproducer writes to /sys/class/net/<bond>/bonding/xmit_hash_policy which triggers bond_option_xmit_hash_policy_set. With an XDP program loaded on an 802.3ad/balance-xor bond, the guard returns -EOPNOTSUPP. Without XDP, all policies are accepted. Coverage can be confirmed via gcov on bond_options.c if the kernel is built with GCOV_KERNEL=y.",
+      "expected_signal": "echo 'vlan+srcmac 2' > /sys/class/net/<bond>/bonding/xmit_hash_policy returns EOPNOTSUPP when XDP is loaded; returns success when XDP is not loaded.",
+      "execution": {
+        "cwd": "test_entry-work/PCA-0001",
+        "timeout_seconds": 120,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Test with and without an XDP program loaded on the bond device. Input axes: (1) XDP loaded + vlan+srcmac policy (should fail), (2) XDP loaded + other policy (should succeed), (3) XDP not loaded + vlan+srcmac (should succeed), (4) mode change from balance-xor to active-backup + XDP loaded (should succeed).",
+      "contract_probe": {
+        "probe_id": "xmit_hash_policy_eopnotsupp",
+        "command": "echo 'vlan+srcmac 2' > {VERSION_DIR}/sys/class/net/{BOND}/bonding/xmit_hash_policy 2>&1; echo $?",
+        "before_command": "echo 'vlan+srcmac 2' > /sys/class/net/test_bond0/bonding/xmit_hash_policy 2>&1; echo $?",
+        "after_command": "echo 'vlan+srcmac 2' > /sys/class/net/test_bond0/bonding/xmit_hash_policy 2>&1; echo $?",
+        "comparison": "exit_code",
+        "cwd": "test-entry-work/PCA-0001",
+        "timeout_seconds": 30
+      },
+      "limitations": "Requires: (1) root/sudo privileges for bond device creation and XDP loading, (2) bonding kernel module loaded, (3) bpftool for XDP program loading or a compiled .o XDP program, (4) VM or host with kernel that can load XDP programs. Kernel module build requires kernel headers and GCOV_KERNEL=y for coverage instrumentation."
+    },
+    {
+      "finding_id": "PCA-0002",
+      "entry_id": "PCA-TE-0002",
+      "entry_kind": "synthetic_harness",
+      "status": "static_valid_not_run",
+      "artifact_path": "test-entry-work/PCA-0002/verify-api.sh",
+      "build_command": "",
+      "run_command": "bash test-entry-work/PCA-0002/verify-api.sh",
+      "target_location": {
+        "file": "include/net/bonding.h",
+        "new_lines": [697, 703],
+        "symbol": "__bond_xdp_check"
+      },
+      "reachability_signal": "Verify the new __bond_xdp_check function exists in the bonding module symbol table. Callers (bond_xdp_check, bond_option_xmit_hash_policy_set) are already exercised by PCA-0001 test.",
+      "expected_signal": "__bond_xdp_check symbol exists in bonding.h and bonding.ko. bond_xdp_check function preserves original signature and behavior.",
+      "execution": {
+        "cwd": "test-entry-work/PCA-0002",
+        "timeout_seconds": 30,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Static verification: check symbol table, header declarations, and verify no changes to existing bond_xdp_check callers.",
+      "contract_probe": {
+        "probe_id": "api_signature_preservation",
+        "command": "modinfo {VERSION_DIR}/bonding.ko | grep bond_xdp_check",
+        "before_command": "modinfo bonding.ko | grep bond_xdp_check",
+        "after_command": "modinfo bonding.ko | grep bond_xdp_check",
+        "comparison": "set_no_additions",
+        "cwd": "test-entry-work/PCA-0002",
+        "timeout_seconds": 10
+      },
+      "limitations": "Low priority; the new __bond_xdp_check symbol is additive and does not break existing consumers."
+    }
+  ]
+}

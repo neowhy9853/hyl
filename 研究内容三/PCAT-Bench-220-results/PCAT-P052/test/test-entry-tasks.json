@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnf/pca-results/de9c5c/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/dnf",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnf/pca-results/de9c5c/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnf/pca-results/de9c5c",
+  "patch_id": "de9c5c5b597bf97aa03145de129fb579b5a0e953",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "rpm2py_format",
+        "kind": "exported_function",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "dnf/cli/commands/repoquery.py",
+        "old_lines": [
+          68,
+          73
+        ],
+        "new_lines": [
+          68,
+          74
+        ],
+        "symbol": "rpm2py_format"
+      },
+      "old_behavior": "The fmt_repl inner function receives the query tag key from the regex match and checks it directly against ALLOWED_QUERY_TAGS (all lowercase). If the key is uppercase (e.g., '%{NAME}'), it does not match any allowed tag and is passed through literally via brackets(). Only lowercase keys like '%{name}' are recognized and substituted with package attribute values.",
+      "new_behavior": "The fmt_repl inner function calls key.lower() at the start, converting any uppercase tag to lowercase before checking against ALLOWED_QUERY_TAGS. Both '%{NAME}' and '%{name}' are now recognized and substituted with the corresponding package attribute value. The behavior for lowercase tags is unchanged; the return format string now uses the already-lowered key variable instead of calling .lower() again.",
+      "compatibility_reason": "This patch restores support for uppercased query tags (e.g., '%{NAME}', '%{RELEASE}', '%{REPONAME}') that was unintentionally lost in commit e50488b6 (v4.15.0). Users who specify query tags in uppercase will now see the corresponding package attribute values instead of literal tag text. This is a backward-compatible relaxation of the input contract: existing lowercase-only inputs continue to work identically. The change mirrors rpm's behavior where both uppercase and lowercase query tags are accepted.",
+      "test_recommendation": "Run tests.test_repoquery::OutputTest::test_output which exercises uppercase query tags. Also verify that the existing lowercase-based tests still pass. Regression-test that %{name} behavior is unchanged.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/dnf/pca-results/de9c5c/compatibility-testing"
+}

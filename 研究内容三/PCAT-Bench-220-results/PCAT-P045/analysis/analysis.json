@@ -1,0 +1,738 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/NetworkManager",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/f346fc/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/f346fc",
+  "base_ref": "f346fcf977c22f12b509fff3c674dbfb67490a38^",
+  "base_commit": "ec1522fa8c8997509624836b3625cdd237e23e69",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "available",
+  "patch_id": "f346fcf977c22f12b509fff3c674dbfb67490a38",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca_patch_f346fc.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "networkmanager",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "soft threshold exceeded",
+    "candidates_json_bytes=121242 >= 100000"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 11256,
+    "patch_lines": 244,
+    "diff_added_lines": 61,
+    "diff_deleted_lines": 22,
+    "diff_context_lines": 116,
+    "churn": 83,
+    "raw_hunks": 16,
+    "candidate_hunks": 16,
+    "skipped_doc_hunks": 0,
+    "changed_files": 6,
+    "candidate_context_bytes": 47352,
+    "public_candidate_hunks": 16,
+    "surface_counts": {
+      "config_keys": 10,
+      "user_visible_output": 13,
+      "config": 16,
+      "persistence_state": 15,
+      "dbus_api": 13,
+      "network_protocol": 5,
+      "daemon_control": 8,
+      "callbacks": 7,
+      "logging": 3,
+      "plugin_api": 4,
+      "public_headers": 2,
+      "libnm_api": 2
+    },
+    "candidates_json_bytes": 121242
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 6
+  },
+  "summary": {
+    "total_changed_files": 6,
+    "total_candidates": 16,
+    "compatibility_changes": 5,
+    "high_priority": 2,
+    "medium_priority": 2,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "networkmanager",
+      "affected_surface": "D-Bus interface introspection/org.freedesktop.NetworkManager.Device.xml SetManaged method argument type changed from boolean to uint32",
+      "affected_api": {
+        "name": "org.freedesktop.NetworkManager.Device.SetManaged",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "location": {
+        "file": "introspection/org.freedesktop.NetworkManager.Device.xml",
+        "old_lines": [
+          404,
+          410
+        ],
+        "new_lines": [
+          404,
+          410
+        ],
+        "symbol": "SetManaged"
+      },
+      "old_behavior": "The SetManaged D-Bus method accepted (boolean managed, uint32 flags) as input parameters. D-Bus signature was (bu). Any D-Bus client could call SetManaged(TRUE/FALSE, flags) using the boolean type.",
+      "new_behavior": "The SetManaged D-Bus method now accepts (uint32 managed, uint32 flags). D-Bus signature changed to (uu). The managed parameter accepts 0=NM_DEVICE_MANAGED_NO, 1=NM_DEVICE_MANAGED_YES, or 2=NM_DEVICE_MANAGED_RESET.",
+      "compatibility_reason": "D-Bus is strict about type signatures. Any existing client sending (bu) will receive a D-Bus TYPE_MISMATCH error because the expected signature is now (uu). This breaks backward compatibility for all D-Bus clients of the SetManaged method, including libnm users and direct D-Bus callers.",
+      "evidence": [
+        {
+          "file": "introspection/org.freedesktop.NetworkManager.Device.xml",
+          "lines": [
+            404,
+            410
+          ],
+          "snippet": "<arg name=\"managed\" type=\"b\" direction=\"in\"/> -> <arg name=\"managed\" type=\"u\" direction=\"in\"/>"
+        },
+        {
+          "file": "src/core/devices/nm-device.c",
+          "lines": [
+            20088,
+            20094
+          ],
+          "snippet": "NM_DEFINE_GDBUS_ARG_INFO(\"managed\", \"b\") -> NM_DEFINE_GDBUS_ARG_INFO(\"managed\", \"u\")"
+        },
+        {
+          "file": "src/core/devices/nm-device.c",
+          "lines": [
+            15094,
+            15110
+          ],
+          "snippet": "g_variant_get(parameters, \"(bu)\", ...) -> g_variant_get(parameters, \"(uu)\", ...)"
+        },
+        {
+          "file": "src/libnm-client-impl/nm-device.c",
+          "lines": [
+            1503,
+            1509
+          ],
+          "snippet": "g_variant_new(\"(bu)\", ...) -> g_variant_new(\"(uu)\", ...)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The introspection XML defines the D-Bus interface contract consumed by all D-Bus peers. The handler and client-side changes implement this protocol change. D-Bus is the primary control interface for NetworkManager.",
+      "uncertainty": "None - the D-Bus signature change is explicit in both the introspection XML and the implementation.",
+      "manual_review_required": true,
+      "recommended_review": "Verify that all known consumers (libnm, nmcli, gnome-control-center, plasma-nm) have been updated to use the new (uu) signature.",
+      "test_recommendation": "Test SetManaged with old signature (bu) fails with TYPE_MISMATCH. Test (uu) with values 0, 1, 2 all work. Test both RUNTIME and PERMANENT flag combinations.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=daemon_handler with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "introspection/org.freedesktop.NetworkManager.Device.xml",
+            "old_lines": [
+              404,
+              410
+            ],
+            "new_lines": [
+              404,
+              410
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "config",
+              "persistence_state",
+              "dbus_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "Connection profile and daemon configuration semantics"
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "dbus_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Stable D-Bus interfaces, properties, signals, and methods"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=daemon_handler with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "networkmanager",
+      "affected_surface": "Public libnm API nm_device_set_managed_async parameter type gboolean -> NMDeviceManaged",
+      "affected_api": {
+        "name": "nm_device_set_managed_async",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/libnm-client-public/nm-device.h",
+        "old_lines": [
+          152,
+          158
+        ],
+        "new_lines": [
+          152,
+          158
+        ],
+        "symbol": "nm_device_set_managed_async"
+      },
+      "old_behavior": "nm_device_set_managed_async() accepted gboolean (int) for the managed parameter. Callers could pass TRUE/FALSE or any integer value.",
+      "new_behavior": "nm_device_set_managed_async() accepts NMDeviceManaged enum. Callers must use NM_DEVICE_MANAGED_NO, NM_DEVICE_MANAGED_YES, or NM_DEVICE_MANAGED_RESET.",
+      "compatibility_reason": "gboolean and C enum are both int-sized, so ABI compatibility is preserved. However, source compatibility is broken: existing code passing gboolean literals (TRUE/FALSE) will fail to compile. The old deprecated synchronous API nm_device_set_managed(gboolean) is preserved as a migration path.",
+      "evidence": [
+        {
+          "file": "src/libnm-client-public/nm-device.h",
+          "lines": [
+            155,
+            155
+          ],
+          "snippet": "NM_AVAILABLE_IN_1_58 void nm_device_set_managed_async(NMDevice *device, NMDeviceManaged managed, ...)"
+        },
+        {
+          "file": "src/libnm-client-impl/nm-device.c",
+          "lines": [
+            1485,
+            1491
+          ],
+          "snippet": "gboolean managed -> NMDeviceManaged managed in function definition"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "nm-device.h is an installed public header distributed as part of libnm development packages.",
+      "uncertainty": "Compiler behavior depends on -Wenum-conversion flags. Some compilers may only warn.",
+      "manual_review_required": true,
+      "recommended_review": "Check that all in-tree callers of nm_device_set_managed_async have been updated to use NMDeviceManaged enum values.",
+      "test_recommendation": "Compile existing code using nm_device_set_managed_async to verify compiler warnings. Test that old gboolean values still produce correct behavior (TRUE=1=YES, FALSE=0=NO).",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0015",
+            "file": "src/libnm-client-public/nm-device.h",
+            "old_lines": [
+              152,
+              158
+            ],
+            "new_lines": [
+              152,
+              158
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "callbacks",
+              "config_keys",
+              "user_visible_output",
+              "config",
+              "plugin_api",
+              "persistence_state",
+              "libnm_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "Connection profile and daemon configuration semantics"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "libnm_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public libnm and libnm-core API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "networkmanager",
+      "affected_surface": "New public enum NMDeviceManaged type definition in public header",
+      "affected_api": {
+        "name": "NMDeviceManaged",
+        "kind": "enum_type",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/libnm-core-public/nm-dbus-interface.h",
+        "old_lines": [
+          1248,
+          1253
+        ],
+        "new_lines": [
+          1248,
+          1269
+        ],
+        "symbol": "NMDeviceManaged"
+      },
+      "old_behavior": "No NMDeviceManaged type existed. The device managed state was represented as gboolean (TRUE=managed, FALSE=unmanaged) or raw int.",
+      "new_behavior": "New public enum NMDeviceManaged with values NM_DEVICE_MANAGED_NO=0, NM_DEVICE_MANAGED_YES=1, NM_DEVICE_MANAGED_RESET=2. The RESET=2 value triggers restoring device managed state to default.",
+      "compatibility_reason": "Purely additive new type definition. Backward compatible at source and binary level. Old gboolean values (0=FALSE, 1=TRUE) map directly to NO (0) and YES (1). Code using switch/case on managed values with a default branch may encounter new RESET=2 value.",
+      "evidence": [
+        {
+          "file": "src/libnm-core-public/nm-dbus-interface.h",
+          "lines": [
+            1248,
+            1269
+          ],
+          "snippet": "typedef enum { NM_DEVICE_MANAGED_NO = 0, NM_DEVICE_MANAGED_YES = 1, NM_DEVICE_MANAGED_RESET = 2, } NMDeviceManaged;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "nm-dbus-interface.h is an installed public header distributed as part of libnm-core development packages.",
+      "uncertainty": "Code using switch/managed with default branch may encounter unexpected RESET=2.",
+      "manual_review_required": false,
+      "recommended_review": "Check if any consumers use switch/case on managed values with default that might misinterpret RESET=2.",
+      "test_recommendation": "Test that NM_DEVICE_MANAGED_NO(0) and NM_DEVICE_MANAGED_YES(1) produce identical behavior to old gboolean TRUE/FALSE. Test NM_DEVICE_MANAGED_RESET(2) properly resets state.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=enum_type with contract/signature type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0016",
+            "file": "src/libnm-core-public/nm-dbus-interface.h",
+            "old_lines": [
+              1248,
+              1253
+            ],
+            "new_lines": [
+              1248,
+              1269
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "config_keys",
+              "config",
+              "persistence_state",
+              "libnm_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "Connection profile and daemon configuration semantics"
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "libnm_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public libnm and libnm-core API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=enum_type with contract/signature type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0004",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.99,
+      "package_profile": "networkmanager",
+      "affected_surface": "libnm shared library exported symbols",
+      "affected_api": {
+        "name": "nm_device_managed_get_type",
+        "kind": "shared_library_symbol",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/libnm-client-impl/libnm.ver",
+        "old_lines": [
+          2115,
+          2120
+        ],
+        "new_lines": [
+          2115,
+          2121
+        ],
+        "symbol": "nm_device_managed_get_type"
+      },
+      "old_behavior": "The nm_device_managed_get_type symbol was not exported from libnm shared library.",
+      "new_behavior": "The symbol is now exported, providing GObject type registration for the NMDeviceManaged enum.",
+      "compatibility_reason": "Purely additive - new exported symbol added to the linker version script. Existing binaries do not reference this symbol. Standard practice for GObject enum type registration.",
+      "evidence": [
+        {
+          "file": "src/libnm-client-impl/libnm.ver",
+          "lines": [
+            2115,
+            2121
+          ],
+          "snippet": "\tnm_device_managed_get_type;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Linker version script defines the public ABI of the libnm shared library.",
+      "uncertainty": "Minimal - additive symbol exports are standard practice.",
+      "manual_review_required": false,
+      "recommended_review": "Verify the symbol is properly exported with nm -D libnm.so.",
+      "test_recommendation": "Verify nm_device_managed_get_type is visible in exported symbols. Test GObject type registration works.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=shared_library_symbol with compatibility_type=API_SIGNATURE_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0012",
+            "file": "src/libnm-client-impl/libnm.ver",
+            "old_lines": [
+              2115,
+              2120
+            ],
+            "new_lines": [
+              2115,
+              2121
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "config",
+              "plugin_api",
+              "network_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "Connection profile and daemon configuration semantics"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=shared_library_symbol with compatibility_type=API_SIGNATURE_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0005",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.9,
+      "package_profile": "networkmanager",
+      "affected_surface": "New runtime state reset behavior when NM_DEVICE_MANAGED_RESET is used via SetManaged D-Bus call",
+      "affected_api": {
+        "name": "SetManaged with NM_DEVICE_MANAGED_RESET (runtime path)",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/core/devices/nm-device.c",
+        "old_lines": [
+          15008,
+          15014
+        ],
+        "new_lines": [
+          15012,
+          15025
+        ],
+        "symbol": "set_managed (NM_DEVICE_MANAGED_RESET)"
+      },
+      "old_behavior": "In the RUNTIME flag path, the managed property was set directly via g_object_set(self, NM_DEVICE_MANAGED, !!managed, NULL). Only TRUE=managed or FALSE=unmanaged were valid inputs.",
+      "new_behavior": "When managed == NM_DEVICE_MANAGED_RESET (2), the runtime state is reset by forgetting the NM_UNMANAGED_USER_EXPLICIT flag via nm_device_set_unmanaged_by_flags with NM_UNMAN_FLAG_OP_FORGET, clearing previously set explicit unmanaged state.",
+      "compatibility_reason": "The RESET=2 value is additive - old callers never send this value, so there is no backward compatibility break. The behavior for old values 0 and 1 is preserved exactly. Callers using the new RESET value must understand the resulting device state transition.",
+      "evidence": [
+        {
+          "file": "src/core/devices/nm-device.c",
+          "lines": [
+            15012,
+            15025
+          ],
+          "snippet": "if (managed == NM_DEVICE_MANAGED_RESET) { nm_device_set_unmanaged_by_flags(self, NM_UNMANAGED_USER_EXPLICIT, NM_UNMAN_FLAG_OP_FORGET, ...); } else { g_object_set(self, NM_DEVICE_MANAGED, !!managed, NULL); }"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "set_managed is a static function but is called from impl_device_set_managed which is the registered D-Bus method handler. Any D-Bus caller sending RESET triggers this new behavior.",
+      "uncertainty": "The exact device state after reset depends on interaction of multiple unmanaged flags which may vary by device type.",
+      "manual_review_required": true,
+      "recommended_review": "Review the interaction between NM_UNMANAGED_USER_EXPLICIT forgetting and the overall unmanaged flag system.",
+      "test_recommendation": "Test SetManaged with NM_DEVICE_MANAGED_RESET via D-Bus and verify device returns to default managed state. Test with both PERMANENT and RUNTIME flags.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=daemon_handler on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0007",
+            "file": "src/core/devices/nm-device.c",
+            "old_lines": [
+              15008,
+              15014
+            ],
+            "new_lines": [
+              15012,
+              15025
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "config_keys",
+              "user_visible_output",
+              "config",
+              "persistence_state",
+              "dbus_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "Connection profile and daemon configuration semantics"
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "dbus_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Stable D-Bus interfaces, properties, signals, and methods"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=daemon_handler on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

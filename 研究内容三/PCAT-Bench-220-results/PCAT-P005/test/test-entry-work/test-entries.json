@@ -1,0 +1,58 @@
+{
+  "entries": [
+    {
+      "id": "ENTRY-PCA-0001",
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "medium",
+      "target_lines": ["line-log.c:1003-1020"],
+      "artifact_path": "t/t4211-line-log.sh",
+      "run_command": "cd /tmp/pca-test-repo && git log -L:func2:file.c --oneline -1 2>&1; echo '---'; cd /tmp/pca-test-repo && git log -L:func2:file.c --format= -1 2>&1",
+      "expected_signal": "No extra blank line between commit header and diff when using --oneline",
+      "reachability_signal": "executes line_log_queue_pairs in line-log.c",
+      "execution": {
+        "cwd": "/tmp/pca-test-repo"
+      },
+      "input_strategy": "Run git log -L with --oneline, default format, and --format= options in a repo with known -L tracked history. Compare before (baseline) and after (patched) output for blank-line differences.",
+      "contract_probe": "diff <(./binary.before log -L:func2:file.c --oneline -1) <(./binary.after log -L:func2:file.c --oneline -1)",
+      "prerequisites": ["Baseline git binary at /tmp/pca-baseline/git", "Patched git binary at /tmp/pca-patched/git", "Prepared test repository"],
+      "limitations": "Output format differences may only be visible with specific format combinations (--oneline vs verbose headers)."
+    },
+    {
+      "id": "ENTRY-PCA-0002",
+      "finding_id": "PCA-0002",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "low",
+      "target_lines": ["revision.c:3179-3188"],
+      "artifact_path": "revision.c",
+      "run_command": "/tmp/pca-patched/git log -L1,24:b.c --full-diff 2>&1; echo EXIT:$?",
+      "expected_signal": "Error message containing 'does not yet support' and exit code != 0",
+      "reachability_signal": "executes setup_revisions die() path in revision.c",
+      "execution": {
+        "cwd": "/tmp/pca-test-repo"
+      },
+      "input_strategy": "Run git log with -L and --full-diff together. Verify new error message. Also verify old behavior with baseline binary.",
+      "contract_probe": "diff <(./binary.before log -L1,24:b.c --full-diff 2>&1; echo EXIT:$?) <(./binary.after log -L1,24:b.c --full-diff 2>&1; echo EXIT:$?)",
+      "prerequisites": ["Baseline git binary at /tmp/pca-baseline/git", "Patched git binary at /tmp/pca-patched/git"],
+      "limitations": "The old behavior may have been a different error or silent acceptance. Both result in no useful output."
+    },
+    {
+      "id": "ENTRY-PCA-0003",
+      "finding_id": "PCA-0003",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "target_lines": ["log-tree.c:1185-1190"],
+      "artifact_path": "t/t4211-line-log.sh",
+      "run_command": "cd /tmp/pca-test-repo && git log -L 1,1:file -G \"nomatch\" --format=%s --no-patch 2>&1; echo EXIT:$?",
+      "expected_signal": "Empty output (no commits match the pickaxe pattern)",
+      "reachability_signal": "executes log_tree_commit() path with line_level_traverse, and line_log_queue_pairs()",
+      "execution": {
+        "cwd": "/tmp/pca-test-repo"
+      },
+      "input_strategy": "Run git log -L with non-matching -G pattern. Baseline should show commits (broken - doesn't filter), patched should be empty.",
+      "contract_probe": "diff <(./binary.before log -L 1,1:file -G nomatch --format=%s --no-patch 2>&1) <(./binary.after log -L 1,1:file -G nomatch --format=%s --no-patch 2>&1)",
+      "prerequisites": ["Baseline git binary at /tmp/pca-baseline/git", "Patched git binary at /tmp/pca-patched/git", "Prepared test repository from t4211 setup"],
+      "limitations": "Requires test repo with specific history (pickaxe-rename branch). Falls back to t4211 regression test."
+    }
+  ]
+}

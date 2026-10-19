@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/d33525/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/libxml2",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/d33525/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/d33525",
+  "patch_id": "d3352554e4c1f052b914cda7b415d06b7eab5dfa",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "xmllintMain --maxmem",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "xmllint.c",
+        "old_lines": [
+          3075,
+          3082
+        ],
+        "new_lines": [
+          3075,
+          3083
+        ],
+        "symbol": "xmllintMain"
+      },
+      "old_behavior": "When --maxmem was specified with a non-zero value N, xmllintMaxmem was incorrectly set to 0 instead of N. Since the custom memory allocators check xmlMemUsed() + size > xmllintMaxmem, a value of 0 caused every allocation to immediately exceed the limit, making --maxmem effectively unusable (instant OOM on first allocation).",
+      "new_behavior": "xmllintMaxmem is initialized to 0 before the if block. When --maxmem is specified with a non-zero value N, xmllintMaxmem is correctly set to N. The custom memory allocators now enforce the intended memory limit, and --maxmem works as documented.",
+      "compatibility_reason": "The --maxmem CLI option behavior has changed from broken (always OOM immediately) to working correctly. Any user who previously specified --maxmem would have experienced immediate OOM errors; after the fix, the option actually limits memory usage to the specified value. Users who never used --maxmem are unaffected. This is a bug fix restoring documented behavior.",
+      "test_recommendation": "Test --maxmem with values 1, 100, 1000000, and 0 (unlimited/default). Verify that processing succeeds when memory stays under limit and fails with OOM when exceeded. Also verify that not passing --maxmem works as before (no custom allocators installed).",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/d33525/compatibility-testing"
+}

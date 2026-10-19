@@ -1,0 +1,36 @@
+From b9fa07bd205ddd993c84e29d5b0324a84d032578 Mon Sep 17 00:00:00 2001
+From: Willy Tarreau <w@1wt.eu>
+Date: Mon, 8 Jun 2026 08:54:37 +0200
+Subject: [PATCH] MINOR: pools: reject creation of pools containing invalid
+ chars in their name
+
+In order to preventively avoid issues that complicate debugging, let's
+report to developers early if a pool name is not acceptable. This patch
+does it in create_pool_from_reg() which catches both direct and declared
+registrations. Aside the previous case, this didn't catch any other
+occurrence.
+---
+ src/pool.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/pool.c b/src/pool.c
+index 391c755..8e79371 100644
+--- a/src/pool.c
++++ b/src/pool.c
+@@ -370,6 +370,13 @@ struct pool_head *create_pool_from_reg(const char *name, struct pool_registratio
+ 		return NULL;
+ 	}
+ 
++	if (invalid_char(name)) {
++		ha_alert("Pool '%s' declared at %s:%u contains invalid chars in its name and "
++			 "cannot be registered. Please report to developers. Aborting.\n",
++			 name, reg->file, reg->line);
++		return NULL;
++	}
++
+ 	extra_mark = (pool_debugging & POOL_DBG_TAG) ? POOL_EXTRA_MARK : 0;
+ 	extra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;
+ 	extra = extra_mark + extra_caller;
+-- 
+2.43.0
+

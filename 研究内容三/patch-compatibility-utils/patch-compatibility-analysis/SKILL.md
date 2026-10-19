@@ -130,8 +130,9 @@ Low-context analysis rules:
    candidate, and only for a missing public declaration or a disputed contract.
    Do not inspect unchanged callee implementations merely to restate an
    argument/data-flow change that is already visible in the hunk.
-7. After `validate_analysis.py` passes, finish the analysis immediately. Do not
-   generate runnable entries or re-read large artifacts just to restate metadata.
+7. After `validate_analysis.py` passes, run the required affected-scope attach
+   command (Phase 7.1), then finish the analysis immediately. Do not generate
+   runnable entries or re-read large artifacts just to restate metadata.
 
 你是一个**补丁兼容性影响分析器**。你的任务是基于给定的目标仓库和补丁/diff 文件，
 **不运行动态测试**，**不依赖经验性关键词匹配**，识别补丁中可能导致兼容性变更的代码。
@@ -198,6 +199,7 @@ Agent 只能基于 diff、profile API surface、代码上下文、调用链和�
 - `patch.diff`：本次分析使用的补丁副本
 - `candidates.json`：`diff_parser.py` 生成的结构化候选
 - `callchains.json`：静态调用链聚合结果；未启用或失败时写入 `[]`
+- `affected-scope.json`：每条 finding 的额外影响范围（下游依赖）结构化结果，由 `orchestrator.py --attach-impact-scope` 生成
 - `analysis.json`：符合 `schemas/output_schema.json` 的最终 JSON 结果
 - `report.md`：当用户要求 markdown 或需要便于阅读的摘要时生成
 - `_worktrees/patched/`：orchestrator 创建的临时隔离分析 worktree。语义分析期间用于读取补丁后源码上下文和构建 CallGraph；整个分析完成后默认应清理以节省空间。清理后可从 `analysis.json` 重新生成。
@@ -212,7 +214,8 @@ Agent 只能基于 diff、profile API surface、代码上下文、调用链和�
 
 - `${CLAUDE_SKILL_DIR}/scripts/diff_parser.py`：解析 unified diff，提取 hunk、符号、上下文和 API surface 候选。
 - `${CLAUDE_SKILL_DIR}/scripts/callgraph.py`：AST-only、尽力而为的静态调用链构建器。
-- `${CLAUDE_SKILL_DIR}/scripts/orchestrator.py`：统一执行仓库准备、`patch_id` 生成、产物目录创建、隔离 patched worktree 创建、候选提取、报告草稿生成，并在最终 findings 确认后附加调用链。
+- `${CLAUDE_SKILL_DIR}/scripts/impact_scope.py`：AST-only 反向调用图分析器，为每条 finding 计算额外影响范围（直接调用方、间接依赖、受影响文件、可达入口点、测试依赖），输出 `affected-scope.json` 并回写 `findings[].affected_scope`。
+- `${CLAUDE_SKILL_DIR}/scripts/orchestrator.py`：统一执行仓库准备、`patch_id` 生成、产物目录创建、隔离 patched worktree 创建、候选提取、报告草稿生成，并在最终 findings 确认后附加影响范围和调用链。
 - `${CLAUDE_SKILL_DIR}/scripts/check_dependencies.py`：依赖检查器；在运行分析脚本前检查 Python 版本、git、脚本语法和调用链 AST 依赖。
 - `${CLAUDE_SKILL_DIR}/scripts/validate_analysis.py`：最终产物校验器；检查 `analysis.json` 是否包含标准 finding 字段、代码行位置和证据行号。
 - `${CLAUDE_SKILL_DIR}/scripts/profile_loader.py`：递归加载、合成和自动识别 package profile。
@@ -609,9 +612,63 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/validate_analysis.py" "${RESULT_DIR}/analys
 
 如果校验失败，必须修正 `analysis.json` 和 `report.md` 后重新运行，直到通过。不能把未通过校验的结果作为最终产物汇报。
 
-### Phase 7: 静态调用链（可选）
+### Phase 7: 额外影响范围（下游依赖）与静态调用链
 
-如果 `include_call_chain` 为 `true`，只对最终确认的 `findings` 构建调用链，不要对全部 candidates 构建调用链。正确顺序是：先完成语义判定并写入通过校验的 `analysis.json`，再按每条 finding 的 `location.symbol` 和 `location.file` 运行调用链。
+#### 7.1 额外影响范围（必做）
+
+最终 findings 确认并写入通过基础校验的 `analysis.json` 后，必须为每条 finding 附加 `affected_scope`，说明该兼容性变更**额外影响的代码范围（下游依赖）**：谁直接调用变更符号、哪些代码间接依赖它、还影响哪些文件、可从哪些入口点到达、哪些测试依赖它。分析报告的“额外影响范围（下游依赖）”章节直接渲染这些字段。
+
+运行：
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/orchestrator.py" \
+  --attach-impact-scope "${RESULT_DIR}/analysis.json"
+```
+
+该命令自动完成：
+
+1. 若 `analysis_repo` 已被清理，先重建隔离 worktree。
+2. 构建 AST 反向调用图：Python 使用标准库 `ast`，C/Go/Ruby 使用 tree-sitter；每个语言只构建一次。
+3. 为每条 finding 计算反向依赖闭包，写入 `${RESULT_DIR}/affected-scope.json`，并回写 `analysis.json` 的 `findings[].affected_scope` 和 `candidate_artifacts.affected_scope`。
+4. 以 `validate_analysis.py --require-affected-scope` 重新校验 `analysis.json`。
+
+`affected_scope` 字段：
+
+| 字段 | 说明 |
+|---|---|
+| `status` | `computed` / `degraded` / `agent_review` / `not_available` |
+| `method` | `ast_reverse_callgraph`（工具计算）或 `unavailable` |
+| `language`、`max_depth` | 分析语言和回溯深度（默认 3） |
+| `direct_callers[]` | 直接调用变更符号的函数：`file`、`symbol`、`line`、`call_lines`、`entry_kind`、`is_test` |
+| `transitive_dependents[]` | 调用方链上更深层的依赖：额外带 `depth` |
+| `affected_files[]` | 额外受影响的文件：`dependent_count`、`max_depth`、`entry_kinds` |
+| `affected_entry_points[]` | 可到达变更代码的入口点：`entry_kind`、`entry`、`depth` |
+| `test_dependents[]` | 依赖该变更的测试函数 |
+| `external_dependents[]` | 由 Agent 复核补充的仓外/下游包消费者，需附 `evidence` |
+| `summary`、`notes` | 自然语言范围摘要和限制说明 |
+
+状态含义与处理规则：
+
+1. `computed`：反向调用图计算成功，直接作为报告证据。
+2. `degraded`：计算成功但受 `--max-files`/`--max-nodes` 上限影响，范围可能不完整，必须在报告中保留该限制说明。
+3. `not_available`：无法计算（符号是宏/类型、语言不支持 `tcl`、tree-sitter 解析器缺失、符号不在已扫描文件中），`notes` 中必须写明原因。此时 **Agent 必须人工复核**调用方与下游消费方，并把结论补写为 `agent_review`，或保留 `not_available` 并明确说明无法确定的原因。
+4. `agent_review`：由 Agent 阅读调用方/下游后人工填写，字段中给出的文件、符号或证据必须真实可核对。对 High 优先级 finding，不得留空 `affected_scope`，也不得仅写状态不写 `summary`。
+5. `--attach-impact-scope` 会保留已有的 `external_dependents` 和 `notes`，刷新其他计算字段；因此先运行该命令，再人工补充 `external_dependents`/`agent_review` 内容，补充后不要重复运行。
+6. 影响范围是**额外受影响代码**的静态证据，不是完整动态影响面；宏展开、函数指针、跨语言调用等无法解析的动态分发必须在 `notes` 中说明。
+
+调整深度/规模（默认 3 层、200 节点、5000 文件）：
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/orchestrator.py" \
+  --attach-impact-scope "${RESULT_DIR}/analysis.json" \
+  --impact-max-depth 4 --impact-max-nodes 300 --impact-max-files 8000
+```
+
+如果 tree-sitter 依赖缺失，按 Phase 0 的规则先询问用户是否安装/配置；无法安装时命令会把对应 finding 记为 `not_available`，此时回到上面的第 3 条人工复核规则。
+
+#### 7.2 静态调用链（可选）
+
+如果 `include_call_chain` 为 `true`，只对最终确认的 `findings` 构建调用链，不要对全部 candidates 构建调用链。正确顺序是：先完成语义判定并写入通过校验的 `analysis.json`，再按每条 finding 的 `location.symbol` 和 `location.file` 运行调用链。影响范围（7.1）与调用链可以独立运行；两者都启用时建议先附加影响范围，再附加调用链。
 
 **测试入口程序定义**：
 
@@ -678,7 +735,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/orchestrator.py" \
 
 ### Phase 8: 测试交接
 
-完成并校验 `analysis.json` 后停止分析。不要写入 `test-entry-tasks.json`、
+完成并校验 `analysis.json`（含每条 finding 的 `affected_scope`）后停止分析。不要写入 `test-entry-tasks.json`、
 `test-entry-work/` 或 finding 级 `test_entries[]`。如果用户要求继续测试，
 将 `RESULT_DIR/analysis.json` 交给同级 `patch-compatibility-testing`；测试入口
 规划、生成、执行和覆盖率证据全部由测试子 skill 写入其独立结果目录。
@@ -739,6 +796,53 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/orchestrator.py" \
         }
       ],
       "static_call_chains": [],
+      "affected_scope": {
+        "status": "computed",
+        "method": "ast_reverse_callgraph",
+        "language": "c",
+        "max_depth": 3,
+        "direct_callers": [
+          {
+            "file": "src/caller.c",
+            "symbol": "parse_input",
+            "qualname": "parse_input",
+            "line": 120,
+            "call_lines": [133],
+            "entry_kind": "",
+            "is_test": false
+          }
+        ],
+        "transitive_dependents": [
+          {
+            "file": "src/main.c",
+            "symbol": "main",
+            "qualname": "main",
+            "line": 40,
+            "call_lines": [45],
+            "entry_kind": "cli_entry",
+            "is_test": false,
+            "depth": 2
+          }
+        ],
+        "affected_files": [
+          {"file": "src/caller.c", "dependent_count": 1, "max_depth": 1, "entry_kinds": []}
+        ],
+        "affected_entry_points": [
+          {
+            "entry_kind": "cli_entry",
+            "entry": "src/main.c::main",
+            "file": "src/main.c",
+            "symbol": "main",
+            "depth": 2
+          }
+        ],
+        "test_dependents": [],
+        "external_dependents": [
+          {"kind": "downstream_package", "name": "example-consumer", "evidence": "profile: downstream packaging surface"}
+        ],
+        "summary": "变更符号 parse_input 的反向依赖分析完成：直接调用方 1 个（涉及文件 1 个），间接依赖 1 个，额外受影响文件共 2 个，可达入口点 1 个，测试依赖 0 个；最远追溯深度 3。",
+        "notes": []
+      },
       "why_not_internal_only": "<解释为何不是纯内部变更>",
       "uncertainty": "<不确定因素>",
       "manual_review_required": true|false,
@@ -800,6 +904,17 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/orchestrator.py" \
 ### 静态调用链
 {call_chain 内容}
 
+### 额外影响范围（下游依赖）
+- **范围状态**: {affected_scope.status}（{affected_scope.method}）
+- **直接调用方**: {direct_callers 列表，每项 `file:line symbol`}
+- **间接依赖**: {transitive_dependents 列表，每项 `file:line symbol (depth)`}
+- **额外受影响文件**: {affected_files 列表，每项 `file（n 个依赖）`}
+- **可达入口点**: {affected_entry_points 列表，每项 `entry_kind entry`}
+- **测试依赖**: {test_dependents 列表，每项 `file::symbol`}
+- **下游依赖（外部）**: {external_dependents 列表，每项 `kind name`}
+- **范围说明**: {affected_scope.summary}
+- **限制说明**: {affected_scope.notes 逐条列出}
+
 ### 复核建议
 {recommended_review}
 
@@ -815,13 +930,14 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/orchestrator.py" \
 
 1. **不要只给 diff** — 必须读取变更前后的完整函数代码，因为语义差异需要上下文
 2. **不要臆测** — 每条结论必须有代码证据支撑
-3. **不要混用代码状态** — 补丁后上下文和 CallGraph 只能来自 `analysis_repo`；源 repo 当前 checkout 可能是补丁前、补丁后或无关集成分支，不能作为语义判断的隐式依据。所有 `rg`/`grep`/文件读取路径都必须指向 `analysis_repo`。
-4. **区分内部和外部** — 内部 static 函数、private 方法等默认不是兼容性问题
-5. **考虑调用方** — 如果一个"内部"函数被广泛的外部模块使用，它实际是公共 API
-6. **Kernel 特殊处理** — UAPI 变更任何细节通常都是高优先级测试目标；内部 kernel 函数通常不视为 API
-7. **Python 特殊处理** — `_` 前缀的函数/类默认不是公共 API；`__all__` 列表中的符号是公共 API
-8. **Go 特殊处理** — 小写字母开头的一定不是 exported；大写字母开头的是 exported
-9. **对于不确定的判定，宁可标记为需要人工复核，也不要把非兼容性变化写入最终 findings**
+3. **影响范围必须有证据** — `affected_scope` 只能来自反向调用图（Phase 7.1）或明确的调用方/下游代码证据；无法解析时写 `not_available` 并说明原因，High 优先级 finding 必须人工复核后写 `agent_review`，不允许用猜测填充直接调用方或下游依赖
+4. **不要混用代码状态** — 补丁后上下文和 CallGraph 只能来自 `analysis_repo`；源 repo 当前 checkout 可能是补丁前、补丁后或无关集成分支，不能作为语义判断的隐式依据。所有 `rg`/`grep`/文件读取路径都必须指向 `analysis_repo`。
+5. **区分内部和外部** — 内部 static 函数、private 方法等默认不是兼容性问题
+6. **考虑调用方** — 如果一个"内部"函数被广泛的外部模块使用，它实际是公共 API
+7. **Kernel 特殊处理** — UAPI 变更任何细节通常都是高优先级测试目标；内部 kernel 函数通常不视为 API
+8. **Python 特殊处理** — `_` 前缀的函数/类默认不是公共 API；`__all__` 列表中的符号是公共 API
+9. **Go 特殊处理** — 小写字母开头的一定不是 exported；大写字母开头的是 exported
+10. **对于不确定的判定，宁可标记为需要人工复核，也不要把非兼容性变化写入最终 findings**
 
 ---
 
@@ -838,8 +954,10 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/orchestrator.py" \
 6. [分析] 对每个候选执行 Phase 5-6 的判定，只把确认的兼容性变化写入最终 findings
 7. [Write] 更新 `analysis.json`，按需更新 `report.md`；`report.md` 和用户可读分析说明使用用户请求语言，默认中文
 8. [Bash] 运行 `validate_analysis.py RESULT_DIR/analysis.json`；失败时回到第 7 步修正
-9. [Bash] 如果 include_call_chain=true，运行 check_dependencies.py --include-callgraph，然后运行 orchestrator.py --attach-call-chains RESULT_DIR/analysis.json
-10. [Skip by default] 不自动运行 cleanup。若用户明确要求释放空间且不会继续测试，再运行 orchestrator.py --cleanup-worktree RESULT_DIR/analysis.json
-11. [输出] 向用户展示兼容性变化摘要、代码行位置和推荐测试优先级，并明确说明分析产物目录和 worktree 状态
-12. [Ask/Handoff] 如果用户尚未明确要求测试，最后询问：`补丁兼容性分析已完成，是否继续基于该分析结果进行定向测试？` 用户同意后读取并执行 `../patch-compatibility-testing/SKILL.md`，传入本次 `RESULT_DIR/analysis.json`。如果用户一开始已经明确要求分析后继续测试，则直接交接，不重复询问。
+9. [Bash] 运行 `orchestrator.py --attach-impact-scope RESULT_DIR/analysis.json`，为每条 finding 附加 `affected_scope` 并生成 `affected-scope.json`；对 `not_available` 的 finding 人工复核调用方/下游并补写为 `agent_review`（或说明无法确定的原因）；然后用 `validate_analysis.py --require-affected-scope RESULT_DIR/analysis.json` 再次校验
+10. [Write] 在 `report.md` 中补全每条 finding 的“额外影响范围（下游依赖）”章节（直接调用方、间接依赖、受影响文件、入口点、测试依赖、外部下游、限制说明）
+11. [Bash] 如果 include_call_chain=true，运行 check_dependencies.py --include-callgraph，然后运行 orchestrator.py --attach-call-chains RESULT_DIR/analysis.json
+12. [Skip by default] 不自动运行 cleanup。若用户明确要求释放空间且不会继续测试，再运行 orchestrator.py --cleanup-worktree RESULT_DIR/analysis.json
+13. [输出] 向用户展示兼容性变化摘要、代码行位置、推荐测试优先级和每条 finding 的额外影响范围，并明确说明分析产物目录和 worktree 状态
+14. [Ask/Handoff] 如果用户尚未明确要求测试，最后询问：`补丁兼容性分析已完成，是否继续基于该分析结果进行定向测试？` 用户同意后读取并执行 `../patch-compatibility-testing/SKILL.md`，传入本次 `RESULT_DIR/analysis.json`。如果用户一开始已经明确要求分析后继续测试，则直接交接，不重复询问。
 ```

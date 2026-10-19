@@ -1,0 +1,297 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/bc05a8/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/bc05a8/patch.diff",
+  "profile": "lvm2",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "lib/config/config.c"
+    ],
+    "total_hunks": 2,
+    "public_api_hunks": 2,
+    "patch_metrics": {
+      "patch_bytes": 1820,
+      "patch_lines": 49,
+      "diff_added_lines": 5,
+      "diff_deleted_lines": 5,
+      "diff_context_lines": 18,
+      "churn": 10,
+      "raw_hunks": 2,
+      "candidate_hunks": 2,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 3960,
+      "public_candidate_hunks": 2,
+      "surface_counts": {
+        "public_headers": 2,
+        "config_keys": 2,
+        "user_visible_output": 2,
+        "logging": 2,
+        "config_metadata": 2
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "lib/config/config.c",
+      "old_start": 512,
+      "old_end": 524,
+      "new_start": 512,
+      "new_end": 525,
+      "context_hint": "int config_file_read_fd(struct dm_config_tree *cft, struct device *dev, dev_io_r",
+      "added_lines": [
+        "\t\tlog_error(\"Metadata buffer size overflow %zu + %zu on %s.\",",
+        "\t\t\t  size, size2, dev_name(dev));",
+        "\t/* Ensure there is extra '\\0' after end of buffer since we pass",
+        "\t * buffer to functions like strtoll() */"
+      ],
+      "deleted_lines": [
+        "\t/* Ensure there is extra '\\0' after end of buffer since we pass",
+        "\t * buffer to functions like strtoll() */",
+        "\t\tlog_error(\"Metadata buffer size overflow.\");"
+      ],
+      "context_lines": [
+        "\tif (!(dev->flags & DEV_REGULAR) || size2)",
+        "\t\tuse_plain_read = 0;",
+        "",
+        "\tif (size + size2 < size) {",
+        "\t\treturn 0;",
+        "\t}",
+        "",
+        "\tif (!(buf = zalloc(size + size2 + 1))) {",
+        "\t\tlog_error(\"Failed to allocate circular buffer.\");",
+        "\t\treturn 0;"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "dm_config_tree",
+        "log_error",
+        "Metadata",
+        "buffer",
+        "size",
+        "overflow"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "liblvm and device-mapper public/API-like headers"
+          },
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "config_metadata",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "lvm.conf, profiles, metadata format, and parsing behavior"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "config_keys",
+          "user_visible_output",
+          "logging",
+          "config_metadata"
+        ],
+        "profile": "lvm2",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "dm_config_tree",
+        "snippet_start_line": 483,
+        "snippet_end_line": 555,
+        "snippet": "/*\n * When checksum_only is set, the checksum of buffer is only matched\n * and function avoids parsing of mda into config tree which\n * remains unmodified and should not be used.\n */\nint config_file_read_fd(struct dm_config_tree *cft, struct device *dev, dev_io_reason_t reason,\n\t\t\toff_t offset, size_t size, off_t offset2, size_t size2,\n\t\t\tchecksum_fn_t checksum_fn, uint32_t checksum,\n\t\t\tint checksum_only, int no_dup_node_check, int only_pv_summary)\n{\n\tchar namebuf[NAME_LEN + 1] __attribute__((aligned(8)));\n\tint namelen = 0;\n\tint bad_name = 0;\n\tchar *fb, *fe;\n\tint r = 0;\n\tssize_t sz;\n\tint use_plain_read = 1;\n\tchar *buf = NULL;\n\tstruct config_source *cs = dm_config_get_custom(cft);\n\tsize_t rsize;\n\n\tif (!_is_file_based_config_source(cs->type)) {\n\t\tlog_error(INTERNAL_ERROR \"config_file_read_fd: expected file, special file \"\n\t\t\t\t\t \"or profile config source, found %s config source.\",\n\t\t\t\t\t _config_source_names[cs->type]);\n\t\treturn 0;\n\t}\n\n\t/* Only use plain read with regular files */\n\tif (!(dev->flags & DEV_REGULAR) || size2)\n\t\tuse_plain_read = 0;\n\n\tif (size + size2 < size) {\n\t\tlog_error(\"Metadata buffer size overflow %zu + %zu on %s.\",\n\t\t\t  size, size2, dev_name(dev));\n\t\treturn 0;\n\t}\n\n\t/* Ensure there is extra '\\0' after end of buffer since we pass\n\t * buffer to functions like strtoll() */\n\tif (!(buf = zalloc(size + size2 + 1))) {\n\t\tlog_error(\"Failed to allocate circular buffer.\");\n\t\treturn 0;\n\t}\n\n\tif (use_plain_read) {\n\t\t/* Note: also used for lvm.conf to read all settings */\n\t\tfor (rsize = 0; rsize < size; rsize += sz) {\n\t\t\tdo {\n\t\t\t\t/* coverity[overflow_sink] - only positive 'sz' is used */\n\t\t\t\tsz = read(dev_fd(dev), buf + rsize, size - rsize);\n\t\t\t} while ((sz < 0) && ((errno == EINTR) || (errno == EAGAIN)));\n\n\t\t\tif (sz <= 0) {\n\t\t\t\tlog_sys_error(\"read\", dev_name(dev));\n\t\t\t\tgoto out;\n\t\t\t}\n\t\t}\n\t} else {\n\t\tif (!dev_read_bytes(dev, offset, size, buf))\n\t\t\tgoto out;\n\n\t\tif (size2) {\n\t\t\tif (!dev_read_bytes(dev, offset2, size2, buf + size))\n\t\t\t\tgoto out;\n\t\t}\n\t}\n\n\tfb = buf;\n\n\tif (!(dev->flags & DEV_REGULAR)) {\n\t\tstrncpy(namebuf, buf, sizeof(namebuf) - 1);\n\n"
+      }
+    },
+    {
+      "file": "lib/config/config.c",
+      "old_start": 550,
+      "old_end": 556,
+      "new_start": 551,
+      "new_end": 557,
+      "context_hint": "int config_file_read_fd(struct dm_config_tree *cft, struct device *dev, dev_io_r",
+      "added_lines": [
+        "\t\tstrncpy(namebuf, buf, sizeof(namebuf) - 1);"
+      ],
+      "deleted_lines": [
+        "\t\tmemcpy(namebuf, buf, NAME_LEN);",
+        "- "
+      ],
+      "context_lines": [
+        "\tfb = buf;",
+        "",
+        "\tif (!(dev->flags & DEV_REGULAR)) {",
+        "",
+        "\t\twhile (namebuf[namelen] && !isspace(namebuf[namelen]) && namebuf[namelen] != '{' && namelen < (NAME_LEN - 1))",
+        "\t\t\tnamelen++;",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "dm_config_tree",
+        "strncpy",
+        "namebuf",
+        "buf",
+        "memcpy",
+        "NAME_LEN",
+        "log_sys_error"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "liblvm and device-mapper public/API-like headers"
+          },
+          {
+            "name": "config_keys",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "default_value",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "config_metadata",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "lvm.conf, profiles, metadata format, and parsing behavior"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "config_keys",
+          "user_visible_output",
+          "logging",
+          "config_metadata"
+        ],
+        "profile": "lvm2",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "dm_config_tree",
+        "snippet_start_line": 521,
+        "snippet_end_line": 587,
+        "snippet": "\t/* Ensure there is extra '\\0' after end of buffer since we pass\n\t * buffer to functions like strtoll() */\n\tif (!(buf = zalloc(size + size2 + 1))) {\n\t\tlog_error(\"Failed to allocate circular buffer.\");\n\t\treturn 0;\n\t}\n\n\tif (use_plain_read) {\n\t\t/* Note: also used for lvm.conf to read all settings */\n\t\tfor (rsize = 0; rsize < size; rsize += sz) {\n\t\t\tdo {\n\t\t\t\t/* coverity[overflow_sink] - only positive 'sz' is used */\n\t\t\t\tsz = read(dev_fd(dev), buf + rsize, size - rsize);\n\t\t\t} while ((sz < 0) && ((errno == EINTR) || (errno == EAGAIN)));\n\n\t\t\tif (sz <= 0) {\n\t\t\t\tlog_sys_error(\"read\", dev_name(dev));\n\t\t\t\tgoto out;\n\t\t\t}\n\t\t}\n\t} else {\n\t\tif (!dev_read_bytes(dev, offset, size, buf))\n\t\t\tgoto out;\n\n\t\tif (size2) {\n\t\t\tif (!dev_read_bytes(dev, offset2, size2, buf + size))\n\t\t\t\tgoto out;\n\t\t}\n\t}\n\n\tfb = buf;\n\n\tif (!(dev->flags & DEV_REGULAR)) {\n\t\tstrncpy(namebuf, buf, sizeof(namebuf) - 1);\n\n\t\twhile (namebuf[namelen] && !isspace(namebuf[namelen]) && namebuf[namelen] != '{' && namelen < (NAME_LEN - 1))\n\t\t\tnamelen++;\n\t\tnamebuf[namelen] = '\\0';\n\n\t\t/*\n\t\t * Check that the text metadata begins with a valid name.\n\t\t */\n\t\tif (!validate_name(namebuf)) {\n\t\t\tlog_warn(\"WARNING: Metadata location on %s at offset %llu begins with invalid name.\",\n\t\t\t\t dev_name(dev), (unsigned long long)offset);\n\t\t\tbad_name = 1;\n\t\t}\n\t}\n\n\t/*\n\t * The checksum passed in is the checksum from the mda_header\n\t * preceding this metadata.  They should always match.\n\t * FIXME: handle case where mda_header checksum is bad,\n\t * but the checksum calculated here is correct.\n\t */\n\tif (checksum_fn && checksum !=\n\t    (checksum_fn(checksum_fn(INITIAL_CRC, (const uint8_t *)fb, size),\n\t\t\t (const uint8_t *)(fb + size), size2))) {\n\t\tlog_warn(\"WARNING: Checksum error on %s at offset %llu.\", dev_name(dev), (unsigned long long)offset);\n\t\tgoto out;\n\t}\n\n\tif (bad_name)\n\t\tgoto out;\n\n\tif (!checksum_only) {\n\t\tfe = fb + size + size2;\n"
+      }
+    }
+  ]
+}

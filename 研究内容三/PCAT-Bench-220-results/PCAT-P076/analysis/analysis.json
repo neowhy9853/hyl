@@ -1,0 +1,326 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/openldap",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/openldap/pca-results/pca_op/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/pca_op",
+  "base_ref": "HEAD",
+  "base_commit": "595e7ea6f36d5352af5a60eccef64c5cb3357fb2",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "pca_openldap_60458c",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca_openldap_60458c.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "openldap",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 3301,
+    "patch_lines": 81,
+    "diff_added_lines": 29,
+    "diff_deleted_lines": 1,
+    "diff_context_lines": 30,
+    "churn": 30,
+    "raw_hunks": 5,
+    "candidate_hunks": 4,
+    "skipped_doc_hunks": 1,
+    "changed_files": 3,
+    "candidate_context_bytes": 9070,
+    "public_candidate_hunks": 4,
+    "surface_counts": {
+      "public_headers": 1,
+      "persistence_state": 4,
+      "libldap_api": 1,
+      "protocol_behavior": 4,
+      "config_schema": 4,
+      "config_keys": 2,
+      "user_visible_output": 1
+    },
+    "candidates_json_bytes": 25196
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 4,
+    "compatibility_changes": 2,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 2,
+    "notes": "Both findings disagree with the calibrator's HIGH recommendation. The config surface priority is high, but the changes are purely additive (new optional config). Default behavior is completely unchanged. The calibrator's surface-based priority overmatches because the patch adds no new breaking behavior \u2014 only opt-in functionality. Disagreement reasons: additive_behavior_only, no_external_observable_break."
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "openldap",
+      "affected_surface": "config_schema, config_keys",
+      "affected_api": {
+        "name": "olcDbPageSize",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "servers/slapd/back-mdb/config.c",
+        "old_lines": [
+          71,
+          82
+        ],
+        "new_lines": [
+          71,
+          88
+        ],
+        "symbol": "mdbcfg"
+      },
+      "old_behavior": "The slapd-mdb backend configuration schema had no 'dbpagesize' config option. The olcMdbConfig object class MAY clause did not include olcDbPageSize. The mdb_info struct had no mi_pagesize field.",
+      "new_behavior": "A new optional 'dbpagesize' config option (olcDbPageSize, OID OLcfgDbAt:1.15) is added to the slapd-mdb backend. It accepts a uint value in range 256-65536 representing the LMDB page size in bytes. Setting it causes mdb_env_set_pagesize() to be called at database open time, which affects newly created databases only. The olcMdbConfig object class now includes olcDbPageSize in its MAY clause.",
+      "compatibility_reason": "The config schema of slapd-mdb has changed: a new optional attribute (olcDbPageSize) is added to the olcMdbConfig object class, and the slapd.conf/config parser now recognizes the 'dbpagesize' keyword. This is additive and backward compatible \u2014 existing configs without this option produce identical behavior. However, configuration management tools that validate schema against known attributes or config keys will see a new recognized key and attribute. Additionally, databases created with a non-default pagesize will have different internal LMDB page structures (affecting max key length, I/O granularity, and file layout), which could affect downstream tools or replication scenarios that depend on the default pagesize.",
+      "evidence": [
+        {
+          "file": "servers/slapd/back-mdb/config.c",
+          "lines": [
+            71,
+            79
+          ],
+          "snippet": "\t{ \"dbpagesize\", \"size\", 2, 2, 0, ARG_UINT|ARG_OFFSET,\n\t\t(void *)offsetof(struct mdb_info, mi_pagesize),\n\t\t\t\"( OLcfgDbAt:1.15 NAME 'olcDbPageSize' \"\n\t\t\t\"DESC 'Page size in bytes, in range 256-65536' \"\n\t\t\t\"EQUALITY integerMatch \"\n\t\t\t\"SYNTAX OMsInteger SINGLE-VALUE )\", NULL, NULL },"
+        },
+        {
+          "file": "servers/slapd/back-mdb/config.c",
+          "lines": [
+            159,
+            162
+          ],
+          "snippet": "\t\t\"MAY ( olcDbCheckpoint $ olcDbEnvFlags \"\n\t\t\"$ olcDbNoSync $ olcDbIndex $ olcDbMaxReaders $ olcDbMaxSize \"\n\t\t\"$ olcDbMode $ olcDbSearchStack $ olcDbMaxEntrySize $ olcDbRtxnSize \"\n\t\t\"$ olcDbMultival $ olcDbPageSize \""
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The config_schema surface (cn=config) is public in OpenLDAP. The olcDbPageSize attribute is exposed in the olcMdbConfig object class schema, making it visible to any LDAP client querying cn=schema,cn=config. The 'dbpagesize' keyword is also added to the slapd.conf configuration file parser. Both are user-facing configuration surfaces.",
+      "uncertainty": "The profile's public_headers surface overmatches back-mdb.h (an internal backend header), but the config_schema and config_keys surfaces accurately reflect that this is a new configuration option. The actual compatibility impact is minimal since the change is purely additive.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that existing slapd-mdb configurations (both slapd.conf and cn=config) continue to work without this option. Verify that the config parser rejects invalid values (non-power-of-2, out of range).",
+      "test_recommendation": "Test that slapd-mdb starts and operates normally without 'dbpagesize' set (backward compatibility). Test that setting 'dbpagesize' to valid values (4096, 8192, 16384) correctly creates databases with the specified page size. Test that invalid values (e.g., 1000, 0, 131072) are rejected with appropriate error messages.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "Purely additive config option. Default behavior is identical to pre-patch when option is not set. No existing config is reinterpreted or rejected. Blast radius is zero unless the admin explicitly opts in by setting the new config key.",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [
+          "additive_behavior_only",
+          "no_external_observable_break"
+        ],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "servers/slapd/back-mdb/config.c",
+            "old_lines": [
+              71,
+              76
+            ],
+            "new_lines": [
+              71,
+              82
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "persistence_state",
+              "protocol_behavior",
+              "config_schema"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "LDAP protocol, controls, schema, filters, and result codes"
+              },
+              {
+                "name": "config_schema",
+                "test_priority": "high",
+                "public": true,
+                "description": "cn=config, slapd.conf, schema, and overlay configuration"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Purely additive config option. Default behavior is identical to pre-patch when option is not set. No existing config is reinterpreted or rejected. Blast radius is zero unless the admin explicitly opts in by setting the new config key."
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.9,
+      "package_profile": "openldap",
+      "affected_surface": "config_schema, persistence_state",
+      "affected_api": {
+        "name": "mdb_db_open",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "servers/slapd/back-mdb/init.c",
+        "old_lines": [
+          126,
+          131
+        ],
+        "new_lines": [
+          126,
+          142
+        ],
+        "symbol": "mdb_db_open"
+      },
+      "old_behavior": "The mdb_db_open() function created an LMDB environment with mdb_env_create() and then immediately proceeded to encryption setup, reader config, mapsize config, and database open. No pagesize was explicitly set, so LMDB used the default (filesystem block size, typically 4096 or 8192).",
+      "new_behavior": "After mdb_env_create() and before encryption setup, mdb_db_open() now conditionally calls mdb_env_set_pagesize() if mi_pagesize is non-zero. If mdb_env_set_pagesize() fails, the database open fails with a goto to the fail label, printing a debug message with the LMDB error string.",
+      "compatibility_reason": "This is a conditional behavioral change that only activates when the new 'dbpagesize' config option is explicitly set. When not set (mi_pagesize == 0), behavior is identical to before the patch. When set, the LMDB pagesize is explicitly configured before environment open. This is backward compatible but introduces a new failure path: if mdb_env_set_pagesize() fails (e.g., invalid pagesize value), the database will fail to open with a new error message, whereas previously this code path did not exist.",
+      "evidence": [
+        {
+          "file": "servers/slapd/back-mdb/init.c",
+          "lines": [
+            129,
+            137
+          ],
+          "snippet": "\tif ( mdb->mi_pagesize ) {\n\t\trc = mdb_env_set_pagesize( mdb->mi_dbenv, mdb->mi_pagesize );\n\t\tif ( rc ) {\n\t\t\tDebug( LDAP_DEBUG_ANY,\n\t\t\t\tLDAP_XSTRING(mdb_db_open) \": database \\\"%s\\\": \"\n\t\t\t\t\"mdb_env_set_pagesize failed: %s (%d).\\n\",\n\t\t\t\tbe->be_suffix[0].bv_val, mdb_strerror(rc), rc );\n\t\t\tgoto fail;\n\t\t}\n\t}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "mdb_db_open() is the database open entry point for the slapd-mdb backend, reachable through slapd's backend initialization when an MDB database is configured. Configuring a database is a public administrative action; a new failure path in database open is an externally observable behavior change.",
+      "uncertainty": "Low uncertainty. The code change is straightforward: a new conditional block with a well-defined LMDB API call and error handling that follows existing patterns in the same function (compare with mdb_env_set_maxreaders and mdb_env_set_mapsize blocks below it).",
+      "manual_review_required": false,
+      "recommended_review": "Verify that the error message for mdb_env_set_pagesize failure is clear and actionable. Verify that the 'goto fail' path correctly cleans up resources (following the same pattern as other failure paths in mdb_db_open).",
+      "test_recommendation": "Test that mdb_db_open succeeds without mi_pagesize set (backward compat). Test that it succeeds with a valid pagesize set. Test that it fails gracefully with an invalid pagesize (non-power-of-2). Use a unit-level test that calls through the config parsing and database open sequence.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "Purely additive config option. Default behavior is identical to pre-patch when option is not set. No existing config is reinterpreted or rejected. Blast radius is zero unless the admin explicitly opts in by setting the new config key.",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [
+          "additive_behavior_only",
+          "no_external_observable_break"
+        ],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "servers/slapd/back-mdb/init.c",
+            "old_lines": [
+              126,
+              131
+            ],
+            "new_lines": [
+              126,
+              142
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "persistence_state",
+              "protocol_behavior",
+              "config_schema"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "LDAP protocol, controls, schema, filters, and result codes"
+              },
+              {
+                "name": "config_schema",
+                "test_priority": "high",
+                "public": true,
+                "description": "cn=config, slapd.conf, schema, and overlay configuration"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Purely additive config option. Default behavior is identical to pre-patch when option is not set. No existing config is reinterpreted or rejected. Blast radius is zero unless the admin explicitly opts in by setting the new config key."
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

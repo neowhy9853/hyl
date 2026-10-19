@@ -1,0 +1,51 @@
+{
+  "finding_id": "PCA-0002",
+  "task_id": "PCA-TE-0002",
+  "compatibility_type": "RETURN_CONTRACT_CHANGE",
+  "artifact_path": "test-entry-work/PCA-TE-0002/runs/test_entry.sh",
+  "run_command": "bash test_entry.sh",
+  "expected_signal": "grub_script_function_create returns NULL when function is executing",
+  "reachability_signal": "Null return value confirmed via grub_err_t check or error message",
+  "execution": {
+    "cwd": "test-entry-work/PCA-TE-0002/runs",
+    "prerequisites": [
+      "Built grub-emu binary",
+      "Optional: C test harness for direct API testing (requires full GRUB build env)"
+    ],
+    "limitations": [
+      "Direct C API testing requires linking against all GRUB internal libraries",
+      "Full functional testing requires QEMU (not available)",
+      "C test harness compilation attempted but GRUB internal headers have complex dependencies",
+      "Source-level analysis confirms NULL return path for executing functions"
+    ]
+  },
+  "contract_probe": {
+    "before": {
+      "expectation": "grub_script_function_create returns non-NULL (q) when redefining executing function",
+      "command": "N/A - requires direct API access"
+    },
+    "after": {
+      "expectation": "grub_script_function_create returns NULL when redefining executing function",
+      "command": "N/A - requires direct API access"
+    }
+  },
+  "input_strategy": "api_harness",
+  "generated_inputs": [
+    {
+      "id": "I1",
+      "description": "API-level test: grub_script_function_create returns NULL for executing functions",
+      "type": "c_api_call",
+      "content": "grub_script_function_create(&funcname, script) - when q->executing > 0",
+      "expected": "Returns NULL"
+    }
+  ],
+  "verification_result": {
+    "status": "static_valid_not_run",
+    "reason": "Direct C API testing requires linking against all GRUB internal objects. Source code confirms: when q->executing > 0, func is set to NULL and returned.",
+    "code_evidence": {
+      "file": "grub-core/script/function.c",
+      "lines": [65, 75],
+      "snippet": "if (q->executing > 0) {\n  grub_error (GRUB_ERR_BAD_ARGUMENT, N_(\"attempt to redefine a function being executed\"));\n  func = NULL;\n} else {\n  grub_script_free (q->func);\n  q->func = cmd;\n  func = q;\n}\n...\nreturn func;"
+    }
+  }
+}

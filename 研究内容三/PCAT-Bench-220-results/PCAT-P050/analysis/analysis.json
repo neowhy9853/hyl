@@ -1,0 +1,244 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/NetworkManager",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/900f55/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/900f55",
+  "base_ref": "HEAD",
+  "base_commit": "4b63ae29a5c030c9a5cd199b546da3d7a1331827",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "96cab112a257",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/900f55/patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "networkmanager",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "patch_metrics": {
+    "patch_bytes": 5677,
+    "patch_lines": 108,
+    "diff_added_lines": 12,
+    "diff_deleted_lines": 29,
+    "diff_context_lines": 48,
+    "churn": 41,
+    "raw_hunks": 7,
+    "candidate_hunks": 7,
+    "skipped_doc_hunks": 0,
+    "changed_files": 3,
+    "candidate_context_bytes": 16470,
+    "public_candidate_hunks": 7,
+    "surface_counts": {
+      "cli_options": 4,
+      "user_visible_output": 2,
+      "logging": 2,
+      "dbus_api": 7,
+      "config_keys": 5,
+      "config": 5,
+      "cli": 2,
+      "public_headers": 1
+    },
+    "candidates_json_bytes": 44233
+  },
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 7,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.92,
+      "package_profile": "networkmanager",
+      "affected_surface": "ICMPv6 Router Advertisement Prefix Information Option (NDP protocol output)",
+      "affected_api": {
+        "name": "send_ra",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/core/ndisc/nm-lndp-ndisc.c",
+        "old_lines": [
+          531,
+          543
+        ],
+        "new_lines": [
+          532,
+          540
+        ],
+        "symbol": "send_ra"
+      },
+      "old_behavior": "send_ra() announces prefix valid lifetime and preferred lifetime in Router Advertisements using the original DHCPv6-PD lease lifetime regardless of elapsed time. _nm_ndisc_lifetime_from_expiry is called with NM_NDISC_EXPIRY_BASE_TIMESTAMP (0) as now_msec, so the calculated lifetime is always the full original lease lifetime (e.g., 3600 seconds for a 1-hour lease).",
+      "new_behavior": "send_ra() announces prefix valid lifetime and preferred lifetime using the actual remaining time. _nm_ndisc_lifetime_from_expiry is called with now_msec (actual monotonic timestamp), so the calculated lifetime is max(0, (expiry_msec - now_msec + 500) / 1000), which decreases as time passes. This complies with RFC 9096: CE routers must not advertise prefixes using lifetimes exceeding the remaining lifetimes.",
+      "compatibility_reason": "Downstream devices receiving Router Advertisements from NetworkManager acting as a CE router will see decreasing prefix valid/preferred lifetimes instead of the constant original lease lifetime. SLAAC clients may deprecate or expire addresses earlier than before. Tools and scripts that inspect RA prefix lifetimes (e.g., tcpdump, wireshark, rdisc6) will observe different values. The lifetime field in the Prefix Information Option (type 3) of ICMPv6 RA messages now reflects actual time remaining rather than the original delegated lifetime.",
+      "evidence": [
+        {
+          "file": "src/core/ndisc/nm-lndp-ndisc.c",
+          "lines": [
+            532,
+            540
+          ],
+          "snippet": "        prefix->nd_opt_pi_valid_time = htonl(_nm_ndisc_lifetime_from_expiry(now_msec, address->expiry_msec, TRUE));\n        prefix->nd_opt_pi_preferred_time = htonl(_nm_ndisc_lifetime_from_expiry(now_msec, address->expiry_preferred_msec, TRUE));"
+        },
+        {
+          "file": "src/core/ndisc/nm-lndp-ndisc.c",
+          "lines": [
+            487,
+            491
+          ],
+          "snippet": "    nm_auto_str_buf NMStrBuf sbuf     = NM_STR_BUF_INIT(0, FALSE);\n    gint64                   now_msec = nm_utils_get_monotonic_timestamp_msec();"
+        },
+        {
+          "file": "src/core/ndisc/nm-ndisc.h",
+          "lines": [
+            50,
+            55
+          ],
+          "snippet": "/* removed: #define NM_NDISC_EXPIRY_BASE_TIMESTAMP ((gint64) 0) */"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "send_ra() generates ICMPv6 Router Advertisements sent onto the network. The prefix valid lifetime and preferred lifetime fields in the Prefix Information Option are protocol-visible fields consumed by any SLAAC-enabled downstream device. This is an externally observable network protocol change, not internal-only.",
+      "uncertainty": "The change only affects the prefix lifetime fields in the RA message. DNS server/domain expiry_msec internal tracking also changed but the RA DNS option (RDNSS) uses a hardcoded 900s lifetime and is not affected. The magnitude of the difference depends on how much time has elapsed between config setup and RA transmission.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that downstream SLAAC clients correctly handle decreasing prefix lifetimes. Confirm that expiry_msec values in send_ra are computed correctly: addr->expiry_msec was set in nm_ndisc_set_config using _nm_ndisc_lifetime_to_expiry(now_msec, lifetime) where now_msec captures the monotonic time at config time. The diff between send_ra's now_msec and the stored expiry_msec gives the correct remaining lifetime.",
+      "test_recommendation": "Verify RA prefix lifetime values match remaining lease time rather than original lease time. Use tcpdump or equivalent to capture RAs and validate the prefix valid lifetime decreases between successive RAs. Check that downstream SLAAC address lifetimes reflect the decreasing values.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=daemon_handler on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "src/core/ndisc/nm-lndp-ndisc.c",
+            "old_lines": [
+              531,
+              543
+            ],
+            "new_lines": [
+              532,
+              540
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "logging",
+              "dbus_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "dbus_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Stable D-Bus interfaces, properties, signals, and methods"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/core/ndisc/nm-lndp-ndisc.c",
+            "old_lines": [
+              487,
+              493
+            ],
+            "new_lines": [
+              487,
+              494
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "logging",
+              "dbus_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "dbus_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Stable D-Bus interfaces, properties, signals, and methods"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=daemon_handler on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings."
+}

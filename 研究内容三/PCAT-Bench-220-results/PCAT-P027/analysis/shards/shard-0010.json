@@ -1,0 +1,210 @@
+{
+  "shard_id": "SHARD-0010",
+  "surface": "user_visible_output",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    28,
+    29
+  ],
+  "hunk_ids": [
+    "HUNK-0030",
+    "HUNK-0031"
+  ],
+  "files": [
+    "transport.c"
+  ],
+  "symbols": [
+    "args",
+    "data",
+    "memset",
+    "negotiation_include_tips",
+    "options",
+    "transport",
+    "acked_commits",
+    "negotiate_using_fetch"
+  ],
+  "metrics": {
+    "hunks": 2,
+    "context_bytes": 4414
+  },
+  "candidates": [
+    {
+      "file": "transport.c",
+      "old_start": 464,
+      "old_end": 469,
+      "new_start": 464,
+      "new_end": 470,
+      "context_hint": "static int fetch_refs_via_pack(struct transport *transport,",
+      "added_lines": [
+        "\targs.negotiation_include_tips = data->options.negotiation_include_tips;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\targs.stateless_rpc = transport->stateless_rpc;",
+        "\targs.server_options = transport->server_options;",
+        "\targs.negotiation_restrict_tips = data->options.negotiation_restrict_tips;",
+        "\targs.reject_shallow_remote = transport->smart_options->reject_shallow;",
+        "",
+        "\tif (!data->finished_handshake) {"
+      ],
+      "hunk_id": "HUNK-0030",
+      "changed_symbols": [
+        "transport",
+        "args",
+        "negotiation_include_tips",
+        "data",
+        "options",
+        "memset"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "wire_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Repository wire protocol and capability behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "wire_protocol"
+        ],
+        "profile": "git",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "transport",
+        "snippet_start_line": 435,
+        "snippet_end_line": 500,
+        "snippet": "\t\t\t       int nr_heads, struct ref **to_fetch)\n{\n\tint ret = 0;\n\tstruct git_transport_data *data = transport->data;\n\tstruct ref *refs = NULL;\n\tstruct fetch_pack_args args;\n\tstruct ref *refs_tmp = NULL, **to_fetch_dup = NULL;\n\n\tmemset(&args, 0, sizeof(args));\n\targs.uploadpack = data->options.uploadpack;\n\targs.keep_pack = data->options.keep;\n\targs.lock_pack = 1;\n\targs.use_thin_pack = data->options.thin;\n\targs.include_tag = data->options.followtags;\n\targs.verbose = (transport->verbose > 1);\n\targs.quiet = (transport->verbose < 0);\n\targs.no_progress = !transport->progress;\n\targs.depth = data->options.depth;\n\targs.deepen_since = data->options.deepen_since;\n\targs.deepen_not = data->options.deepen_not;\n\targs.deepen_relative = data->options.deepen_relative;\n\targs.check_self_contained_and_connected =\n\t\tdata->options.check_self_contained_and_connected;\n\targs.cloning = transport->cloning;\n\targs.update_shallow = data->options.update_shallow;\n\targs.from_promisor = data->options.from_promisor;\n\tlist_objects_filter_copy(&args.filter_options,\n\t\t\t\t &data->options.filter_options);\n\targs.refetch = data->options.refetch;\n\targs.stateless_rpc = transport->stateless_rpc;\n\targs.server_options = transport->server_options;\n\targs.negotiation_restrict_tips = data->options.negotiation_restrict_tips;\n\targs.negotiation_include_tips = data->options.negotiation_include_tips;\n\targs.reject_shallow_remote = transport->smart_options->reject_shallow;\n\n\tif (!data->finished_handshake) {\n\t\tint i;\n\t\tint must_list_refs = 0;\n\t\tfor (i = 0; i < nr_heads; i++) {\n\t\t\tif (!to_fetch[i]->exact_oid) {\n\t\t\t\tmust_list_refs = 1;\n\t\t\t\tbreak;\n\t\t\t}\n\t\t}\n\t\trefs_tmp = handshake(transport, 0, NULL, must_list_refs);\n\t}\n\n\tif (data->version == protocol_unknown_version)\n\t\tBUG(\"unknown protocol version\");\n\telse if (data->version <= protocol_v1)\n\t\tdie_if_server_options(transport);\n\n\tif (data->options.acked_commits) {\n\t\tif (data->version < protocol_v2) {\n\t\t\twarning(_(\"--negotiate-only requires protocol v2\"));\n\t\t\tret = -1;\n\t\t} else if (!server_supports_feature(\"fetch\", \"wait-for-done\", 0)) {\n\t\t\twarning(_(\"server does not support wait-for-done\"));\n\t\t\tret = -1;\n\t\t} else {\n\t\t\tnegotiate_using_fetch(data->options.negotiation_restrict_tips,\n\t\t\t\t\t      transport->server_options,\n\t\t\t\t\t      transport->stateless_rpc,\n\t\t\t\t\t      data->fd,\n\t\t\t\t\t      data->options.acked_commits,\n\t\t\t\t\t      data->options.negotiation_include_tips);\n"
+      }
+    },
+    {
+      "file": "transport.c",
+      "old_start": 495,
+      "old_end": 501,
+      "new_start": 496,
+      "new_end": 503,
+      "context_hint": "static int fetch_refs_via_pack(struct transport *transport,",
+      "added_lines": [
+        "\t\t\t\t\t      data->options.acked_commits,",
+        "\t\t\t\t\t      data->options.negotiation_include_tips);"
+      ],
+      "deleted_lines": [
+        "\t\t\t\t\t      data->options.acked_commits);"
+      ],
+      "context_lines": [
+        "\t\t\t\t\t      transport->server_options,",
+        "\t\t\t\t\t      transport->stateless_rpc,",
+        "\t\t\t\t\t      data->fd,",
+        "\t\t\tret = 0;",
+        "\t\t}",
+        "\t\tgoto cleanup;"
+      ],
+      "hunk_id": "HUNK-0031",
+      "changed_symbols": [
+        "transport",
+        "data",
+        "options",
+        "acked_commits",
+        "negotiation_include_tips",
+        "negotiate_using_fetch"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "wire_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Repository wire protocol and capability behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "wire_protocol"
+        ],
+        "profile": "git",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "transport",
+        "snippet_start_line": 466,
+        "snippet_end_line": 533,
+        "snippet": "\targs.negotiation_restrict_tips = data->options.negotiation_restrict_tips;\n\targs.negotiation_include_tips = data->options.negotiation_include_tips;\n\targs.reject_shallow_remote = transport->smart_options->reject_shallow;\n\n\tif (!data->finished_handshake) {\n\t\tint i;\n\t\tint must_list_refs = 0;\n\t\tfor (i = 0; i < nr_heads; i++) {\n\t\t\tif (!to_fetch[i]->exact_oid) {\n\t\t\t\tmust_list_refs = 1;\n\t\t\t\tbreak;\n\t\t\t}\n\t\t}\n\t\trefs_tmp = handshake(transport, 0, NULL, must_list_refs);\n\t}\n\n\tif (data->version == protocol_unknown_version)\n\t\tBUG(\"unknown protocol version\");\n\telse if (data->version <= protocol_v1)\n\t\tdie_if_server_options(transport);\n\n\tif (data->options.acked_commits) {\n\t\tif (data->version < protocol_v2) {\n\t\t\twarning(_(\"--negotiate-only requires protocol v2\"));\n\t\t\tret = -1;\n\t\t} else if (!server_supports_feature(\"fetch\", \"wait-for-done\", 0)) {\n\t\t\twarning(_(\"server does not support wait-for-done\"));\n\t\t\tret = -1;\n\t\t} else {\n\t\t\tnegotiate_using_fetch(data->options.negotiation_restrict_tips,\n\t\t\t\t\t      transport->server_options,\n\t\t\t\t\t      transport->stateless_rpc,\n\t\t\t\t\t      data->fd,\n\t\t\t\t\t      data->options.acked_commits,\n\t\t\t\t\t      data->options.negotiation_include_tips);\n\t\t\tret = 0;\n\t\t}\n\t\tgoto cleanup;\n\t}\n\n\t/*\n\t * Create a shallow copy of `sought` so that we can free all of its entries.\n\t * This is because `fetch_pack()` will modify the array to evict some\n\t * entries, but won't free those.\n\t */\n\tDUP_ARRAY(to_fetch_dup, to_fetch, nr_heads);\n\tto_fetch = to_fetch_dup;\n\n\trefs = fetch_pack(&args, data->fd,\n\t\t\t  refs_tmp ? refs_tmp : transport->remote_refs,\n\t\t\t  to_fetch, nr_heads, &data->shallow,\n\t\t\t  &transport->pack_lockfiles, data->version);\n\n\tdata->finished_handshake = 0;\n\tdata->options.self_contained_and_connected =\n\t\targs.self_contained_and_connected;\n\tdata->options.connectivity_checked = args.connectivity_checked;\n\n\tif (!refs)\n\t\tret = -1;\n\tif (report_unmatched_refs(to_fetch, nr_heads))\n\t\tret = -1;\n\ncleanup:\n\tclose(data->fd[0]);\n\tif (data->fd[1] >= 0)\n\t\tclose(data->fd[1]);\n\tif (finish_connect(data->conn))\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

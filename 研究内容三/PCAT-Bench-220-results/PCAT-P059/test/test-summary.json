@@ -1,0 +1,140 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/f603a4f9/analysis.json",
+  "patch_id": "f603a4f920e6953b11667d424956fd47373870e9",
+  "result_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/f603a4f9/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+    "base_commit": "c090f1d17b280c98630914334d341a2fa3318117",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/f603a4f9/_worktrees/patched",
+    "package_profile": "dnsmasq"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc",
+    "optimization": "-O0 -g --coverage",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Build with HAVE_DNSSEC enabled",
+      "nettle/hogweed/gmp available",
+      "35 .gcno files, 35 .gcda files produced",
+      "dnssec.c: 10.27% coverage (114/1110 lines)"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 4,
+    "inputs_executed": 4,
+    "contracts_total": 1,
+    "contracts_passed": 1,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 16,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 16,
+    "patch_line_coverage_rate": 0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "status": "partial",
+      "target_location": {
+        "file": "src/dnssec.c",
+        "new_lines": [
+          572,
+          592
+        ],
+        "symbol": "validate_rrset"
+      },
+      "entries": [
+        {
+          "entry_id": "e1",
+          "artifact_path": "test-entry-work/test_wildcard_dnssec.py",
+          "run_command": "python3 test-entry-work/test_wildcard_dnssec.py",
+          "expected_signal": "Both before and after binaries respond identically to DNS queries",
+          "reachability_signal": "dnsmasq starts, binds to port, responds to UDP queries",
+          "status": "passed"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "c1",
+          "status": "passed",
+          "detail": "Basic forwarder mode: both binaries produce identical rcode for example.com (0), google.com (0), nonexistent.test.local (3). *.example.com times out (no upstream wildcard)."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 7,
+        "covered_lines": 0,
+        "uncovered_lines": [
+          "src/dnssec.c:572",
+          "src/dnssec.c:576",
+          "src/dnssec.c:577",
+          "src/dnssec.c:579",
+          "src/dnssec.c:587",
+          "src/dnssec.c:689",
+          "src/dnssec.c:2275"
+        ],
+        "rate": 0,
+        "note": "Patched lines require DNSSEC-signed responses. 10.27% overall coverage on dnssec.c."
+      },
+      "behavior_differences": [
+        {
+          "input_id": "bd1",
+          "diff_type": "SIDE_EFFECT_CHANGE",
+          "before": "Standard DNS forwarding rcode=0/3",
+          "after": "Standard DNS forwarding rcode=0/3",
+          "evidence": "All 4 test queries produce identical rcodes between before and after binaries"
+        }
+      ],
+      "notes": [
+        "Patch is documented bug fix for DNSSEC wildcard corner case per RFC 4035",
+        "STAT_SECURE_WILDCARD removed; wildcard status via wild_offset int parameter",
+        "New guard skips wildcard expansion when name is already the wildcard pattern",
+        "Full behavioral verification requires controlled DNSSEC testbed"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "finding_id": "PCA-0001",
+      "id": "blk1",
+      "scope": "environment",
+      "reason": "Requires controlled DNSSEC testbed with signed zones, trust anchors, recursive resolver config",
+      "required_action": "Set up BIND/Knot as authoritative server; configure dnsmasq trust-anchor; query *.example.com with DO bit"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-work/test-entries.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "test-entry-work/test_wildcard_dnssec.py",
+    "execution_results": "phase4_execution/test_results.json",
+    "contract_summary": "phase3_contracts/",
+    "coverage_data": "",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": false,
+    "rationale": "1 SIDE_EFFECT_CHANGE finding (LOW). Before/after binaries build identically (--coverage -O0 -g) and operate identically in forwarder mode. DNSSEC wildcard corner case cannot be verified without controlled DNSSEC testbed. Patch is RFC 4035 bug fix. gcov: 10.27% dnssec.c coverage (35 gcda files). Patched lines need DNSSEC-signed responses.",
+    "recommended_actions": [
+      "Set up controlled DNSSEC testbed with BIND/Knot as signed zone authoritative server",
+      "Configure dnsmasq with trust-anchor pointing to test zone",
+      "Query *.example.com A with DO bit set to verify NOERROR vs SERVFAIL",
+      "Query a.example.com A to verify wildcard expansion works correctly",
+      "Run gcov with full DNSSEC test to confirm patched lines covered"
+    ]
+  }
+}

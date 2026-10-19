@@ -1,0 +1,442 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/42d960/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/42d960",
+  "base_ref": "558057cf4f43ea3b28c5e0b1b2250cab362f1a6a",
+  "base_commit": "558057cf4f43ea3b28c5e0b1b2250cab362f1a6a",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "42d960748efa79a31e72cc36d983aca244dc167e",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/42d96074.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "git",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 11043,
+    "patch_lines": 301,
+    "diff_added_lines": 60,
+    "diff_deleted_lines": 45,
+    "diff_context_lines": 113,
+    "churn": 105,
+    "raw_hunks": 14,
+    "candidate_hunks": 14,
+    "skipped_doc_hunks": 0,
+    "changed_files": 7,
+    "candidate_context_bytes": 22616,
+    "public_candidate_hunks": 5,
+    "surface_counts": {
+      "user_visible_output": 5,
+      "logging": 5,
+      "public_library_headers": 1,
+      "commands": 1,
+      "tests": 8
+    },
+    "candidates_json_bytes": 59556
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 7,
+    "total_candidates": 14,
+    "compatibility_changes": 3,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 2
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "git",
+      "affected_surface": "CLI user-visible output format",
+      "affected_api": {
+        "name": "git log -L",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "line-log.c",
+        "old_lines": [
+          1004,
+          1032
+        ],
+        "new_lines": [
+          1003,
+          1020
+        ],
+        "symbol": "line_log_queue_pairs"
+      },
+      "old_behavior": "line_log_print() printed a blank-line separator unconditionally before each diff block using fprintf(rev->diffopt.file, \"%s\n\", prefix). The commit header was followed by a blank line before the diff started.",
+      "new_behavior": "line_log_queue_pairs() only queues pre-computed filepairs; show_log() and separator emission is deferred to log_tree_diff_flush(). log_tree_diff_flush() only emits the blank-line separator for verbose headers. Non-verbose (--oneline) output no longer has an extra blank line before the diff.",
+      "compatibility_reason": "Scripts or tools that parse git log -L output and depend on a blank line between the commit header and the diff will see one fewer blank line. Test expectations confirm this: expect files removed blank lines that were previously unconditional. The test  explicitly validates this new behavior.",
+      "evidence": [
+        {
+          "file": "line-log.c",
+          "lines": [
+            1003,
+            1020
+          ],
+          "snippet": "void line_log_queue_pairs(...)\n{\n\tstruct line_log_data *range = lookup_line_range(rev, commit);\n\tstruct line_log_data *r;\n\n\tfor (r = range; r; r = r->next) {\n\t\tif (r->pair) {\n\t\t\tstruct diff_filepair *p = diff_filepair_dup(r->pair);\n\t\t\tp->line_ranges = &r->ranges;\n\t\t\tdiff_q(&diff_queued_diff, p);\n\t\t}\n\t}\n}"
+        },
+        {
+          "file": "line-log.c",
+          "lines": [
+            1004,
+            1032
+          ],
+          "snippet": "(old) int line_log_print(...)\n{\n\tshow_log(rev);\n\tif (!(rev->diffopt.output_format & DIFF_FORMAT_NO_OUTPUT)) {\n\t\t...\n\t\tfprintf(rev->diffopt.file, \"%s\n\", prefix);\n\t\t...\n\t\tdiffcore_std(&rev->diffopt);\n\t\tdiff_flush(&rev->diffopt);\n\t}\n\treturn 1;\n}"
+        },
+        {
+          "file": "log-tree.c",
+          "lines": [
+            1108,
+            1112
+          ],
+          "snippet": "if (opt->line_level_traverse) {\n\tline_log_queue_pairs(opt, commit);\n\tlog_tree_diff_flush(opt);\n\treturn !opt->loginfo;\n}"
+        },
+        {
+          "file": "log-tree.c",
+          "lines": [
+            1185,
+            1190
+          ],
+          "snippet": "(removed) /* NEEDSWORK: no restoring of no_free?  Why? */\nif (opt->line_level_traverse)\n\treturn line_log_print(opt, commit);"
+        },
+        {
+          "file": "t/t4211-line-log.sh",
+          "lines": [
+            369,
+            377
+          ],
+          "snippet": "(old expect had blank line before diff; new expect removes it)"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "git log -L is a user-facing CLI command. Changes to its output format affect all users who parse or view -L output. The test changes confirm the output format is intentionally modified.",
+      "uncertainty": "The blank-line change is intentional and documented in the commit message. The exact impact on script parsing depends on whether scripts use the blank line as a separator.",
+      "manual_review_required": false,
+      "recommended_review": "Review any scripts that parse git log -L output for blank-line dependencies. The commit message explicitly notes this change.",
+      "test_recommendation": "Run git log -L with various formats (--oneline, --format=, default) and verify blank-line behavior matches the new expectations. Use existing t4211-line-log.sh tests as regression.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=medium from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "line-log.c",
+            "old_lines": [
+              1004,
+              1032
+            ],
+            "new_lines": [
+              1003,
+              1020
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "logging"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=medium from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.98,
+      "package_profile": "git",
+      "affected_surface": "CLI input validation",
+      "affected_api": {
+        "name": "git log -L --full-diff",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "revision.c",
+        "old_lines": [
+          3179,
+          3186
+        ],
+        "new_lines": [
+          3179,
+          3188
+        ],
+        "symbol": "setup_revisions"
+      },
+      "old_behavior": "git log -L with --full-diff was either silently accepted (possibly with confusing results since -L pre-computes filepairs scoped to tracked line ranges) or rejected with the generic message \"-L does not yet support diff formats besides -p and -s\" if combined with incompatible format flags.",
+      "new_behavior": "git log -L --full-diff is explicitly rejected with die(\"-L does not yet support the requested diff format\"). The error message also changed to be more general.",
+      "compatibility_reason": "Users who previously invoked git log -L --full-diff (possibly in scripts or aliases) will now get a fatal error instead of any output. This is a tightening of CLI input validation.",
+      "evidence": [
+        {
+          "file": "revision.c",
+          "lines": [
+            3179,
+            3188
+          ],
+          "snippet": "if (revs->line_level_traverse &&\n    (revs->full_diff ||\n     (revs->diffopt.output_format &\n      ~(DIFF_FORMAT_PATCH | DIFF_FORMAT_NO_OUTPUT))))\n    die(_(\"-L does not yet support the requested diff format\"));"
+        },
+        {
+          "file": "revision.c",
+          "lines": [
+            3179,
+            3186
+          ],
+          "snippet": "(old) if (revs->line_level_traverse &&\n    (revs->diffopt.output_format & ~(DIFF_FORMAT_PATCH | DIFF_FORMAT_NO_OUTPUT)))\n    die(_(\"-L does not yet support diff formats besides -p and -s\"));"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "--full-diff is a documented CLI option. Changing its behavior with -L is a user-facing CLI change.",
+      "uncertainty": "--full-diff with -L was unlikely to produce useful results before, so the practical impact of the new error should be minimal.",
+      "manual_review_required": false,
+      "recommended_review": "Check if any scripts or aliases use git log -L --full-diff.",
+      "test_recommendation": "Run git log -L --full-diff and verify it exits with error. Test is included in t4211-line-log.sh.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=medium from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "revision.c",
+            "old_lines": [
+              3179,
+              3186
+            ],
+            "new_lines": [
+              3179,
+              3188
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "logging"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=medium from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "git",
+      "affected_surface": "CLI behavior - pickaxe filtering",
+      "affected_api": {
+        "name": "git log -L with -S/-G/--find-object/--diff-filter",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "log-tree.c",
+        "old_lines": [
+          1179,
+          1185
+        ],
+        "new_lines": [
+          1185,
+          1190
+        ],
+        "symbol": "log_tree_commit"
+      },
+      "old_behavior": "When using git log -L with -S/-G/--find-object/--diff-filter, show_log() was called inside line_log_print() before diffcore_std() ran. This meant pickaxe could not suppress commit headers even when no diff pairs survived filtering. All commits in the range were shown.",
+      "new_behavior": "show_log() is now deferred until after diffcore_std() inside log_tree_diff_flush(). Pickaxe (-S, -G, --find-object) and --diff-filter now properly suppress commits when all pairs are filtered out. Commits without matching content changes are omitted from output.",
+      "compatibility_reason": "Scripts using git log -L with pickaxe options that previously saw all commits in the range will now see fewer commits (only those matching the pickaxe pattern). This changes the output contract for a documented option combination.",
+      "evidence": [
+        {
+          "file": "log-tree.c",
+          "lines": [
+            1108,
+            1112
+          ],
+          "snippet": "if (opt->line_level_traverse) {\n\tline_log_queue_pairs(opt, commit);\n\tlog_tree_diff_flush(opt);\n\treturn !opt->loginfo;\n}"
+        },
+        {
+          "file": "log-tree.c",
+          "lines": [
+            1185,
+            1190
+          ],
+          "snippet": "(removed early return - now flows through log_tree_diff)"
+        },
+        {
+          "file": "t/t4211-line-log.sh",
+          "lines": [
+            490,
+            506
+          ],
+          "snippet": "Changed from test_expect_failure to test_expect_success for -L -G/-S/--find-object filtering"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Pickaxe (-S, -G) and --diff-filter are documented CLI options. Their behavior change with -L affects all users of these option combinations.",
+      "uncertainty": "This is a bug fix that changes behavior from broken (commits always shown) to correct (commits filtered). Previous behavior was not documented as working, so most users would not have relied on the broken behavior.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that the new filtering behavior matches user expectations for -L with pickaxe options.",
+      "test_recommendation": "Run the t4211-line-log.sh tests for -L with -G, -S, --find-object, and --diff-filter. Verify commits are properly suppressed with non-matching patterns.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "log-tree.c",
+            "old_lines": [
+              1179,
+              1188
+            ],
+            "new_lines": [
+              1185,
+              1190
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "logging",
+              "commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "Git CLI commands, options, and exit behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Analysis complete with 3 confirmed findings. Validate with validate_analysis.py before proceeding to testing."
+}

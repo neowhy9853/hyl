@@ -1,0 +1,60 @@
+From de9c5c5b597bf97aa03145de129fb579b5a0e953 Mon Sep 17 00:00:00 2001
+From: Jonathan Lebon <jonathan@jlebon.com>
+Date: Fri, 14 Apr 2023 15:03:50 -0400
+Subject: [PATCH] repoquery: Allow uppercased query tags
+
+Before v4.15.0, query tags could be specified as both uppercased or
+lowercased. As part of commit e50488b6 ("repoquery: Properly sanitize
+queryformat strings"), this was (I believe) unintentionally changed to
+only support the lowercase variant.
+
+Although the documented supported tags are lowercase (as printed by
+`dnf repoquery --querytags`), it's clear that the intention here is to
+mirror rpm's query tags APIs. Confusingly, the canonical tag names for
+the latter are uppercased (as printed by `rpm --querytags`), though the
+lowercase variants are still supported.
+
+Let's restore support for uppercased query tags to match rpm more
+closely and unbreak anyone who assumed this was officially supported.
+---
+ dnf/cli/commands/repoquery.py | 3 ++-
+ tests/test_repoquery.py       | 2 +-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/dnf/cli/commands/repoquery.py b/dnf/cli/commands/repoquery.py
+index 0a962e50..4a5bda3f 100644
+--- a/dnf/cli/commands/repoquery.py
++++ b/dnf/cli/commands/repoquery.py
+@@ -68,6 +68,7 @@ def rpm2py_format(queryformat):
+     def fmt_repl(matchobj):
+         fill = matchobj.groups()[0]
+         key = matchobj.groups()[1]
++        key = key.lower()  # we allow both uppercase and lowercase variants
+         if key not in ALLOWED_QUERY_TAGS:
+             return brackets(matchobj.group())
+         if fill:
+@@ -76,7 +77,7 @@ def rpm2py_format(queryformat):
+             else:
+                 fill = '<' + fill
+             fill = ':' + fill
+-        return '{0.' + key.lower() + fill + "}"
++        return '{0.' + key + fill + "}"
+ 
+     def brackets(txt):
+         return txt.replace('{', '{{').replace('}', '}}')
+diff --git a/tests/test_repoquery.py b/tests/test_repoquery.py
+index 92e16e6d..4ab82258 100644
+--- a/tests/test_repoquery.py
++++ b/tests/test_repoquery.py
+@@ -125,7 +125,7 @@ class OutputTest(tests.support.TestCase):
+     def test_output(self):
+         pkg = dnf.cli.commands.repoquery.PackageWrapper(PkgStub())
+         fmt = dnf.cli.commands.repoquery.rpm2py_format(
+-            '%{name}-%{version}-%{release}.%{arch} (%{reponame})')
++            '%{NAME}-%{version}-%{RELEASE}.%{arch} (%{REPONAME})')
+         self.assertEqual(fmt.format(pkg), 'foobar-1.0.1-1.f20.x86_64 (@System)')
+ 
+     def test_nonexistant_attr(self):
+-- 
+2.43.0
+

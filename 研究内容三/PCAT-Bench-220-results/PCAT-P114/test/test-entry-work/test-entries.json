@@ -1,0 +1,34 @@
+[
+  {
+    "finding_id": "PCA-0001",
+    "entry_id": "PCA-TE-0001",
+    "entry_kind": "api_harness",
+    "status": "generated",
+    "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+    "build_command": "make -C libsoup CFLAGS=\"-fprofile-arcs -ftest-coverage -O0 -g\" LDFLAGS=\"-lgcov --coverage\" && make -C tests cache-test CFLAGS=\"-fprofile-arcs -ftest-coverage -O0 -g\" LDFLAGS=\"-lgcov --coverage\"",
+    "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+    "target_location": {
+      "file": "libsoup/soup-cache.c",
+      "new_lines": [670, 708],
+      "symbol": "soup_cache_send_response"
+    },
+    "reachability_signal": "Existing cache-test exercises soup_cache_send_response through async_respond_from_cache path (fresh cache hit). Lines 670, 701, 704, 707, 708 all show hit counts >= 10 in gcov.",
+    "expected_signal": "soup_message_headers_get_one(msg->response_headers, \"Age\") returns NULL after patch; gcov shows all executable lines in patch range covered (hit counts >= 10)",
+    "execution": {
+      "cwd": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P054/_worktrees/patched",
+      "timeout_seconds": 120,
+      "uses_clean_source_copy": false
+    },
+    "input_strategy": "Use existing libsoup cache-test (tests/cache-test) which exercises the fresh-cache-hit path through async_respond_from_cache() -> soup_cache_send_response(). The do_basics_test test creates cache, populates it with a request having Expires header, then makes a second request triggering cache response.",
+    "contract_probe": {
+      "probe_id": "age_header_absence",
+      "command": "grep -A1 'copy_end_to_end_headers' soup-cache.c.gcov | head -5",
+      "before_command": "soup_message_headers_get_one(msg->response_headers, \"Age\") returns non-NULL",
+      "after_command": "soup_message_headers_get_one(msg->response_headers, \"Age\") returns NULL",
+      "comparison": "acceptance",
+      "cwd": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P054/_worktrees/patched/libsoup",
+      "timeout_seconds": 30
+    },
+    "limitations": "Full before/after comparison requires building baseline (pre-patch) version of libsoup. Currently only patched version is built and tested. The gcov coverage confirms the changed code path is exercised. Age header behavior change is confirmed by source code analysis: the Age header setting code was completely removed from soup_cache_send_response."
+  }
+]

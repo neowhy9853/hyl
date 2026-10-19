@@ -1,0 +1,317 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/3fbef1/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/3fbef1",
+  "base_ref": "7c7c7ba4cea2f0063efa2a2a0d7c3d05ed8766fb",
+  "base_commit": "7c7c7ba4cea2f0063efa2a2a0d7c3d05ed8766fb",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "3fbef193c7e49e8edb5a4421c465df67de944da6",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/patch-3fbef1.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "git",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 7150,
+    "patch_lines": 228,
+    "diff_added_lines": 63,
+    "diff_deleted_lines": 65,
+    "diff_context_lines": 47,
+    "churn": 128,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 3618,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "cli_options": 1,
+      "user_visible_output": 1,
+      "cli": 1
+    },
+    "candidates_json_bytes": 13640
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 2,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "git",
+      "affected_surface": "CLI command argument parsing for git gui browser|blame subcommands",
+      "affected_api": {
+        "name": "git gui browser|blame argument parsing",
+        "kind": "cli_command",
+        "language": "tcl"
+      },
+      "location": {
+        "file": "git-gui.sh",
+        "old_lines": [
+          2999,
+          3099
+        ],
+        "new_lines": [
+          2999,
+          3103
+        ],
+        "symbol": "selected_paths"
+      },
+      "old_behavior": "git-gui browser|blame accepted arguments with a heuristic parser: (1) path-before-rev ordering was supported via worktree file-existence check, (2) rev validation only for hex-looking strings, (3) no path existence validation in the target rev, (4) loosely structured argument iteration with ambiguous is_path flag logic.",
+      "new_behavior": "git-gui browser|blame uses strict positional argument parsing: (1) path must be the last argument (required), (2) rev is optional and validated with git rev-parse --verify, (3) path is validated with git ls-tree to verify it exists in the target rev, (4) --line=<num> strictly enforced as first arg for blame only, (5) -- separator supported for explicit rev/path boundary.",
+      "compatibility_reason": "The undocumented path-before-rev feature (e.g., \"git gui blame lib/blame.tcl gitgui-0.6.0\") was removed. Scripts relying on this argument ordering will break. Argument validation is now stricter - revs must be valid git refs and paths must exist in the target revision. Users passing invalid or out-of-order arguments will now get clear error messages/usage instead of potentially confusing displays.",
+      "evidence": [
+        {
+          "file": "git-gui.sh",
+          "lines": [
+            3031,
+            3051
+          ],
+          "snippet": "set iarg 0\nforeach a  {\n    incr iarg\n    if { == } {\n        # final argument is path\n        set path [normalize_relpath [file join  ]]\n    } elseif { eq {--}} {\n        ...\n    } elseif {[regexp {^--line=(\\d+)$}  a lnum]} {\n        ...\n    } elseif { eq {}} {\n        set head \n    } else {\n        usage\n    }\n}"
+        },
+        {
+          "file": "git-gui.sh",
+          "lines": [
+            3065,
+            3074
+          ],
+          "snippet": "if {[catch {\n    set commitid [git rev-parse --verify --end-of-options [strcat  \"^{commit}\"]]\n}]} {\n    show_parse_err [mc \"fatal: '%s' is not a valid rev'\" ]\n} else {\n    set current_branch \n}"
+        },
+        {
+          "file": "git-gui.sh",
+          "lines": [
+            3077,
+            3092
+          ],
+          "snippet": "set pathtype {}\ncatch {set pathtype [git ls-tree {--format=%(objecttype)}  ]}\nif { ne } {\n    switch --  {\n        tree {show_parse_err [mc \"'%s' is not a directory in rev '%s'\"  ]}\n        blob {show_parse_err [mc \"'%s' is not a filename in rev '%s'\"  ]}\n    }\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "git-gui.sh is the main entry point for the git-gui command. The browser and blame subcommands are user-facing CLI commands. Changes to their argument parsing directly affect how users and scripts invoke these commands.",
+      "uncertainty": "The old path-before-rev feature was undocumented and the commit describes it as \"broken and hopefully unused.\" However, it was present since 2007 (commit 3e45ee1ef2) and existing scripts or user workflows may depend on it.",
+      "manual_review_required": false,
+      "recommended_review": "Review any scripts or documentation that invoke git gui blame or git gui browser with argument patterns where path appears before rev. Verify all usages use [rev] [--] <path> ordering.",
+      "test_recommendation": "Test git gui blame/browser with various argument orderings, invalid revs, non-existent paths, --line combinations, and -- separator usage to verify strict parsing and error messages.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "git-gui.sh",
+            "old_lines": [
+              2999,
+              3099
+            ],
+            "new_lines": [
+              2999,
+              3103
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.9,
+      "package_profile": "git",
+      "affected_surface": "Error output and exit behavior for invalid git gui browser|blame arguments",
+      "affected_api": {
+        "name": "git gui browser|blame error handling",
+        "kind": "cli_command",
+        "language": "tcl"
+      },
+      "location": {
+        "file": "git-gui.sh",
+        "old_lines": [
+          2999,
+          3099
+        ],
+        "new_lines": [
+          2999,
+          3103
+        ],
+        "symbol": "show_parse_err"
+      },
+      "old_behavior": "Error handling was ad-hoc: (1) some errors showed a blank browser window, (2) some used tk_messageBox directly, (3) some printed to stderr, (4) exit was not always called consistently. On Windows, tk_messageBox was used; on other platforms, puts stderr was used inconsistently.",
+      "new_behavior": "A new show_parse_err procedure provides consistent error handling: (1) on Windows, withdraws window and calls error_popup, (2) on other platforms, prints to stderr, (3) always exits with code 1. Error messages are more specific, including the actual problematic argument value and context.",
+      "compatibility_reason": "Error messages for invalid arguments have changed. Automated systems or tests that parse git-gui error output may need to update their assertions. The exit code is now consistently 1 for all parse errors (previously some error paths did not explicitly call exit). On Windows, error_popup replaces tk_messageBox for parser errors.",
+      "evidence": [
+        {
+          "file": "git-gui.sh",
+          "lines": [
+            3002,
+            3010
+          ],
+          "snippet": "proc show_parse_err {err} {\n    if {[tk windowingsystem] eq \"win32\"} {\n        catch {wm withdraw .}\n        error_popup \n    } else {\n        puts stderr \n    }\n    exit 1\n}"
+        },
+        {
+          "file": "git-gui.sh",
+          "lines": [
+            3026,
+            3026
+          ],
+          "snippet": "if { < 1 ||  > } usage"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Error messages are user-visible output. Changes to error text, display mechanism, and exit behavior are observable by users and any automation parsing git-gui output.",
+      "uncertainty": "The error_popup vs tk_messageBox difference on Windows may not matter in practice as both display a GUI error dialog. The specific error message text changes are improvements but do change observable output.",
+      "manual_review_required": false,
+      "recommended_review": "Check if any monitoring or automation parses git-gui error output. The error message format and content have changed.",
+      "test_recommendation": "Test with invalid revs, non-existent paths, wrong argument counts, and --line misplacement. Verify consistent exit code 1 and sensible error messages.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=ERROR_EXCEPTION_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "git-gui.sh",
+            "old_lines": [
+              2999,
+              3099
+            ],
+            "new_lines": [
+              2999,
+              3103
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=ERROR_EXCEPTION_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

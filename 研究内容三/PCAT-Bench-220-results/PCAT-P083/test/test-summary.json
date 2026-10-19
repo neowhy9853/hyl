@@ -1,0 +1,119 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/analysis.json",
+  "patch_id": "04d0a30ca93c",
+  "result_dir": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/libsoup",
+    "base_commit": "00858a9740fd67cbf3b6ee4ba6def1b681e3c9da",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/_worktrees/patched",
+    "package_profile": "libsoup"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "optimization": "0",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Build uses /home/soong/pca_benchmark/.venv-pcat-build/bin/meson with -Doptimization=0 -Db_coverage=true"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 6,
+    "inputs_executed": 6,
+    "contracts_total": 1,
+    "contracts_passed": 0,
+    "contracts_breached": 1,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 5,
+    "patch_lines_covered": 5,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "status": "partial",
+      "target_location": {
+        "file": "libsoup/soup-message-headers.c",
+        "new_lines": [
+          297,
+          310
+        ],
+        "symbol": "soup_message_headers_append_common"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "passed",
+          "artifact_path": "/tmp/pca-libsoup-after/build/test-overflow",
+          "run_command": "/tmp/pca-libsoup-after/build/test-overflow",
+          "expected_signal": "overflow values are rejected (return FALSE), valid values accepted (return TRUE)",
+          "reachability_signal": "gcov shows lines 300-307 hit 11-13 times"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "backward_input_acceptance",
+          "status": "breached",
+          "detail": "BEFORE: identical overflow Content-Length values returned TRUE (incorrectly matched as equal, both saturate to G_MAXUINT64). AFTER: returns FALSE (properly rejected via errno==ERANGE). The breach is the intended input contract tightening per RFC 9110."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 5,
+        "covered_lines": 5,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [
+        {
+          "input_id": "PCA-0001-key-overflow-test",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "overflow Content-Length values accepted (saturate to G_MAXUINT64, erroneously match as equal)",
+          "after": "overflow Content-Length values rejected (errno==ERANGE, return FALSE)",
+          "evidence": "Test output: BEFORE key test returned TRUE, AFTER key test returned FALSE. gcov confirms lines 300-307 are executed."
+        }
+      ],
+      "notes": [
+        "The patch fixes a bug where g_ascii_strtoull overflow was not detected, allowing invalid Content-Length values to pass validation.",
+        "This is an INPUT_CONTRACT_CHANGE: previously accepted overflowed values are now rejected.",
+        "All changed lines (5 executable lines) are covered with 11-13 hits.",
+        "The existing header-parsing-test suite (12 subtests) passes on both before and after builds.",
+        "Behavior difference is confirmed and is the intended effect of the patch (bug fix)."
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/compatibility-testing/phase1_impact/impact_map.json",
+    "test_entry_tasks": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/compatibility-testing/test-entry-tasks.json",
+    "test_entries": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/compatibility-testing/test-entry-work/test-entries.json",
+    "test_inputs": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/compatibility-testing/phase3_inputs/test_inputs.json",
+    "execution_results": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/compatibility-testing/phase4_execution/results.json",
+    "contract_summary": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/compatibility-testing/phase3_contracts/contract_verification.json",
+    "coverage_data": "/tmp/pca-libsoup-after/build/soup-message-headers.c.gcov",
+    "report": "/home/soong/pca_benchmark/_repos/libsoup/pca-results/04d0a3/compatibility-testing/COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "The patch adds errno==ERANGE overflow detection to Content-Length header validation. Previously, overflowed values were silently accepted (both saturating to G_MAXUINT64). Now they are properly rejected. This is an INPUT_CONTRACT_CHANGE: the set of accepted inputs is narrowed. While this is a bug fix per RFC 9110, it changes externally observable behavior - requests with overflowing Content-Length values that were previously accepted will now be rejected. Patch impact coverage: 100% (5/5 executable lines covered).",
+    "recommended_actions": [
+      "Document that overflowing Content-Length values are now rejected per RFC 9110",
+      "Verify no downstream consumers depend on overflowed Content-Length values being silently accepted",
+      "Include this fix in release notes as a security/correctness improvement"
+    ]
+  }
+}

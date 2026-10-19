@@ -1,0 +1,610 @@
+        -:    0:Source:/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis/compatibility-testing/mock/mock_rereg.c
+        -:    0:Graph:/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis/compatibility-testing/mock/build/after/mock_after-mock_rereg.gcno
+        -:    0:Data:/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P099/analysis/compatibility-testing/mock/build/after/mock_after-mock_rereg.gcda
+        -:    0:Runs:1
+        -:    1:/*
+        -:    2: * PCAT-P099 standalone compatibility harness.
+        -:    3: *
+        -:    4: * The PATCHED implementation of ib_umem_check_rereg() is copied from
+        -:    5: * drivers/infiniband/core/umem.c:334-343 at patched commit
+        -:    6: * 09dc18894148381d3bfc550083b1236043870dce.  The CONFIG_USER_MEM=n return
+        -:    7: * is copied from include/rdma/ib_umem.h:208-212.  Driver wrappers model only
+        -:    8: * the ordering around the newly added call sites; hardware APIs are controlled
+        -:    9: * mocks whose invocation sequence is recorded in struct state.effects.
+        -:   10: */
+        -:   11:
+        -:   12:#include <errno.h>
+        -:   13:#include <stdbool.h>
+        -:   14:#include <stdio.h>
+        -:   15:#include <stdlib.h>
+        -:   16:#include <string.h>
+        -:   17:
+        -:   18:#ifndef PATCHED
+        -:   19:#define PATCHED 1
+        -:   20:#endif
+        -:   21:
+        -:   22:#ifndef CONFIG_USER_MEM
+        -:   23:#define CONFIG_USER_MEM 1
+        -:   24:#endif
+        -:   25:
+        -:   26:enum {
+        -:   27:	IB_MR_REREG_TRANS = 1,
+        -:   28:	IB_MR_REREG_PD = 1 << 1,
+        -:   29:	IB_MR_REREG_ACCESS = 1 << 2,
+        -:   30:	IB_MR_REREG_SUPPORTED = (IB_MR_REREG_ACCESS << 1) - 1,
+        -:   31:};
+        -:   32:
+        -:   33:enum {
+        -:   34:	IB_ACCESS_LOCAL_WRITE = 1 << 0,
+        -:   35:	IB_ACCESS_REMOTE_WRITE = 1 << 1,
+        -:   36:	IB_ACCESS_REMOTE_ATOMIC = 1 << 2,
+        -:   37:	IB_ACCESS_MW_BIND = 1 << 3,
+        -:   38:};
+        -:   39:
+        -:   40:#define RXE_MR_REREG_SUPPORTED (IB_MR_REREG_PD | IB_MR_REREG_ACCESS)
+        -:   41:#define INVALID_REREG_FLAG (1 << 8)
+        -:   42:
+        -:   43:struct ib_umem {
+        -:   44:	bool writable;
+        -:   45:};
+        -:   46:
+        -:   47:struct state {
+        -:   48:	int mailbox_alloc;
+        -:   49:	int hw_dereg;
+        -:   50:	int mpt_get;
+        -:   51:	int umr;
+        -:   52:	int pd_put;
+        -:   53:	int pd_get;
+        -:   54:	int mr_access_writes;
+        -:   55:	int mr_pd_writes;
+        -:   56:	int trans_updates;
+        -:   57:	int access;
+        -:   58:	int pd;
+        -:   59:	char effects[256];
+        -:   60:};
+        -:   61:
+        -:   62:static int failures;
+        -:   63:
+function ib_access_writable called 29 returned 100% blocks executed 100%
+       29:   64:static bool ib_access_writable(int access_flags)
+        -:   65:{
+       29:   66:	return access_flags &
+        -:   67:	       (IB_ACCESS_LOCAL_WRITE | IB_ACCESS_REMOTE_WRITE |
+        -:   68:		IB_ACCESS_REMOTE_ATOMIC | IB_ACCESS_MW_BIND);
+        -:   69:}
+        -:   70:
+        -:   71:#if PATCHED
+function ib_umem_check_rereg called 37 returned 100% blocks executed 100%
+       37:   72:static int ib_umem_check_rereg(struct ib_umem *umem, int flags,
+        -:   73:			       int new_access_flags)
+        -:   74:{
+        -:   75:#if CONFIG_USER_MEM
+       37:   76:	if (!umem)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 36
+        1:   77:		return 0;
+        -:   78:
+       36:   79:	if ((flags & IB_MR_REREG_ACCESS) && !(flags & IB_MR_REREG_TRANS))
+branch  0 taken 30 (fallthrough)
+branch  1 taken 6
+branch  2 taken 25 (fallthrough)
+branch  3 taken 5
+       25:   80:		if (ib_access_writable(new_access_flags) && !umem->writable)
+call    0 returned 25
+branch  1 taken 14 (fallthrough)
+branch  2 taken 11
+branch  3 taken 8 (fallthrough)
+branch  4 taken 6
+        8:   81:			return -EACCES;
+       28:   82:	return 0;
+        -:   83:#else
+        -:   84:	/* Harness-only warning suppression; the kernel inline stub omits these. */
+        -:   85:	(void)umem;
+        -:   86:	(void)flags;
+        -:   87:	(void)new_access_flags;
+        -:   88:	return -EOPNOTSUPP;
+        -:   89:#endif
+        -:   90:}
+        -:   91:#else
+        -:   92:/* The helper did not exist before the patch; wrappers do not call this shim. */
+        -:   93:static int ib_umem_check_rereg(struct ib_umem *umem, int flags,
+        -:   94:			       int new_access_flags)
+        -:   95:{
+        -:   96:	(void)umem;
+        -:   97:	(void)flags;
+        -:   98:	(void)new_access_flags;
+        -:   99:	return 0;
+        -:  100:}
+        -:  101:#endif
+        -:  102:
+function effect called 60 returned 100% blocks executed 100%
+       60:  103:static void effect(struct state *s, const char *name)
+        -:  104:{
+       60:  105:	if (s->effects[0])
+branch  0 taken 36 (fallthrough)
+branch  1 taken 24
+       36:  106:		strcat(s->effects, ",");
+       60:  107:	strcat(s->effects, name);
+       60:  108:}
+        -:  109:
+function patch_guard called 29 returned 100% blocks executed 100%
+       29:  110:static int patch_guard(struct ib_umem *umem, int flags, int access)
+        -:  111:{
+        -:  112:#if PATCHED
+       29:  113:	return ib_umem_check_rereg(umem, flags, access);
+call    0 returned 29
+        -:  114:#else
+        -:  115:	(void)umem;
+        -:  116:	(void)flags;
+        -:  117:	(void)access;
+        -:  118:	return 0;
+        -:  119:#endif
+        -:  120:}
+        -:  121:
+function hns_wrapper called 6 returned 100% blocks executed 100%
+        6:  122:static int hns_wrapper(struct ib_umem *umem, int flags, int access,
+        -:  123:		       struct state *s)
+        -:  124:{
+        6:  125:	int ret = patch_guard(umem, flags, access);
+call    0 returned 6
+        6:  126:	if (ret)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 5
+        1:  127:		return ret;
+        5:  128:	s->mailbox_alloc++;
+        5:  129:	effect(s, "mailbox_alloc");
+call    0 returned 5
+        5:  130:	s->hw_dereg++;
+        5:  131:	effect(s, "hw_dereg");
+call    0 returned 5
+        5:  132:	if (flags & IB_MR_REREG_PD) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 3
+        2:  133:		s->mr_pd_writes++;
+        2:  134:		s->pd = 2;
+        2:  135:		effect(s, "mr_pd");
+call    0 returned 2
+        -:  136:	}
+        5:  137:	if (flags & IB_MR_REREG_ACCESS) {
+branch  0 taken 4 (fallthrough)
+branch  1 taken 1
+        4:  138:		s->mr_access_writes++;
+        4:  139:		s->access = access;
+        4:  140:		effect(s, "mr_access");
+call    0 returned 4
+        -:  141:	}
+        5:  142:	if (flags & IB_MR_REREG_TRANS) {
+branch  0 taken 1 (fallthrough)
+branch  1 taken 4
+        1:  143:		s->trans_updates++;
+        1:  144:		effect(s, "trans");
+call    0 returned 1
+        -:  145:	}
+        5:  146:	return 0;
+        -:  147:}
+        -:  148:
+function irdma_wrapper called 6 returned 100% blocks executed 93%
+        6:  149:static int irdma_wrapper(struct ib_umem *umem, int flags, int access,
+        -:  150:			 struct state *s)
+        -:  151:{
+        -:  152:	int ret;
+        -:  153:
+        6:  154:	if (flags & ~IB_MR_REREG_SUPPORTED)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 6
+    #####:  155:		return -EOPNOTSUPP;
+        6:  156:	ret = patch_guard(umem, flags, access);
+call    0 returned 6
+        6:  157:	if (ret)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 5
+        1:  158:		return ret;
+        5:  159:	s->hw_dereg++;
+        5:  160:	effect(s, "hw_dereg");
+call    0 returned 5
+        5:  161:	if (flags & IB_MR_REREG_ACCESS) {
+branch  0 taken 4 (fallthrough)
+branch  1 taken 1
+        4:  162:		s->mr_access_writes++;
+        4:  163:		s->access = access;
+        4:  164:		effect(s, "mr_access");
+call    0 returned 4
+        -:  165:	}
+        5:  166:	if (flags & IB_MR_REREG_PD) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 3
+        2:  167:		s->mr_pd_writes++;
+        2:  168:		s->pd = 2;
+        2:  169:		effect(s, "mr_pd");
+call    0 returned 2
+        -:  170:	}
+        5:  171:	if (flags & IB_MR_REREG_TRANS) {
+branch  0 taken 1 (fallthrough)
+branch  1 taken 4
+        1:  172:		s->trans_updates++;
+        1:  173:		effect(s, "trans");
+call    0 returned 1
+        -:  174:	}
+        5:  175:	return 0;
+        -:  176:}
+        -:  177:
+function mlx4_wrapper called 6 returned 100% blocks executed 94%
+        6:  178:static int mlx4_wrapper(struct ib_umem *umem, int flags, int access,
+        -:  179:			struct state *s)
+        -:  180:{
+        6:  181:	int ret = patch_guard(umem, flags, access);
+call    0 returned 6
+        6:  182:	if (ret)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 5
+        1:  183:		return ret;
+        5:  184:	s->mpt_get++;
+        5:  185:	effect(s, "mpt_get");
+call    0 returned 5
+        5:  186:	if (flags & IB_MR_REREG_PD) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 3
+        2:  187:		s->mr_pd_writes++;
+        2:  188:		s->pd = 2;
+        2:  189:		effect(s, "mr_pd");
+call    0 returned 2
+        -:  190:	}
+        -:  191:	/* Retained mlx4 check: ACCESS|TRANS is still rejected after MPT get. */
+        5:  192:	if ((flags & IB_MR_REREG_ACCESS) && ib_access_writable(access) &&
+branch  0 taken 4 (fallthrough)
+branch  1 taken 1
+call    2 returned 4
+branch  3 taken 2 (fallthrough)
+branch  4 taken 2
+branch  5 taken 2 (fallthrough)
+branch  6 taken 0
+        2:  193:	    umem && !umem->writable)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 1
+        1:  194:		return -EPERM;
+        4:  195:	if (flags & IB_MR_REREG_ACCESS) {
+branch  0 taken 3 (fallthrough)
+branch  1 taken 1
+        3:  196:		s->mr_access_writes++;
+        3:  197:		s->access = access;
+        3:  198:		effect(s, "mr_access");
+call    0 returned 3
+        -:  199:	}
+        4:  200:	if (flags & IB_MR_REREG_TRANS) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 4
+    #####:  201:		s->trans_updates++;
+    #####:  202:		effect(s, "trans");
+call    0 never executed
+        -:  203:	}
+        4:  204:	return 0;
+        -:  205:}
+        -:  206:
+function mlx5_wrapper called 6 returned 100% blocks executed 93%
+        6:  207:static int mlx5_wrapper(struct ib_umem *umem, int flags, int access,
+        -:  208:			struct state *s)
+        -:  209:{
+        -:  210:	int ret;
+        -:  211:
+        -:  212:#if !CONFIG_USER_MEM
+        -:  213:	return -EOPNOTSUPP;
+        -:  214:#endif
+        6:  215:	if (flags & ~IB_MR_REREG_SUPPORTED)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 6
+    #####:  216:		return -EOPNOTSUPP;
+        6:  217:	ret = patch_guard(umem, flags, access);
+call    0 returned 6
+        6:  218:	if (ret)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 5
+        1:  219:		return ret;
+        5:  220:	s->umr++;
+        5:  221:	effect(s, "umr");
+call    0 returned 5
+        5:  222:	if (flags & IB_MR_REREG_PD) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 3
+        2:  223:		s->mr_pd_writes++;
+        2:  224:		s->pd = 2;
+        2:  225:		effect(s, "mr_pd");
+call    0 returned 2
+        -:  226:	}
+        5:  227:	if (flags & IB_MR_REREG_ACCESS) {
+branch  0 taken 4 (fallthrough)
+branch  1 taken 1
+        4:  228:		s->mr_access_writes++;
+        4:  229:		s->access = access;
+        4:  230:		effect(s, "mr_access");
+call    0 returned 4
+        -:  231:	}
+        5:  232:	if (flags & IB_MR_REREG_TRANS) {
+branch  0 taken 1 (fallthrough)
+branch  1 taken 4
+        1:  233:		s->trans_updates++;
+        1:  234:		effect(s, "trans");
+call    0 returned 1
+        -:  235:	}
+        5:  236:	return 0;
+        -:  237:}
+        -:  238:
+function rxe_wrapper called 6 returned 100% blocks executed 100%
+        6:  239:static int rxe_wrapper(struct ib_umem *umem, int flags, int access,
+        -:  240:		       struct state *s)
+        -:  241:{
+        -:  242:	int ret;
+        -:  243:
+        6:  244:	if (flags & ~RXE_MR_REREG_SUPPORTED)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 5
+        1:  245:		return -EOPNOTSUPP;
+        5:  246:	ret = patch_guard(umem, flags, access);
+call    0 returned 5
+        5:  247:	if (ret)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 4
+        1:  248:		return ret;
+        4:  249:	if (flags & IB_MR_REREG_PD) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 2
+        2:  250:		s->pd_put++;
+        2:  251:		effect(s, "pd_put");
+call    0 returned 2
+        2:  252:		s->pd_get++;
+        2:  253:		effect(s, "pd_get");
+call    0 returned 2
+        2:  254:		s->mr_pd_writes++;
+        2:  255:		s->pd = 2;
+        2:  256:		effect(s, "mr_pd");
+call    0 returned 2
+        -:  257:	}
+        4:  258:	if (flags & IB_MR_REREG_ACCESS) {
+branch  0 taken 3 (fallthrough)
+branch  1 taken 1
+        3:  259:		s->mr_access_writes++;
+        3:  260:		s->access = access;
+        3:  261:		effect(s, "mr_access");
+call    0 returned 3
+        -:  262:	}
+        4:  263:	return 0;
+        -:  264:}
+        -:  265:
+        -:  266:struct driver {
+        -:  267:	const char *name;
+        -:  268:	int (*run)(struct ib_umem *, int, int, struct state *);
+        -:  269:};
+        -:  270:
+        -:  271:static const struct driver drivers[] = {
+        -:  272:	{ "hns", hns_wrapper },
+        -:  273:	{ "irdma", irdma_wrapper },
+        -:  274:	{ "mlx4", mlx4_wrapper },
+        -:  275:	{ "mlx5", mlx5_wrapper },
+        -:  276:	{ "rxe", rxe_wrapper },
+        -:  277:};
+        -:  278:
+function uverbs_dispatch called 40 returned 100% blocks executed 100%
+       40:  279:static int uverbs_dispatch(const struct driver *d, struct ib_umem *umem,
+        -:  280:			   int flags, int access, struct state *s)
+        -:  281:{
+       40:  282:	if (!flags)
+branch  0 taken 5 (fallthrough)
+branch  1 taken 35
+        5:  283:		return -EINVAL;
+       35:  284:	if (flags & ~IB_MR_REREG_SUPPORTED)
+branch  0 taken 5 (fallthrough)
+branch  1 taken 30
+        5:  285:		return -EOPNOTSUPP;
+       30:  286:	return d->run(umem, flags, access, s);
+call    0 returned 30
+        -:  287:}
+        -:  288:
+function expect_int called 48 returned 100% blocks executed 50%
+       48:  289:static void expect_int(const char *label, int got, int want)
+        -:  290:{
+       48:  291:	if (got != want) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 48
+    #####:  292:		fprintf(stderr, "ASSERT label=%s got=%d want=%d\n", label, got,
+call    0 never executed
+        -:  293:			want);
+    #####:  294:		failures++;
+        -:  295:	}
+       48:  296:}
+        -:  297:
+function expect_empty_effects called 16 returned 100% blocks executed 50%
+       16:  298:static void expect_empty_effects(const char *label, const struct state *s)
+        -:  299:{
+       16:  300:	if (s->effects[0]) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 16
+    #####:  301:		fprintf(stderr, "ASSERT label=%s unexpected_effects=%s\n", label,
+    #####:  302:			s->effects);
+call    0 never executed
+    #####:  303:		failures++;
+        -:  304:	}
+       16:  305:}
+        -:  306:
+function print_result called 40 returned 100% blocks executed 100%
+       40:  307:static void print_result(const char *driver, const char *case_name, int ret,
+        -:  308:			 const struct state *s)
+        -:  309:{
+       40:  310:	printf("{\"version\":\"%s\",\"config_user_mem\":%d,"
+call    0 returned 40
+        -:  311:	       "\"driver\":\"%s\",\"case\":\"%s\",\"ret\":%d,"
+        -:  312:	       "\"errno\":%d,\"access\":%d,\"pd\":%d,"
+        -:  313:	       "\"effects\":\"%s\",\"mailbox\":%d,\"hw_dereg\":%d,"
+        -:  314:	       "\"mpt_get\":%d,\"umr\":%d,\"pd_put\":%d,\"pd_get\":%d}\n",
+        -:  315:	       PATCHED ? "after" : "before", CONFIG_USER_MEM, driver,
+       40:  316:	       case_name, ret, ret < 0 ? -ret : 0, s->access, s->pd, s->effects,
+       40:  317:	       s->mailbox_alloc, s->hw_dereg, s->mpt_get, s->umr, s->pd_put,
+       40:  318:	       s->pd_get);
+branch  0 taken 17 (fallthrough)
+branch  1 taken 23
+       40:  319:}
+        -:  320:
+function helper_case called 8 returned 100% blocks executed 100%
+        8:  321:static void helper_case(const char *name, struct ib_umem *umem, int flags,
+        -:  322:			int access, int expected)
+        -:  323:{
+        8:  324:	int ret = ib_umem_check_rereg(umem, flags, access);
+call    0 returned 8
+        8:  325:	printf("{\"version\":\"%s\",\"config_user_mem\":%d,"
+call    0 returned 8
+        -:  326:	       "\"helper_case\":\"%s\",\"ret\":%d}\n",
+        -:  327:	       PATCHED ? "after" : "before", CONFIG_USER_MEM, name, ret);
+        8:  328:	expect_int(name, ret, expected);
+call    0 returned 8
+        8:  329:}
+        -:  330:
+function run_helper_matrix called 1 returned 100% blocks executed 100%
+        1:  331:static void run_helper_matrix(void)
+        -:  332:{
+        1:  333:	struct ib_umem ro = { .writable = false };
+        1:  334:	struct ib_umem rw = { .writable = true };
+        -:  335:#if CONFIG_USER_MEM
+        1:  336:	int deny = PATCHED ? -EACCES : 0;
+        1:  337:	helper_case("umem_null", NULL, IB_MR_REREG_ACCESS,
+call    0 returned 1
+        -:  338:		    IB_ACCESS_LOCAL_WRITE, 0);
+        1:  339:	helper_case("ro_new_readonly", &ro, IB_MR_REREG_ACCESS, 0, 0);
+call    0 returned 1
+        1:  340:	helper_case("ro_new_local_write", &ro, IB_MR_REREG_ACCESS,
+call    0 returned 1
+        -:  341:		    IB_ACCESS_LOCAL_WRITE, deny);
+        1:  342:	helper_case("ro_new_remote_write", &ro, IB_MR_REREG_ACCESS,
+call    0 returned 1
+        -:  343:		    IB_ACCESS_REMOTE_WRITE, deny);
+        1:  344:	helper_case("ro_new_remote_atomic", &ro, IB_MR_REREG_ACCESS,
+call    0 returned 1
+        -:  345:		    IB_ACCESS_REMOTE_ATOMIC, deny);
+        1:  346:	helper_case("ro_no_rereg_access", &ro, IB_MR_REREG_PD,
+call    0 returned 1
+        -:  347:		    IB_ACCESS_LOCAL_WRITE, 0);
+        1:  348:	helper_case("ro_access_trans", &ro,
+call    0 returned 1
+        -:  349:		    IB_MR_REREG_ACCESS | IB_MR_REREG_TRANS,
+        -:  350:		    IB_ACCESS_LOCAL_WRITE, 0);
+        1:  351:	helper_case("rw_new_local_write", &rw, IB_MR_REREG_ACCESS,
+call    0 returned 1
+        -:  352:		    IB_ACCESS_LOCAL_WRITE, 0);
+        -:  353:#else
+        -:  354:	helper_case("stub_null", NULL, IB_MR_REREG_ACCESS,
+        -:  355:		    IB_ACCESS_LOCAL_WRITE, -EOPNOTSUPP);
+        -:  356:	helper_case("stub_ro", &ro, IB_MR_REREG_ACCESS, 0, -EOPNOTSUPP);
+        -:  357:	helper_case("stub_rw", &rw, IB_MR_REREG_ACCESS,
+        -:  358:		    IB_ACCESS_LOCAL_WRITE, -EOPNOTSUPP);
+        -:  359:#endif
+        1:  360:}
+        -:  361:
+function driver_case called 40 returned 100% blocks executed 100%
+       40:  362:static void driver_case(const struct driver *d, const char *name,
+        -:  363:			struct ib_umem *umem, int flags, int access,
+        -:  364:			int expected_ret, bool expect_no_effect)
+        -:  365:{
+       40:  366:	struct state s = { .access = -1, .pd = 1 };
+       40:  367:	int ret = uverbs_dispatch(d, umem, flags, access, &s);
+call    0 returned 40
+        -:  368:	char label[128];
+        -:  369:
+       40:  370:	snprintf(label, sizeof(label), "%s/%s", d->name, name);
+       40:  371:	print_result(d->name, name, ret, &s);
+call    0 returned 40
+       40:  372:	expect_int(label, ret, expected_ret);
+call    0 returned 40
+       40:  373:	if (expect_no_effect)
+branch  0 taken 16 (fallthrough)
+branch  1 taken 24
+       16:  374:		expect_empty_effects(label, &s);
+call    0 returned 16
+       40:  375:}
+        -:  376:
+function run_driver_matrix called 1 returned 100% blocks executed 100%
+        1:  377:static void run_driver_matrix(void)
+        -:  378:{
+        1:  379:	struct ib_umem ro = { .writable = false };
+        1:  380:	struct ib_umem rw = { .writable = true };
+        -:  381:	size_t i;
+        -:  382:
+        6:  383:	for (i = 0; i < sizeof(drivers) / sizeof(drivers[0]); i++) {
+branch  0 taken 5
+branch  1 taken 1 (fallthrough)
+        5:  384:		const struct driver *d = &drivers[i];
+        -:  385:		int ro_to_rw;
+        -:  386:
+        -:  387:#if !CONFIG_USER_MEM
+        -:  388:		ro_to_rw = -EOPNOTSUPP;
+        -:  389:#elif PATCHED
+        5:  390:		ro_to_rw = -EACCES;
+        -:  391:#else
+        -:  392:		ro_to_rw = strcmp(d->name, "mlx4") == 0 ? -EPERM : 0;
+        -:  393:#endif
+        5:  394:		driver_case(d, "ro_to_local_write", &ro, IB_MR_REREG_ACCESS,
+call    0 returned 5
+        -:  395:			    IB_ACCESS_LOCAL_WRITE, ro_to_rw, PATCHED);
+        5:  396:		driver_case(d, "keep_readonly", &ro, IB_MR_REREG_ACCESS, 0, 0,
+call    0 returned 5
+        -:  397:			    false);
+        5:  398:		driver_case(d, "original_writable", &rw, IB_MR_REREG_ACCESS,
+call    0 returned 5
+        -:  399:			    IB_ACCESS_LOCAL_WRITE, 0, false);
+        5:  400:		driver_case(d, "pd_only_no_access", &ro, IB_MR_REREG_PD,
+call    0 returned 5
+        -:  401:			    IB_ACCESS_LOCAL_WRITE, 0, false);
+        5:  402:		driver_case(d, "pd_access_readonly", &ro,
+call    0 returned 5
+        -:  403:			    IB_MR_REREG_PD | IB_MR_REREG_ACCESS, 0, 0, false);
+        5:  404:		driver_case(d, "invalid_flag", &ro, INVALID_REREG_FLAG, 0,
+call    0 returned 5
+        -:  405:			    -EOPNOTSUPP, true);
+        5:  406:		driver_case(d, "zero_flags", &ro, 0, 0, -EINVAL, true);
+call    0 returned 5
+        -:  407:
+        5:  408:		if (strcmp(d->name, "rxe") == 0)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 4
+        1:  409:			driver_case(d, "access_trans", &ro,
+call    0 returned 1
+        -:  410:				    IB_MR_REREG_ACCESS | IB_MR_REREG_TRANS,
+        -:  411:				    IB_ACCESS_LOCAL_WRITE, -EOPNOTSUPP, true);
+        4:  412:		else if (strcmp(d->name, "mlx4") == 0)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 3
+        1:  413:			driver_case(d, "access_trans", &ro,
+call    0 returned 1
+        -:  414:				    IB_MR_REREG_ACCESS | IB_MR_REREG_TRANS,
+        -:  415:				    IB_ACCESS_LOCAL_WRITE, -EPERM, false);
+        -:  416:		else
+        3:  417:			driver_case(d, "access_trans", &ro,
+call    0 returned 3
+        -:  418:				    IB_MR_REREG_ACCESS | IB_MR_REREG_TRANS,
+        -:  419:				    IB_ACCESS_LOCAL_WRITE, 0, false);
+        -:  420:	}
+        1:  421:}
+        -:  422:
+function main called 1 returned 100% blocks executed 89%
+        1:  423:int main(int argc, char **argv)
+        -:  424:{
+        1:  425:	bool helper = true;
+        1:  426:	bool drivers_mode = true;
+        -:  427:
+        1:  428:	if (argc == 2) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+    #####:  429:		helper = strcmp(argv[1], "--drivers") != 0;
+    #####:  430:		drivers_mode = strcmp(argv[1], "--helper") != 0;
+        -:  431:	}
+        1:  432:	if (helper)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        1:  433:		run_helper_matrix();
+call    0 returned 1
+        1:  434:	if (drivers_mode)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        1:  435:		run_driver_matrix();
+call    0 returned 1
+        1:  436:	printf("PCAT_P099_MOCK_DONE failures=%d version=%s config_user_mem=%d\n",
+call    0 returned 1
+        -:  437:	       failures, PATCHED ? "after" : "before", CONFIG_USER_MEM);
+        1:  438:	return failures ? EXIT_FAILURE : EXIT_SUCCESS;
+        -:  439:}

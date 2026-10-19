@@ -1,0 +1,41 @@
+{
+  "entries": [
+    {
+      "entry_id": "ENTRY-0001",
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "artifact_path": "test-entry-work/runs/pca-0001-harness",
+      "run_command": "LD_LIBRARY_PATH=\"$PWD/libdm/ioctl\" LVM_SYSTEM_DIR='' tools/lvm dumpconfig",
+      "expected_signal": "zero exit code and config output identical across before/after",
+      "reachability_signal": "binary strings contain the new error format string",
+      "execution": {
+        "cwd": "test-entry-work/runs/pca-0001-harness"
+      },
+      "input_strategy": "binary analysis + CLI exercise + code review",
+      "contract_probe": {
+        "type": "output_format_stability",
+        "method": "string extraction from binary",
+        "before_string": "Metadata buffer size overflow.",
+        "after_string": "Metadata buffer size overflow %zu + %zu on %s.",
+        "comparison": "exact",
+        "breach": true,
+        "severity": "MEDIUM"
+      },
+      "prerequisites": [
+        "Build with CFLAGS='-O0 -g --coverage' LDFLAGS='--coverage'",
+        "libdm/ioctl available for runtime linking"
+      ],
+      "limitations": [
+        "config_file_read_fd requires device-mapper kernel support (/dev/mapper/control) for full device I/O path",
+        "The specific overflow error path (size+size2 < size) cannot be triggered without a real device because the function requires struct device *",
+        "The error message string change is confirmed via binary strings extraction",
+        "Normal CLI operation (dumpconfig, version, help) confirmed identical before/after"
+      ],
+      "needs_refinement": true,
+      "needs_env": false,
+      "unsafe_not_run": false,
+      "static_valid_not_run": false,
+      "blocker": "No /dev/mapper/control - kernel device-mapper driver unavailable. The function config_file_read_fd reads metadata from a block device and cannot be called without a valid struct device * backed by devmapper infrastructure."
+    }
+  ]
+}

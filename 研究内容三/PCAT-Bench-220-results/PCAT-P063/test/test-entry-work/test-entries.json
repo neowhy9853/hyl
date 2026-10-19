@@ -1,0 +1,71 @@
+{
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "synthetic_harness",
+      "status": "draft_needs_refinement",
+      "artifact_path": "test-entry-work/PCA-0001/",
+      "build_command": "Already built; binaries at compatibility-testing/haproxy.before and haproxy.after",
+      "run_command": "See reproducer scripts below",
+      "target_location": {
+        "file": "src/h3.c",
+        "new_lines": [2074, 2079],
+        "symbol": "h3_rcv_buf"
+      },
+      "reachability_signal": "TRACE_ERROR message 'Received unexpected PUSH_PROMISE frame' in HAProxy debug output; or gcov confirming execution of lines 2077-2079 in src/h3.c",
+      "expected_signal": "Before binary: treats H3_ERR_ID_ERROR as consumed bytes (incorrect). After binary: properly calls qcc_set_error and returns -1 from h3_rcv_buf via goto err.",
+      "execution": {
+        "cwd": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd/compatibility-testing",
+        "timeout_seconds": 120,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Requires an H3/QUIC client that sends a PUSH_PROMISE frame on a backend HAProxy connection. This is a protocol-level edge case triggered by a non-compliant H3 peer. Without vtest/varnishtest, this cannot be directly triggered with available tooling.",
+      "contract_probe": {
+        "probe_id": "error_exception_stability_push_promise",
+        "command": "./haproxy -vv 2>&1 | head -5",
+        "before_command": "./haproxy.before -vv 2>&1 | head -5",
+        "after_command": "./haproxy.after -vv 2>&1 | head -5",
+        "comparison": "exact",
+        "cwd": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd/compatibility-testing",
+        "timeout_seconds": 30
+      },
+      "limitations": "vtest/varnishtest is not installed. Full H3 protocol testing requires vtest with QUIC support. The PUSH_PROMISE trigger requires a custom H3 client or vtest script. Cannot run full protocol regression tests in current environment."
+    },
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001-H3-CONFIG",
+      "entry_kind": "config_reproducer",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0001/h3_config_test.sh",
+      "build_command": "Already built",
+      "run_command": "bash test-entry-work/PCA-0001/h3_config_test.sh",
+      "target_location": {
+        "file": "src/h3.c",
+        "new_lines": [2074, 2079],
+        "symbol": "h3_rcv_buf"
+      },
+      "reachability_signal": "haproxy -c -f passes for H3 QUIC configuration",
+      "expected_signal": "Both before and after binaries accept the same valid H3 QUIC config and reject invalid configs identically",
+      "execution": {
+        "cwd": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd/compatibility-testing",
+        "timeout_seconds": 30,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Test valid H3/QUIC haproxy config parsing with both binaries. Verify identical config parsing behavior for H3 frontends/backends.",
+      "contract_probe": {
+        "probe_id": "h3_config_parsing",
+        "command": "bash test-entry-work/PCA-0001/h3_config_test.sh",
+        "comparison": "exact",
+        "cwd": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd/compatibility-testing",
+        "timeout_seconds": 30
+      },
+      "limitations": "Tests only config parsing, not runtime H3 frame handling. The actual PUSH_PROMISE code path requires packet-level H3 frame injection."
+    }
+  ],
+  "metadata": {
+    "analysis_json": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd/analysis.json",
+    "test_result_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd/compatibility-testing",
+    "generated_at": "2026-07-23"
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/591a1c/analysis.json",
+  "patch_id": "591a1c9310506124685cacc75aa338e31a148a06",
+  "result_dir": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/591a1c/compatibility-testing",
+  "status": "passed",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/lvm2",
+    "base_commit": "c60c5136246f8b800f040d14e1b6d9aaa71189c0",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/591a1c/_worktrees/patched",
+    "package_profile": "lvm2",
+    "before_commit": "c60c5136246f8b800f040d14e1b6d9aaa71189c0",
+    "after_commit": "591a1c9310506124685cacc75aa338e31a148a06",
+    "patch_id": "591a1c9310506124685cacc75aa338e31a148a06"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc",
+    "optimization": "-O0 -g --coverage",
+    "coverage_tool": "gcov",
+    "notes": [
+      "No kernel device-mapper access (/dev/mapper/control: Permission denied)",
+      "Only userspace config parsing tests performed",
+      "Reduced build: --disable-udev_sync --disable-udev_rules --disable-selinux --disable-readline --without-blkid --with-thin=none --with-cache=none --with-vdo=none --with-writecache=none --disable-lvmimportvdo",
+      "Configure flags matched AGENTS.md specification"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 5,
+    "inputs_executed": 5,
+    "contracts_total": 1,
+    "contracts_passed": 1,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 2,
+    "patch_lines_covered": 2,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "status": "passed",
+      "target_location": {
+        "file": "libdm/libdm-config.c",
+        "new_lines": [734, 741],
+        "symbol": "_type"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+          "run_command": "LD_LIBRARY_PATH={VERSION_DIR}/libdm/ioctl LVM_SYSTEM_DIR={CONFIG_DIR} {VERSION_DIR}/tools/lvm dumpconfig",
+          "expected_signal": "Old behavior: non-numeric/trailing-char ints silently accepted. New behavior: same due to tokenizer pre-filtering.",
+          "reachability_signal": "gcov confirms line 737 (strtoll) and line 738 (endptr check) executed 4 times each."
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "config_int_acceptance",
+          "status": "passed",
+          "detail": "BEFORE and AFTER behavior identical for all 5 test inputs (valid, non-numeric, trailing, empty, ERANGE). The tokenizer classifies non-integer tokens before _type() is called, so the endptr checks do not trigger for normal config files."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 2,
+        "covered_lines": 2,
+        "uncovered_lines": [],
+        "rate": 100
+      },
+      "behavior_differences": [
+        {
+          "input_id": "config_valid",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "exit=0, dumps config correctly (umask=777, activation=1)",
+          "after": "exit=0, dumps config correctly (umask=777, activation=1)",
+          "evidence": "identical exit code and output (non-root warning + config dump)"
+        },
+        {
+          "input_id": "config_non_numeric",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "exit=0, warning 'invalid type. Found string but expected integer'",
+          "after": "exit=0, warning 'invalid type. Found string but expected integer'",
+          "evidence": "identical exit code and warning message"
+        },
+        {
+          "input_id": "config_trailing",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "exit=4, 'Parse error: unexpected token'",
+          "after": "exit=4, 'Parse error: unexpected token'",
+          "evidence": "identical exit code and error message (temp path differs non-semantically)"
+        },
+        {
+          "input_id": "config_empty",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "exit=4, 'Parse error: expected a value'",
+          "after": "exit=4, 'Parse error: expected a value'",
+          "evidence": "identical exit code and error message (temp path differs non-semantically)"
+        },
+        {
+          "input_id": "config_erange",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "exit=4, 'Failed to read int token.'",
+          "after": "exit=4, 'Failed to read int token.'",
+          "evidence": "identical exit code and error message (temp path differs non-semantically)"
+        }
+      ],
+      "notes": [
+        "All test configs produced identical behavior between BEFORE and AFTER builds",
+        "The tokenizer in _get_token() correctly classifies non-numeric tokens as TOK_STRING/TOK_IDENTIFIER, preventing them from reaching the strtoll() call in _type()",
+        "The endptr checks are defense-in-depth; they protect against hypothetical tokenizer bugs or programmatic API misuse",
+        "gcov confirms 100% patch line coverage: line 737 (strtoll) and line 738 (condition) each executed 4 times",
+        "The ERANGE overflow case (line 739) was also hit once, confirming the existing error path still works"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.txt",
+    "contract_summary": "phase4_execution/behavior_diff.txt",
+    "coverage_data": "phase4_execution/gcov_output.txt",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "compatible",
+    "coverage_gate_met": true,
+    "rationale": "The patch adds endptr validation to strtoll() in _type() for TOK_INT parsing. Testing proved that with the existing lvm2 tokenizer, which classifies non-integer tokens (TOK_STRING) and tokenizes trailing characters as separate tokens before _type() is reached, there is zero observable behavioral difference between the BEFORE and AFTER builds. All 5 test cases (valid, non-numeric, trailing, empty, ERANGE) produce identical exit codes and output. The patch is a valid defense-in-depth improvement but introduces no actual compatibility regression under normal config file processing.",
+    "recommended_actions": [
+      "No immediate action required: the patch is compatible with existing config files",
+      "If lvm2 libdm API is used programmatically (bypassing the config file tokenizer), consider testing direct dm_config_value creation with strtoll-triggering edge cases",
+      "Monitor for any downstream projects that may use libdm config parsing via the C API directly (not through config files)"
+    ]
+  }
+}

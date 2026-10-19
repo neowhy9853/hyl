@@ -1,0 +1,222 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/NetworkManager",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/66dfb3/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/NetworkManager/pca-results/66dfb3",
+  "base_ref": "66dfb3c728f33dc087a368ca5bded4f46c2275b3~1",
+  "base_commit": "c0691de32218bded6ca3e2279c484575da8cbf31",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "66dfb3c",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca-patches/66dfb3c.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "networkmanager",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 5770,
+    "patch_lines": 143,
+    "diff_added_lines": 78,
+    "diff_deleted_lines": 13,
+    "diff_context_lines": 31,
+    "churn": 91,
+    "raw_hunks": 5,
+    "candidate_hunks": 5,
+    "skipped_doc_hunks": 0,
+    "changed_files": 4,
+    "candidate_context_bytes": 15641,
+    "public_candidate_hunks": 3,
+    "surface_counts": {
+      "callbacks": 1,
+      "user_visible_output": 4,
+      "config": 5,
+      "network_protocol": 1,
+      "persistence_state": 1,
+      "dbus_api": 5,
+      "public_headers": 1,
+      "config_keys": 1
+    },
+    "candidates_json_bytes": 37590
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 4,
+    "total_candidates": 5,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.95,
+      "package_profile": "networkmanager",
+      "affected_surface": "WPS credentials callback - network_protocol input contract",
+      "affected_api": {
+        "name": "supplicant_iface_wps_credentials_cb",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/core/devices/wifi/nm-device-wifi.c",
+        "old_lines": [
+          2198,
+          2218
+        ],
+        "new_lines": [
+          2198,
+          2213
+        ],
+        "symbol": "supplicant_iface_wps_credentials_cb"
+      },
+      "old_behavior": "WPS Key credential accepted only as 8..63 byte UTF-8 passphrase; 64-byte hex PSK was rejected with 'WPS: ignore invalid PSK' log message.",
+      "new_behavior": "WPS Key credential accepted as 8..63 byte UTF-8 passphrase OR 64-byte hex PSK via nm_wifi_utils_wps_key_to_psk(). 64 hex-char valid WPA-PSKs are now successfully processed.",
+      "compatibility_reason": "The callback relaxes the WPS Key input contract to accept 64 hex-character PSKs in addition to 8..63 character passphrases. This is an additive/relaxed change: previously-rejected valid WPA-PSKs are now accepted. Existing 8..63 byte passphrases continue to work identically. The change only affects the WPS credential provisioning path triggered by compatible access points.",
+      "evidence": [
+        {
+          "file": "src/core/devices/wifi/nm-device-wifi.c",
+          "lines": [
+            2198,
+            2213
+          ],
+          "snippet": "    if (val_key) {\n        char psk[65];\n        array = g_variant_get_fixed_array(val_key, &psk_len, 1);\n        if (nm_wifi_utils_wps_key_to_psk((const guint8 *) array, psk_len, &psk)) {\n            secrets = g_variant_new_parsed(...);\n            g_variant_ref_sink(secrets);\n        } else\n            _LOGW(LOGD_DEVICE | LOGD_WIFI, \"WPS: ignore invalid PSK\");\n    }"
+        },
+        {
+          "file": "src/core/devices/wifi/nm-wifi-utils.c",
+          "lines": [
+            896,
+            913
+          ],
+          "snippet": "gboolean\nnm_wifi_utils_wps_key_to_psk(const guint8 *key, gsize key_len, char (*out_psk)[65])\n{\n    if (key_len > 64)\n        return FALSE;\n    if (key_len < 64 && !g_utf8_validate((const char *) key, key_len, NULL))\n        return FALSE;\n    memcpy(*out_psk, key, key_len);\n    (*out_psk)[key_len] = '\\0';\n    if (strlen(*out_psk) != key_len)\n        return FALSE;\n    return nm_utils_wpa_psk_valid(*out_psk);\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The supplicant_iface_wps_credentials_cb is an internal static callback, but it processes externally-supplied WPS credential data from Wi-Fi access points via the wpa_supplicant D-Bus interface. The behavioral change is externally observable: APs that provision 64 hex-char PSKs via WPS now succeed instead of failing.",
+      "uncertainty": "The function is static, so no external code directly calls it. However, it is registered as a signal handler for wpa_supplicant WPS credentials events and processes data from the network. Minor uncertainty about whether any users rely on the rejection behavior.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that the nm_wifi_utils_wps_key_to_psk() embedded NUL check correctly rejects keys with embedded NULs. Review the WPS credential flow end-to-end to ensure 64 hex-char PSKs reach the connection profile correctly.",
+      "test_recommendation": "Run the existing test-devices-wifi test binary which includes the dedicated test_wps_key_to_psk() test cases covering passphrases (8-63), 64 hex-char PSKs (valid/invalid hex characters), empty keys, overlong keys (65+), and embedded NUL. Also verify actual WPS credential processing through the callback.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=daemon_handler with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/core/devices/wifi/nm-device-wifi.c",
+            "old_lines": [
+              2198,
+              2218
+            ],
+            "new_lines": [
+              2198,
+              2213
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "user_visible_output",
+              "config",
+              "network_protocol",
+              "persistence_state",
+              "dbus_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "Connection profile and daemon configuration semantics"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "dbus_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Stable D-Bus interfaces, properties, signals, and methods"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=daemon_handler with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

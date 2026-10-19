@@ -1,0 +1,341 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/vim/pca-results/0001-p/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/vim/pca-results/0001-p/patch.diff",
+  "profile": "vim",
+  "summary": {
+    "total_changed_files": 3,
+    "changed_files": [
+      "src/testdir/test_ins_complete.vim",
+      "src/insexpand.c",
+      "src/version.c"
+    ],
+    "total_hunks": 3,
+    "public_api_hunks": 2,
+    "patch_metrics": {
+      "patch_bytes": 2442,
+      "patch_lines": 85,
+      "diff_added_lines": 34,
+      "diff_deleted_lines": 3,
+      "diff_context_lines": 18,
+      "churn": 37,
+      "raw_hunks": 3,
+      "candidate_hunks": 3,
+      "skipped_doc_hunks": 0,
+      "changed_files": 3,
+      "candidate_context_bytes": 4288,
+      "public_candidate_hunks": 2,
+      "surface_counts": {
+        "ex_commands": 3,
+        "vimscript": 1,
+        "ui_behavior": 3,
+        "tests": 1,
+        "proc_sys_consumers": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/insexpand.c",
+      "old_start": 6408,
+      "old_end": 6416,
+      "new_start": 6408,
+      "new_end": 6417,
+      "context_hint": "ins_compl_check_keys(int frequency, int in_compl_func)",
+      "added_lines": [
+        "\t\t// Typed keys that get mapped lose KeyTyped. Still let",
+        "\t\t// complete_check() interrupt, except during @r replay.",
+        "\t\tif (c != Ctrl_R && (KeyTyped",
+        "\t\t\t    || (in_compl_func && reg_executing == 0)))"
+      ],
+      "deleted_lines": [
+        "\t\t// Don't interrupt completion when the character wasn't typed,",
+        "\t\t// e.g., when doing @q to replay keys.",
+        "\t\tif (c != Ctrl_R && KeyTyped)"
+      ],
+      "context_lines": [
+        "\t    c = safe_vgetc();",
+        "\t    if (c != K_IGNORE)",
+        "\t    {",
+        "\t\t    compl_interrupted = TRUE;",
+        "",
+        "\t\tvungetc(c);"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "ins_compl_check_keys",
+        "Typed",
+        "keys",
+        "that",
+        "get",
+        "mapped"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ex_commands",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ex command syntax and behavior"
+          },
+          {
+            "name": "vimscript",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Vimscript/Vim9 API, functions, and type semantics"
+          },
+          {
+            "name": "ui_behavior",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "User-visible editor behavior"
+          }
+        ],
+        "surface_reasons": [
+          "ex_commands",
+          "vimscript",
+          "ui_behavior"
+        ],
+        "profile": "vim",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ins_compl_check_keys",
+        "snippet_start_line": 6379,
+        "snippet_end_line": 6447,
+        "snippet": "\treturn;\n\n    // Only do this at regular intervals\n    if (++count < frequency)\n\treturn;\n    count = 0;\n\n    // Check for a typed key.  Do use mappings, otherwise vim_is_ctrl_x_key()\n    // can't do its work correctly.\n    c = vpeekc_any();\n    if (c != NUL\n#ifdef FEAT_EVAL\n\t    // If test_override(\"char_avail\", 1) was called, ignore characters\n\t    // waiting in the typeahead buffer.\n\t    && !disable_char_avail_for_testing\n#endif\n       )\n    {\n\tif (vim_is_ctrl_x_key(c) && c != Ctrl_X && c != Ctrl_R)\n\t{\n\t    c = safe_vgetc();\t// Eat the character\n\t    compl_shows_dir = ins_compl_key2dir(c);\n\t    (void)ins_compl_next(FALSE, ins_compl_key2count(c),\n\t\t\t\t      c != K_UP && c != K_DOWN);\n\t}\n\telse\n\t{\n\t    // Need to get the character to have KeyTyped set.  We'll put it\n\t    // back with vungetc() below.  But skip K_IGNORE.\n\t    c = safe_vgetc();\n\t    if (c != K_IGNORE)\n\t    {\n\t\t// Typed keys that get mapped lose KeyTyped. Still let\n\t\t// complete_check() interrupt, except during @r replay.\n\t\tif (c != Ctrl_R && (KeyTyped\n\t\t\t    || (in_compl_func && reg_executing == 0)))\n\t\t    compl_interrupted = TRUE;\n\n\t\tvungetc(c);\n\t    }\n\t}\n    }\n    else\n    {\n\tint normal_mode_strict = ctrl_x_mode_normal()\n\t    && !ctrl_x_mode_line_or_eval() && !(compl_cont_status & CONT_LOCAL)\n\t    && cpt_sources_array != NULL && cpt_sources_index >= 0;\n\tif (normal_mode_strict && (compl_autocomplete || p_cto > 0))\n\t    check_elapsed_time();\n    }\n\n    if (compl_pending\n\t    && !got_int\n\t    && !(cot_flags & (COT_NOINSERT | COT_FUZZY))\n\t    && (!compl_autocomplete || ins_compl_has_preinsert()))\n    {\n\t// Insert the first match immediately and advance compl_shown_match,\n\t// before finding other matches.\n\tint todo = compl_pending > 0 ? compl_pending : -compl_pending;\n\n\tcompl_pending = 0;\n\t(void)ins_compl_next(FALSE, todo, TRUE);\n    }\n}\n\n/*\n * Decide the direction of Insert mode complete from the key typed.\n * Returns BACKWARD or FORWARD.\n */\n"
+      }
+    },
+    {
+      "file": "src/testdir/test_ins_complete.vim",
+      "old_start": 6535,
+      "old_end": 6538,
+      "new_start": 6535,
+      "new_end": 6566,
+      "context_hint": "func Test_call_complete_while_filtering()",
+      "added_lines": [
+        "func Test_complete_check_mapped_typed_key()",
+        "  func SlowComplete(findstart, base)",
+        "    if a:findstart",
+        "      return col('.') - 1",
+        "    endif",
+        "    call complete_add('foobar')",
+        "    let g:compl_iterations = 0",
+        "    while !complete_check() && g:compl_iterations < 100",
+        "      let g:compl_iterations += 1",
+        "      sleep 5m",
+        "    endwhile",
+        "    return []",
+        "  endfunc",
+        "",
+        "  new",
+        "  setlocal completefunc=SlowComplete",
+        "  setlocal completeopt=menuone,noselect",
+        "  inoremap <buffer> <Space> <Space><Space>",
+        "",
+        "  let g:compl_iterations = -1",
+        "  call feedkeys(\"Sfoo\\<C-X>\\<C-U> \\<Esc>\", 'tx')",
+        "  call assert_inrange(0, 99, g:compl_iterations)",
+        "",
+        "  bwipe!",
+        "  delfunc SlowComplete",
+        "  unlet g:compl_iterations",
+        "endfunc",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "  bwipe!",
+        "endfunc",
+        "",
+        "\" vim: shiftwidth=2 sts=2 expandtab nofoldenable"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "Test_call_complete_while_filtering",
+        "func",
+        "Test_complete_check_mapped_typed_key",
+        "SlowComplete",
+        "findstart",
+        "base"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "proc_sys_consumers",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "input_contract",
+              "error_contract"
+            ],
+            "description": "User-space parsing or generation of /proc, /proc/sys, or /sys text output.\nField order, delimiter, unit, default value, missing-entry, and error-path\nchanges can break scripts, monitoring, installers, and service managers."
+          },
+          {
+            "name": "ex_commands",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ex command syntax and behavior"
+          },
+          {
+            "name": "ui_behavior",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "User-visible editor behavior"
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "proc_sys_consumers",
+          "ex_commands",
+          "ui_behavior"
+        ],
+        "profile": "vim",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "Test_call_complete_while_filtering",
+        "snippet_start_line": 6506,
+        "snippet_end_line": 6566,
+        "snippet": "    call assert_equal(\"['InputEvent', 'INPUT_MAP']\",\n          \\ substitute(line, '\\c^input', '', ''),\n          \\ 'I matches, key=' .. strtrans(a:key))\n\n    set ignorecase& smartcase& completeopt&\n    bw!\n  endfunc\n\n  call TestInner(\"\\<c-n>\")\n  call TestInner(\"\\<c-p>\")\n  call TestInner(\"\\<c-x>\\<c-n>\")\n  call TestInner(\"\\<c-x>\\<c-p>\")\n  delfunc GetMatches\n  delfunc TestInner\nendfunc\n\n\" Check that calling complete() while filtering Ctrl-N completion doesn't\n\" break dot-repeat.\nfunc Test_call_complete_while_filtering()\n  new\n  setlocal complete=. completeopt=menuone,noselect\n  inoremap <buffer> <F2> <Cmd>call complete(3, ['obar', 'obaz'])<CR>\n  call setline(1, ['foobar', 'foobaz'])\n\n  call feedkeys(\"Gofo\\<C-N>ob\\<F2>cd\\<Esc>\", 'tx')\n  call assert_equal(['foobar', 'foobaz', 'foobcd'], getline(1, '$'))\n  normal! .\n  call assert_equal(['foobar', 'foobaz', 'foobcd', 'foobcd'], getline(1, '$'))\n\n  bwipe!\nendfunc\n\nfunc Test_complete_check_mapped_typed_key()\n  func SlowComplete(findstart, base)\n    if a:findstart\n      return col('.') - 1\n    endif\n    call complete_add('foobar')\n    let g:compl_iterations = 0\n    while !complete_check() && g:compl_iterations < 100\n      let g:compl_iterations += 1\n      sleep 5m\n    endwhile\n    return []\n  endfunc\n\n  new\n  setlocal completefunc=SlowComplete\n  setlocal completeopt=menuone,noselect\n  inoremap <buffer> <Space> <Space><Space>\n\n  let g:compl_iterations = -1\n  call feedkeys(\"Sfoo\\<C-X>\\<C-U> \\<Esc>\", 'tx')\n  call assert_inrange(0, 99, g:compl_iterations)\n\n  bwipe!\n  delfunc SlowComplete\n  unlet g:compl_iterations\nendfunc\n\n\" vim: shiftwidth=2 sts=2 expandtab nofoldenable\n"
+      }
+    },
+    {
+      "file": "src/version.c",
+      "old_start": 759,
+      "old_end": 764,
+      "new_start": 759,
+      "new_end": 766,
+      "context_hint": "static char *(features[]) =",
+      "added_lines": [
+        "/**/",
+        "    741,"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "static int included_patches[] =",
+        "{   /* Add new patch number below this line */",
+        "/**/",
+        "    740,",
+        "/**/",
+        ""
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "init_longVersion"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ex_commands",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Ex command syntax and behavior"
+          },
+          {
+            "name": "ui_behavior",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "User-visible editor behavior"
+          }
+        ],
+        "surface_reasons": [
+          "ex_commands",
+          "ui_behavior"
+        ],
+        "profile": "vim",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "strcat",
+        "snippet_start_line": 730,
+        "snippet_end_line": 796,
+        "snippet": "# else\n\t\"-xpm_w32\",\n# endif\n#elif defined(HAVE_XPM)\n\t\"+xpm\",\n#else\n\t\"-xpm\",\n#endif\n#if defined(UNIX) || defined(VMS)\n# if defined(USE_XSMP_INTERACT)\n\t\"+xsmp_interact\",\n# elif defined(USE_XSMP)\n\t\"+xsmp\",\n# else\n\t\"-xsmp\",\n# endif\n# ifdef FEAT_XCLIPBOARD\n\t\"+xterm_clipboard\",\n# else\n\t\"-xterm_clipboard\",\n# endif\n#endif\n#ifdef FEAT_XTERM_SAVE\n\t\"+xterm_save\",\n#else\n\t\"-xterm_save\",\n#endif\n\tNULL\n};\n\nstatic int included_patches[] =\n{   /* Add new patch number below this line */\n/**/\n    741,\n/**/\n    740,\n/**/\n    739,\n/**/\n    738,\n/**/\n    737,\n/**/\n    736,\n/**/\n    735,\n/**/\n    734,\n/**/\n    733,\n/**/\n    732,\n/**/\n    731,\n/**/\n    730,\n/**/\n    729,\n/**/\n    728,\n/**/\n    727,\n/**/\n    726,\n/**/\n    725,\n/**/\n"
+      }
+    }
+  ]
+}

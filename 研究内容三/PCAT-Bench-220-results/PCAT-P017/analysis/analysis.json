@@ -1,0 +1,180 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/libxml2",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/b61737/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/b61737",
+  "base_ref": "HEAD",
+  "base_commit": "13a3df99ffe2521a903f270abb33aa7092b34147",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "b61737679e1f5ce2aaf19d075784a40bd5f4938a",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/libxml2-patch/0001-xmllint-Reject-negative-numbers-in-parseInteger.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "libxml2",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1005,
+    "patch_lines": 33,
+    "diff_added_lines": 5,
+    "diff_deleted_lines": 1,
+    "diff_context_lines": 8,
+    "churn": 6,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 2577,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "user_visible_output": 1
+    },
+    "candidates_json_bytes": 5767
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 1.0,
+      "package_profile": "libxml2",
+      "affected_surface": "CLI options --maxmem, --pretty, --max-ampl via parseInteger()",
+      "affected_api": {
+        "name": "parseInteger (CLI integer argument parser)",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "xmllint.c",
+        "old_lines": [
+          2496,
+          2496
+        ],
+        "new_lines": [
+          2497,
+          2500
+        ],
+        "symbol": "parseInteger"
+      },
+      "old_behavior": "parseInteger() passed the input string directly to strtoul(), which silently wraps negative signed values to large unsigned values. For example, --max-ampl -1 set the amplification limit to ULONG_MAX, effectively disabling the protection. --maxmem -1 similarly assigned an enormous memory limit.",
+      "new_behavior": "parseInteger() now checks for a leading '\\-' character before calling strtoul(). If a negative value is detected, it prints an error message (\"<context>: value not allowed: <value>\") to errStream and returns -1, rejecting the input.",
+      "compatibility_reason": "CLI options --maxmem, --pretty, and --max-ampl use parseInteger() to parse their arguments. Previously, negative values were silently accepted via strtoul() wrapping. Now they are rejected with an error. Any script, wrapper, or user relying on passing negative values to these options (even accidentally) will experience a behavior change — the command will now fail with an error message instead of silently proceeding with a wrapped value.",
+      "evidence": [
+        {
+          "file": "xmllint.c",
+          "lines": [
+            2497,
+            2500
+          ],
+          "snippet": "    if (str != NULL && *str == '-') {\n        fprintf(errStream, \"%s: value not allowed: %s\n\", ctxt, str);\n        return(-1);\n    }"
+        },
+        {
+          "file": "xmllint.c",
+          "lines": [
+            2498,
+            2498
+          ],
+          "snippet": "    val = strtoul(str, &strEnd, 10);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "parseInteger() is a static function but is called by CLI option handlers for --maxmem (line 2614), --pretty (line 2803), and --max-ampl (line 2911), making it part of the public CLI surface. The CLI surface is defined as public in the libxml2 effective profile (cli_options surface).",
+      "uncertainty": "Low uncertainty. The behavior change is clearly visible in the diff. The only uncertainty is whether any caller relied on the wrapping behavior, which is unlikely as the wrapping was a bug (per the commit message fixing a security issue).",
+      "manual_review_required": false,
+      "recommended_review": "Review any scripts or test suites that pass negative values to --maxmem, --pretty, or --max-ampl. These will now fail with an error.",
+      "test_recommendation": "Verify that xmllint --maxmem -1, xmllint --pretty -1, and xmllint --max-ampl -1 all produce error messages and exit with non-zero status. Verify that positive values and zero continue to work as before. Check boundary values (e.g., --maxmem 0, --maxmem 1, --maxmem <actual limit>).",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=medium from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "xmllint.c",
+            "old_lines": [
+              2494,
+              2499
+            ],
+            "new_lines": [
+              2494,
+              2504
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=medium from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

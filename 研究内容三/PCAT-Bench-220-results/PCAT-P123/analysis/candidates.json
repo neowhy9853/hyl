@@ -1,0 +1,630 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P063/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P063/patch.diff",
+  "profile": "grub2",
+  "summary": {
+    "total_changed_files": 4,
+    "changed_files": [
+      "include/grub/script_sh.h",
+      "grub-core/script/function.c",
+      "grub-core/script/execute.c",
+      "grub-core/script/parser.y"
+    ],
+    "total_hunks": 5,
+    "public_api_hunks": 5,
+    "patch_metrics": {
+      "patch_bytes": 3643,
+      "patch_lines": 105,
+      "diff_added_lines": 19,
+      "diff_deleted_lines": 4,
+      "diff_context_lines": 38,
+      "churn": 23,
+      "raw_hunks": 5,
+      "candidate_hunks": 5,
+      "skipped_doc_hunks": 0,
+      "changed_files": 4,
+      "candidate_context_bytes": 8649,
+      "public_candidate_hunks": 5,
+      "surface_counts": {
+        "proc_sys_consumers": 2,
+        "user_visible_output": 3,
+        "config": 5,
+        "module_api": 5,
+        "boot_protocol": 3,
+        "cli_options": 2,
+        "cli": 2,
+        "public_headers": 1,
+        "struct_layout": 1,
+        "cli_commands": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "grub-core/script/execute.c",
+      "old_start": 872,
+      "old_end": 878,
+      "new_start": 872,
+      "new_end": 880,
+      "context_hint": "grub_script_function_call (grub_script_function_t func, int argc, char **args)",
+      "added_lines": [
+        "  func->executing++;",
+        "  func->executing--;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "  old_scope = scope;",
+        "  scope = &new_scope;",
+        "",
+        "  ret = grub_script_execute (func->func);",
+        "",
+        "  function_return = 0;",
+        "  active_loops = loops;"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "grub_script_function_call",
+        "func",
+        "executing",
+        "grub_snprintf"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "proc_sys_consumers",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "input_contract",
+              "error_contract"
+            ],
+            "description": "User-space parsing or generation of /proc, /proc/sys, or /sys text output.\nField order, delimiter, unit, default value, missing-entry, and error-path\nchanges can break scripts, monitoring, installers, and service managers.\n"
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "grub.cfg parsing and environment semantics"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "GRUB module and command API"
+          }
+        ],
+        "surface_reasons": [
+          "proc_sys_consumers",
+          "user_visible_output",
+          "config",
+          "module_api"
+        ],
+        "profile": "grub2",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "grub_script_function_call",
+        "snippet_start_line": 843,
+        "snippet_end_line": 910,
+        "snippet": "    }\n  grub_script_argv_free (&unexpanded);\n\n  *argv = result;\n  return 0;\n\n fail:\n\n  grub_script_argv_free (&result);\n  return 1;\n}\n\nstatic grub_err_t\ngrub_script_execute_cmd (struct grub_script_cmd *cmd)\n{\n  int ret;\n  char errnobuf[ERRNO_DIGITS_MAX + 1];\n\n  if (cmd == 0)\n    return 0;\n\n  recursion_depth++;\n\n  if (recursion_depth >= MAX_RECURSION_DEPTH)\n    return grub_error (GRUB_ERR_RECURSION_DEPTH, N_(\"maximum recursion depth exceeded\"));\n\n  ret = cmd->exec (cmd);\n  recursion_depth--;\n\n  grub_snprintf (errnobuf, sizeof (errnobuf), \"%d\", ret);\n  grub_env_set (\"?\", errnobuf);\n  return ret;\n}\n\n/* Execute a function call.  */\ngrub_err_t\ngrub_script_function_call (grub_script_function_t func, int argc, char **args)\n{\n  grub_err_t ret = 0;\n  unsigned long loops = active_loops;\n  struct grub_script_scope *old_scope;\n  struct grub_script_scope new_scope;\n\n  active_loops = 0;\n  new_scope.flags = 0;\n  new_scope.shifts = 0;\n  new_scope.argv.argc = argc;\n  new_scope.argv.args = args;\n\n  old_scope = scope;\n  scope = &new_scope;\n\n  func->executing++;\n  ret = grub_script_execute (func->func);\n  func->executing--;\n\n  function_return = 0;\n  active_loops = loops;\n  replace_scope (old_scope); /* free any scopes by setparams */\n  return ret;\n}\n\n/* Helper for grub_script_execute_sourcecode.  */\nstatic grub_err_t\ngrub_script_execute_sourcecode_getline (char **line,\n\t\t\t\t\tint cont __attribute__ ((unused)),\n\t\t\t\t\tvoid *data)\n{\n"
+      }
+    },
+    {
+      "file": "grub-core/script/function.c",
+      "old_start": 34,
+      "old_end": 39,
+      "new_start": 34,
+      "new_end": 40,
+      "context_hint": "grub_script_function_create (struct grub_script_arg *functionname_arg,",
+      "added_lines": [
+        "  func->executing = 0;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "  func = (grub_script_function_t) grub_malloc (sizeof (*func));",
+        "  if (! func)",
+        "    return 0;",
+        "",
+        "  func->name = grub_strdup (functionname_arg->str);",
+        "  if (! func->name)"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "grub_script_arg",
+        "func",
+        "executing",
+        "grub_script_function_create"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "grub.cfg parsing and environment semantics"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "GRUB module and command API"
+          },
+          {
+            "name": "boot_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Boot protocol, loader, and platform behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "config",
+          "module_api",
+          "boot_protocol"
+        ],
+        "profile": "grub2",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "grub_script_arg",
+        "snippet_start_line": 5,
+        "snippet_end_line": 70,
+        "snippet": " *  GRUB is free software: you can redistribute it and/or modify\n *  it under the terms of the GNU General Public License as published by\n *  the Free Software Foundation, either version 3 of the License, or\n *  (at your option) any later version.\n *\n *  GRUB is distributed in the hope that it will be useful,\n *  but WITHOUT ANY WARRANTY; without even the implied warranty of\n *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n *  GNU General Public License for more details.\n *\n *  You should have received a copy of the GNU General Public License\n *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.\n */\n\n#include <grub/misc.h>\n#include <grub/script_sh.h>\n#include <grub/parser.h>\n#include <grub/mm.h>\n#include <grub/charset.h>\n\ngrub_script_function_t grub_script_function_list;\n\ngrub_script_function_t\ngrub_script_function_create (struct grub_script_arg *functionname_arg,\n\t\t\t     struct grub_script *cmd)\n{\n  grub_script_function_t func;\n  grub_script_function_t *p;\n\n  func = (grub_script_function_t) grub_malloc (sizeof (*func));\n  if (! func)\n    return 0;\n  func->executing = 0;\n\n  func->name = grub_strdup (functionname_arg->str);\n  if (! func->name)\n    {\n      grub_free (func);\n      return 0;\n    }\n\n  func->func = cmd;\n\n  /* Keep the list sorted for simplicity.  */\n  p = &grub_script_function_list;\n  while (*p)\n    {\n      if (grub_strcmp ((*p)->name, func->name) >= 0)\n\tbreak;\n\n      p = &((*p)->next);\n    }\n\n  /* If the function already exists, overwrite the old function.  */\n  if (*p && grub_strcmp ((*p)->name, func->name) == 0)\n    {\n      grub_script_function_t q;\n\n      q = *p;\n      grub_free (func);\n      if (q->executing > 0)\n        {\n          grub_error (GRUB_ERR_BAD_ARGUMENT,\n\t\t      N_(\"attempt to redefine a function being executed\"));\n          func = NULL;\n        }\n"
+      }
+    },
+    {
+      "file": "grub-core/script/function.c",
+      "old_start": 60,
+      "old_end": 69,
+      "new_start": 61,
+      "new_end": 79,
+      "context_hint": "grub_script_function_create (struct grub_script_arg *functionname_arg,",
+      "added_lines": [
+        "      if (q->executing > 0)",
+        "        {",
+        "          grub_error (GRUB_ERR_BAD_ARGUMENT,",
+        "\t\t      N_(\"attempt to redefine a function being executed\"));",
+        "          func = NULL;",
+        "        }",
+        "      else",
+        "        {",
+        "          grub_script_free (q->func);",
+        "          q->func = cmd;",
+        "          func = q;",
+        "        }"
+      ],
+      "deleted_lines": [
+        "      grub_script_free (q->func);",
+        "      q->func = cmd;",
+        "      func = q;"
+      ],
+      "context_lines": [
+        "      grub_script_function_t q;",
+        "",
+        "      q = *p;",
+        "      grub_free (func);",
+        "    }",
+        "  else",
+        "    {"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "grub_script_arg",
+        "q",
+        "executing",
+        "grub_error",
+        "GRUB_ERR_BAD_ARGUMENT",
+        "N_",
+        "grub_free"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "grub.cfg parsing and environment semantics"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "GRUB module and command API"
+          },
+          {
+            "name": "boot_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Boot protocol, loader, and platform behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "config",
+          "module_api",
+          "boot_protocol"
+        ],
+        "profile": "grub2",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "grub_script_arg",
+        "snippet_start_line": 31,
+        "snippet_end_line": 109,
+        "snippet": "  grub_script_function_t func;\n  grub_script_function_t *p;\n\n  func = (grub_script_function_t) grub_malloc (sizeof (*func));\n  if (! func)\n    return 0;\n  func->executing = 0;\n\n  func->name = grub_strdup (functionname_arg->str);\n  if (! func->name)\n    {\n      grub_free (func);\n      return 0;\n    }\n\n  func->func = cmd;\n\n  /* Keep the list sorted for simplicity.  */\n  p = &grub_script_function_list;\n  while (*p)\n    {\n      if (grub_strcmp ((*p)->name, func->name) >= 0)\n\tbreak;\n\n      p = &((*p)->next);\n    }\n\n  /* If the function already exists, overwrite the old function.  */\n  if (*p && grub_strcmp ((*p)->name, func->name) == 0)\n    {\n      grub_script_function_t q;\n\n      q = *p;\n      grub_free (func);\n      if (q->executing > 0)\n        {\n          grub_error (GRUB_ERR_BAD_ARGUMENT,\n\t\t      N_(\"attempt to redefine a function being executed\"));\n          func = NULL;\n        }\n      else\n        {\n          grub_script_free (q->func);\n          q->func = cmd;\n          func = q;\n        }\n    }\n  else\n    {\n      func->next = *p;\n      *p = func;\n    }\n\n  return func;\n}\n\nvoid\ngrub_script_function_remove (const char *name)\n{\n  grub_script_function_t *p, q;\n\n  for (p = &grub_script_function_list, q = *p; q; p = &(q->next), q = q->next)\n    if (grub_strcmp (name, q->name) == 0)\n      {\n        *p = q->next;\n\tgrub_free (q->name);\n\tgrub_script_free (q->func);\n        grub_free (q);\n        break;\n      }\n}\n\ngrub_script_function_t\ngrub_script_function_find (char *functionname)\n{\n  grub_script_function_t func;\n\n  for (func = grub_script_function_list; func; func = func->next)\n    if (grub_strcmp (functionname, func->name) == 0)\n"
+      }
+    },
+    {
+      "file": "grub-core/script/parser.y",
+      "old_start": 289,
+      "old_end": 295,
+      "new_start": 289,
+      "new_end": 296,
+      "context_hint": "function: \"function\" \"name\"",
+      "added_lines": [
+        "\t      if (!grub_script_function_create ($2, script))",
+        "\t\tgrub_script_free (script);"
+      ],
+      "deleted_lines": [
+        "\t      grub_script_function_create ($2, script);"
+      ],
+      "context_lines": [
+        "\t      grub_script_mem_free (state->func_mem);",
+        "\t    else {",
+        "\t      script->children = state->scripts;",
+        "\t    }",
+        "",
+        "\t    state->scripts = $<scripts>3;"
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "grub_script_function_create",
+        "script",
+        "grub_script_free"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "cli_options",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+          },
+          {
+            "name": "cli",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Command-line interface"
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "grub.cfg parsing and environment semantics"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "GRUB module and command API"
+          }
+        ],
+        "surface_reasons": [
+          "cli_options",
+          "cli",
+          "config",
+          "module_api"
+        ],
+        "profile": "grub2",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "grub_script_mem_free",
+        "snippet_start_line": 260,
+        "snippet_end_line": 326,
+        "snippet": "       | untilcmd { $$ = $1; }\n;\n\n/* A list of commands. */\ncommands1: newlines0 command\n           {\n             $$ = grub_script_append_cmd (state, 0, $2);\n           }\n         | commands1 delimiters1 command\n           {\n\t     $$ = grub_script_append_cmd (state, $1, $3);\n           }\n;\n\nfunction: \"function\" \"name\"\n          {\n            grub_script_lexer_ref (state->lexerstate);\n            state->func_mem = grub_script_mem_record (state);\n\n\t    $<scripts>$ = state->scripts;\n\t    state->scripts = 0;\n          }\n          newlines0 \"{\" commands1 delimiters1 \"}\"\n          {\n            struct grub_script *script;\n            state->func_mem = grub_script_mem_record_stop (state,\n                                                           state->func_mem);\n            script = grub_script_create ($6, state->func_mem);\n            if (! script)\n\t      grub_script_mem_free (state->func_mem);\n\t    else {\n\t      script->children = state->scripts;\n\t      if (!grub_script_function_create ($2, script))\n\t\tgrub_script_free (script);\n\t    }\n\n\t    state->scripts = $<scripts>3;\n            grub_script_lexer_deref (state->lexerstate);\n          }\n;\n\nifcmd: \"if\"\n\t{\n\t  grub_script_lexer_ref (state->lexerstate);\n\t}\n\tifclause \"fi\"\n\t{\n\t  $$ = $3;\n\t  grub_script_lexer_deref (state->lexerstate);\n\t}\n;\nifclause: commands1 delimiters1 \"then\" commands1 delimiters1\n\t  {\n\t    $$ = grub_script_create_cmdif (state, $1, $4, 0);\n\t  }\n\t| commands1 delimiters1 \"then\" commands1 delimiters1 \"else\" commands1 delimiters1\n\t  {\n\t    $$ = grub_script_create_cmdif (state, $1, $4, $7);\n\t  }\n\t| commands1 delimiters1 \"then\" commands1 delimiters1 \"elif\" ifclause\n\t  {\n\t    $$ = grub_script_create_cmdif (state, $1, $4, $7);\n\t  }\n;\n\nforcmd: \"for\" \"name\"\n        {\n"
+      }
+    },
+    {
+      "file": "include/grub/script_sh.h",
+      "old_start": 361,
+      "old_end": 366,
+      "new_start": 361,
+      "new_end": 368,
+      "context_hint": "struct grub_script_function",
+      "added_lines": [
+        "",
+        "  unsigned executing;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "  /* The next element.  */",
+        "  struct grub_script_function *next;",
+        "};",
+        "typedef struct grub_script_function *grub_script_function_t;",
+        "",
+        ""
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "grub_script_function",
+        "executing",
+        "grub_script_return"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers"
+          },
+          {
+            "name": "proc_sys_consumers",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "input_contract",
+              "error_contract"
+            ],
+            "description": "User-space parsing or generation of /proc, /proc/sys, or /sys text output.\nField order, delimiter, unit, default value, missing-entry, and error-path\nchanges can break scripts, monitoring, installers, and service managers.\n"
+          },
+          {
+            "name": "cli_options",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "side_effect"
+            ],
+            "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+          },
+          {
+            "name": "cli",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Command-line interface"
+          },
+          {
+            "name": "config",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "grub.cfg parsing and environment semantics"
+          },
+          {
+            "name": "struct_layout",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "ABI-sensitive definitions:\n- Struct layout (size, field order, field type)\n- Enum values\n- Macro definitions\n- Constants\n"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "GRUB module and command API"
+          },
+          {
+            "name": "boot_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Boot protocol, loader, and platform behavior"
+          },
+          {
+            "name": "cli_commands",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "GRUB shell commands and options"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "proc_sys_consumers",
+          "cli_options",
+          "cli",
+          "config",
+          "struct_layout",
+          "module_api",
+          "boot_protocol",
+          "cli_commands"
+        ],
+        "profile": "grub2",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "grub_script_function",
+        "snippet_start_line": 332,
+        "snippet_end_line": 398,
+        "snippet": "grub_err_t grub_script_execute_sourcecode (const char *source);\ngrub_err_t grub_script_execute_new_scope (const char *source, int argc, char **args);\n\n/* Break command for loops.  */\ngrub_err_t grub_script_break (grub_command_t cmd, int argc, char *argv[]);\n\n/* SHIFT command for GRUB script.  */\ngrub_err_t grub_script_shift (grub_command_t cmd, int argc, char *argv[]);\n\n/* SETPARAMS command for GRUB script functions.  */\ngrub_err_t grub_script_setparams (grub_command_t cmd, int argc, char *argv[]);\n\n/* RETURN command for functions.  */\ngrub_err_t grub_script_return (grub_command_t cmd, int argc, char *argv[]);\n\n/* This variable points to the parsed command.  This is used to\n   communicate with the bison code.  */\nextern struct grub_script_cmd *grub_script_parsed;\n\n\f\n\n/* The function description.  */\nstruct grub_script_function\n{\n  /* The name.  */\n  char *name;\n\n  /* The script function.  */\n  struct grub_script *func;\n\n  /* The next element.  */\n  struct grub_script_function *next;\n\n  unsigned executing;\n};\ntypedef struct grub_script_function *grub_script_function_t;\n\nextern grub_script_function_t grub_script_function_list;\n\n#define FOR_SCRIPT_FUNCTIONS(var) for((var) = grub_script_function_list; \\\n\t\t\t\t      (var); (var) = (var)->next)\n\ngrub_script_function_t grub_script_function_create (struct grub_script_arg *functionname,\n\t\t\t\t\t\t    struct grub_script *cmd);\nvoid grub_script_function_remove (const char *name);\ngrub_script_function_t grub_script_function_find (char *functionname);\n\ngrub_err_t grub_script_function_call (grub_script_function_t func,\n\t\t\t\t      int argc, char **args);\n\nchar **\ngrub_script_execute_arglist_to_argv (struct grub_script_arglist *arglist, int *count);\n\ngrub_err_t\ngrub_normal_parse_line (char *line,\n\t\t\tgrub_reader_getline_t getline_func,\n\t\t\tvoid *getline_func_data);\n\nstatic inline struct grub_script *\ngrub_script_ref (struct grub_script *script)\n{\n  if (script)\n    script->refcnt++;\n  return script;\n}\n\nstatic inline void\n"
+      }
+    }
+  ]
+}

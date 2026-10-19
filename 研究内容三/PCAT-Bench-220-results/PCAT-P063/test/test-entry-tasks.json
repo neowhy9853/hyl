@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/haproxy",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd",
+  "patch_id": "98b1fd4ff9a719f34131fa04cbd93f92c0c362f7",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "affected_api": {
+        "name": "h3_rcv_buf",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/h3.c",
+        "old_lines": [
+          2074,
+          2076
+        ],
+        "new_lines": [
+          2074,
+          2079
+        ],
+        "symbol": "h3_rcv_buf"
+      },
+      "old_behavior": "When receiving an unexpected H3 PUSH_PROMISE frame on a backend connection, the code sets ret = H3_ERR_ID_ERROR (0x108 = 264, a positive value) and falls through via break. Since ret > 0 at line 2097, the error code is incorrectly consumed as a byte count: b_del(b, 264) drops bytes and total += 264 corrupts the stream accounting. The connection error is never signaled via qcc_set_error(), so the connection continues operating in an inconsistent state.",
+      "new_behavior": "When receiving an unexpected H3 PUSH_PROMISE frame on a backend connection, the code logs a TRACE_ERROR diagnostic, properly signals the connection error via qcc_set_error() with H3_ERR_ID_ERROR and muxc_tevt_type_proto_err, then jumps to the err label for proper error cleanup and connection termination.",
+      "compatibility_reason": "The old error handling was buggy: H3_ERR_ID_ERROR (0x108) is a positive value that would be misinterpreted as consumed bytes via b_del() and the total counter, leading to buffer accounting corruption. The fix changes the error handling to properly signal the connection error and abort. Although this is a bug fix, it changes observable protocol behavior: previously a malformed peer sending PUSH_PROMISE on a backend connection would cause buffer corruption; now the connection is properly terminated with H3_ID_ERROR. Additionally, a new TRACE_ERROR diagnostic message is emitted.",
+      "test_recommendation": "Test by simulating an H3 client sending PUSH_PROMISE on a backend QUIC connection and verifying: (1) connection error is reported, (2) no buffer corruption occurs, (3) the TRACE_ERROR message appears in debug output.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "error_or_exception_harness",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "error_exception_stability",
+        "comparison": "error",
+        "required_observation": "errno/error code, exception type, message, and failure mode",
+        "input_axes": [
+          "each error path",
+          "invalid input",
+          "missing resource",
+          "permission",
+          "fault injection"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/98b1fd/compatibility-testing"
+}

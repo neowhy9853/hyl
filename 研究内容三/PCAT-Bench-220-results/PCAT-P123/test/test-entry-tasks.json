@@ -1,0 +1,135 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P063/analysis.json",
+  "repo": "/data7/wanghy/tmp/opencode/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P063/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P063",
+  "patch_id": "8811797b13b31605fd02155e44c7299bfee2ab4a",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "affected_api": {
+        "name": "grub_script_function_create",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "grub-core/script/function.c",
+        "old_lines": [
+          60,
+          69
+        ],
+        "new_lines": [
+          61,
+          79
+        ],
+        "symbol": "grub_script_function_create"
+      },
+      "old_behavior": "使用已存在的同名函数重新定义函数时，旧函数正在执行中也允许重新定义，直接释放旧函数的脚本体并替换为新函数体，导致 use-after-free。函数始终返回有效的函数指针 (q)。不设置任何错误。",
+      "new_behavior": "重新定义正在执行的函数时拒绝操作，设置 grub_error(GRUB_ERR_BAD_ARGUMENT, \"attempt to redefine a function being executed\")，返回 NULL。函数只在未执行时才允许重新定义并正常替换。",
+      "compatibility_reason": "function 命令的行为发生变化：如果 grub.cfg 中某个函数在自身执行过程中尝试重新定义同名函数，先前会成功（尽管存在 UAF 导致潜在崩溃），现在会失败并报错。返回值从有效指针变为 NULL，调用方（parser.y 中的语法规则和任何其他调用方）需要处理 NULL 返回。虽然旧行为本身存在缺陷（UAF），但对行为变化的依赖仍构成兼容性问题。",
+      "test_recommendation": "测试 function 命令在函数执行期间尝试重新定义同名函数的行为：验证 grub_script_function_create 返回 NULL、设置 GRUB_ERR_BAD_ARGUMENT、且错误消息可见。验证非执行中的函数仍可正常重新定义。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "error_or_exception_harness",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "error_exception_stability",
+        "comparison": "error",
+        "required_observation": "errno/error code, exception type, message, and failure mode",
+        "input_axes": [
+          "each error path",
+          "invalid input",
+          "missing resource",
+          "permission",
+          "fault injection"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "grub_script_function_create",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "grub-core/script/function.c",
+        "old_lines": [
+          60,
+          69
+        ],
+        "new_lines": [
+          61,
+          79
+        ],
+        "symbol": "grub_script_function_create"
+      },
+      "old_behavior": "grub_script_function_create 在函数已存在且正在执行时返回有效的函数指针 q（指向现有函数对象）。",
+      "new_behavior": "grub_script_function_create 在函数已存在且正在执行时返回 NULL。",
+      "compatibility_reason": "返回值约定发生变化：原先总是返回非 NULL 函数指针（在函数已存在的情况下），现在在函数执行期间重新定义时返回 NULL。调用方（包括 parser.y 和可能的其他模块）必须检查 NULL 返回值，否则会对 NULL 指针解引用。parser.y 已更新以处理 NULL 返回值，但任何其他内部或外部调用方若未更新，可能受到影响。",
+      "test_recommendation": "测试 grub_script_function_create 在函数执行期间重新定义时的返回值：验证返回 NULL。测试 parser.y 中的函数解析是否正确释放 NULL 情况下的脚本内存。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "return_value_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "return_contract_stability",
+        "comparison": "exit_code",
+        "required_observation": "return value, exit status, output value, and ownership convention",
+        "input_axes": [
+          "success",
+          "failure",
+          "boundary",
+          "null result",
+          "partial result"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P063/compatibility-testing"
+}

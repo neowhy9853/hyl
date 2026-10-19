@@ -1,0 +1,687 @@
+{
+  "repo": "/data7/wanghy/tmp/opencode/linux-src",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P039/patch.diff",
+  "profile": "kernel_6_6",
+  "summary": {
+    "total_changed_files": 7,
+    "changed_files": [
+      "drivers/infiniband/core/umem.c",
+      "include/rdma/ib_umem.h",
+      "drivers/infiniband/hw/irdma/verbs.c",
+      "drivers/infiniband/hw/mlx4/mr.c",
+      "drivers/infiniband/hw/mlx5/mr.c",
+      "drivers/infiniband/sw/rxe/rxe_verbs.c",
+      "drivers/infiniband/hw/hns/hns_roce_mr.c"
+    ],
+    "total_hunks": 9,
+    "public_api_hunks": 3,
+    "patch_metrics": {
+      "patch_bytes": 6581,
+      "patch_lines": 166,
+      "diff_added_lines": 45,
+      "diff_deleted_lines": 0,
+      "diff_context_lines": 58,
+      "churn": 45,
+      "raw_hunks": 9,
+      "candidate_hunks": 9,
+      "skipped_doc_hunks": 0,
+      "changed_files": 7,
+      "candidate_context_bytes": 16409,
+      "public_candidate_hunks": 3,
+      "surface_counts": {
+        "exported_symbols": 1,
+        "public_headers": 2
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "drivers/infiniband/core/umem.c",
+      "old_start": 326,
+      "old_end": 328,
+      "new_start": 326,
+      "new_end": 344,
+      "context_hint": "int ib_umem_copy_from(void *dst, struct ib_umem *umem, size_t offset,",
+      "added_lines": [
+        "",
+        "/*",
+        " * Called during rereg mr if the driver is able to re-use a umem for",
+        " * IB_MR_REREG_ACCESS.",
+        " */",
+        "int ib_umem_check_rereg(struct ib_umem *umem, int flags, int new_access_flags)",
+        "{",
+        "\tif (!umem)",
+        "\t\treturn 0;",
+        "",
+        "\tif ((flags & IB_MR_REREG_ACCESS) && !(flags & IB_MR_REREG_TRANS))",
+        "\t\tif (ib_access_writable(new_access_flags) && !umem->writable)",
+        "\t\t\treturn -EACCES;",
+        "\treturn 0;",
+        "}",
+        "EXPORT_SYMBOL(ib_umem_check_rereg);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\treturn 0;",
+        "}",
+        "EXPORT_SYMBOL(ib_umem_copy_from);"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "ib_umem",
+        "Called",
+        "during",
+        "rereg",
+        "mr",
+        "the",
+        "int"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": true,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "exported_symbols",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_symbol",
+              "return_contract",
+              "resource_lifetime",
+              "side_effect"
+            ],
+            "description": "Exported kernel symbols used by modules"
+          }
+        ],
+        "surface_reasons": [
+          "exported_symbols"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ib_umem",
+        "snippet_start_line": 297,
+        "snippet_end_line": 374,
+        "snippet": "\n\tif (overflows_type(desc->addr, unsigned long) ||\n\t    overflows_type(desc->length, size_t))\n\t\treturn ERR_PTR(-EOVERFLOW);\n\n\tswitch (desc->type) {\n\tcase IB_UVERBS_BUFFER_TYPE_DMABUF:\n\t\tumem_dmabuf = ib_umem_dmabuf_get_pinned(device, desc->addr,\n\t\t\t\t\t\t\tdesc->length, desc->fd,\n\t\t\t\t\t\t\taccess);\n\t\tif (IS_ERR(umem_dmabuf))\n\t\t\treturn ERR_CAST(umem_dmabuf);\n\t\treturn &umem_dmabuf->umem;\n\tcase IB_UVERBS_BUFFER_TYPE_VA:\n\t\treturn __ib_umem_get_va(device, desc->addr, desc->length,\n\t\t\t\t\taccess);\n\tdefault:\n\t\treturn ERR_PTR(-EINVAL);\n\t}\n}\nEXPORT_SYMBOL(ib_umem_get_desc);\n\n/*\n * Per-command legacy buffer-desc filler.\n * Returns 0 on success (desc filled), -ENODATA if no legacy attrs apply,\n * negative errno on validation failure.\n */\ntypedef int (*ib_umem_buf_desc_filler_t)(const struct uverbs_attr_bundle *attrs,\n\t\t\t\t\t struct ib_uverbs_buffer_desc *desc);\n\n/*\n * ib_umem_resolve_desc - Resolve a buffer descriptor from a per-command UMEM\n *                        attribute and/or a legacy attr filler.\n *\n * Return:\n *    0       @desc filled.\n *   -ENOENT  no source produced a buffer.\n *   -EINVAL  both the UMEM attribute and the legacy filler produced a buffer.\n *   -errno   propagated from attr read / filler validation.\n */\nstatic int ib_umem_resolve_desc(const struct uverbs_attr_bundle *attrs,\n\t\t\t\tu16 attr_id,\n\t\t\t\tib_umem_buf_desc_filler_t legacy_filler,\n\t\t\t\tstruct ib_uverbs_buffer_desc *desc)\n{\n\tbool have_desc = false;\n\tint ret;\n\n\tif (!attrs)\n\t\treturn -ENOENT;\n\n\tret = uverbs_get_buffer_desc(attrs, attr_id, desc);\n\tif (!ret)\n\t\thave_desc = true;\n\telse if (ret != -ENOENT)\n\t\treturn ret;\n\n\tif (legacy_filler) {\n\t\tstruct ib_uverbs_buffer_desc legacy_desc = {};\n\n\t\tret = legacy_filler(attrs, &legacy_desc);\n\t\tif (!ret) {\n\t\t\tif (have_desc)\n\t\t\t\treturn -EINVAL;\n\t\t\t*desc = legacy_desc;\n\t\t\thave_desc = true;\n\t\t} else if (ret != -ENODATA) {\n\t\t\treturn ret;\n\t\t}\n\t}\n\n\treturn have_desc ? 0 : -ENOENT;\n}\n\n/*\n * ib_umem_get_desc_check - Pin a umem from @desc and verify it meets\n *                          @min_size.\n */\n"
+      }
+    },
+    {
+      "file": "drivers/infiniband/hw/hns/hns_roce_mr.c",
+      "old_start": 277,
+      "old_end": 282,
+      "new_start": 277,
+      "new_end": 286,
+      "context_hint": "struct ib_mr *hns_roce_rereg_user_mr(struct ib_mr *ibmr, int flags, u64 start,",
+      "added_lines": [
+        "\tret = ib_umem_check_rereg(mr->pbl_mtr.umem, flags, mr_access_flags);",
+        "\tif (ret)",
+        "\t\treturn ERR_PTR(ret);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\tif (!mr->enabled)",
+        "\t\treturn ERR_PTR(-EINVAL);",
+        "",
+        "\tmailbox = hns_roce_alloc_cmd_mailbox(hr_dev);",
+        "\tif (IS_ERR(mailbox))",
+        "\t\treturn ERR_CAST(mailbox);"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "ib_mr",
+        "ret",
+        "ib_umem_check_rereg",
+        "mr",
+        "pbl_mtr",
+        "umem",
+        "ERR_PTR"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "ib_mr",
+        "snippet_start_line": 248,
+        "snippet_end_line": 316,
+        "snippet": "\t\tret = -ENOMEM;\n\t\tgoto err_out;\n\t}\n\n\tmr->iova = virt_addr;\n\tmr->size = length;\n\tmr->pd = to_hr_pd(pd)->pdn;\n\tmr->access = access_flags;\n\tmr->type = MR_TYPE_MR;\n\n\tret = alloc_mr_key(hr_dev, mr);\n\tif (ret)\n\t\tgoto err_alloc_mr;\n\n\tret = alloc_mr_pbl(hr_dev, mr, udata, start);\n\tif (ret)\n\t\tgoto err_alloc_key;\n\n\tret = hns_roce_mr_enable(hr_dev, mr);\n\tif (ret)\n\t\tgoto err_alloc_pbl;\n\n\tmr->ibmr.rkey = mr->ibmr.lkey = mr->key;\n\n\treturn &mr->ibmr;\n\nerr_alloc_pbl:\n\tfree_mr_pbl(hr_dev, mr);\nerr_alloc_key:\n\tfree_mr_key(hr_dev, mr);\nerr_alloc_mr:\n\tkfree(mr);\nerr_out:\n\tatomic64_inc(&hr_dev->dfx_cnt[HNS_ROCE_DFX_MR_REG_ERR_CNT]);\n\n\treturn ERR_PTR(ret);\n}\n\nstruct ib_mr *hns_roce_rereg_user_mr(struct ib_mr *ibmr, int flags, u64 start,\n\t\t\t\t     u64 length, u64 virt_addr,\n\t\t\t\t     int mr_access_flags, struct ib_pd *pd,\n\t\t\t\t     struct ib_udata *udata)\n{\n\tstruct hns_roce_dev *hr_dev = to_hr_dev(ibmr->device);\n\tstruct ib_device *ib_dev = &hr_dev->ib_dev;\n\tstruct hns_roce_mr *mr = to_hr_mr(ibmr);\n\tstruct hns_roce_cmd_mailbox *mailbox;\n\tunsigned long mtpt_idx;\n\tint ret;\n\n\tif (!mr->enabled) {\n\t\tret = -EINVAL;\n\t\tgoto err_out;\n\t}\n\n\tret = ib_umem_check_rereg(mr->pbl_mtr.umem, flags, mr_access_flags);\n\tif (ret)\n\t\tgoto err_out;\n\n\tmailbox = hns_roce_alloc_cmd_mailbox(hr_dev);\n\tret = PTR_ERR_OR_ZERO(mailbox);\n\tif (ret)\n\t\tgoto err_out;\n\n\tmtpt_idx = key_to_hw_index(mr->key) & (hr_dev->caps.num_mtpts - 1);\n\n\tret = hns_roce_cmd_mbox(hr_dev, 0, mailbox->dma, HNS_ROCE_CMD_QUERY_MPT,\n\t\t\t\tmtpt_idx);\n\tif (ret)\n"
+      }
+    },
+    {
+      "file": "drivers/infiniband/hw/irdma/verbs.c",
+      "old_start": 3244,
+      "old_end": 3249,
+      "new_start": 3244,
+      "new_end": 3253,
+      "context_hint": "static struct ib_mr *irdma_rereg_user_mr(struct ib_mr *ib_mr, int flags,",
+      "added_lines": [
+        "\tret = ib_umem_check_rereg(iwmr->region, flags, new_access);",
+        "\tif (ret)",
+        "\t\treturn ERR_PTR(ret);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\tif (flags & ~(IB_MR_REREG_TRANS | IB_MR_REREG_PD | IB_MR_REREG_ACCESS))",
+        "\t\treturn ERR_PTR(-EOPNOTSUPP);",
+        "",
+        "\tret = irdma_hwdereg_mr(ib_mr);",
+        "\tif (ret)",
+        "\t\treturn ERR_PTR(ret);"
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "ib_mr",
+        "ret",
+        "ib_umem_check_rereg",
+        "iwmr",
+        "region",
+        "flags",
+        "ERR_PTR",
+        "irdma_hwreg_mr"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "ib_mr",
+        "snippet_start_line": 3215,
+        "snippet_end_line": 3283,
+        "snippet": "\n/**\n * irdma_map_mr_sg - map of sg list for fmr\n * @ibmr: ib mem to access iwarp mr pointer\n * @sg: scatter gather list\n * @sg_nents: number of sg pages\n * @sg_offset: scatter gather list for fmr\n */\nstatic int irdma_map_mr_sg(struct ib_mr *ibmr, struct scatterlist *sg,\n\t\t\t   int sg_nents, unsigned int *sg_offset)\n{\n\tstruct irdma_mr *iwmr = to_iwmr(ibmr);\n\n\tiwmr->npages = 0;\n\n\treturn ib_sg_to_pages(ibmr, sg, sg_nents, sg_offset, irdma_set_page);\n}\n\n/**\n * irdma_hwreg_mr - send cqp command for memory registration\n * @iwdev: irdma device\n * @iwmr: irdma mr pointer\n * @access: access for MR\n */\nstatic int irdma_hwreg_mr(struct irdma_device *iwdev, struct irdma_mr *iwmr,\n\t\t\t  u16 access)\n{\n\tstruct irdma_pbl *iwpbl = &iwmr->iwpbl;\n\tstruct irdma_reg_ns_stag_info *stag_info;\n\tstruct ib_pd *pd = iwmr->ibmr.pd;\n\tstruct irdma_pd *iwpd = to_iwpd(pd);\n\tstruct irdma_pble_alloc *palloc = &iwpbl->pble_alloc;\n\tstruct irdma_cqp_request *cqp_request;\n\tstruct cqp_cmds_info *cqp_info;\n\tint ret;\n\n\tcqp_request = irdma_alloc_and_get_cqp_request(&iwdev->rf->cqp, true);\n\tif (!cqp_request)\n\t\treturn -ENOMEM;\n\n\tcqp_info = &cqp_request->info;\n\tstag_info = &cqp_info->in.u.mr_reg_non_shared.info;\n\tstag_info->va = iwpbl->user_base;\n\tstag_info->stag_idx = iwmr->stag >> IRDMA_CQPSQ_STAG_IDX_S;\n\tstag_info->stag_key = (u8)iwmr->stag;\n\tstag_info->total_len = iwmr->len;\n\tstag_info->access_rights = irdma_get_mr_access(access,\n\t\t\t\t\t\t       iwdev->rf->sc_dev.hw_attrs.uk_attrs.hw_rev);\n\tif (iwdev->rf->sc_dev.hw_attrs.uk_attrs.feature_flags & IRDMA_FEATURE_ATOMIC_OPS)\n\t\tstag_info->remote_atomics_en = (access & IB_ACCESS_REMOTE_ATOMIC) ? 1 : 0;\n\tstag_info->pd_id = iwpd->sc_pd.pd_id;\n\tstag_info->all_memory = iwmr->dma_mr;\n\tif (stag_info->access_rights & IRDMA_ACCESS_FLAGS_ZERO_BASED)\n\t\tstag_info->addr_type = IRDMA_ADDR_TYPE_ZERO_BASED;\n\telse\n\t\tstag_info->addr_type = IRDMA_ADDR_TYPE_VA_BASED;\n\tstag_info->page_size = iwmr->page_size;\n\n\tif (iwpbl->pbl_allocated) {\n\t\tif (palloc->level == PBLE_LEVEL_1) {\n\t\t\tstag_info->first_pm_pbl_index = palloc->level1.idx;\n\t\t\tstag_info->chunk_size = 1;\n\t\t} else {\n\t\t\tstag_info->first_pm_pbl_index = palloc->level2.root.idx;\n\t\t\tstag_info->chunk_size = 3;\n\t\t}\n\t} else {\n\t\tstag_info->reg_addr_pa = iwmr->pgaddrmem[0];\n\t}\n"
+      }
+    },
+    {
+      "file": "drivers/infiniband/hw/mlx4/mr.c",
+      "old_start": 466,
+      "old_end": 471,
+      "new_start": 466,
+      "new_end": 475,
+      "context_hint": "struct ib_mr *mlx4_ib_rereg_user_mr(struct ib_mr *mr, int flags, u64 start,",
+      "added_lines": [
+        "\terr = ib_umem_check_rereg(mmr->umem, flags, mr_access_flags);",
+        "\tif (err)",
+        "\t\treturn ERR_PTR(err);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\tstruct mlx4_mpt_entry **pmpt_entry = &mpt_entry;",
+        "\tint err;",
+        "",
+        "\t/* Since we synchronize this call and mlx4_ib_dereg_mr via uverbs,",
+        "\t * we assume that the calls can't run concurrently. Otherwise, a",
+        "\t * race exists."
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "ib_mr",
+        "err",
+        "ib_umem_check_rereg",
+        "mmr",
+        "umem",
+        "flags",
+        "ERR_PTR",
+        "ib_dma_sync_single_for_device"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "ib_mr",
+        "snippet_start_line": 437,
+        "snippet_end_line": 469,
+        "snippet": "\treturn ERR_PTR(err);\n}\n\nstatic int mlx4_set_page(struct ib_mr *ibmr, u64 addr)\n{\n\tstruct mlx4_ib_mr *mr = to_mmr(ibmr);\n\n\tif (unlikely(mr->npages == mr->max_pages))\n\t\treturn -ENOMEM;\n\n\tmr->pages[mr->npages++] = cpu_to_be64(addr | MLX4_MTT_FLAG_PRESENT);\n\n\treturn 0;\n}\n\nint mlx4_ib_map_mr_sg(struct ib_mr *ibmr, struct scatterlist *sg, int sg_nents,\n\t\t      unsigned int *sg_offset)\n{\n\tstruct mlx4_ib_mr *mr = to_mmr(ibmr);\n\tint rc;\n\n\tmr->npages = 0;\n\n\tib_dma_sync_single_for_cpu(ibmr->device, mr->page_map,\n\t\t\t\t   mr->page_map_size, DMA_TO_DEVICE);\n\n\trc = ib_sg_to_pages(ibmr, sg, sg_nents, sg_offset, mlx4_set_page);\n\n\tib_dma_sync_single_for_device(ibmr->device, mr->page_map,\n\t\t\t\t      mr->page_map_size, DMA_TO_DEVICE);\n\n\treturn rc;\n}\n"
+      }
+    },
+    {
+      "file": "drivers/infiniband/hw/mlx5/mr.c",
+      "old_start": 1698,
+      "old_end": 1703,
+      "new_start": 1698,
+      "new_end": 1707,
+      "context_hint": "struct ib_mr *mlx5_ib_rereg_user_mr(struct ib_mr *ib_mr, int flags, u64 start,",
+      "added_lines": [
+        "\terr = ib_umem_check_rereg(mr->umem, flags, new_access_flags);",
+        "\tif (err)",
+        "\t\treturn ERR_PTR(err);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\tif (flags & ~(IB_MR_REREG_TRANS | IB_MR_REREG_PD | IB_MR_REREG_ACCESS))",
+        "\t\treturn ERR_PTR(-EOPNOTSUPP);",
+        "",
+        "\tif (!(flags & IB_MR_REREG_ACCESS))",
+        "\t\tnew_access_flags = mr->access_flags;",
+        "\tif (!(flags & IB_MR_REREG_PD))"
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "ib_mr",
+        "err",
+        "ib_umem_check_rereg",
+        "mr",
+        "umem",
+        "flags",
+        "ERR_PTR",
+        "mlx5_alloc_integrity_descs"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "ib_mr",
+        "snippet_start_line": 1669,
+        "snippet_end_line": 1737,
+        "snippet": "\tmr->sig->sig_err_exists = false;\n\t/* Next UMR, Arm SIGERR */\n\t++mr->sig->sigerr_count;\n\tmr->klm_mr = mlx5_ib_alloc_pi_mr(pd, max_num_sg, max_num_meta_sg,\n\t\t\t\t\t sizeof(struct mlx5_klm),\n\t\t\t\t\t MLX5_MKC_ACCESS_MODE_KLMS);\n\tif (IS_ERR(mr->klm_mr)) {\n\t\terr = PTR_ERR(mr->klm_mr);\n\t\tgoto err_destroy_psv;\n\t}\n\tmr->mtt_mr = mlx5_ib_alloc_pi_mr(pd, max_num_sg, max_num_meta_sg,\n\t\t\t\t\t sizeof(struct mlx5_mtt),\n\t\t\t\t\t MLX5_MKC_ACCESS_MODE_MTT);\n\tif (IS_ERR(mr->mtt_mr)) {\n\t\terr = PTR_ERR(mr->mtt_mr);\n\t\tgoto err_free_klm_mr;\n\t}\n\n\t/* Set bsf descriptors for mkey */\n\tmkc = MLX5_ADDR_OF(create_mkey_in, in, memory_key_mkey_entry);\n\tMLX5_SET(mkc, mkc, bsf_en, 1);\n\tMLX5_SET(mkc, mkc, bsf_octword_size, MLX5_MKEY_BSF_OCTO_SIZE);\n\n\terr = _mlx5_alloc_mkey_descs(pd, mr, 4, sizeof(struct mlx5_klm), 0,\n\t\t\t\t     MLX5_MKC_ACCESS_MODE_KLMS, in, inlen);\n\tif (err)\n\t\tgoto err_free_mtt_mr;\n\n\terr = xa_err(xa_store(&dev->sig_mrs, mlx5_base_mkey(mr->mmkey.key),\n\t\t\t      mr->sig, GFP_KERNEL));\n\tif (err)\n\t\tgoto err_free_descs;\n\treturn 0;\n\nerr_free_descs:\n\tdestroy_mkey(dev, mr);\n\tmlx5_free_priv_descs(mr);\nerr_free_mtt_mr:\n\tmlx5_ib_dereg_mr(&mr->mtt_mr->ibmr, NULL);\n\tmr->mtt_mr = NULL;\nerr_free_klm_mr:\n\tmlx5_ib_dereg_mr(&mr->klm_mr->ibmr, NULL);\n\tmr->klm_mr = NULL;\nerr_destroy_psv:\n\tif (mlx5_core_destroy_psv(dev->mdev, mr->sig->psv_memory.psv_idx))\n\t\tmlx5_ib_warn(dev, \"failed to destroy mem psv %d\\n\",\n\t\t\t     mr->sig->psv_memory.psv_idx);\n\tif (mlx5_core_destroy_psv(dev->mdev, mr->sig->psv_wire.psv_idx))\n\t\tmlx5_ib_warn(dev, \"failed to destroy wire psv %d\\n\",\n\t\t\t     mr->sig->psv_wire.psv_idx);\nerr_free_sig:\n\tkfree(mr->sig);\n\n\treturn err;\n}\n\nstatic struct ib_mr *__mlx5_ib_alloc_mr(struct ib_pd *pd,\n\t\t\t\t\tenum ib_mr_type mr_type, u32 max_num_sg,\n\t\t\t\t\tu32 max_num_meta_sg)\n{\n\tstruct mlx5_ib_dev *dev = to_mdev(pd->device);\n\tint inlen = MLX5_ST_SZ_BYTES(create_mkey_in);\n\tint ndescs = ALIGN(max_num_sg, 4);\n\tstruct mlx5_ib_mr *mr;\n\tu32 *in;\n\tint err;\n\n\tmr = kzalloc_obj(*mr);\n\tif (!mr)\n"
+      }
+    },
+    {
+      "file": "drivers/infiniband/sw/rxe/rxe_verbs.c",
+      "old_start": 1316,
+      "old_end": 1321,
+      "new_start": 1316,
+      "new_end": 1322,
+      "context_hint": "static struct ib_mr *rxe_rereg_user_mr(struct ib_mr *ibmr, int flags,",
+      "added_lines": [
+        "\tint err;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\tstruct rxe_mr *mr = to_rmr(ibmr);",
+        "\tstruct rxe_pd *old_pd = to_rpd(ibmr->pd);",
+        "\tstruct rxe_pd *pd = to_rpd(ibpd);",
+        "",
+        "\t/* for now only support the two easy cases:",
+        "\t * rereg_pd and rereg_access"
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "ib_mr",
+        "err",
+        "ERR_PTR"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "ib_mr",
+        "snippet_start_line": 1287,
+        "snippet_end_line": 1352,
+        "snippet": "\t\terr = rxe_odp_mr_init_user(rxe, start, length, iova, access, mr);\n\telse\n\t\terr = rxe_mr_init_user(rxe, start, length, access, mr);\n\tif (err) {\n\t\trxe_dbg_mr(mr, \"reg_user_mr failed, err = %d\\n\", err);\n\t\tgoto err_cleanup;\n\t}\n\n\trxe_finalize(mr);\n\treturn &mr->ibmr;\n\nerr_cleanup:\n\tcleanup_err = rxe_cleanup(mr);\n\tif (cleanup_err)\n\t\trxe_err_mr(mr, \"cleanup failed, err = %d\\n\", cleanup_err);\nerr_free:\n\tkfree(mr);\n\trxe_err_pd(pd, \"returned err = %d\\n\", err);\n\treturn ERR_PTR(err);\n}\n\nstatic struct ib_mr *rxe_rereg_user_mr(struct ib_mr *ibmr, int flags,\n\t\t\t\t       u64 start, u64 length, u64 iova,\n\t\t\t\t       int access, struct ib_pd *ibpd,\n\t\t\t\t       struct ib_udata *udata)\n{\n\tstruct rxe_mr *mr = to_rmr(ibmr);\n\tstruct rxe_pd *old_pd = to_rpd(ibmr->pd);\n\tstruct rxe_pd *pd = to_rpd(ibpd);\n\tint err;\n\n\t/* for now only support the two easy cases:\n\t * rereg_pd and rereg_access\n\t */\n\tif (flags & ~RXE_MR_REREG_SUPPORTED) {\n\t\trxe_err_mr(mr, \"flags = %#x not supported\\n\", flags);\n\t\treturn ERR_PTR(-EOPNOTSUPP);\n\t}\n\n\terr = ib_umem_check_rereg(mr->umem, flags, access);\n\tif (err)\n\t\treturn ERR_PTR(err);\n\n\tif (flags & IB_MR_REREG_PD) {\n\t\trxe_put(old_pd);\n\t\trxe_get(pd);\n\t\tmr->ibmr.pd = ibpd;\n\t}\n\n\tif (flags & IB_MR_REREG_ACCESS) {\n\t\tif (access & ~RXE_ACCESS_SUPPORTED_MR) {\n\t\t\trxe_err_mr(mr, \"access = %#x not supported\\n\", access);\n\t\t\treturn ERR_PTR(-EOPNOTSUPP);\n\t\t}\n\t\tmr->access = access;\n\t}\n\n\treturn NULL;\n}\n\nstatic struct ib_mr *rxe_alloc_mr(struct ib_pd *ibpd, enum ib_mr_type mr_type,\n\t\t\t\t  u32 max_num_sg)\n{\n\tstruct rxe_dev *rxe = to_rdev(ibpd->device);\n\tstruct rxe_pd *pd = to_rpd(ibpd);\n\tstruct rxe_mr *mr;\n"
+      }
+    },
+    {
+      "file": "drivers/infiniband/sw/rxe/rxe_verbs.c",
+      "old_start": 1325,
+      "old_end": 1330,
+      "new_start": 1326,
+      "new_end": 1335,
+      "context_hint": "static struct ib_mr *rxe_rereg_user_mr(struct ib_mr *ibmr, int flags,",
+      "added_lines": [
+        "\terr = ib_umem_check_rereg(mr->umem, flags, access);",
+        "\tif (err)",
+        "\t\treturn ERR_PTR(err);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\treturn ERR_PTR(-EOPNOTSUPP);",
+        "\t}",
+        "",
+        "\tif (flags & IB_MR_REREG_PD) {",
+        "\t\trxe_put(old_pd);",
+        "\t\trxe_get(pd);"
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "ib_mr",
+        "err",
+        "ib_umem_check_rereg",
+        "mr",
+        "umem",
+        "flags",
+        "ERR_PTR"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "ib_mr",
+        "snippet_start_line": 1296,
+        "snippet_end_line": 1365,
+        "snippet": "\treturn &mr->ibmr;\n\nerr_cleanup:\n\tcleanup_err = rxe_cleanup(mr);\n\tif (cleanup_err)\n\t\trxe_err_mr(mr, \"cleanup failed, err = %d\\n\", cleanup_err);\nerr_free:\n\tkfree(mr);\n\trxe_err_pd(pd, \"returned err = %d\\n\", err);\n\treturn ERR_PTR(err);\n}\n\nstatic struct ib_mr *rxe_rereg_user_mr(struct ib_mr *ibmr, int flags,\n\t\t\t\t       u64 start, u64 length, u64 iova,\n\t\t\t\t       int access, struct ib_pd *ibpd,\n\t\t\t\t       struct ib_udata *udata)\n{\n\tstruct rxe_mr *mr = to_rmr(ibmr);\n\tstruct rxe_pd *old_pd = to_rpd(ibmr->pd);\n\tstruct rxe_pd *pd = to_rpd(ibpd);\n\tint err;\n\n\t/* for now only support the two easy cases:\n\t * rereg_pd and rereg_access\n\t */\n\tif (flags & ~RXE_MR_REREG_SUPPORTED) {\n\t\trxe_err_mr(mr, \"flags = %#x not supported\\n\", flags);\n\t\treturn ERR_PTR(-EOPNOTSUPP);\n\t}\n\n\terr = ib_umem_check_rereg(mr->umem, flags, access);\n\tif (err)\n\t\treturn ERR_PTR(err);\n\n\tif (flags & IB_MR_REREG_PD) {\n\t\trxe_put(old_pd);\n\t\trxe_get(pd);\n\t\tmr->ibmr.pd = ibpd;\n\t}\n\n\tif (flags & IB_MR_REREG_ACCESS) {\n\t\tif (access & ~RXE_ACCESS_SUPPORTED_MR) {\n\t\t\trxe_err_mr(mr, \"access = %#x not supported\\n\", access);\n\t\t\treturn ERR_PTR(-EOPNOTSUPP);\n\t\t}\n\t\tmr->access = access;\n\t}\n\n\treturn NULL;\n}\n\nstatic struct ib_mr *rxe_alloc_mr(struct ib_pd *ibpd, enum ib_mr_type mr_type,\n\t\t\t\t  u32 max_num_sg)\n{\n\tstruct rxe_dev *rxe = to_rdev(ibpd->device);\n\tstruct rxe_pd *pd = to_rpd(ibpd);\n\tstruct rxe_mr *mr;\n\tint err, cleanup_err;\n\n\tif (mr_type != IB_MR_TYPE_MEM_REG) {\n\t\terr = -EINVAL;\n\t\trxe_dbg_pd(pd, \"mr type %d not supported, err = %d\\n\",\n\t\t\t   mr_type, err);\n\t\tgoto err_out;\n\t}\n\n\tmr = kzalloc_obj(*mr);\n\tif (!mr)\n\t\treturn ERR_PTR(-ENOMEM);\n\n"
+      }
+    },
+    {
+      "file": "include/rdma/ib_umem.h",
+      "old_start": 154,
+      "old_end": 159,
+      "new_start": 154,
+      "new_end": 161,
+      "context_hint": "int ib_umem_dmabuf_map_pages(struct ib_umem_dmabuf *umem_dmabuf);",
+      "added_lines": [
+        "int ib_umem_check_rereg(struct ib_umem *umem, int flags, int new_access_flags);",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "void ib_umem_dmabuf_unmap_pages(struct ib_umem_dmabuf *umem_dmabuf);",
+        "void ib_umem_dmabuf_release(struct ib_umem_dmabuf *umem_dmabuf);",
+        "",
+        "#else /* CONFIG_INFINIBAND_USER_MEM */",
+        "",
+        "#include <linux/err.h>"
+      ],
+      "hunk_id": "HUNK-0008",
+      "changed_symbols": [
+        "ib_umem_dmabuf",
+        "ib_umem_check_rereg",
+        "ib_umem",
+        "umem",
+        "flags",
+        "new_access_flags",
+        "ib_umem_start_dma_addr"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          }
+        ],
+        "surface_reasons": [
+          "public_headers"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ib_umem_dmabuf",
+        "snippet_start_line": 125,
+        "snippet_end_line": 191,
+        "snippet": " * For instance if the HW has multiple page sizes, requires 64 byte alignemnt,\n * and can support aligned offsets up to 4032 then pgoff_bitmask would be\n * \"111111000000\".\n *\n * If the pgoff_bitmask requires either alignment in the low bit or an\n * unavailable page size for the high bits, this function returns 0.\n *\n * Returns: best HW page size for the parameters or 0 if none available\n *   for the given parameters.\n */\nstatic inline unsigned long ib_umem_find_best_pgoff(struct ib_umem *umem,\n\t\t\t\t\t\t    unsigned long pgsz_bitmap,\n\t\t\t\t\t\t    u64 pgoff_bitmask)\n{\n\tdma_addr_t dma_addr;\n\n\tdma_addr = ib_umem_start_dma_addr(umem);\n\treturn ib_umem_find_best_pgsz(umem, pgsz_bitmap,\n\t\t\t\t      dma_addr & pgoff_bitmask);\n}\n\nstatic inline bool ib_umem_is_contiguous(struct ib_umem *umem)\n{\n\tunsigned long pgsz;\n\n\tpgsz = ib_umem_find_best_pgsz(umem, ULONG_MAX,\n\t\t\t\t      ib_umem_start_dma_addr(umem));\n\treturn pgsz && ib_umem_num_dma_blocks(umem, pgsz) == 1;\n}\n\nstruct ib_umem_dmabuf *ib_umem_dmabuf_get(struct ib_device *device,\n\t\t\t\t\t  unsigned long offset, size_t size,\n\t\t\t\t\t  int fd, int access,\n\t\t\t\t\t  const struct dma_buf_attach_ops *ops);\nstruct ib_umem_dmabuf *ib_umem_dmabuf_get_pinned(struct ib_device *device,\n\t\t\t\t\t\t unsigned long offset,\n\t\t\t\t\t\t size_t size, int fd,\n\t\t\t\t\t\t int access);\nstruct ib_umem_dmabuf *\nib_umem_dmabuf_get_pinned_revocable_and_lock(struct ib_device *device,\n\t\t\t\t\t     unsigned long offset, size_t size,\n\t\t\t\t\t     int fd, int access);\nvoid ib_umem_dmabuf_set_revoke_locked(struct ib_umem_dmabuf *umem_dmabuf,\n\t\t\t\t      void (*revoke)(void *priv), void *priv);\nstruct ib_umem_dmabuf *\nib_umem_dmabuf_get_pinned_with_dma_device(struct ib_device *device,\n\t\t\t\t\t  struct device *dma_device,\n\t\t\t\t\t  unsigned long offset, size_t size,\n\t\t\t\t\t  int fd, int access);\nint ib_umem_dmabuf_map_pages(struct ib_umem_dmabuf *umem_dmabuf);\nvoid ib_umem_dmabuf_unmap_pages(struct ib_umem_dmabuf *umem_dmabuf);\nvoid ib_umem_dmabuf_release(struct ib_umem_dmabuf *umem_dmabuf);\nvoid ib_umem_dmabuf_revoke_lock(struct ib_umem_dmabuf *umem_dmabuf);\nvoid ib_umem_dmabuf_revoke_unlock(struct ib_umem_dmabuf *umem_dmabuf);\nvoid ib_umem_dmabuf_revoke(struct ib_umem_dmabuf *umem_dmabuf);\n\nint ib_umem_check_rereg(struct ib_umem *umem, int flags, int new_access_flags);\n\n#else /* CONFIG_INFINIBAND_USER_MEM */\n\n#include <linux/err.h>\n\nstatic inline struct ib_umem *\nib_umem_get_desc(struct ib_device *device,\n\t\t const struct ib_uverbs_buffer_desc *desc, int access)\n{\n\treturn ERR_PTR(-EOPNOTSUPP);\n"
+      }
+    },
+    {
+      "file": "include/rdma/ib_umem.h",
+      "old_start": 203,
+      "old_end": 207,
+      "new_start": 205,
+      "new_end": 215,
+      "context_hint": "static inline int ib_umem_dmabuf_map_pages(struct ib_umem_dmabuf *umem_dmabuf)",
+      "added_lines": [
+        "static inline int ib_umem_check_rereg(struct ib_umem *umem, int flags,",
+        "\t\t\t\t      int new_access_flags)",
+        "{",
+        "\treturn -EOPNOTSUPP;",
+        "}",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "static inline void ib_umem_dmabuf_unmap_pages(struct ib_umem_dmabuf *umem_dmabuf) { }",
+        "static inline void ib_umem_dmabuf_release(struct ib_umem_dmabuf *umem_dmabuf) { }",
+        "",
+        "#endif /* CONFIG_INFINIBAND_USER_MEM */",
+        "#endif /* IB_UMEM_H */",
+        ""
+      ],
+      "hunk_id": "HUNK-0009",
+      "changed_symbols": [
+        "ib_umem_dmabuf",
+        "inline",
+        "ib_umem_check_rereg",
+        "ib_umem",
+        "umem",
+        "flags",
+        "ERR_PTR"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          }
+        ],
+        "surface_reasons": [
+          "public_headers"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ib_umem_dmabuf",
+        "snippet_start_line": 174,
+        "snippet_end_line": 245,
+        "snippet": "int ib_umem_dmabuf_map_pages(struct ib_umem_dmabuf *umem_dmabuf);\nvoid ib_umem_dmabuf_unmap_pages(struct ib_umem_dmabuf *umem_dmabuf);\nvoid ib_umem_dmabuf_release(struct ib_umem_dmabuf *umem_dmabuf);\nvoid ib_umem_dmabuf_revoke_lock(struct ib_umem_dmabuf *umem_dmabuf);\nvoid ib_umem_dmabuf_revoke_unlock(struct ib_umem_dmabuf *umem_dmabuf);\nvoid ib_umem_dmabuf_revoke(struct ib_umem_dmabuf *umem_dmabuf);\n\nint ib_umem_check_rereg(struct ib_umem *umem, int flags, int new_access_flags);\n\n#else /* CONFIG_INFINIBAND_USER_MEM */\n\n#include <linux/err.h>\n\nstatic inline struct ib_umem *\nib_umem_get_desc(struct ib_device *device,\n\t\t const struct ib_uverbs_buffer_desc *desc, int access)\n{\n\treturn ERR_PTR(-EOPNOTSUPP);\n}\nstatic inline struct ib_umem *ib_umem_get_va(struct ib_device *device,\n\t\t\t\t\t     unsigned long addr, size_t size,\n\t\t\t\t\t     int access)\n{\n\treturn ERR_PTR(-EOPNOTSUPP);\n}\nstatic inline struct ib_umem *\nib_umem_get_attr(struct ib_device *device,\n\t\t const struct uverbs_attr_bundle *attrs, u16 attr_id,\n\t\t size_t size, int access)\n{\n\treturn ERR_PTR(-EOPNOTSUPP);\n}\nstatic inline struct ib_umem *\nib_umem_get_attr_or_va(struct ib_device *device,\n\t\t       const struct uverbs_attr_bundle *attrs, u16 attr_id,\n\t\t       u64 addr, size_t size, int access)\n{\n\treturn ERR_PTR(-EOPNOTSUPP);\n}\nstatic inline struct ib_umem *\nib_umem_get_cq_buf(struct ib_device *device,\n\t\t   const struct uverbs_attr_bundle *attrs, size_t size,\n\t\t   int access)\n{\n\treturn ERR_PTR(-EOPNOTSUPP);\n}\nstatic inline struct ib_umem *\nib_umem_get_cq_buf_or_va(struct ib_device *device,\n\t\t\t const struct uverbs_attr_bundle *attrs, u64 addr,\n\t\t\t size_t size, int access)\n{\n\treturn ERR_PTR(-EOPNOTSUPP);\n}\nstatic inline void ib_umem_release(struct ib_umem *umem) { }\nstatic inline int ib_umem_copy_from(void *dst, struct ib_umem *umem, size_t offset,\n\t\t      \t\t    size_t length) {\n\treturn -EOPNOTSUPP;\n}\nstatic inline unsigned long ib_umem_find_best_pgsz(struct ib_umem *umem,\n\t\t\t\t\t\t   unsigned long pgsz_bitmap,\n\t\t\t\t\t\t   u64 virt)\n{\n\treturn 0;\n}\nstatic inline unsigned long ib_umem_find_best_pgoff(struct ib_umem *umem,\n\t\t\t\t\t\t    unsigned long pgsz_bitmap,\n\t\t\t\t\t\t    u64 pgoff_bitmask)\n{\n\treturn 0;\n}\nstatic inline bool ib_umem_is_contiguous(struct ib_umem *umem)\n{\n"
+      }
+    }
+  ]
+}

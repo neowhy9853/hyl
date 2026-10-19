@@ -139,6 +139,13 @@
         "callchain_count": {
           "type": "integer"
         },
+        "affected_scope": {
+          "type": "string",
+          "description": "Relative path to the per-finding affected-scope artifact (reverse dependencies)"
+        },
+        "affected_scope_findings": {
+          "type": "integer"
+        },
         "effective_profile": {
           "type": "string"
         },
@@ -214,7 +221,8 @@
           "old_behavior",
           "new_behavior",
           "compatibility_reason",
-          "evidence"
+          "evidence",
+          "affected_scope"
         ],
         "properties": {
           "id": {
@@ -381,6 +389,110 @@
                   "items": { "type": "string" }
                 }
               }
+            }
+          },
+          "affected_scope": {
+            "type": "object",
+            "description": "Additional code affected by this compatibility change (downstream dependents), computed from the reverse call graph or filled by agent review",
+            "required": ["status", "summary"],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["computed", "degraded", "agent_review", "not_available"]
+              },
+              "method": { "type": "string" },
+              "language": { "type": "string" },
+              "max_depth": { "type": "integer", "minimum": 0 },
+              "direct_callers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["file", "symbol"],
+                  "properties": {
+                    "file": { "type": "string" },
+                    "symbol": { "type": "string" },
+                    "qualname": { "type": "string" },
+                    "line": { "type": "integer" },
+                    "call_lines": { "type": "array", "items": { "type": "integer" } },
+                    "entry_kind": { "type": "string" },
+                    "is_test": { "type": "boolean" }
+                  }
+                }
+              },
+              "transitive_dependents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["file", "symbol", "depth"],
+                  "properties": {
+                    "file": { "type": "string" },
+                    "symbol": { "type": "string" },
+                    "qualname": { "type": "string" },
+                    "line": { "type": "integer" },
+                    "call_lines": { "type": "array", "items": { "type": "integer" } },
+                    "entry_kind": { "type": "string" },
+                    "is_test": { "type": "boolean" },
+                    "depth": { "type": "integer", "minimum": 1 }
+                  }
+                }
+              },
+              "affected_files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["file", "dependent_count", "max_depth"],
+                  "properties": {
+                    "file": { "type": "string" },
+                    "dependent_count": { "type": "integer", "minimum": 0 },
+                    "max_depth": { "type": "integer", "minimum": 0 },
+                    "entry_kinds": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              },
+              "affected_entry_points": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["entry_kind", "entry"],
+                  "properties": {
+                    "entry_kind": { "type": "string" },
+                    "entry": { "type": "string" },
+                    "file": { "type": "string" },
+                    "symbol": { "type": "string" },
+                    "depth": { "type": "integer", "minimum": 1 }
+                  }
+                }
+              },
+              "test_dependents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["file", "symbol", "depth"],
+                  "properties": {
+                    "file": { "type": "string" },
+                    "symbol": { "type": "string" },
+                    "line": { "type": "integer" },
+                    "depth": { "type": "integer", "minimum": 1 }
+                  }
+                }
+              },
+              "external_dependents": {
+                "type": "array",
+                "description": "Out-of-tree or profile-declared downstream consumers (agent review)",
+                "items": {
+                  "type": "object",
+                  "required": ["kind", "name", "evidence"],
+                  "properties": {
+                    "kind": { "type": "string" },
+                    "name": { "type": "string" },
+                    "file": { "type": "string" },
+                    "evidence": { "type": "string" },
+                    "distance": { "type": "integer" }
+                  }
+                }
+              },
+              "summary": { "type": "string" },
+              "notes": { "type": "array", "items": { "type": "string" } }
             }
           },
           "why_not_internal_only": {

@@ -1,0 +1,148 @@
+{
+  "shard_id": "SHARD-0011",
+  "surface": "plugin_api",
+  "analysis_mode": "heavy",
+  "limits": {
+    "max_hunks": 12,
+    "max_files": 8,
+    "max_context_bytes": 80000,
+    "max_symbols": 20
+  },
+  "candidate_indexes": [
+    36
+  ],
+  "hunk_ids": [
+    "HUNK-0052"
+  ],
+  "files": [
+    "plugins/imudp/imudp.c"
+  ],
+  "symbols": [
+    "assert",
+    "frominetPrev",
+    "lstn",
+    "lstnPrev",
+    "pWrkr",
+    "processSocket",
+    "wrkrInfo_s"
+  ],
+  "metrics": {
+    "hunks": 1,
+    "context_bytes": 3363
+  },
+  "candidates": [
+    {
+      "file": "plugins/imudp/imudp.c",
+      "old_start": 993,
+      "old_end": 999,
+      "new_start": 1028,
+      "new_end": 1034,
+      "context_hint": "static rsRetVal ATTR_NONNULL() rcvMainLoop(struct wrkrInfo_s *const __restrict__",
+      "added_lines": [
+        "                    processSocket(pWrkr, lstn, &frominetPrev, &lstnPrev, &bIsPermitted);"
+      ],
+      "deleted_lines": [
+        "                    processSocket(pWrkr, lstn, &frominetPrev, &bIsPermitted);"
+      ],
+      "context_lines": [
+        "            if (lstn->sock != -1) {",
+        "                if (glbl.GetGlobalInputTermState() == 1) ABORT_FINALIZE(RS_RET_FORCE_TERM); /* terminate input! */",
+        "                if (pollfds[i].revents & POLLIN) {",
+        "                    --nfds;",
+        "                }",
+        "                ++i;"
+      ],
+      "hunk_id": "HUNK-0052",
+      "changed_symbols": [
+        "wrkrInfo_s",
+        "processSocket",
+        "pWrkr",
+        "lstn",
+        "frominetPrev",
+        "lstnPrev",
+        "assert"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "plugin_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Plugin or module API"
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "module_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Input/output/parser module API"
+          },
+          {
+            "name": "config_language",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "rsyslog.conf and RainerScript parsing semantics"
+          },
+          {
+            "name": "daemon_interfaces",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Daemon input/output module runtime behavior"
+          }
+        ],
+        "surface_reasons": [
+          "plugin_api",
+          "logging",
+          "module_api",
+          "config_language",
+          "daemon_interfaces"
+        ],
+        "profile": "rsyslog",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "wrkrInfo_s",
+        "snippet_start_line": 964,
+        "snippet_end_line": 1064,
+        "snippet": "finalize_it:\n    if (udpEPollEvt != NULL) free(udpEPollEvt);\n\n    RETiRet;\n}\n#else /* #if HAVE_EPOLL_CREATE1 */\n/* this is the code for the select() interface */\nstatic rsRetVal ATTR_NONNULL() rcvMainLoop(struct wrkrInfo_s *const __restrict__ pWrkr) {\n    DEFiRet;\n    int nfds;\n    struct sockaddr_storage frominetPrev;\n    struct lstn_s *lstnPrev;\n    int bIsPermitted;\n    int i = 0;\n    struct lstn_s *lstn;\n\n    DBGPRINTF(\"imudp uses poll() [ex-select]\\n\");\n    /* start \"name caching\" algo by making sure the previous system indicator\n     * is invalidated. */\n    bIsPermitted = 0;\n    lstnPrev = NULL;\n    memset(&frominetPrev, 0, sizeof(frominetPrev));\n\n    /* setup poll() subsystem */\n    int nfd = 0;\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) {\n        if (lstn->sock != -1) {\n            if (Debug) {\n                net.debugListenInfo(lstn->sock, (char *)\"UDP\");\n            }\n            ++nfd;\n        }\n    }\n    struct pollfd *const pollfds = calloc(nfd, sizeof(struct pollfd));\n    CHKmalloc(pollfds);\n\n    for (lstn = lcnfRoot; lstn != NULL; lstn = lstn->next) {\n        assert(i < nfd);\n        if (lstn->sock != -1) {\n            pollfds[i].fd = lstn->sock;\n            pollfds[i].events = POLLIN;\n            ++i;\n        }\n    }\n\n    while (1) {\n        DBGPRINTF(\"--------imudp calling poll() on %d fds\\n\", nfd);\n        nfds = poll(pollfds, nfd, -1);\n        if (glbl.GetGlobalInputTermState() == 1) break; /* terminate input! */\n\n        if (nfds < 0) {\n            if (errno == EINTR) {\n                DBGPRINTF(\"imudp: EINTR occurred\\n\");\n            } else {\n                LogMsg(errno, RS_RET_POLL_ERR, LOG_WARNING,\n                       \"imudp: poll \"\n                       \"system call failed, may cause further troubles\");\n            }\n            nfds = 0;\n        }\n\n        i = 0;\n        for (lstn = lcnfRoot; nfds && lstn != NULL; lstn = lstn->next) {\n            assert(i < nfd);\n            if (lstn->sock != -1) {\n                if (glbl.GetGlobalInputTermState() == 1) ABORT_FINALIZE(RS_RET_FORCE_TERM); /* terminate input! */\n                if (pollfds[i].revents & POLLIN) {\n                    processSocket(pWrkr, lstn, &frominetPrev, &lstnPrev, &bIsPermitted);\n                    --nfds;\n                }\n                ++i;\n            }\n        }\n        /* end of a run, back to loop for next recv() */\n    }\n\nfinalize_it:\n    RETiRet;\n}\n#endif /* #if HAVE_EPOLL_CREATE1 */\n\n\nstatic rsRetVal createListner(es_str_t *port, struct cnfparamvals *pvals) {\n    instanceConf_t *inst;\n    int i;\n    int bAppendPortUsed = 0;\n    DEFiRet;\n\n    CHKiRet(createInstance(&inst));\n    CHKmalloc(inst->pszBindPort = (uchar *)es_str2cstr(port, NULL));\n    for (i = 0; i < inppblk.nParams; ++i) {\n        if (!pvals[i].bUsed) continue;\n        if (!strcmp(inppblk.descr[i].name, \"port\")) {\n            continue; /* array, handled by caller */\n        } else if (!strcmp(inppblk.descr[i].name, \"listenportfilename\")) {\n            CHKmalloc(inst->pszLstnPortFileName = (uchar *)es_str2cstr(pvals[i].val.d.estr, NULL));\n        } else if (!strcmp(inppblk.descr[i].name, \"name\")) {\n            if (inst->inputname != NULL) {\n                LogError(0, RS_RET_INVALID_PARAMS,\n                         \"imudp: name and inputname \"\n                         \"parameter specified - only one can be used\");\n"
+      }
+    }
+  ],
+  "instructions": "Analyze only candidates in this shard. Use the repository paths from analysis.json. Do not infer compatibility findings from other shards. Emit confirmed findings only; use manual_review_required when a cross-shard dependency is needed."
+}

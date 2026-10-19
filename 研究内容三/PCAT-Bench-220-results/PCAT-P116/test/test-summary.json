@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P056/analysis.json",
+  "patch_id": "8e14f88e25192080ac237cb64be452c592c1e4fe",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P056/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+    "base_commit": "902b38d33a9761eba12c6a53e13c6fb89a167b39",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P056/_worktrees/patched",
+    "package_profile": "c_project"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "blocked",
+    "after_build": "passed",
+    "compiler": "GCC 11",
+    "optimization": "-O0",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Patched library built with coverage instrumentation after fixing glib header includes (soup-status.h, soup-types.h updated to include <glib.h> instead of sub-headers).",
+      "Baseline (before) build not available due to autotools/glib compatibility issues in base commit; contract verification limited to signal-count assertions.",
+      "Tests linked with libsoup-2.4.so shared library with libtool-based link commands; LIBS variable in tests/Makefile amended to include transitive GLib dependencies.",
+      "CONNECT tunnel message path (line 798) not covered - requires HTTP CONNECT proxy setup."
+    ]
+  },
+  "summary": {
+    "findings_total": 2,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 3,
+    "inputs_executed": 3,
+    "contracts_total": 2,
+    "contracts_passed": 1,
+    "contracts_breached": 0,
+    "contracts_skipped": 1,
+    "patch_executable_lines": 5,
+    "patch_lines_covered": 4,
+    "patch_lines_uncovered": 1,
+    "patch_line_coverage_rate": 80.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "status": "partial",
+      "target_location": {
+        "file": "libsoup/soup-session.c",
+        "new_lines": [1065, 1094],
+        "symbol": "queue_message"
+      },
+      "entries": [
+        {
+          "entry_id": "TE-0001",
+          "status": "passed",
+          "artifact_path": "test_entry_work/PCA-TE-0002/coverage_test.c",
+          "run_command": "LD_LIBRARY_PATH=<libdir> ./coverage_test",
+          "expected_signal": "gcov coverage hits on g_signal_emit lines for REQUEST_QUEUED and REQUEST_UNQUEUED",
+          "reachability_signal": "gcov output confirms 3 hits on both queue_message g_signal_emit (line 1091) and message_finished g_signal_emit (line 1069)"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "side_effect_manifest_stability",
+          "status": "passed",
+          "detail": "Signal emission verified: request-queued emitted exactly once per queued message (3 hits), request-unqueued emitted exactly once per finished message (3 hits). Signal registration also confirmed with 1 hit each."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 5,
+        "covered_lines": 4,
+        "uncovered_lines": [
+          "libsoup/soup-session.c:798 g_signal_emit REQUEST_QUEUED in connection_started_request (CONNECT tunnel path)"
+        ],
+        "rate": 80.0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "PCA-0001 (API_SIGNATURE_CHANGE) not targeted for testing per --min-priority high; PCA-0001 is medium priority (additive API).",
+        "Signal emission contract verified via custom test harness with in-process SoupServer.",
+        "CONNECT tunnel path uncovered: requires HTTP proxy with CONNECT method support."
+      ]
+    }
+  ],
+  "blocked_or_not_run": [],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test_entry_work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "_worktrees/patched/libsoup/.libs/*.gcda",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "compatible",
+    "coverage_gate_met": true,
+    "rationale": "Two new GObject signals (request-queued, request-unqueued) are additive API additions that do not break existing API consumers. Coverage testing confirms: (1) signal registration code is executed, (2) signal emission in queue_message and message_finished occurs correctly with 1 signal per message lifecycle event. 80% patch line coverage achieved (4/5 executable lines). CONNECT tunnel path uncovered but is an edge case for proxy CONNECT usage only.",
+    "recommended_actions": [
+      "Test GObject introspection bindings to verify language bindings can discover new request-queued/unqueued signals.",
+      "Verify signal ID shift (REQUEST_STARTED now at index 1 instead of 0) does not break downstream code with hardcoded signal indices.",
+      "Test CONNECT proxy tunnel path for completeness of REQUEST_QUEUED emission coverage."
+    ]
+  }
+}

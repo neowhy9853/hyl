@@ -1,0 +1,60 @@
+{
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "api_harness",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0001/probe_parse_config_h.py",
+      "run_command": "{VERSION_DIR}/bin/python3 test-entry-work/PCA-0001/probe_parse_config_h.py",
+      "target_location": {
+        "file": "Lib/sysconfig/__init__.py",
+        "new_lines": [437, 453],
+        "symbol": "parse_config_h"
+      },
+      "reachability_signal": "Script imports sysconfig.parse_config_h and calls it with mock config.h data; exit code 0 = all assertions passed (after behavior); exit code non-zero = assertion failed",
+      "expected_signal": "exit_code: 0 for 'after' (patched), non-zero for 'before' (unpatched) when testing quote-stripping assertion",
+      "execution": {
+        "cwd": "result_dir",
+        "timeout_seconds": 30,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Mock config.h content with #define PY_BUILTIN_HASHLIB_HASHES \"md5,sha1,sha256\" and other string defines to test quote stripping behavior",
+      "contract_probe": {
+        "probe_id": "parse_config_h_return_contract",
+        "comparison": "exit_code",
+        "cwd": "result_dir",
+        "timeout_seconds": 30
+      },
+      "limitations": "Requires built Python binary. The probe tests direct API behavior, not the build-time sysconfigdata generation effect."
+    },
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0002",
+      "entry_kind": "project_native_regression_test",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0001/run_native_test.sh",
+      "run_command": "{VERSION_DIR}/bin/python3 -m test test_sysconfig -v test_PY_BUILTIN_HASHLIB_HASHES_in_vars",
+      "target_location": {
+        "file": "Lib/test/test_sysconfig.py",
+        "new_lines": [576, 587],
+        "symbol": "test_PY_BUILTIN_HASHLIB_HASHES_in_vars"
+      },
+      "reachability_signal": "test_PY_BUILTIN_HASHLIB_HASHES_in_vars runs, asserts vars['PY_BUILTIN_HASHLIB_HASHES'].startswith('\"') is False",
+      "expected_signal": "exit_code: 0 for 'after' (built with patch, no quotes), non-zero for 'before' (built without patch, quotes present)",
+      "execution": {
+        "cwd": "VERSION_DIR",
+        "timeout_seconds": 60,
+        "uses_clean_source_copy": false
+      },
+      "input_strategy": "Run the project's native test that was added as part of the patch",
+      "contract_probe": {
+        "probe_id": "native_test_sysconfig",
+        "comparison": "exit_code",
+        "cwd": "VERSION_DIR",
+        "timeout_seconds": 60
+      },
+      "limitations": "Requires full CPython build. The test only runs on builds where PY_BUILTIN_HASHLIB_HASHES is defined."
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040/analysis.json",
+  "patch_id": "ba760c38b38b4fc5377f30bea492deba5f17df60",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040/compatibility-testing",
+  "status": "blocked",
+  "coverage_gate": 80.0,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux",
+    "base_commit": "1229e2e57a5c2980ccd457b9b53ea0eed5a22ab3",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040/_worktrees/patched",
+    "package_profile": "kernel_6_6"
+  },
+  "environment": {
+    "kind": "not_available",
+    "before_build": "not_run",
+    "after_build": "not_run",
+    "compiler": "gcc",
+    "optimization": "none",
+    "coverage_tool": "gcov (kernel)",
+    "notes": [
+      "Kernel-level testing requires kernel build with CONFIG_GCOV_KERNEL=y, CONFIG_BT=y, CONFIG_BT_MGMT=y",
+      "GCOV_PROFILE_mgmt.o := y needed in net/bluetooth/Makefile",
+      "QEMU VM needed with Bluetooth virtual HCI device (hci_vhci module)",
+      "User-space reproducer C program compiled and verified but cannot execute without kernel MGMT socket support"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 0,
+    "inputs_planned": 4,
+    "inputs_executed": 0,
+    "contracts_total": 1,
+    "contracts_passed": 0,
+    "contracts_breached": 0,
+    "contracts_skipped": 1,
+    "patch_executable_lines": 3,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 3,
+    "patch_line_coverage_rate": 0.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "status": "blocked",
+      "target_location": {
+        "file": "net/bluetooth/mgmt.c",
+        "new_lines": [9147, 9149],
+        "symbol": "add_ext_adv_data"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "blocked_not_run",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+          "run_command": "sudo bash test-entry-work/PCA-0001/reproducer.sh",
+          "expected_signal": "test 1 (exact_len=6): ACCEPTED; test 2 (extra_len=7): ACCEPTED after patch (was REJECTED before); test 3 (short_len=5): REJECTED with MGMT_STATUS_INVALID_PARAMS; test 4 (min_len=3): ACCEPTED",
+          "reachability_signal": "Test 2 receiving MGMT_STATUS_SUCCESS instead of MGMT_STATUS_INVALID_PARAMS proves the '>' comparison at mgmt.c line 9149 was executed and extra bytes tolerated. gcov should confirm line 9149 coverage."
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "backward_input_acceptance",
+          "status": "skipped",
+          "detail": "Kernel VM environment not available. Contract verifies that inputs previously rejected by exact != check (e.g. data_len=7 when expected=6) are now accepted. Requires running kernel with CONFIG_BT=y, CONFIG_BT_MGMT=y."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 3,
+        "covered_lines": 0,
+        "uncovered_lines": ["9147", "9148", "9149"],
+        "rate": 0.0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Patch changes input validation from '!=' to '>' for MGMT_OP_ADD_EXT_ADV_DATA length check",
+        "Reproducer C program (mgmt_reproducer.c) compiled and validated syntactically",
+        "Four test cases cover: exact match (6), extra bytes (7), too short (5), min size (3)",
+        "Cannot run in current environment — needs kernel with Bluetooth MGMT + GCOV instrumentation"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "BLOCKER-0001",
+      "reason": "Kernel-level Bluetooth MGMT testing requires a running Linux kernel with CONFIG_BT=y, CONFIG_BT_MGMT=y, and a Bluetooth HCI device (real or virtual via hci_vhci). No such environment is available on the current host.",
+      "required_action": "Build kernel from analysis_repo with CONFIG_GCOV_KERNEL=y, CONFIG_BT=y, CONFIG_BT_MGMT=y, GCOV_PROFILE_mgmt.o := y. Boot in QEMU VM with hci_vhci module. Run: sudo bash test-entry-work/PCA-0001/reproducer.sh"
+    },
+    {
+      "scope": "build",
+      "id": "BLOCKER-0002",
+      "reason": "Kernel before/after builds with gcov instrumentation require full kernel compilation with Kconfig changes and subsystem Makefile modifications, plus QEMU VM image. Not attempted without explicit authorization for large build operations and VM image downloads.",
+      "required_action": "Configure kernel with 'scripts/config -e GCOV_KERNEL'. Add 'GCOV_PROFILE_mgmt.o := y' to net/bluetooth/Makefile. Build with 'make -j$(nproc)'. Set up QEMU VM with the instrumented kernel."
+    }
+  ],
+  "artifacts": {
+    "impact_map": "test-entry-tasks.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "test-entry-work/PCA-0001/mgmt_reproducer.c",
+    "execution_results": "test-entry-work/test-entry-verification.json",
+    "contract_summary": "contracts mentioned in finding_results",
+    "coverage_data": "not_available — kernel gcov data requires VM execution",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": false,
+    "rationale": "静态分析确认存在 1 个 INPUT_CONTRACT_CHANGE (HIGH priority)。补丁将 MGMT_OP_ADD_EXT_ADV_DATA 的长度校验从精确匹配 (!=) 放宽为上限检查 (>)，恢复与旧版 bluetoothd 的向后兼容性。测试入口 C 程序和 shell 包装已生成并通过语法编译验证。由于当前环境缺少带 Bluetooth MGMT 支持的运行内核和 GCOV 插桩构建，动态测试尚未执行。补丁逻辑简单明确（单条件变更），且 commit message 明确标明为 backward compatibility 修复，兼容性影响方向清晰。",
+    "recommended_actions": [
+      "在配备 Bluetooth HCI 设备或 hci_vhci 模块的内核环境中运行测试入口: sudo bash test-entry-work/PCA-0001/reproducer.sh",
+      "使用 kernel gcov 插桩构建以验证补丁行覆盖率: 在 net/bluetooth/Makefile 中添加 GCOV_PROFILE_mgmt.o := y",
+      "验证 bluetoothd 在打补丁内核上的 MGMT_OP_ADD_EXT_ADV_DATA 行为，确认不再收到 MGMT_STATUS_INVALID_PARAMS 错误",
+      "对比 before/after 内核：旧内核应拒绝 data_len=7（预期=6）的请求，新内核应接受"
+    ]
+  }
+}

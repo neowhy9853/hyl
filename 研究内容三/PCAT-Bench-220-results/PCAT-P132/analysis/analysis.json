@@ -1,0 +1,623 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/httpd",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P072/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P072",
+  "base_ref": "21491b21577c68858b3cc02c21e3db88f0a30bb1^",
+  "base_commit": "e54735bf82e02278dc70eb80d931a748a81e8ce8",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "21491b21577c68858b3cc02c21e3db88f0a30bb1",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/apache/httpd/commit/21491b21577c68858b3cc02c21e3db88f0a30bb1",
+    "download_url": "https://github.com/apache/httpd/commit/21491b21577c68858b3cc02c21e3db88f0a30bb1.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P072/_patch-cache/21491b21577c.patch",
+    "commit": "21491b21577c68858b3cc02c21e3db88f0a30bb1",
+    "base_ref_inferred": "21491b21577c68858b3cc02c21e3db88f0a30bb1^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "httpd",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "soft threshold exceeded",
+    "churn=382 >= 250"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 20624,
+    "patch_lines": 546,
+    "diff_added_lines": 273,
+    "diff_deleted_lines": 109,
+    "diff_context_lines": 103,
+    "churn": 382,
+    "raw_hunks": 13,
+    "candidate_hunks": 12,
+    "skipped_doc_hunks": 1,
+    "changed_files": 5,
+    "candidate_context_bytes": 34167,
+    "public_candidate_hunks": 12,
+    "surface_counts": {
+      "cli_options": 1,
+      "config_keys": 9,
+      "cli": 1,
+      "plugin_api": 12,
+      "network_protocol": 7,
+      "module_api": 12,
+      "config_directives": 3,
+      "request_handling": 12,
+      "persistence_state": 6,
+      "user_visible_output": 6,
+      "logging": 4,
+      "environment_variables": 1,
+      "env_vars": 1,
+      "public_headers": 4
+    },
+    "candidates_json_bytes": 99576
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 6
+  },
+  "summary": {
+    "total_changed_files": 5,
+    "total_candidates": 12,
+    "compatibility_changes": 3,
+    "high_priority": 2,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "httpd",
+      "affected_surface": "Configuration directive SSLVHostSNIPolicy, server config context, global-only, TAKE1 argument",
+      "affected_api": {
+        "name": "SSLVHostSNIPolicy",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/ssl/mod_ssl.c",
+        "old_lines": [
+          95,
+          100
+        ],
+        "new_lines": [
+          98,
+          99
+        ],
+        "symbol": "ssl_config_cmds / VHostSNIPolicy"
+      },
+      "old_behavior": "No SSLVHostSNIPolicy directive existed. The only SNI-related config directive was SSLStrictSNIVHostCheck (per-vhost boolean flag, default off), which when enabled forced the vhost selected by SNI to match the Host header vhost exactly. All SNI-to-Host compatibility was checked unconditionally using ssl_server_compatible() which compared protocol, verify_depth, verify_mode, ca cert files, cipher suite, cert_files, and key_files at request time.",
+      "new_behavior": "New SSLVHostSNIPolicy directive (global-only, server context) accepts 'strict', 'secure' (default), 'authonly', or 'insecure'. The default 'secure' mode precomputes an MD5 hash at init time that covers all auth-related settings PLUS CRL, OCSP, OpenSSLConfCmd, and SRP settings - more fields than the old ssl_server_compatible(). The hash is then compared between SNI-selected and Host-selected vhosts at request time.",
+      "compatibility_reason": "A new configuration directive changes the interface contract for administrators. Existing configurations gain a new default behavior (secure mode) that may be more restrictive than the old implicit behavior. The directive has 4 valid arguments that users must learn; invalid arguments produce a new error message format (apr_psprintf). The directive is GLOBAL_ONLY - it cannot be used in VirtualHost or directory context. Users upgrading from older httpd versions will find a new config option that controls SNI vhost compatibility and need to understand its semantics.",
+      "evidence": [
+        {
+          "file": "modules/ssl/mod_ssl.c",
+          "lines": [
+            95,
+            99
+          ],
+          "snippet": "    SSL_CMD_SRV(RandomSeed, TAKE23,\n                \"SSL Pseudo Random Number Generator (PRNG) seeding source \"\n                \"('startup|connect builtin|file:/path|exec:/path [bytes]')\")\n    SSL_CMD_SRV(VHostSNIPolicy, TAKE1,\n                \"SSL VirtualHost SNI compatibility policy setting\")"
+        },
+        {
+          "file": "modules/ssl/ssl_engine_config.c",
+          "lines": [
+            2044,
+            2080
+          ],
+          "snippet": "const char *ssl_cmd_SSLVHostSNIPolicy(cmd_parms *cmd, void *dcfg, const char *arg)\n{\n#ifdef HAVE_TLSEXT\n    SSLModConfigRec *mc = myModConfig(cmd->server);\n    const char *err;\n\n    if ((err = ap_check_cmd_context(cmd, GLOBAL_ONLY))) {\n        return err;\n    }\n    if (!mc) {\n        return \"SSLVHostSNIPolicy cannot be used inside SSLPolicyDefine\";\n    }\n\n    if (strcEQ(arg, \"secure\")) {\n        mc->snivh_policy = MODSSL_SNIVH_SECURE;\n    }\n    else if (strcEQ(arg, \"strict\")) {\n        mc->snivh_policy = MODSSL_SNIVH_STRICT;\n    }\n    else if (strcEQ(arg, \"insecure\")) {\n        mc->snivh_policy = MODSSL_SNIVH_INSECURE;\n    }\n    else if (strcEQ(arg, \"authonly\")) {\n        mc->snivh_policy = MODSSL_SNIVH_AUTHONLY;\n    }\n    else {\n        return apr_psprintf(cmd->pool, \"Invalid SSLVhostSNIPolicy \"\n                            \"argument '%s'\", arg);\n    }\n\n    return NULL;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "SSLVHostSNIPolicy is a public configuration directive registered in the ssl_config_cmds[] command table. It is documented in mod_ssl.xml. Administrators configure this directive in their httpd.conf; invalid arguments produce user-visible error messages during configuration parsing. This is the primary user-facing interface for the new feature.",
+      "uncertainty": "The directive accepts only lowercase arguments (strcEQ is case-sensitive). The documentation uses lowercase examples. No uncertainty about the directive's existence or argument set.",
+      "manual_review_required": false,
+      "recommended_review": "Verify the documentation in docs/manual/mod/mod_ssl.xml correctly describes all four modes. Confirm the default 'secure' mode description matches the actual hash computation.",
+      "test_recommendation": "Test startup with SSLVHostSNIPolicy set to each of the 4 valid values and verify httpd starts. Test with invalid argument to verify error message. Test with the directive in a non-global context to verify GLOBAL_ONLY enforcement. Test without the directive to verify default 'secure' behavior.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "modules/ssl/mod_ssl.c",
+            "old_lines": [
+              95,
+              100
+            ],
+            "new_lines": [
+              95,
+              102
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "config_keys",
+              "cli",
+              "plugin_api",
+              "network_protocol",
+              "module_api",
+              "config_directives",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "cli",
+                "test_priority": "medium",
+                "public": true,
+                "description": "httpd and support utility command-line behavior"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "config_directives",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration directive parsing and behavior"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "httpd",
+      "affected_surface": "Runtime SNI vhost compatibility checking behavior under default (secure) policy",
+      "affected_api": {
+        "name": "ssl_check_vhost_sni_policy / hash_sni_policy_auth / hash_sni_policy_pk",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/ssl/ssl_engine_init.c",
+        "old_lines": [
+          563,
+          568
+        ],
+        "new_lines": [
+          399,
+          433
+        ],
+        "symbol": "hash_sni_policy_auth"
+      },
+      "old_behavior": "The old ssl_server_compatible() and its callees (ssl_ctx_compatible, ssl_auth_compatible, ssl_pk_server_compatible) compared at request time: protocol version, verify_depth, verify_mode, ca_cert_path, ca_cert_file, cipher_suite, tls13_ciphers, ca_name_path, ca_name_file, cert_files array equality, key_files array equality. CRL settings (crl_path, crl_file, crl_check_mask), OCSP settings (ocsp_mask, ocsp_force_default, ocsp_responder), SRP verifier files, and SSLOpenSSLConfCmd parameters were NOT compared. Vhosts differing only in these settings were considered compatible.",
+      "new_behavior": "Under the default 'secure' policy, hash_sni_policy_auth() computes an MD5 hash that includes ALL auth settings: verify_depth, verify_mode, ca_name_path, ca_name_file, ca_cert_path, ca_cert_file, crl_path, crl_file, crl_check_mask, ocsp_mask, ocsp_force_default, ocsp_responder, srp_vfile, and SSLOpenSSLConfCmd parameters. This hash is compared between SNI vhost and Host vhost. Vhosts differing in any of the newly-added fields (CRL, OCSP, OpenSSLConfCmd, SRP) now produce HTTP 421 Misdirected Request.",
+      "compatibility_reason": "With the default 'secure' policy, the compatibility check is now MORE RESTRICTIVE than before. Existing deployments where vhosts differ in CRL paths, OCSP responder URLs, OCSP check masks, or OpenSSLConfCmd parameters - which previously worked correctly - will now receive HTTP 421 errors for cross-vhost requests. This is a runtime behavior change triggered by default configuration. The impact is that requests routed to a different vhost than the SNI-selected vhost will be blocked if any of the newly-compared settings differ.",
+      "evidence": [
+        {
+          "file": "modules/ssl/ssl_engine_init.c",
+          "lines": [
+            399,
+            433
+          ],
+          "snippet": "static void hash_sni_policy_auth(apr_md5_ctx_t *hash, modssl_ctx_t *ctx)\n{\n    modssl_pk_server_t *pks = ctx->pks;\n    modssl_auth_ctx_t *a = &ctx->auth;\n\n    md5_fmt_update(hash, \"verify_depth:%d\", a->verify_depth);\n    md5_fmt_update(hash, \"verify_mode:%d\", a->verify_mode);\n\n    md5_ifstr_update(hash, \"ca_name_path:\", pks->ca_name_path);\n    md5_ifstr_update(hash, \"ca_name_file:\", pks->ca_name_file);\n    md5_ifstr_update(hash, \"ca_cert_path:\", a->ca_cert_path);\n    md5_ifstr_update(hash, \"ca_cert_file:\", a->ca_cert_file);\n    md5_ifstr_update(hash, \"crl_path:\", ctx->crl_path);\n    md5_ifstr_update(hash, \"crl_file:\", ctx->crl_file);\n    md5_fmt_update(hash, \"crl_check_mask:%d\", ctx->crl_check_mask);\n    md5_fmt_update(hash, \"ocsp_mask:%d\", ctx->ocsp_mask);\n    md5_fmt_update(hash, \"ocsp_force_default:%d\", ctx->ocsp_force_default);\n    md5_ifstr_update(hash, \"ocsp_responder:\", ctx->ocsp_responder);\n\n#ifdef HAVE_SRP\n    md5_ifstr_update(hash, \"srp_vfile:\", ctx->srp_vfile);\n#endif\n\n#ifdef HAVE_SSL_CONF_CMD\n    {\n        apr_array_header_t *parms = ctx->ssl_ctx_param;\n        int n;\n\n        for (n = 0; n < parms->nelts; n++) {\n            ssl_ctx_param_t *p = &APR_ARRAY_IDX(parms, n, ssl_ctx_param_t);\n\n            md5_str_update(hash, \"param:\", p->name);\n            md5_str_update(hash, \"value:\", p->value);\n        }\n    }\n#endif\n}"
+        },
+        {
+          "file": "modules/ssl/ssl_engine_kernel.c",
+          "lines": [
+            237,
+            250
+          ],
+          "snippet": "        /* Enforce SSL SNI vhost compatibility policy. */\n        if (!ssl_check_vhost_sni_policy(sc, hssc)) {\n            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02032)\n                         \"Hostname %s %s and hostname %s provided\"\n                         \" via HTTP have no compatible SSL setup for policy '%s'\",\n                         servername ? servername : handshakeserver->server_hostname,\n                         servername ? \"provided via SNI\" : \"(default host as no SNI was provided)\",\n                          r->hostname, MODSSL_SNIVH_NAME(sc->mc->snivh_policy));\n            return HTTP_MISDIRECTED_REQUEST;"
+        },
+        {
+          "file": "modules/ssl/ssl_engine_config.c",
+          "lines": [
+            60,
+            65
+          ],
+          "snippet": "#ifdef HAVE_TLSEXT\n    mc->snivh_policy           = MODSSL_SNIVH_SECURE;\n#endif"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The change affects runtime HTTP request dispatching. When SNI and Host header select different vhosts, the behavior of whether the request succeeds (HTTP 200) or fails (HTTP 421) depends on the hash comparison. This is an externally observable side effect: the same request to the same httpd can produce different HTTP status codes after the patch, with no configuration change. The trigger is vhosts that differ in CRL/OCSP/OpenSSLConfCmd settings, which is a realistic production configuration scenario.",
+      "uncertainty": "The actual behavioral impact depends on whether the old ssl_server_compatible functions had subtle differences beyond the field list. The hash function skips NULL strings with md5_ifstr_update, matching the old code's pattern of checking (!p1 || !p2) before strcmp. However, the old code used per-field comparison while the new code uses MD5 collision-based matching - functionally equivalent but architecturally different. The exact set of SSLOpenSSLConfCmd parameters being hashed may vary between OpenSSL versions.",
+      "manual_review_required": true,
+      "recommended_review": "Manually verify that the hash_sni_policy_auth function covers ALL fields that could cause a security-sensitive mismatch. Specifically confirm that the transform from per-field comparison (old code) to hash-based comparison (new code) does not miss any edge case like NULL vs empty-string handling. Verify that the SSLOpenSSLConfCmd params loop covers all relevant parameters.",
+      "test_recommendation": "Set up two vhosts with SNI that differ ONLY in CRL path, OCSP responder URL, or SSLOpenSSLConfCmd settings. Send HTTPS requests with matching SNI and mismatching Host header. Verify HTTP 421 is returned under default 'secure' policy. Then repeat with SSLVHostSNIPolicy set to 'authonly' to verify the same request passes. Finally set to 'insecure' to verify all requests pass regardless.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "modules/ssl/ssl_engine_init.c",
+            "old_lines": [
+              297,
+              302
+            ],
+            "new_lines": [
+              297,
+              406
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "network_protocol",
+              "module_api",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "modules/ssl/ssl_engine_init.c",
+            "old_lines": [
+              563,
+              568
+            ],
+            "new_lines": [
+              667,
+              674
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "environment_variables",
+              "config_keys",
+              "user_visible_output",
+              "env_vars",
+              "plugin_api",
+              "logging",
+              "network_protocol",
+              "persistence_state",
+              "module_api",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "environment_variables",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Environment-variable configuration behavior."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "env_vars",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Environment variable behavior"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "persistence_state",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Persistent or externally observable daemon state."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "httpd",
+      "affected_surface": "Error log message format for SNI vhost incompatibility (APLOGNO 02032)",
+      "affected_api": {
+        "name": "ap_log_rerror / ssl_hook_ReadReq error path",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "modules/ssl/ssl_engine_kernel.c",
+        "old_lines": [
+          328,
+          337
+        ],
+        "new_lines": [
+          243,
+          245
+        ],
+        "symbol": "ssl_hook_ReadReq"
+      },
+      "old_behavior": "When SNI vhost and Host header vhost were incompatible, the error log message was: \"Hostname %s %s and hostname %s provided via HTTP have no compatible SSL setup\" (APLOGNO 02032). Format string: 3 arguments (servername_or_default, via_sni_or_default, hostname).",
+      "new_behavior": "Error log message now: \"Hostname %s %s and hostname %s provided via HTTP have no compatible SSL setup for policy '%s'\" (same APLOGNO 02032). Format string: 4 arguments with an additional MODSSL_SNIVH_NAME(sc->mc->snivh_policy) argument that expands to 'strict', 'secure', 'authonly', or 'insecure'.",
+      "compatibility_reason": "The error log message format string has changed. Any log parsing or monitoring tools that match the exact format string \"have no compatible SSL setup\" will still match because the core message is appended with \"for policy '%s'\" rather than replaced. However, any tool that counts the number of format specifiers or performs positional argument extraction will break because the argument count changed from 3 to 4. The APLOGNO (02032) is unchanged, preserving log-based alerting by message ID.",
+      "evidence": [
+        {
+          "file": "modules/ssl/ssl_engine_kernel.c",
+          "lines": [
+            239,
+            245
+          ],
+          "snippet": "            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02032)\n                         \"Hostname %s %s and hostname %s provided\"\n                         \" via HTTP have no compatible SSL setup for policy '%s'\",\n                         servername ? servername : handshakeserver->server_hostname,\n                         servername ? \"provided via SNI\" : \"(default host as no SNI was provided)\",\n                          r->hostname, MODSSL_SNIVH_NAME(sc->mc->snivh_policy));"
+        },
+        {
+          "file": "modules/ssl/ssl_private.h",
+          "lines": [
+            569,
+            572
+          ],
+          "snippet": "#define MODSSL_SNIVH_NAME(p_) ((p_) == MODSSL_SNIVH_STRICT ? \"strict\" : \\\n                               ((p_) == MODSSL_SNIVH_SECURE ? \"secure\" : \\\n                                ((p_) == MODSSL_SNIVH_AUTHONLY ? \"authonly\" : \"insecure\" )))"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Error log messages are user-visible output. Administrators and monitoring systems parse Apache error logs. The format change, while backward-compatible for substring matching, adds a new field that parsing scripts need to handle. APLOGNO 02032 is stable, so log monitoring by error ID is unaffected. The addition of the policy name provides useful diagnostic information for troubleshooting.",
+      "uncertainty": "None. The format string change is clear from the diff. The MODSSL_SNIVH_NAME macro deterministically maps the enum to a string literal.",
+      "manual_review_required": false,
+      "recommended_review": "No manual review required. Verify that log parsers which extract the hostname from positional argument 3 still work correctly (the new argument 3 is still r->hostname).",
+      "test_recommendation": "Trigger an SNI vhost incompatibility (e.g., two vhosts with different SSL certs, strict mode) and verify the error log contains the policy name appended. Test with each of the 4 policy modes and verify the correct policy name appears in the log. Verify APLOGNO 02032 is present.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0009",
+            "file": "modules/ssl/ssl_engine_kernel.c",
+            "old_lines": [
+              319,
+              337
+            ],
+            "new_lines": [
+              237,
+              250
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "network_protocol",
+              "module_api",
+              "request_handling"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public module API and hook contracts"
+              },
+              {
+                "name": "request_handling",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request, proxy, TLS, and response behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=OUTPUT_FORMAT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

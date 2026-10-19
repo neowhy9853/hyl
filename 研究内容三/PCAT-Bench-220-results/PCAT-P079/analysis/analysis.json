@@ -1,0 +1,232 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/openldap",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/openldap/pca-results/1780b2/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/1780b2",
+  "base_ref": "e538a0c6b3",
+  "base_commit": "e538a0c6b335e2fbcb55503d84df2a81f6690e28",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "1780b21",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/openldap_1780b21.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "openldap",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 5105,
+    "patch_lines": 153,
+    "diff_added_lines": 59,
+    "diff_deleted_lines": 5,
+    "diff_context_lines": 64,
+    "churn": 64,
+    "raw_hunks": 9,
+    "candidate_hunks": 8,
+    "skipped_doc_hunks": 1,
+    "changed_files": 3,
+    "candidate_context_bytes": 16389,
+    "public_candidate_hunks": 8,
+    "surface_counts": {
+      "config_keys": 3,
+      "user_visible_output": 5,
+      "persistence_state": 4,
+      "libldap_api": 8,
+      "protocol_behavior": 8,
+      "config_schema": 8,
+      "cli_options": 1,
+      "cli": 1,
+      "public_headers": 2
+    },
+    "candidates_json_bytes": 49370
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 8,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.9,
+      "package_profile": "openldap",
+      "affected_surface": "CLI option parsing for slapadd tool's -o option",
+      "affected_api": {
+        "name": "slapadd -o remove-sids=",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "servers/slapd/slapcommon.c",
+        "old_lines": [
+          255,
+          260
+        ],
+        "new_lines": [
+          255,
+          286
+        ],
+        "symbol": "parse_slapopt"
+      },
+      "old_behavior": "The slapadd tool's -o option parser did not recognize 'remove-sids'. An unrecognized option would cause parse_slapopt() to return -1 immediately after falling through the existing option branch chain.",
+      "new_behavior": "The slapadd tool's -o option parser now recognizes 'remove-sids=<sid>[,<sid>,...]'. When used, it parses the comma-separated SID values, validates each SID (0..SLAP_SYNC_SID_MAX), stores them in sids_to_remove[], sets update_ctxcsn=1, and implies -w (overwrite sync context). If the same sid is configured as the serverID via -S, slapadd exits with error. If a SID value is out of range, it prints an error and returns -1. Other tools (slapcat, slapindex, slapdn) receive a debug message 'remove-sids meaningless for tool.' and continue.",
+      "compatibility_reason": "This is an additive, opt-in CLI option change. All existing behavior is preserved when the option is not used because sids_to_remove is zero-initialized (BSS), making all new conditional branches inactive. No existing slapadd script or invocation will break. The option is additive only and does not modify any existing CLI behavior or defaults. The internal tool_vars struct change in slapcommon.h is an implementation detail not exposed to consumers.",
+      "evidence": [
+        {
+          "file": "servers/slapd/slapcommon.c",
+          "lines": [
+            258,
+            282
+          ],
+          "snippet": "} else if ( ( strncasecmp( optarg, \"remove-sids\", len ) == 0 ) ) {\n    switch ( tool ) {\n    case SLAPADD:\n        {\n            char *arg = strtok( p, \",\" );\n            if ( !arg ) {\n                Debug( LDAP_DEBUG_ANY, \"remove-sids needs an argument.\\n\" );\n                return -1;\n            }\n            do {\n                unsigned int u;\n                if ( lutil_atou( &u, arg ) || u > SLAP_SYNC_SID_MAX ) {\n                    Debug( LDAP_DEBUG_ANY, \"unable to parse remove-sids=\\\"%s\\\".\\n\", arg );\n                    return -1;\n                }\n                sids_to_remove[u] = 1;\n                update_ctxcsn = 1;\n            } while ( (arg = strtok( NULL, \",\" )) );\n        }\n        break;\n    default:\n        Debug( LDAP_DEBUG_ANY, \"remove-sids meaningless for tool.\\n\" );\n        break;\n    }"
+        },
+        {
+          "file": "servers/slapd/slapadd.c",
+          "lines": [
+            379,
+            389
+          ],
+          "snippet": "if ( sids_to_remove[csnsid] ) {\n    fprintf( stderr, \"%s: remove-sids contains configured serverID %u.\\n\",\n        progname, csnsid );\n    exit( EXIT_FAILURE );\n}"
+        },
+        {
+          "file": "servers/slapd/slapcommon.h",
+          "lines": [
+            54,
+            60
+          ],
+          "snippet": "char tv_sids_to_remove[ SLAP_SYNC_SID_MAX + 1 ];"
+        },
+        {
+          "file": "servers/slapd/slapcommon.h",
+          "lines": [
+            92,
+            98
+          ],
+          "snippet": "#define sids_to_remove tool_globals.tv_sids_to_remove"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The change modifies CLI option parsing in parse_slapopt(), which is the central option dispatcher for all slap tools. Adding a new recognized option key to the -o option namespace is a user-visible CLI surface change. Additionally, the entryCSN replacement and contextCSN filtering logic in slapadd's entry_free() and slap_tool_update_ctxcsn() alters the persistent database state when the option is used, which is observable by downstream LDAP consumers (replicated databases receive CSNs with the local SID instead of the original). However, for users not using the new option, all behavior is identical.",
+      "uncertainty": "No uncertainty — the patch is a straightforward additive feature. All new code paths are guarded by sids_to_remove[] being non-zero, which only occurs when the user explicitly passes the new option.",
+      "manual_review_required": false,
+      "recommended_review": "No breaking changes expected. Verify that slapadd operates identically to the baseline when -o remove-sids= is not used.",
+      "test_recommendation": "1) Verify slapadd runs without the new option and produces identical output to baseline. 2) Verify the new option correctly parses SID values and rejects invalid ones. 3) Verify that CSNs for removed SIDs are replaced with local CSNs. 4) Verify contextCSN excludes removed SIDs.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "servers/slapd/slapcommon.c",
+            "old_lines": [
+              255,
+              260
+            ],
+            "new_lines": [
+              255,
+              286
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "cli",
+              "libldap_api",
+              "protocol_behavior",
+              "config_schema"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "libldap_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "libldap/liblber public C API and ABI"
+              },
+              {
+                "name": "protocol_behavior",
+                "test_priority": "high",
+                "public": true,
+                "description": "LDAP protocol, controls, schema, filters, and result codes"
+              },
+              {
+                "name": "config_schema",
+                "test_priority": "high",
+                "public": true,
+                "description": "cn=config, slapd.conf, schema, and overlay configuration"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

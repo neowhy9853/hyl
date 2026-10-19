@@ -21,6 +21,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_SCRIPTS = [
     "diff_parser.py",
     "profile_loader.py",
+    "impact_scope.py",
     "orchestrator.py",
     "validate_analysis.py",
 ]

@@ -1,0 +1,673 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/rsyslog",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/5e320c/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/5e320c",
+  "base_ref": "5e320c646da22bf502bf907855defacca9013966^",
+  "base_commit": "f89892ec84edcb39df3e3535c3c00cc7f15fab76",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "Commit is ancestor of HEAD. Worktree created at base commit then patch applied cleanly.",
+  "analysis_worktree_status": "available",
+  "patch_id": "5e320c",
+  "package_profile": "rsyslog",
+  "patch_source": "/tmp/5e320c64.patch",
+  "summary": {
+    "total_changed_files": 10,
+    "total_candidates": 41,
+    "compatibility_changes": 3,
+    "high_priority": 1,
+    "medium_priority": 1,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "rsyslog",
+      "affected_surface": "Configuration behavior - streamdriver.mode in strict secure-default mode",
+      "affected_api": {
+        "name": "streamdriver.mode config parameter in imtcp and omfwd",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "plugins/imtcp/imtcp.c",
+        "old_lines": [
+          449,
+          454
+        ],
+        "new_lines": [
+          455,
+          473
+        ],
+        "symbol": "applySecureDefaultsToStreamDriver"
+      },
+      "old_behavior": "In compatibility.defaults.secure=\"strict\" mode, an explicit streamdriver.mode=\"0\" with a TLS-capable driver (ossl/gtls/mbedtls) was accepted silently and resulted in plain TCP.",
+      "new_behavior": "In strict mode, an explicit streamdriver.mode=\"0\" with a TLS-capable stream driver is rejected with RS_RET_PARAM_ERROR and a log message explaining that TLS-capable drivers require mode=\"1\".",
+      "compatibility_reason": "Existing rsyslog configurations that explicitly set streamdriver.mode=\"0\" with a TLS-capable stream driver name (e.g. streamdriver.name=\"gtls\" streamdriver.mode=\"0\") will fail to start in compatibility.defaults.secure=\"strict\" mode. This is a deliberate secure-default hardening that breaks previously valid configurations.",
+      "evidence": [
+        {
+          "file": "plugins/imtcp/imtcp.c",
+          "lines": [
+            455,
+            473
+          ],
+          "snippet": "static rsRetVal applySecureDefaultsToStreamDriver(...) {\n    if (glblIsTlsCapableNetstrmDrvr(effectiveStreamDriverName) && *streamDriverMode == 0 &&\n        cnf->globals.compatDefaultsSecure == COMPAT_DEFAULTS_SECURE_STRICT) {\n        if (streamDriverModeSet) {\n            LogError(0, RS_RET_PARAM_ERROR, ...);\n            return RS_RET_PARAM_ERROR;\n        }\n        *streamDriverMode = 1;\n    }\n    return RS_RET_OK;\n}"
+        },
+        {
+          "file": "tools/omfwd.c",
+          "lines": [
+            2150,
+            2171
+          ],
+          "snippet": "static rsRetVal applySecureDefaultsToForwarding(instanceData *const pData) {\n    ...\n    if (... pData->iStrmDrvrMode == 0 &&\n        loadModConf->pConf->globals.compatDefaultsSecure == COMPAT_DEFAULTS_SECURE_STRICT) {\n        if (pData->bStrmDrvrModeSet) {\n            LogError(0, RS_RET_PARAM_ERROR, ...);\n            ABORT_FINALIZE(RS_RET_PARAM_ERROR);\n        }\n        pData->iStrmDrvrMode = 1;\n    }\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The streamdriver.mode config parameter is a documented, user-facing configuration option for both omfwd and imtcp modules. This change alters configuration acceptance behavior in strict mode, which directly affects deployed rsyslog configurations.",
+      "uncertainty": "Low. The code explicitly returns RS_RET_PARAM_ERROR when explicit mode 0 is provided with a TLS-capable driver. The test cases in compat-configformat-rainerscript.sh and compat-configformat-yaml.sh confirm this behavior.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that existing rsyslog configs using compatibility.defaults.secure=\"strict\" with explicit streamdriver.mode=\"0\" and TLS-capable drivers are updated to not set mode 0, or to use the ptcp driver for plain TCP.",
+      "test_recommendation": "Run the existing compat-configformat-rainerscript.sh and compat-configformat-yaml.sh tests. Create a targeted test that verifies explicit mode 0 with each TLS-capable driver (ossl, gtls, mbedtls) is rejected in strict mode, and that backward-compatible mode still accepts everything.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0013",
+            "file": "plugins/imtcp/imtcp.c",
+            "old_lines": [
+              449,
+              454
+            ],
+            "new_lines": [
+              452,
+              508
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "daemon_control",
+              "module_api",
+              "config_language",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "daemon_control",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control, metrics, and administration interfaces."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "rsyslog",
+      "affected_surface": "Configuration behavior - omitted streamdriver.mode promoted in strict mode",
+      "affected_api": {
+        "name": "omitted streamdriver.mode with TLS-capable driver in strict mode",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "tools/omfwd.c",
+        "old_lines": [
+          2116,
+          2148
+        ],
+        "new_lines": [
+          2150,
+          2171
+        ],
+        "symbol": "applySecureDefaultsToForwarding"
+      },
+      "old_behavior": "In strict mode, omitting streamdriver.mode with a TLS-capable driver (ossl/gtls/mbedtls) resulted in mode 0 (plain TCP), silently ignoring TLS capability.",
+      "new_behavior": "In strict mode, omitting streamdriver.mode with a TLS-capable effective driver now promotes the mode to 1 (TLS), activating TLS automatically.",
+      "compatibility_reason": "Configurations that rely on the default mode 0 behavior with a TLS-capable driver name will now silently get TLS instead of plain TCP in strict mode. While this is more secure, it changes the effective transport protocol, which could affect network connectivity, firewall rules, and certificate requirements.",
+      "evidence": [
+        {
+          "file": "plugins/imtcp/imtcp.c",
+          "lines": [
+            460,
+            470
+          ],
+          "snippet": "if (glblIsTlsCapableNetstrmDrvr(effectiveStreamDriverName) && *streamDriverMode == 0 &&\n    cnf->globals.compatDefaultsSecure == COMPAT_DEFAULTS_SECURE_STRICT) {\n    if (streamDriverModeSet) { ... return RS_RET_PARAM_ERROR; }\n    *streamDriverMode = 1;\n}"
+        },
+        {
+          "file": "tools/omfwd.c",
+          "lines": [
+            2154,
+            2165
+          ],
+          "snippet": "if (glblIsTlsCapableNetstrmDrvr(effectiveDrvr) && pData->iStrmDrvrMode == 0 &&\n    loadModConf->pConf->globals.compatDefaultsSecure == COMPAT_DEFAULTS_SECURE_STRICT) {\n    if (pData->bStrmDrvrModeSet) { ... ABORT_FINALIZE(RS_RET_PARAM_ERROR); }\n    pData->iStrmDrvrMode = 1;\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The effective transport protocol (TCP vs TLS) is a directly observable network behavior change that affects logging infrastructure connectivity, firewall rules, and certificate configuration.",
+      "uncertainty": "Low. Code clearly promotes *streamDriverMode to 1 when mode was omitted (bStrmDrvrModeSet == 0) and the effective driver is TLS-capable.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that configs using strict mode with TLS-capable drivers but no explicit mode have the necessary TLS certificates and auth settings configured.",
+      "test_recommendation": "Create a test case that: (1) verifies omitted mode with TLS-capable driver in strict mode results in mode 1, (2) verifies backward-compatible mode still defaults to mode 0, (3) verifies warn mode emits appropriate warning.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0042",
+            "file": "tools/omfwd.c",
+            "old_lines": [
+              2141,
+              2146
+            ],
+            "new_lines": [
+              2147,
+              2181
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "config_keys",
+              "user_visible_output",
+              "cli",
+              "logging",
+              "network_protocol",
+              "module_api",
+              "config_language",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0041",
+            "file": "tools/omfwd.c",
+            "old_lines": [
+              2116,
+              2124
+            ],
+            "new_lines": [
+              2122,
+              2130
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "config_keys",
+              "user_visible_output",
+              "cli",
+              "logging",
+              "network_protocol",
+              "config_language",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0003",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "rsyslog",
+      "affected_surface": "Warning output - warn mode now uses effective stream driver resolution (including global default)",
+      "affected_api": {
+        "name": "warnIfInsecureListenerConfigured / warnIfNonTlsForwardingConfigured",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "plugins/imtcp/imtcp.c",
+        "old_lines": [
+          177,
+          188
+        ],
+        "new_lines": [
+          430,
+          453
+        ],
+        "symbol": "warnIfInsecureListenerConfigured"
+      },
+      "old_behavior": "In warn mode, TLS-capable driver detection checked only the local stream driver name via direct string comparison. A TLS-capable driver inherited from global(defaultNetstreamDriver=...) was not detected as TLS-capable because pszStrmDrvrName was NULL in that case.",
+      "new_behavior": "In warn mode, TLS-capable driver detection uses glblGetEffectiveNetstrmDrvr() which resolves through the global default. A TLS-capable driver inherited from global(defaultNetstreamDriver=...) is now detected as TLS-capable, triggering warnings for previously-silent configurations.",
+      "compatibility_reason": "Configurations with global(defaultNetstreamDriver=\"gtls\") and no explicit streamdriver mode that previously ran silently in warn mode will now produce security warnings. This changes log output and may affect monitoring that checks for specific log messages.",
+      "evidence": [
+        {
+          "file": "plugins/imtcp/imtcp.c",
+          "lines": [
+            430,
+            444
+          ],
+          "snippet": "static void warnIfInsecureListenerConfigured(const int streamDriverMode,\n    const uchar *const effectiveStreamDriverName, const uchar *const authMode) {\n    if (streamDriverMode == 0) {\n        const int tlsHintsConfigured = (authMode != NULL) || glblIsTlsCapableNetstrmDrvr(effectiveStreamDriverName);\n        if (tlsHintsConfigured) { ... }\n    }\n}"
+        },
+        {
+          "file": "tools/omfwd.c",
+          "lines": [
+            2119,
+            2138
+          ],
+          "snippet": "} else if (pData->protocol == FORW_TCP && pData->iStrmDrvrMode == 0) {\n    const uchar *const effectiveDrvr = glblGetEffectiveNetstrmDrvr(loadModConf->pConf, pData->pszStrmDrvr);\n    const int tlsHintsConfigured = (pData->pszStrmDrvrAuthMode != NULL) || glblIsTlsCapableNetstrmDrvr(effectiveDrvr);\n    if (tlsHintsConfigured) { ... }\n}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "Warnings emitted by glblWarnIfInsecureDefault() are user-visible diagnostic output that operators may monitor or suppress.",
+      "uncertainty": "Medium. The exact behavior depends on whether the effective driver resolves to a TLS-capable name. If the global default is \"ptcp\" (default), behavior is unchanged.",
+      "manual_review_required": true,
+      "recommended_review": "Verify that the new warning behavior in warn mode is correct and does not generate excessive false positives for configurations with global default=\"ptcp\".",
+      "test_recommendation": "Run compat-configformat-rainerscript.sh and compat-configformat-yaml.sh which include test cases for global-driver warn mode.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 3 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 3,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0012",
+            "file": "plugins/imtcp/imtcp.c",
+            "old_lines": [
+              424,
+              434
+            ],
+            "new_lines": [
+              428,
+              437
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "module_api",
+              "config_language",
+              "output_format",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "output_format",
+                "test_priority": "high",
+                "public": true,
+                "description": "Log template, property, and output formatting behavior"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0013",
+            "file": "plugins/imtcp/imtcp.c",
+            "old_lines": [
+              449,
+              454
+            ],
+            "new_lines": [
+              452,
+              508
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "user_visible_output",
+              "plugin_api",
+              "logging",
+              "daemon_control",
+              "module_api",
+              "config_language",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "daemon_control",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control, metrics, and administration interfaces."
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0011",
+            "file": "plugins/imtcp/imtcp.c",
+            "old_lines": [
+              184,
+              189
+            ],
+            "new_lines": [
+              187,
+              193
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "plugin_api",
+              "module_api",
+              "config_language",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 3 matched candidate hunk(s)"
+    }
+  ]
+}

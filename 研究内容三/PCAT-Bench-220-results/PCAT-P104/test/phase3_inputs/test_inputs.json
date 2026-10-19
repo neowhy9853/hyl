@@ -1,0 +1,85 @@
+[
+  {
+    "input_id": "I1",
+    "finding_id": "PCA-0001",
+    "target_lines": [
+      "drivers/usb/gadget/function/u_ether.c:899-910"
+    ],
+    "branch_targeted": "正常绑定路径: device_is_registered()==true 分支, 调用gether_attach_gadget()",
+    "input_type": "kernel_configfs_operation",
+    "command": "# 在VM中通过configfs操作: 创建gadget -> 绑定NCM function -> 解绑 -> 重新绑定",
+    "expected_output": "net_device持久存在, sysfs路径在/sys/devices/virtual/net/和gadget设备间动态迁移",
+    "reachability_signal": "通过trace_printk或动态ftrace确认gether_attach_gadget()中的device_move()被调用",
+    "setup_required": "QEMU VM with patched kernel, CONFIG_USB_GADGET=y, dummy_hcd.ko loaded, configfs mounted",
+    "dependencies": [
+      "Kernel with patch applied",
+      "dummy_hcd",
+      "configfs",
+      "libcomposite/usb_f_ncm"
+    ]
+  },
+  {
+    "input_id": "I2",
+    "finding_id": "PCA-0001",
+    "target_lines": [
+      "drivers/usb/gadget/function/u_ether.c:912-918"
+    ],
+    "branch_targeted": "解绑路径: bind_count递减到0时调用gether_detach_gadget()",
+    "input_type": "kernel_configfs_operation",
+    "command": "# 在VM中: 绑定NCM function -> 解绑NCM function -> 验证net_device迁回/sys/devices/virtual/",
+    "expected_output": "unbind后net_device的/sys/class/net/<iface>/device指向/sys/devices/virtual/net/<iface>",
+    "reachability_signal": "在补丁后内核中, gether_detach_gadget()通过udevadm monitor应观察到KOBJ_MOVE事件",
+    "setup_required": "Same as I1",
+    "dependencies": [
+      "Same as I1"
+    ]
+  },
+  {
+    "input_id": "I3",
+    "finding_id": "PCA-0001",
+    "target_lines": [
+      "drivers/usb/gadget/function/f_ncm.c:1442-1453"
+    ],
+    "branch_targeted": "首次绑定分支: bind_count==0 && device_is_registered()==false -> gether_register_netdev()",
+    "input_type": "kernel_configfs_operation",
+    "command": "# 首次绑定NCM function: 创建新的gadget实例, 绑定NCM function, 验证net_device被注册",
+    "expected_output": "首次bind后net_device被注册, /sys/class/net/<iface>出现, device指向gadget设备",
+    "reachability_signal": "通过`ip link show`确认net_device存在; 通过sysfs确认device父设备为gadget",
+    "setup_required": "Same as I1",
+    "dependencies": [
+      "Same as I1"
+    ]
+  },
+  {
+    "input_id": "I4",
+    "finding_id": "PCA-0001",
+    "target_lines": [
+      "drivers/usb/gadget/function/f_ncm.c:1447-1448"
+    ],
+    "branch_targeted": "重新绑定分支: bind_count==0 && device_is_registered()==true -> gether_attach_gadget()",
+    "input_type": "kernel_configfs_operation",
+    "command": "# 解绑后重新绑定: 验证使用device_move而非重新注册net_device",
+    "expected_output": "重新bind后net_device未被重新注册(无KOBJ_ADD), 而是通过device_move迁回gadget设备下(KOBJ_MOVE)",
+    "reachability_signal": "udevadm monitor应显示KOBJ_MOVE事件而非KOBJ_ADD事件",
+    "setup_required": "Same as I1",
+    "dependencies": [
+      "Same as I1"
+    ]
+  },
+  {
+    "input_id": "I5",
+    "finding_id": "PCA-0001",
+    "target_lines": [
+      "drivers/usb/gadget/function/u_ether.c:899-919"
+    ],
+    "branch_targeted": "错误路径: device_move()返回错误时的处理",
+    "input_type": "fault_injection",
+    "command": "# 使用kernel fault injection (echo 100 > /sys/kernel/debug/failslab/probability) 模拟device_move失败",
+    "expected_output": "gether_attach_gadget()返回负错误码, ncm_bind()返回错误, bind操作失败但不导致crash",
+    "reachability_signal": "ncm_bind返回非0错误码, dmesg显示相关错误信息",
+    "setup_required": "Kernel with CONFIG_FAULT_INJECTION=y, CONFIG_FAILSLAB=y",
+    "dependencies": [
+      "Fault-injection enabled kernel"
+    ]
+  }
+]

@@ -1,0 +1,145 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/analysis.json",
+  "patch_id": "fb38e40",
+  "result_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/compatibility-testing",
+  "coverage_gate": 80,
+  "status": "partial",
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/haproxy",
+    "base_commit": "9bc37232f40b3c672d660e3f5f684621b2ed0e12",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/_worktrees/patched",
+    "package_profile": "haproxy"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc (Ubuntu/GNU)",
+    "optimization": "-O0 -g --coverage",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Host: Linux x86_64 (WSL2 kernel 6.18.33.2)",
+      "OpenSSL headers 3.0.18 / runtime 3.0.13 - mixed versions, not used for crypto conclusions",
+      "vtest/varnishtest not installed - QUIC protocol reg-tests cannot run",
+      "QUIC client: aioquic Python library (no native ngtcp2/quiche)"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 3,
+    "inputs_executed": 3,
+    "contracts_total": 3,
+    "contracts_passed": 3,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 1,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 1,
+    "patch_line_coverage_rate": 0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "status": "partial",
+      "target_location": {
+        "file": "src/quic_tx.c",
+        "new_lines": [2038, 2044],
+        "symbol": "qc_do_build_pkt"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/test-entries.json",
+          "run_command": "haproxy -c -f /tmp/pca-quic-test.cfg",
+          "expected_signal": "exit code 0 (config validation passes)",
+          "reachability_signal": "gcov: line 2041 coverage would prove reachability; config parsing alone does not reach qc_do_build_pkt"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "config_validation_stability",
+          "status": "passed",
+          "detail": "haproxy -c -f quic-test.cfg: before exit 0, after exit 0"
+        },
+        {
+          "contract_id": "feature_list_stability",
+          "status": "passed",
+          "detail": "haproxy -vv: both versions have +QUIC +QUIC_OPENSSL_COMPAT features"
+        },
+        {
+          "contract_id": "runtime_quic_connection",
+          "status": "passed",
+          "detail": "aioquic H3 connection to quic4@127.0.0.1:18443 succeeded (AFTER binary), proving packet building code path is alive"
+        }
+      ],
+      "coverage": {
+        "rate": 0,
+        "executable_lines": 1,
+        "covered_lines": 0,
+        "uncovered_lines": [
+          "src/quic_tx.c:2041 (len -= len_sz_diff;) - narrow_condition: requires QUIC Initial packet < QUIC_INITIAL_PACKET_MINLEN (1200 bytes) AND varint encoding size change on padding. Normal QUIC connections have Initial packets > 1200 bytes so padding path not triggered."
+        ]
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Config validation (-c) passes identically before and after the patch",
+        "QUIC connection established successfully with AFTER binary (proves packet building code path is alive)",
+        "Line 2041 (len -= len_sz_diff) requires specific edge case not hit in normal connections",
+        "Coverage gate not met (0% vs 80%) due to narrow condition requiring specific packet sizing"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "BLK-001",
+      "reason": "vtest/varnishtest not installed on host",
+      "required_action": "Install vtest (varnishtest) to run haproxy QUIC reg-tests"
+    },
+    {
+      "scope": "environment",
+      "id": "BLK-002",
+      "reason": "No native QUIC client (ngtcp2/quiche) for wire-level packet capture and format comparison",
+      "required_action": "Install ngtcp2-client or similar for before/after QUIC packet comparison"
+    },
+    {
+      "scope": "input",
+      "id": "BLK-003",
+      "reason": "QUIC Initial packet padding edge case (line 2041) requires specific packet sizing to trigger varint encoding boundary crossing",
+      "required_action": "Use a configurable QUIC client (e.g. ngtcp2) sending sub-1200 byte Initial packets"
+    }
+  ],
+  "artifacts": {
+    "analysis_json": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/analysis.json",
+    "patch_diff": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/patch.diff",
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/fb38e4/_worktrees/patched/src/quic_tx.c.gcov",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "status": "partial",
+    "coverage_gate_met": false,
+    "justification": "该补丁是 BUG/MINOR 修复，修正了 QUIC Initial 包构建时长度字段编码值可能偏大的问题。配置解析、功能列表和 QUIC 连接三项契约验证均通过，无 breach。changed line（len -= len_sz_diff）因条件过于狭窄（Initial 包 < 1200 字节且 varint 编码边界跨越）未能在当前环境中命中。未达到覆盖率门限（0% vs 80%），因此向后兼容性评级为 inconclusive。",
+    "rationale": "非测试设计缺陷——该条件本身就是触发特定 varint 编码边界跨越的罕见场景。从语义分析看这是 bug fix，仅添加 len -= len_sz_diff 一行修正，不会引入新的兼容性破坏。",
+    "recommended_actions": [
+      "在配备 vtest/varnishtest 的环境中运行 haproxy QUIC reg-tests",
+      "使用可构造特定包大小的 QUIC 测试工具（如 ngtcp2）发送 < 1200 字节的 Initial 包",
+      "确认修复后的 wire format 符合 RFC 9000/9001"
+    ]
+  }
+}

@@ -7,8 +7,8 @@ description: "统一编排补丁静态兼容性分析和分析驱动的动态测
 
 将补丁兼容性工作拆成两个可独立运行、通过稳定产物协议衔接的子 skill：
 
-- `patch-compatibility-analysis/SKILL.md`：只做静态兼容性分析，生成 `analysis.json`、`report.md` 和证据产物，不运行动态测试。
-- `patch-compatibility-testing/SKILL.md`：读取已完成的 `analysis.json`，生成测试入口和定向输入，执行 before/after 契约验证与补丁行覆盖率测试，并从固定 JSON 自动渲染报告。
+- `patch-compatibility-analysis/SKILL.md`：只做静态兼容性分析，生成 `analysis.json`、`report.md`、每条 finding 的额外影响范围（`affected_scope` / `affected-scope.json`）和证据产物，不运行动态测试。
+- `patch-compatibility-testing/SKILL.md`：读取已完成的 `analysis.json`，生成测试入口和定向输入，执行 before/after 契约验证与补丁行覆盖率测试，并从固定 JSON 自动渲染总体测试报告 `TEST_REPORT.md` 和专门的覆盖率报告 `COVERAGE_REPORT.md`。
 
 测试子 skill 对分析 schema 中的 13 个 `compatibility_type` 使用同一注册表
 逐类规划入口、输入和契约；遇到未知类型必须失败，不能降级为通用测试。
@@ -55,5 +55,5 @@ description: "统一编排补丁静态兼容性分析和分析驱动的动态测
 
 ## 完成条件
 
-- 分析完成：`analysis.json` 校验通过，分析摘要和实际产物目录已报告，并按路由规则询问是否继续测试。
-- 测试完成：`test-summary.json` 通过 `finalize_test_report.py` 校验并自动生成 `COVERAGE_REPORT.md`，明确区分 passed、failed、partial、blocked 和未执行项，且所有覆盖率结论均有实际工具输出支撑。
+- 分析完成：`analysis.json` 校验通过（每条 finding 含 `affected_scope` 额外影响范围，`affected-scope.json` 已生成），分析摘要和实际产物目录已报告，并按路由规则询问是否继续测试。
+- 测试完成：`test-summary.json` 通过 `finalize_test_report.py` 校验并自动生成总体测试报告 `TEST_REPORT.md` 和专门的覆盖率报告 `COVERAGE_REPORT.md`，明确区分 passed、failed、partial、blocked 和未执行项，且所有覆盖率结论均有实际工具输出支撑。

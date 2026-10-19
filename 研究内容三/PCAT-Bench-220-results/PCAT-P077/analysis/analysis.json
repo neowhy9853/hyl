@@ -1,0 +1,312 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/openldap",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/openldap/pca-results/f6ae8e/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/f6ae8e",
+  "base_ref": "HEAD",
+  "base_commit": "595e7ea6f36d5352af5a60eccef64c5cb3357fb2",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "f6ae8ef451f38e3f2f3ec6fc43cc8806ecfe125a",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/pca_openldap_patch.diff",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "openldap",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 8660,
+    "patch_lines": 269,
+    "diff_added_lines": 77,
+    "diff_deleted_lines": 14,
+    "diff_context_lines": 121,
+    "churn": 91,
+    "raw_hunks": 16,
+    "candidate_hunks": 13,
+    "skipped_doc_hunks": 3,
+    "changed_files": 7,
+    "candidate_context_bytes": 25771,
+    "public_candidate_hunks": 8,
+    "surface_counts": {
+      "proc_sys_consumers": 1,
+      "config_keys": 12,
+      "network_protocol": 4,
+      "libldap_api": 5,
+      "protocol_behavior": 7,
+      "config_schema": 12,
+      "ioctl_netlink_consumers": 1,
+      "ioctl_netlink": 1,
+      "user_visible_output": 2,
+      "cli_options": 1,
+      "public_headers": 1,
+      "daemon_control": 1,
+      "tests": 5,
+      "config_files": 5,
+      "config": 5
+    },
+    "candidates_json_bytes": 76810
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 7,
+    "total_candidates": 13,
+    "compatibility_changes": 2,
+    "high_priority": 1,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "openldap",
+      "affected_surface": "Network protocol behavior, configuration defaults, daemon control",
+      "affected_api": {
+        "name": "lload_features / LLOAD_FEATURES_DEFAULT",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "servers/lloadd/lload.h",
+        "old_lines": [
+          184,
+          189
+        ],
+        "new_lines": [
+          184,
+          193
+        ],
+        "symbol": "LLOAD_FEATURES_DEFAULT"
+      },
+      "old_behavior": "lloadd startup with lload_features zero-initialized: no LDAP Proxy Authorization control (proxyauthz) was sent to backend servers by default. The Proxy Authorization control (RFC 4370) was only added to proxied operations when explicitly enabled via 'feature proxyauthz' in the config file or 'olcBkLloadFeature: proxyauthz' in cn=config.",
+      "new_behavior": "lloadd startup with lload_features initialized to LLOAD_FEATURES_DEFAULT, which includes LLOAD_FEATURE_PROXYAUTHZ. The proxyauthz feature is now enabled by default, meaning the Proxy Authorization control is added to every proxied operation without explicit configuration. Backend servers will receive the proxy authz control on every operation. Can be disabled via 'disable proxyauthz' in config or 'olcBkLloadFeatureDisable: proxyauthz' in cn=config.",
+      "compatibility_reason": "Any lloadd deployment that does not explicitly set 'feature proxyauthz' in its config will now have proxyauthz ON by default. This is an externally observable behavior change: backend LDAP servers will receive a new LDAP control (1.3.6.1.4.1.4203.666.5.12) on proxied operations. Backend servers that do not support the Proxy Authorization control may return 'protocol error' or 'unavailable critical extension' if the control is marked critical, potentially causing service disruption. Deployments relying on SASL binds will now require backend servers to support the LDAP Who Am I? extended operation. Deployments explicitly using 'feature proxyauthz' are unaffected.",
+      "evidence": [
+        {
+          "file": "servers/lloadd/lload.h",
+          "lines": [
+            187,
+            190
+          ],
+          "snippet": "#define LLOAD_FEATURES_DEFAULT ( \\\n    LLOAD_FEATURE_PROXYAUTHZ | \\\n    0 )"
+        },
+        {
+          "file": "servers/lloadd/config.c",
+          "lines": [
+            80,
+            84
+          ],
+          "snippet": "lload_features_t lload_features = LLOAD_FEATURES_DEFAULT;\nint lload_write_coherence = 0;\n\nstatic lload_features_t features_requested, features_disabled;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "lload_features is a global variable controlling the LDAP-proxy runtime behavior of the lloadd daemon. It directly determines whether every proxied LDAP operation carries the Proxy Authorization control. This affects backend LDAP servers, client operations transiting the proxy, and the administrative interface that reports feature state. The new default is externally visible to all downstream LDAP servers.",
+      "uncertainty": "The exact set of backend servers that reject unsupported controls is deployment-specific. Some backends ignore unrecognized non-critical controls; others may reject them. The actual impact depends on the backend population.",
+      "manual_review_required": true,
+      "recommended_review": "Review all existing lloadd deployments to determine whether backend servers support the Proxy Authorization control. If backends are known-incompatible, add 'disable proxyauthz' to configs. Also verify that SASL-bind backends support the Who Am I? extended operation.",
+      "test_recommendation": "HIGH: 1) Build lloadd before and after patch, start with default config (no explicit feature keyword), verify proxyauthz control appears in proxied LDAP operations (packet capture). 2) Start lloadd with explicit 'disable proxyauthz', verify control is absent. 3) Start lloadd with 'enable proxyauthz' (equivalent to default), verify control present. 4) Verify existing 'feature proxyauthz' configs produce same behavior before and after.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0011",
+            "file": "servers/lloadd/lload.h",
+            "old_lines": [
+              184,
+              189
+            ],
+            "new_lines": [
+              184,
+              193
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "daemon_control",
+              "libldap_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "daemon_control",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Runtime daemon control, metrics, and administration interfaces."
+              },
+              {
+                "name": "libldap_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "libldap/liblber public C API and ABI"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s)"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "openldap",
+      "affected_surface": "Configuration schema, config file parsing, cn=config LDAP schema",
+      "affected_api": {
+        "name": "olcBkLloadFeature / olcBkLloadFeatureEnable / olcBkLloadFeatureDisable",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "servers/lloadd/config.c",
+        "old_lines": [
+          394,
+          406
+        ],
+        "new_lines": [
+          398,
+          425
+        ],
+        "symbol": "config_back_cf_table"
+      },
+      "old_behavior": "Single 'feature' keyword mapped to OID OLcfgBkAt:13.10 with attribute name 'olcBkLloadFeature'. The OCS olcBkLloadConfig listed 'olcBkLloadFeature' as a MAY attribute. The 'feature' keyword was variadic (min=2, max=0/unlimited).",
+      "new_behavior": "Three keywords: 'feature' (variadic, no schema OID, preserved), 'enable' (exactly 1 feature, OID OLcfgBkAt:13.10 with dual attribute names 'olcBkLloadFeatureEnable' and 'olcBkLloadFeature' as alias), 'disable' (exactly 1 feature, new OID OLcfgBkAt:13.42 with attribute name 'olcBkLloadFeatureDisable'). The OCS olcBkLloadConfig now lists 'olcBkLloadFeatureEnable' and 'olcBkLloadFeatureDisable' as MAY attributes, replacing 'olcBkLloadFeature'. The old 'feature' keyword still works for config file parsing.",
+      "compatibility_reason": "Existing config files using 'feature proxyauthz' continue to work (preserved keyword). Existing cn=config LDIF entries using 'olcBkLloadFeature: proxyauthz' are still accepted because the attribute definition uses dual naming. However, the OCS no longer lists 'olcBkLloadFeature' as a MAY attribute; strict LDAP schema validation might flag entries using the old attribute name as schema violations. The 'feature' keyword in config files no longer has an associated schema OID (NULL schema), which may affect cn=config LDIF export/import round-trips for entries that were originally created via the 'feature' keyword.",
+      "evidence": [
+        {
+          "file": "servers/lloadd/config.c",
+          "lines": [
+            398,
+            425
+          ],
+          "snippet": "{ \"feature\", \"name\", 2, 0, 0,\n    ARG_MAGIC|CFG_FEATURE,\n    &config_feature,\n    NULL, NULL, NULL\n},\n{ \"enable\", \"name\", 2, 2, 0,\n    ARG_MAGIC|CFG_FEATURE_ENABLE,\n    &config_feature,\n    \"( OLcfgBkAt:13.10 \"\n        \"NAME ( 'olcBkLloadFeatureEnable' 'olcBkLloadFeature' ) \"...\n{ \"disable\", \"name\", 2, 2, 0,\n    ARG_MAGIC|CFG_FEATURE_DISABLE,\n    &config_feature,\n    \"( OLcfgBkAt:13.42 \"\n        \"NAME 'olcBkLloadFeatureDisable' \"..."
+        },
+        {
+          "file": "servers/lloadd/config.c",
+          "lines": [
+            837,
+            844
+          ],
+          "snippet": "\"MAY ( olcBkLloadFeatureEnable \"\n    \"$ olcBkLloadFeatureDisable \""
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The lloadd configuration schema is the public interface for lloadd deployments. Administrators use both config files and cn=config LDIF to manage lloadd instances. The schema attribute reorganization is visible to any tool or script that generates or inspects lloadd cn=config entries. The OCS change may cause schema compliance warnings in monitoring systems.",
+      "uncertainty": "Most slapd installations do not enforce strict OCS MAY validation, so the schema change may not cause practical issues. The actual impact depends on the schema validation strictness of the deployment.",
+      "manual_review_required": true,
+      "recommended_review": "Check if any automation or tooling generates lloadd cn=config LDIF with the old 'olcBkLloadFeature' attribute name. If so, update to use 'olcBkLloadFeatureEnable' instead. Verify that 'feature' keyword in config files still round-trips through cn=config correctly.",
+      "test_recommendation": "MEDIUM: 1) Write 'feature proxyauthz' to config, start lloadd, dump cn=config LDIF, verify attribute name. 2) Write 'enable proxyauthz' to config, verify identical behavior. 3) Write 'disable proxyauthz', verify feature disabled. 4) Test LDIF round-trip with old 'olcBkLloadFeature' vs new 'olcBkLloadFeatureEnable' attribute.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "servers/lloadd/config.c",
+            "old_lines": [
+              394,
+              406
+            ],
+            "new_lines": [
+              398,
+              425
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "config_keys",
+              "config_schema"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "config_schema",
+                "test_priority": "high",
+                "public": true,
+                "description": "cn=config, slapd.conf, schema, and overlay configuration"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/vim/pca-results/dcd5b5/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/vim",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/vim/pca-results/dcd5b5/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/dcd5b5",
+  "patch_id": "4692bb7af4dd",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "screenpos().curscol",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/move.c",
+        "old_lines": [
+          1560,
+          1565
+        ],
+        "new_lines": [
+          1560,
+          1575
+        ],
+        "symbol": "textpos2screenpos"
+      },
+      "old_behavior": "With rightleft mode enabled, the curscol value of screenpos() was computed in reading order (same direction as col/endcol), which meant it pointed to the rightmost cell of the character on screen, not where the cursor is actually placed.",
+      "new_behavior": "With rightleft mode enabled, curscol is now remapped to count from the left side of the window, matching the actual cursor screen column. col and endcol remain in reading order.",
+      "compatibility_reason": "screenpos() is a public documented Vimscript function. The curscol field's return value changes when rightleft is set and row > 0. Any plugin or script that depends on the specific numeric value of curscol with rightleft enabled will see a different result. While this aligns behavior with documentation (curscol should point to where cursor is placed), it is a behavioral change in a public API output.",
+      "test_recommendation": "Run the existing test_cursor_func.vim tests, particularly the Test_screenpos_rightleft test. Create before/after comparisons of screenpos() return values with rightleft enabled to confirm curscol now points to the actual cursor screen column.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/dcd5b5/compatibility-testing"
+}

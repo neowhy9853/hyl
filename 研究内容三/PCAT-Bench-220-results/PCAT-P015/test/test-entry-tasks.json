@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max-rerun-20260722/PCAT-P015/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/cpython",
+  "analysis_repo": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max-rerun-20260722/PCAT-P015/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max-rerun-20260722/PCAT-P015",
+  "patch_id": "24c6bbc92b6dd0ce9b7ff799049498299f70f97d",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "ZipInfo._encodeFilenameFlags",
+        "kind": "public_method",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "Lib/zipfile/__init__.py",
+        "old_lines": [
+          566,
+          573
+        ],
+        "new_lines": [
+          566,
+          577
+        ],
+        "symbol": "_encodeFilenameFlags"
+      },
+      "old_behavior": "在 flag_bits 未设置 _MASK_UTF_FILENAME 时，始终尝试 ascii 编码。对非 ASCII 文件名触发 UnicodeEncodeError 后回退到 UTF-8 编码并设置 UTF-8 标志位。导致原始 cp437 编码文件名在重写中央目录时被转换为 UTF-8。",
+      "new_behavior": "在 flag_bits 未设置 _MASK_UTF_FILENAME 时使用 cp437 编码；设置时使用 ascii 编码。编码成功时清除 UTF-8 标志位（flag_bits & ~_MASK_UTF_FILENAME）。使得 cp437 编码的文件名在重写时保持 cp437 编码不变，不再被强制转换为 UTF-8。",
+      "compatibility_reason": "ZipInfo.FileHeader() 是公开 API（类注释明确说明供外部使用），其输出 bytes 格式发生变化：对于无 UTF-8 标志位的 ZipInfo 对象且文件名为 cp437 可编码时，返回的文件名字节从 UTF-8 编码变为 cp437 编码，且 flag_bits 中的 UTF-8 标志位被清除。依赖 FileHeader() 输出的 ZIP 生成/解析工具可能观察到字节差异。",
+      "test_recommendation": "创建含非 ASCII cp437 可编码文件名的 ZIP，读取后调用 ZipInfo.FileHeader() 比较 old/new 输出 bytes。验证 append 模式下中央目录文件名编码是否保持原始编码而非被转换为 UTF-8。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max-rerun-20260722/PCAT-P015/compatibility-testing"
+}

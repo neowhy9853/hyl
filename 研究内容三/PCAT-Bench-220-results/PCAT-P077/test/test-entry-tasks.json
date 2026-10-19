@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/openldap/pca-results/f6ae8e/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/openldap",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/openldap/pca-results/f6ae8e/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/f6ae8e",
+  "patch_id": "f6ae8ef451f38e3f2f3ec6fc43cc8806ecfe125a",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "affected_api": {
+        "name": "lload_features / LLOAD_FEATURES_DEFAULT",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "servers/lloadd/lload.h",
+        "old_lines": [
+          184,
+          189
+        ],
+        "new_lines": [
+          184,
+          193
+        ],
+        "symbol": "LLOAD_FEATURES_DEFAULT"
+      },
+      "old_behavior": "lloadd startup with lload_features zero-initialized: no LDAP Proxy Authorization control (proxyauthz) was sent to backend servers by default. The Proxy Authorization control (RFC 4370) was only added to proxied operations when explicitly enabled via 'feature proxyauthz' in the config file or 'olcBkLloadFeature: proxyauthz' in cn=config.",
+      "new_behavior": "lloadd startup with lload_features initialized to LLOAD_FEATURES_DEFAULT, which includes LLOAD_FEATURE_PROXYAUTHZ. The proxyauthz feature is now enabled by default, meaning the Proxy Authorization control is added to every proxied operation without explicit configuration. Backend servers will receive the proxy authz control on every operation. Can be disabled via 'disable proxyauthz' in config or 'olcBkLloadFeatureDisable: proxyauthz' in cn=config.",
+      "compatibility_reason": "Any lloadd deployment that does not explicitly set 'feature proxyauthz' in its config will now have proxyauthz ON by default. This is an externally observable behavior change: backend LDAP servers will receive a new LDAP control (1.3.6.1.4.1.4203.666.5.12) on proxied operations. Backend servers that do not support the Proxy Authorization control may return 'protocol error' or 'unavailable critical extension' if the control is marked critical, potentially causing service disruption. Deployments relying on SASL binds will now require backend servers to support the LDAP Who Am I? extended operation. Deployments explicitly using 'feature proxyauthz' are unaffected.",
+      "test_recommendation": "HIGH: 1) Build lloadd before and after patch, start with default config (no explicit feature keyword), verify proxyauthz control appears in proxied LDAP operations (packet capture). 2) Start lloadd with explicit 'disable proxyauthz', verify control is absent. 3) Start lloadd with 'enable proxyauthz' (equivalent to default), verify control present. 4) Verify existing 'feature proxyauthz' configs produce same behavior before and after.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "state_and_side_effect_probe",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "side_effect_manifest_stability",
+        "comparison": "exact",
+        "required_observation": "canonical before/after state, I/O, process, network, and concurrency manifest",
+        "input_axes": [
+          "normal path",
+          "error path",
+          "state snapshot",
+          "concurrency",
+          "signal interruption"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/f6ae8e/compatibility-testing"
+}

@@ -1,0 +1,72 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/git/pca-results/0cd225/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/0cd225/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/0cd225",
+  "patch_id": "0cd2255e64b4775520a6acbbb1868437fc26662d",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "affected_api": {
+        "name": "write_midx_file_only / write_midx_file_compact",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "midx.h",
+        "old_lines": [
+          132,
+          145
+        ],
+        "new_lines": [
+          132,
+          145
+        ],
+        "symbol": "write_midx_file_only, write_midx_file_compact"
+      },
+      "old_behavior": "`write_midx_file_only()` accepted 5 parameters (source, packs_to_include, preferred_pack_name, refs_snapshot, flags). `write_midx_file_compact()` accepted 4 parameters (source, from, to, flags). Neither accepted an `incremental_base` parameter.",
+      "new_behavior": "Both `write_midx_file_only()` and `write_midx_file_compact()` now accept a new `const char *incremental_base` parameter at position 4 (before `flags`). `write_midx_file_only` now has 6 parameters; `write_midx_file_compact` now has 5 parameters.",
+      "compatibility_reason": "`midx.h` is a public header (matched by `public_library_headers` surface in the git profile). Any external code that includes `midx.h` and calls `write_midx_file_only()` or `write_midx_file_compact()` will fail to compile due to the missing parameter. The parameter is inserted before `flags`, so existing callers passing positional arguments will have their arguments misaligned. All in-tree callers (builtin/multi-pack-index.c, midx-write.c) have been updated in the same patch, but external callers linking against git's internal libraries will break.",
+      "test_recommendation": "Run t5334-incremental-multi-pack-index.sh and t5335-compact-multi-pack-index.sh to verify that `write_midx_file_only` and `write_midx_file_compact` work correctly with and without the new `--base` / `incremental_base` parameter. These tests already cover the new `--base` option behavior.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "downstream_compile_link_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "api_signature_compatibility",
+        "comparison": "success",
+        "required_observation": "old downstream source compiles and links against both versions",
+        "input_axes": [
+          "old declarations",
+          "language modes",
+          "compiler flags",
+          "link modes"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/0cd225/compatibility-testing"
+}

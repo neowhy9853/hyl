@@ -1,0 +1,135 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnf/pca-results/eabf33/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/dnf",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnf/pca-results/eabf33/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnf/pca-results/eabf33",
+  "patch_id": "eabf33aeeb486ec671f3e3fd2120bccc396d2326",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "ERROR_EXCEPTION_CHANGE",
+      "affected_api": {
+        "name": "Base.package_import_key / dnf.exceptions.InvalidInstalledGPGKeyError",
+        "kind": "exported_function",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "dnf/base.py",
+        "old_lines": [
+          2640,
+          2646
+        ],
+        "new_lines": [
+          2665,
+          2671
+        ],
+        "symbol": "Base._get_key_for_package"
+      },
+      "old_behavior": "When a GPG key is installed but expired for a repository, `Base._get_key_for_package()` raises `dnf.exceptions.Error` with the key metadata as the message value.",
+      "new_behavior": "When a GPG key is installed but expired for a repository, `Base._get_key_for_package()` raises `dnf.exceptions.InvalidInstalledGPGKeyError` (a new Error subclass) with the same message value.",
+      "compatibility_reason": "The exception type for this specific error path changed from generic `Error` to a specific subclass `InvalidInstalledGPGKeyError`. While `except Error` handlers still catch it (subclass), code that inspects exception types (e.g., `type(e).__name__`, `isinstance(e, SpecificType)`) or dispatches on exception type will observe different behavior. Additionally, the new `InvalidInstalledGPGKeyError` class is a new public symbol in `dnf.exceptions` module that consumers can now import and catch specifically.",
+      "test_recommendation": "Verify that `except Error` still catches the new exception. Test that type-aware exception handling (e.g., `type(e).__name__`) correctly handles the new type. Verify the exception message is preserved.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "error_or_exception_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "error_exception_stability",
+        "comparison": "error",
+        "required_observation": "errno/error code, exception type, message, and failure mode",
+        "input_axes": [
+          "each error path",
+          "invalid input",
+          "missing resource",
+          "permission",
+          "fault injection"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "medium",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "BaseCli.gpgsigcheck",
+        "kind": "cli_command",
+        "language": "python"
+      },
+      "target_location": {
+        "file": "dnf/cli/cli.py",
+        "old_lines": [
+          312,
+          317
+        ],
+        "new_lines": [
+          367,
+          375
+        ],
+        "symbol": "BaseCli.gpgsigcheck"
+      },
+      "old_behavior": "When GPG signature check fails due to installed-but-expired keys, `gpgsigcheck()` logs each error via `logger.critical()`, then raises `dnf.exceptions.Error(\"GPG check FAILED\")` without any additional plugin suggestion.",
+      "new_behavior": "When GPG signature check fails specifically due to an `InvalidInstalledGPGKeyError`, after logging critical errors, `gpgsigcheck()` additionally outputs a `logger.info()` message suggesting to try `--enableplugin=expired-pgp-keys` before raising the final error.",
+      "compatibility_reason": "The CLI output now contains an additional informational message on this specific error path. Any tool or script that parses DNF stderr/stdout output could be affected by the new message. The output change is additive (the old error messages are still present), but the total diagnostic output content has changed.",
+      "test_recommendation": "Trigger the expired-GPG-key error path and verify: (1) the new info message appears, (2) old critical error messages still appear, (3) final Error is still raised. For compatibility, confirm tools parsing DNF output still function.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/dnf/pca-results/eabf33/compatibility-testing"
+}

@@ -1,0 +1,131 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/git/pca-results/pca-gi/analysis.json",
+  "patch_id": "pca-git-sideband-patch",
+  "result_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/pca-gi/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/git",
+    "base_commit": "9a2fb147f2c61d0cab52c883e7e26f5b7948e3ed",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/pca-gi/_worktrees/patched",
+    "package_profile": "git"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "optimization": "-O0 -g --coverage",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Both before and after binaries built from isolated git worktrees",
+      "Build flags: NO_RUST=1 NO_ICONV=1 NO_GETTEXT=1 with gcov instrumentation",
+      "AGENTS.md build guide followed"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 4,
+    "inputs_executed": 4,
+    "contracts_total": 3,
+    "contracts_passed": 3,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 9,
+    "patch_lines_covered": 4,
+    "patch_lines_uncovered": 5,
+    "patch_line_coverage_rate": 44.44
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "status": "partial",
+      "target_location": {
+        "file": "sideband.c",
+        "new_lines": [129, 146],
+        "symbol": "demultiplex_sideband"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "passed",
+          "artifact_path": "test-entry-work/PCA-0001/runs/",
+          "run_command": "bash test_sideband.sh",
+          "expected_signal": "Pipe mode output identical between before/after; ANSI sequence position change observable on TTY only",
+          "reachability_signal": "gcov confirms 4 of 9 executable patch lines covered (dumb terminal path)"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "output_format_stability",
+          "status": "passed",
+          "detail": "Pipe mode fetch: 401 bytes identical before/after. Pipe mode push: identical (22 bytes). Test suite t5516-fetch-push.sh: 123/123 pass both before and after. No contract breaches."
+        }
+      ],
+      "coverage": {
+        "executable_lines": 9,
+        "covered_lines": 4,
+        "uncovered_lines": [
+          "sideband.c:138 - prefix = ANSI_PREFIX DISPLAY_PREFIX (TTY branch)",
+          "sideband.c:139 - suffix = \"\" (TTY branch)",
+          "sideband.c:177 - strbuf_addf(..., prefix) (band 3 error path)",
+          "sideband.c:205 - strbuf_addstr(scratch, suffix) (cross-boundary suffix)",
+          "sideband.c:235 - strbuf_addstr(scratch, prefix) (trailing content prefix)"
+        ],
+        "rate": 44.44
+      },
+      "behavior_differences": [
+        {
+          "input_id": "pipe_fetch",
+          "diff_type": "OUTPUT_FORMAT_CHANGE",
+          "before": "401 bytes of stderr output (identical)",
+          "after": "401 bytes of stderr output (identical)",
+          "evidence": "diff of before/after stderr output shows zero differences in pipe mode. gcov confirms dumb terminal path (lines 141-142, 208) executed. TTY branch (lines 138-139) not exercised by automated tests."
+        }
+      ],
+      "notes": [
+        "No observable behavior difference in pipe (dumb terminal) mode",
+        "TTY-only changes (ANSI prefix position, band 3 error prefix) not exercised by test suite",
+        "All 123 tests in t5516-fetch-push.sh pass on both before and after binaries",
+        "Manual verification on a real TTY recommended for TTY-specific changes",
+        "Programmatic consumers of git output (piped stderr) are completely unaffected"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "coverage",
+      "id": "PCA-0001-TTY",
+      "reason": "TTY-only branch (isatty(2) && !is_terminal_dumb()) cannot be exercised in automated environment; requires an interactive PTY",
+      "required_action": "Run git fetch/push manually on a terminal with isatty(2)=true to exercise lines 138-139, 177, 205, 235"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "N/A (single finding, direct test-summary)",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "test-entry-work/PCA-0001/runs/",
+    "execution_results": "test-entry-work/PCA-0001/runs/results.txt",
+    "contract_summary": "embedded in test-summary.json",
+    "coverage_data": "sideband.c.gcov at /tmp/pca-after/",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": false,
+    "rationale": "The pipe (dumb terminal) behavior is identical before and after (confirmed by diff and gcov). Full test suite (t5516-fetch-push.sh, 123 tests) passes on both binaries with zero regressions. No contract breaches detected. However, the TTY-only branch (lines 138-139) cannot be exercised in the automated test environment, resulting in 44.44% patch line coverage (below 80% gate). For TTY users, the ANSI escape sequence position changes from line-end to line-start, but visual appearance is preserved. Conclusion is inconclusive only due to the coverage gate; practical backward compatibility is maintained for all programmatic consumers.",
+    "recommended_actions": [
+      "Manually verify TTY output on a real terminal to confirm visual appearance is unchanged",
+      "Run git fetch/push interactively to exercise the TTY branch in demultiplex_sideband",
+      "The change is a bug fix for proper line clearing on terminal output; no regression expected"
+    ]
+  }
+}

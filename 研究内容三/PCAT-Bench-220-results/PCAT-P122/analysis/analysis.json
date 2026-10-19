@@ -1,0 +1,308 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P062/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P062",
+  "base_ref": "01f064064c3146bd82e0c8db0da11d286bca31c6",
+  "base_commit": "01f064064c3146bd82e0c8db0da11d286bca31c6",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "56ccc5ed569869fd735074ccebeaa7aab058342d",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/rhboot/grub2/commit/56ccc5ed569869fd735074ccebeaa7aab058342d",
+    "download_url": "https://github.com/rhboot/grub2/commit/56ccc5ed569869fd735074ccebeaa7aab058342d.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P062/_patch-cache/56ccc5ed5698.patch",
+    "commit": "56ccc5ed569869fd735074ccebeaa7aab058342d"
+  },
+  "package_profile": "grub2",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 4357,
+    "patch_lines": 107,
+    "diff_added_lines": 18,
+    "diff_deleted_lines": 8,
+    "diff_context_lines": 37,
+    "churn": 26,
+    "raw_hunks": 3,
+    "candidate_hunks": 2,
+    "skipped_doc_hunks": 1,
+    "changed_files": 1,
+    "candidate_context_bytes": 5736,
+    "public_candidate_hunks": 2,
+    "surface_counts": {
+      "user_visible_output": 2,
+      "config": 2,
+      "boot_protocol": 2,
+      "cli_options": 1,
+      "cli": 1
+    },
+    "candidates_json_bytes": 14575
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 2,
+    "compatibility_changes": 2,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "grub2",
+      "affected_surface": "GRUB_OS_PROBER_SKIP_LIST environment variable — config surface, user-visible output, boot protocol",
+      "affected_api": {
+        "name": "GRUB_OS_PROBER_SKIP_LIST",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "location": {
+        "file": "util/grub.d/30_os-prober.in",
+        "old_lines": [
+          117,
+          135
+        ],
+        "new_lines": [
+          117,
+          142
+        ],
+        "symbol": "GRUB_OS_PROBER_SKIP_LIST"
+      },
+      "old_behavior": "GRUB_OS_PROBER_SKIP_LIST 匹配使用 \\b 单词边界正则表达式，这意味着 UUID 中包含的 '-' 和 '@' 被视为非单词字符边界，导致部分 UUID 匹配的误报（例如 '12345678-...' 中的前8个字符可能因 \\b 边界误匹配其他条目）。非 EFI bootloader 条目必须使用 '<UUID>@<DEVICE>' 格式才能跳过，仅使用 '<UUID>' 不会生效。",
+      "new_behavior": "匹配使用显式的空格、逗号、分号作为分隔符（SPACE='[[:space:],;]'），并通过首尾添加空格锚定来防止部分匹配。非 EFI bootloader 条目仅需 '<UUID>' 即可跳过（与文档描述一致）。同时向后兼容接受 '<UUID>@/dev/*' 格式（会输出弃用警告），逗号和分号也可作为分隔符使用。",
+      "compatibility_reason": "该配置变量的解析语义发生了实质性变化：(1) 分隔符从任意非单词字符变为仅空格/逗号/分号，使用逗号分隔 UUID 的现有配置将正常工作而非误判为部分匹配；(2) 非 EFI 系统上仅使用 UUID（无 @device 后缀）的配置从“静默无效”变为“正确生效”，可能导致以前未被跳过的条目现在被跳过；(3) 部分 UUID 匹配的误报被消除，某些以前被错误跳过的条目现在会正常显示。此变更直接影响 grub-mkconfig 生成的引导菜单。",
+      "evidence": [
+        {
+          "file": "util/grub.d/30_os-prober.in",
+          "lines": [
+            117,
+            142
+          ],
+          "snippet": "case \"$GRUB_OS_PROBER_SKIP_LIST\" in *@/[dD][eE][vV]/*)\n\tgrub_warn \"$(gettext_printf \"GRUB_OS_PROBER_SKIP_LIST contains deprecated <UUID>@/dev/* notation. The @/dev/* suffix is ignored.\")\"\nesac\n\nfor OS in ${OSPROBED} ; do\n  DEVICE=\"`echo ${OS} | cut -d ':' -f 1`\"\n  LONGNAME=\"`echo ${OS} | cut -d ':' -f 2 | tr '^' ' '`\"\n  LABEL=\"`echo ${OS} | cut -d ':' -f 3 | tr '^' ' '`\"\n  BOOT=\"`echo ${OS} | cut -d ':' -f 4`\"\n  unset UUID\n  if [ -n \"${GRUB_OS_PROBER_SKIP_LIST}\" ] && UUID=\"`${grub_probe} --target=fs_uuid --device ${DEVICE%@*}`\"; then\n    SPACE='[[:space:],;]' # regex matching spaces and common separators\n\n    if [ x\"${DEVICE##*@*}\" = x ] ; then\n      EXPUUID=\"$UUID@${DEVICE#*@}\"\n    else\n      EXPUUID=\"$UUID(@/dev/.*)?\"\n    fi\n\n    if printf %s \" ${GRUB_OS_PROBER_SKIP_LIST} \" | grep -Eqie \"${SPACE}${EXPUUID}${SPACE}\" ; then\n      echo \"Skipped ${LONGNAME} on ${DEVICE} by user request.\" >&2\n      continue\n    fi\n  fi"
+        },
+        {
+          "file": "util/grub.d/30_os-prober.in",
+          "lines": [
+            117,
+            135
+          ],
+          "snippet": "  if UUID=\"`${grub_probe} --target=fs_uuid --device ${DEVICE%@*}`\"; then\n    EXPUUID=\"$UUID\"\n\n    if [ x\"${DEVICE#*@}\" != x ] ; then\n      EXPUUID=\"${EXPUUID}@${DEVICE#*@}\"\n    fi\n\n    if [ \"x${GRUB_OS_PROBER_SKIP_LIST}\" != \"x\" ] && [ \"x`echo ${GRUB_OS_PROBER_SKIP_LIST} | grep -i -e '\\b'${EXPUUID}'\\b'`\" != \"x\" ] ; then\n      echo \"Skipped ${LONGNAME} on ${DEVICE} by user request.\" >&2\n      continue\n    fi\n  fi"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "GRUB_OS_PROBER_SKIP_LIST 是 grub-mkconfig 的用户可配置环境变量，在 /etc/default/grub 中设置。每个 grub-mkconfig 运行都会执行 util/grub.d/30_os-prober.in 脚本，该变量的解析行为直接影响生成的 grub.cfg 引导菜单内容，属于公共配置接口。",
+      "uncertainty": "现有使用 '<UUID>@<DEVICE>' 格式的用户将正常工作（新代码保留此格式的支持），但过去依赖非标准分隔符（如 tab、换行）的用户可能会遇到不同的跳过行为。当前未发现依赖旧 \\b 边界误匹配行为的实际使用场景。",
+      "manual_review_required": false,
+      "recommended_review": "确认兼容逗号和分号作为分隔符的意图已在文档中更新（docs/grub.texi 已更新）。验证非 EFI 系统上仅 UUID 的跳过行为符合预期，且与文档描述一致。",
+      "test_recommendation": "设置 GRUB_OS_PROBER_SKIP_LIST 包含多个 UUID（使用空格、逗号、分号分隔），运行 grub-mkconfig 验证对应的 os-prober 条目被正确跳过而不存在部分匹配误报或漏报。测试非 EFI 场景下仅 UUID 条目的功能正确性。",
+      "test_priority_reason": "配置文件行为变化 — 用户直接配置的环境变量解析语义改变，可能影响引导菜单生成的正确性，属于用户可直接触发的高影响变更。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "配置文件行为变化 — 用户直接配置的环境变量解析语义改变，可能影响引导菜单生成的正确性，属于用户可直接触发的高影响变更。",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=config_key with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "util/grub.d/30_os-prober.in",
+            "old_lines": [
+              117,
+              135
+            ],
+            "new_lines": [
+              117,
+              142
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "config",
+              "boot_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "grub.cfg parsing and environment semantics"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "grub2",
+      "affected_surface": "User-visible stderr output from grub-mkconfig — user_visible_output surface",
+      "affected_api": {
+        "name": "grub_warn (deprecation warning for GRUB_OS_PROBER_SKIP_LIST)",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "util/grub.d/30_os-prober.in",
+        "old_lines": [
+          117,
+          118
+        ],
+        "new_lines": [
+          120,
+          122
+        ],
+        "symbol": "grub_warn"
+      },
+      "old_behavior": "使用 '<UUID>@/dev/*' 格式的 GRUB_OS_PROBER_SKIP_LIST 条目不会触发任何警告，静默处理。",
+      "new_behavior": "当 GRUB_OS_PROBER_SKIP_LIST 包含 '<UUID>@/dev/*' 格式的条目时，grub-mkconfig 在 stderr 输出弃用警告：'GRUB_OS_PROBER_SKIP_LIST contains deprecated <UUID>@/dev/* notation. The @/dev/* suffix is ignored.'（@/dev/* 后缀被忽略但跳过功能仍生效）。",
+      "compatibility_reason": "新增的弃用警告会在 grub-mkconfig 运行时输出到 stderr。如果存在自动化脚本解析 grub-mkconfig 的 stderr 输出（例如监控或包装脚本），这些脚本会看到之前不存在的新警告消息。功能行为本身保持向后兼容 —— 弃用的格式仍然有效（只是后缀被忽略）。",
+      "evidence": [
+        {
+          "file": "util/grub.d/30_os-prober.in",
+          "lines": [
+            120,
+            122
+          ],
+          "snippet": "case \"$GRUB_OS_PROBER_SKIP_LIST\" in *@/[dD][eE][vV]/*)\n\tgrub_warn \"$(gettext_printf \"GRUB_OS_PROBER_SKIP_LIST contains deprecated <UUID>@/dev/* notation. The @/dev/* suffix is ignored.\")\"\nesac"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "grub_warn 输出到 stderr，是 grub-mkconfig 的用户可见输出。虽然仅仅是警告而非错误，但确实为终端用户和解析 stderr 的自动化工具引入了新的可观察输出。",
+      "uncertainty": "大多数用户不会解析 grub-mkconfig 的 stderr 输出。警告仅在实际使用弃用格式时触发，如果用户从未使用 '<UUID>@/dev/*' 格式则不会产生任何影响。",
+      "manual_review_required": false,
+      "recommended_review": "确认弃用消息的国际化（gettext）在所有目标语言中都能正确显示。",
+      "test_recommendation": "设置 GRUB_OS_PROBER_SKIP_LIST='XXXX@/dev/sda1' 运行 grub-mkconfig，验证 stderr 输出中包含弃用警告。验证即使有警告，os-prober 条目仍能正确跳过。",
+      "test_priority_reason": "低优先级 — 仅新增了一条弃用警告，向后兼容行为未改变（弃用格式仍然有效），对功能性无影响。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "低优先级 — 仅新增了一条弃用警告，向后兼容行为未改变（弃用格式仍然有效），对功能性无影响。",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0002",
+            "file": "util/grub.d/30_os-prober.in",
+            "old_lines": [
+              117,
+              135
+            ],
+            "new_lines": [
+              117,
+              142
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "config",
+              "boot_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "grub.cfg parsing and environment semantics"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "candidate_disposition": {
+    "HUNK-0002": "CONFIRMED — 包含 PCA-0001 (CONFIG_CLI_BEHAVIOR_CHANGE) 和 PCA-0002 (SIDE_EFFECT_CHANGE)",
+    "HUNK-0003": "INTERNAL_ONLY — macosx 分支中对 UUID 探测的内联修复，因为 patch 主体中新增了 'unset UUID'。外部行为不变：macOS 条目生成的触发条件仍然取决于能否成功探测文件系统 UUID。纯内部实现细节，不暴露兼容性变化。"
+  },
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "analysis_notes": "此补丁修复了 GRUB_OS_PROBER_SKIP_LIST 配置变量的三个缺陷：(1) 非 EFI bootloader 条目仅 UUID 无法跳过（文档描述应支持但实现不支持），(2) 单词边界正则导致部分 UUID 匹配误报，(3) 接受无效的 UUID@DEVICE 语法。补丁在修复这些缺陷的同时保留了向后兼容性（接受逗号/分号分隔符和 UUID@/dev/* 格式并输出弃用警告）。HUNK-0003 是对 HUNK-0002 中 'unset UUID' 变更的必要内部修复，确保 macOS 条目生成不受影响。",
+  "next_step": "Analysis complete. Findings are validated and ready for testing."
+}

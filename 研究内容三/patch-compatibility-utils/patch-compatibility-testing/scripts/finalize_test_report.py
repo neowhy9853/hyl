@@ -28,7 +28,30 @@ TOP_REQUIRED = [
     "blocked_or_not_run",
     "artifacts",
     "conclusion",
+    "coverage_report",
 ]
+
+COVERAGE_CLASSIFICATIONS = {
+    "coverable",
+    "architecturally_unreachable",
+    "fault_injection_needed",
+    "not_attempted",
+}
+
+CLASSIFICATION_LABELS = {
+    "zh": {
+        "coverable": "可覆盖",
+        "architecturally_unreachable": "架构不可达",
+        "fault_injection_needed": "需故障注入",
+        "not_attempted": "未尝试",
+    },
+    "en": {
+        "coverable": "coverable",
+        "architecturally_unreachable": "architecturally unreachable",
+        "fault_injection_needed": "fault injection needed",
+        "not_attempted": "not attempted",
+    },
+}
 
 SUMMARY_FIELDS = [
     "findings_total",
@@ -245,6 +268,292 @@ def validate_finding(item: Any, index: int, errors: list[str]) -> None:
                 )
 
 
+def coverage_count_fields(item: dict[str, Any], path: str, errors: list[str]) -> None:
+    executable = item.get("executable_lines")
+    covered = item.get("covered_lines")
+    uncovered = item.get("uncovered_lines")
+    rate = item.get("rate")
+    if not is_non_negative_int(executable):
+        errors.append(f"{path}.executable_lines: expected non-negative integer")
+    if not is_non_negative_int(covered):
+        errors.append(f"{path}.covered_lines: expected non-negative integer")
+    if not isinstance(uncovered, list):
+        errors.append(f"{path}.uncovered_lines: expected array")
+    elif not all(isinstance(line, str) for line in uncovered):
+        errors.append(f"{path}.uncovered_lines: every item must be a string")
+    if not is_rate(rate):
+        errors.append(f"{path}.rate: expected percentage in [0, 100]")
+    if (
+        is_non_negative_int(executable)
+        and is_non_negative_int(covered)
+        and covered > executable
+    ):
+        errors.append(f"{path}.covered_lines: cannot exceed executable_lines")
+    if (
+        is_non_negative_int(executable)
+        and is_non_negative_int(covered)
+        and isinstance(uncovered, list)
+        and executable != covered + len(uncovered)
+    ):
+        errors.append(
+            f"{path}: executable_lines must equal covered_lines + len(uncovered_lines)"
+        )
+    if is_non_negative_int(executable) and is_non_negative_int(covered) and is_rate(rate):
+        expected = 0.0 if executable == 0 else covered * 100.0 / executable
+        if not math.isclose(float(rate), expected, abs_tol=0.05):
+            errors.append(f"{path}.rate: expected {expected:.2f} from coverage counts")
+
+
+def validate_coverage_report(data: dict[str, Any], errors: list[str]) -> None:
+    path = "coverage_report"
+    section = data.get(path)
+    require_fields(
+        section,
+        [
+            "tool",
+            "gate",
+            "findings",
+            "files",
+            "uncovered_line_analysis",
+            "iterations",
+            "caveats",
+        ],
+        path,
+        errors,
+    )
+    if not isinstance(section, dict):
+        return
+    require_string(section.get("tool"), f"{path}.tool", errors, min_length=1)
+    for field in ("optimization", "coverage_data"):
+        if field in section:
+            require_string(section.get(field), f"{path}.{field}", errors)
+
+    summary = data.get("summary")
+    conclusion = data.get("conclusion")
+
+    gate = section.get("gate")
+    require_fields(gate, ["threshold", "rate", "met"], f"{path}.gate", errors)
+    if isinstance(gate, dict):
+        if not is_rate(gate.get("threshold")):
+            errors.append(f"{path}.gate.threshold: expected percentage in [0, 100]")
+        if not is_rate(gate.get("rate")):
+            errors.append(f"{path}.gate.rate: expected percentage in [0, 100]")
+        if not isinstance(gate.get("met"), bool):
+            errors.append(f"{path}.gate.met: expected boolean")
+        declared_gate = data.get("coverage_gate", 80)
+        if is_rate(gate.get("threshold")) and is_rate(declared_gate):
+            if float(gate["threshold"]) != float(declared_gate):
+                errors.append(f"{path}.gate.threshold: must equal coverage_gate")
+        if (
+            is_rate(gate.get("rate"))
+            and isinstance(summary, dict)
+            and is_rate(summary.get("patch_line_coverage_rate"))
+            and not math.isclose(
+                float(gate["rate"]),
+                float(summary["patch_line_coverage_rate"]),
+                abs_tol=0.05,
+            )
+        ):
+            errors.append(
+                f"{path}.gate.rate: must match summary.patch_line_coverage_rate"
+            )
+        if (
+            isinstance(gate.get("met"), bool)
+            and isinstance(conclusion, dict)
+            and isinstance(conclusion.get("coverage_gate_met"), bool)
+            and gate["met"] != conclusion["coverage_gate_met"]
+        ):
+            errors.append(f"{path}.gate.met: must match conclusion.coverage_gate_met")
+
+    finding_results = data.get("finding_results")
+    finding_by_id: dict[str, dict[str, Any]] = {}
+    if isinstance(finding_results, list):
+        for finding in finding_results:
+            if isinstance(finding, dict) and isinstance(finding.get("finding_id"), str):
+                finding_by_id[finding["finding_id"]] = finding
+
+    coverage_findings = section.get("findings")
+    if not isinstance(coverage_findings, list):
+        errors.append(f"{path}.findings: expected array")
+        coverage_findings = []
+    seen_findings: set[str] = set()
+    for index, item in enumerate(coverage_findings):
+        item_path = f"{path}.findings[{index}]"
+        require_fields(
+            item,
+            [
+                "finding_id",
+                "file",
+                "new_lines",
+                "executable_lines",
+                "covered_lines",
+                "uncovered_lines",
+                "rate",
+            ],
+            item_path,
+            errors,
+        )
+        if not isinstance(item, dict):
+            continue
+        finding_id = item.get("finding_id")
+        require_string(finding_id, f"{item_path}.finding_id", errors)
+        if isinstance(finding_id, str) and finding_id:
+            if finding_id in seen_findings:
+                errors.append(f"{item_path}.finding_id: duplicate entry")
+            seen_findings.add(finding_id)
+            target = finding_by_id.get(finding_id)
+            if target is None:
+                errors.append(
+                    f"{item_path}.finding_id: no matching finding_results entry"
+                )
+            else:
+                target_coverage = target.get("coverage")
+                if isinstance(target_coverage, dict):
+                    for field in ("executable_lines", "covered_lines"):
+                        if item.get(field) != target_coverage.get(field):
+                            errors.append(
+                                f"{item_path}.{field}: must match finding_results coverage"
+                            )
+                    if isinstance(item.get("uncovered_lines"), list) and isinstance(
+                        target_coverage.get("uncovered_lines"), list
+                    ):
+                        if len(item["uncovered_lines"]) != len(
+                            target_coverage["uncovered_lines"]
+                        ):
+                            errors.append(
+                                f"{item_path}.uncovered_lines: must match finding_results coverage"
+                            )
+        require_string(item.get("file"), f"{item_path}.file", errors)
+        lines = item.get("new_lines")
+        if not (
+            isinstance(lines, list)
+            and len(lines) == 2
+            and all(is_non_negative_int(value) for value in lines)
+        ):
+            errors.append(f"{item_path}.new_lines: expected [start, end]")
+        coverage_count_fields(item, item_path, errors)
+
+    files_list = section.get("files")
+    if not isinstance(files_list, list):
+        errors.append(f"{path}.files: expected array")
+        files_list = []
+    sum_executable = 0
+    sum_covered = 0
+    sum_uncovered = 0
+    file_uncovered_keys: list[str] = []
+    for index, item in enumerate(files_list):
+        item_path = f"{path}.files[{index}]"
+        require_fields(
+            item,
+            ["file", "executable_lines", "covered_lines", "uncovered_lines", "rate"],
+            item_path,
+            errors,
+        )
+        if not isinstance(item, dict):
+            continue
+        require_string(item.get("file"), f"{item_path}.file", errors)
+        coverage_count_fields(item, item_path, errors)
+        if is_non_negative_int(item.get("executable_lines")):
+            sum_executable += item["executable_lines"]
+        if is_non_negative_int(item.get("covered_lines")):
+            sum_covered += item["covered_lines"]
+        uncovered = item.get("uncovered_lines")
+        if isinstance(uncovered, list):
+            for entry in uncovered:
+                if (
+                    not isinstance(entry, str)
+                    or ":" not in entry
+                    or not entry.rsplit(":", 1)[1].isdigit()
+                ):
+                    errors.append(
+                        f"{item_path}.uncovered_lines: expected '<file>:<line>' entries"
+                    )
+                    continue
+                sum_uncovered += 1
+                file_uncovered_keys.append(entry)
+
+    if isinstance(summary, dict) and is_non_negative_int(
+        summary.get("patch_executable_lines")
+    ):
+        executable_total = summary.get("patch_executable_lines")
+        if executable_total > 0 and not files_list:
+            errors.append(f"{path}.files: required when patch_executable_lines > 0")
+        if files_list:
+            if sum_executable != executable_total:
+                errors.append(
+                    f"{path}.files: executable_lines total must match summary.patch_executable_lines"
+                )
+            if (
+                is_non_negative_int(summary.get("patch_lines_covered"))
+                and sum_covered != summary["patch_lines_covered"]
+            ):
+                errors.append(
+                    f"{path}.files: covered_lines total must match summary.patch_lines_covered"
+                )
+            if (
+                is_non_negative_int(summary.get("patch_lines_uncovered"))
+                and sum_uncovered != summary["patch_lines_uncovered"]
+            ):
+                errors.append(
+                    f"{path}.files: uncovered_lines count must match summary.patch_lines_uncovered"
+                )
+
+    analysis_entries = section.get("uncovered_line_analysis")
+    if not isinstance(analysis_entries, list):
+        errors.append(f"{path}.uncovered_line_analysis: expected array")
+        analysis_entries = []
+    analyzed_keys: set[str] = set()
+    for index, item in enumerate(analysis_entries):
+        item_path = f"{path}.uncovered_line_analysis[{index}]"
+        require_fields(
+            item, ["file", "line", "classification", "reason"], item_path, errors
+        )
+        if not isinstance(item, dict):
+            continue
+        require_string(item.get("file"), f"{item_path}.file", errors)
+        line = item.get("line")
+        if not is_non_negative_int(line):
+            errors.append(f"{item_path}.line: expected non-negative integer")
+        if item.get("classification") not in COVERAGE_CLASSIFICATIONS:
+            errors.append(f"{item_path}.classification: unsupported value")
+        require_string(item.get("reason"), f"{item_path}.reason", errors, min_length=1)
+        if isinstance(item.get("file"), str) and is_non_negative_int(line):
+            analyzed_keys.add("%s:%d" % (item["file"], line))
+    for entry in file_uncovered_keys:
+        if entry not in analyzed_keys:
+            errors.append(
+                f"{path}: uncovered line {entry} has no uncovered_line_analysis entry"
+            )
+
+    iterations = section.get("iterations")
+    if not isinstance(iterations, list):
+        errors.append(f"{path}.iterations: expected array")
+    else:
+        for index, item in enumerate(iterations):
+            item_path = f"{path}.iterations[{index}]"
+            require_fields(item, ["round", "rate", "inputs_added"], item_path, errors)
+            if not isinstance(item, dict):
+                continue
+            if not (is_non_negative_int(item.get("round")) and item["round"] >= 1):
+                errors.append(f"{item_path}.round: expected integer >= 1")
+            if not is_rate(item.get("rate")):
+                errors.append(f"{item_path}.rate: expected percentage in [0, 100]")
+            if not is_non_negative_int(item.get("inputs_added")):
+                errors.append(
+                    f"{item_path}.inputs_added: expected non-negative integer"
+                )
+            if "rate_before" in item and not is_rate(item.get("rate_before")):
+                errors.append(
+                    f"{item_path}.rate_before: expected percentage in [0, 100]"
+                )
+
+    caveats = section.get("caveats")
+    if not isinstance(caveats, list):
+        errors.append(f"{path}.caveats: expected array")
+    elif not all(isinstance(caveat, str) for caveat in caveats):
+        errors.append(f"{path}.caveats: every item must be a string")
+
+
 def validate_result(data: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     errors.extend(f"compatibility type registry: {error}" for error in validate_registry())
@@ -397,6 +706,8 @@ def validate_result(data: dict[str, Any]) -> list[str]:
                 errors.append(
                     "conclusion.coverage_gate_met does not match coverage rate and gate"
                 )
+
+    validate_coverage_report(data, errors)
 
     status = data.get("status")
     if status == "passed" and isinstance(summary, dict):
@@ -602,12 +913,244 @@ def render_report(data: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def coverage_target_text(item: dict[str, Any], meta: dict[str, Any]) -> str:
+    location = meta.get("target_location") if isinstance(meta, dict) else None
+    if isinstance(location, dict) and location.get("file"):
+        return location_text(location)
+    lines = item.get("new_lines") or ["", ""]
+    return f"{item.get('file', '')}:{lines[0]}-{lines[1]}"
+
+
+def _rate_text(value: Any) -> str:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f"{value:.2f}%"
+    return cell(value)
+
+
+def render_coverage_report(data: dict[str, Any]) -> str:
+    zh = str(data.get("report_language", "zh-CN")).lower().startswith("zh")
+
+    def L(zh_text: str, en_text: str) -> str:
+        return zh_text if zh else en_text
+
+    section = data["coverage_report"]
+    summary = data["summary"]
+    gate = section.get("gate", {})
+    classification_labels = CLASSIFICATION_LABELS["zh" if zh else "en"]
+    finding_meta = {
+        finding.get("finding_id"): finding
+        for finding in data.get("finding_results", [])
+        if isinstance(finding, dict)
+    }
+
+    lines = [f"# {L('补丁行覆盖率报告', 'Patch Line Coverage Report')}", ""]
+
+    lines.extend(
+        [
+            f"## {L('覆盖率结论', 'Coverage conclusion')}",
+            "",
+            f"| {L('字段', 'Field')} | {L('值', 'Value')} |",
+            "|---|---|",
+            f"| {L('覆盖率工具', 'Coverage tool')} | `{cell(section.get('tool'))}` |",
+        ]
+    )
+    if section.get("optimization"):
+        lines.append(
+            f"| {L('优化级别', 'Optimization')} | `{cell(section['optimization'])}` |"
+        )
+    lines.extend(
+        [
+            f"| {L('覆盖率门槛', 'Coverage gate')} | `{cell(gate.get('threshold'))}%` |",
+            f"| {L('实际覆盖率', 'Actual coverage')} | `{_rate_text(gate.get('rate'))}` |",
+            f"| {L('是否达标', 'Gate met')} | `{L('通过', 'met') if gate.get('met') else L('未通过', 'not met')}` |",
+        ]
+    )
+    if section.get("coverage_data"):
+        lines.append(
+            f"| {L('原始覆盖率数据', 'Raw coverage data')} | `{cell(section['coverage_data'])}` |"
+        )
+
+    lines.extend(
+        [
+            "",
+            f"## {L('覆盖率总览', 'Coverage summary')}",
+            "",
+            f"| {L('指标', 'Metric')} | {L('数值', 'Value')} |",
+            "|---|---:|",
+            f"| {L('补丁可执行行', 'Patch executable lines')} | {summary['patch_executable_lines']} |",
+            f"| {L('已覆盖行', 'Covered lines')} | {summary['patch_lines_covered']} |",
+            f"| {L('未覆盖行', 'Uncovered lines')} | {summary['patch_lines_uncovered']} |",
+            f"| {L('补丁行覆盖率', 'Patch line coverage rate')} | {summary['patch_line_coverage_rate']:.2f}% |",
+        ]
+    )
+
+    lines.extend(
+        [
+            "",
+            f"## {L('按 Finding 覆盖率', 'Per-finding coverage')}",
+            "",
+            f"| Finding | {L('类型', 'Type')} | {L('优先级', 'Priority')} | {L('目标', 'Target')} | "
+            f"{L('可执行行', 'Executable')} | {L('已覆盖', 'Covered')} | {L('覆盖率', 'Rate')} | "
+            f"{L('未覆盖行', 'Uncovered')} | {L('状态', 'Status')} |",
+            "|---|---|---|---|---:|---:|---:|---|---|",
+        ]
+    )
+    for item in section.get("findings", []):
+        meta = finding_meta.get(item.get("finding_id"), {})
+        lines.append(
+            "| {fid} | {ctype} | {priority} | {target} | {exe} | {cov} | {rate} | {unc} | {status} |".format(
+                fid=cell(item.get("finding_id")),
+                ctype=cell(meta.get("compatibility_type")),
+                priority=cell(meta.get("test_priority")),
+                target=cell(coverage_target_text(item, meta)),
+                exe=cell(item.get("executable_lines")),
+                cov=cell(item.get("covered_lines")),
+                rate=_rate_text(item.get("rate")),
+                unc=cell(", ".join(item.get("uncovered_lines") or []) or "-"),
+                status=cell(meta.get("status")),
+            )
+        )
+    if not section.get("findings"):
+        lines.append("| - | - | - | - | - | - | - | - | - |")
+
+    lines.extend(
+        [
+            "",
+            f"## {L('按文件覆盖率', 'Per-file coverage')}",
+            "",
+            f"| {L('文件', 'File')} | {L('可执行行', 'Executable')} | {L('已覆盖', 'Covered')} | "
+            f"{L('覆盖率', 'Rate')} | {L('未覆盖行', 'Uncovered')} |",
+            "|---|---:|---:|---:|---|",
+        ]
+    )
+    for item in section.get("files", []):
+        lines.append(
+            "| {file} | {exe} | {cov} | {rate} | {unc} |".format(
+                file=cell(item.get("file")),
+                exe=cell(item.get("executable_lines")),
+                cov=cell(item.get("covered_lines")),
+                rate=_rate_text(item.get("rate")),
+                unc=cell(", ".join(item.get("uncovered_lines") or []) or "-"),
+            )
+        )
+    if not section.get("files"):
+        lines.append("| - | - | - | - | - |")
+
+    lines.extend(
+        [
+            "",
+            f"## {L('未覆盖行分析', 'Uncovered line analysis')}",
+            "",
+            f"| {L('位置', 'Location')} | Finding | {L('分类', 'Classification')} | "
+            f"{L('根因说明', 'Reason')} | {L('尝试输入', 'Attempted inputs')} |",
+            "|---|---|---|---|---|",
+        ]
+    )
+    for item in section.get("uncovered_line_analysis", []):
+        classification = classification_labels.get(
+            str(item.get("classification")), str(item.get("classification"))
+        )
+        lines.append(
+            "| {loc} | {fid} | {cls} | {reason} | {attempted} |".format(
+                loc=cell("%s:%s" % (item.get("file"), item.get("line"))),
+                fid=cell(item.get("finding_id")),
+                cls=cell(classification),
+                reason=cell(item.get("reason")),
+                attempted=cell(", ".join(item.get("attempted_inputs") or []) or "-"),
+            )
+        )
+    if not section.get("uncovered_line_analysis"):
+        lines.append("| - | - | - | - | - |")
+
+    lines.extend(
+        [
+            "",
+            f"## {L('覆盖率迭代历史', 'Coverage iteration history')}",
+            "",
+            f"| {L('轮次', 'Round')} | {L('覆盖率', 'Rate')} | {L('变化', 'Delta')} | "
+            f"{L('新增输入', 'Inputs added')} | {L('说明', 'Notes')} |",
+            "|---|---:|---:|---:|---|",
+        ]
+    )
+    for item in section.get("iterations", []):
+        delta = "-"
+        rate = item.get("rate")
+        before = item.get("rate_before")
+        if (
+            isinstance(rate, (int, float))
+            and not isinstance(rate, bool)
+            and isinstance(before, (int, float))
+            and not isinstance(before, bool)
+        ):
+            delta = "%+.2f%%" % (rate - before)
+        lines.append(
+            "| {round} | {rate} | {delta} | {added} | {notes} |".format(
+                round=cell(item.get("round")),
+                rate=_rate_text(rate),
+                delta=cell(delta),
+                added=cell(item.get("inputs_added")),
+                notes=cell(item.get("notes")),
+            )
+        )
+    if not section.get("iterations"):
+        lines.append("| - | - | - | - | - |")
+
+    lines.extend(["", f"## {L('覆盖率方法与注意事项', 'Coverage method and caveats')}", ""])
+    caveats = section.get("caveats") or []
+    if caveats:
+        lines.extend(f"- {cell(caveat)}" for caveat in caveats)
+    else:
+        lines.append(L("- 无。", "- None."))
+
+    lines.extend(
+        [
+            "",
+            f"## {L('产物', 'Artifacts')}",
+            "",
+            f"| {L('产物', 'Artifact')} | {L('路径', 'Path')} |",
+            "|---|---|",
+        ]
+    )
+    artifact_rows: list[tuple[str, str]] = []
+    if section.get("coverage_data"):
+        artifact_rows.append(("coverage_data", str(section["coverage_data"])))
+    for key in (
+        "execution_results",
+        "coverage_data",
+        "test_inputs",
+        "test_entries",
+        "report",
+    ):
+        value = (data.get("artifacts") or {}).get(key)
+        if isinstance(value, str) and value and all(
+            value != row[1] for row in artifact_rows
+        ):
+            artifact_rows.append((key, value))
+    if artifact_rows:
+        for key, value in artifact_rows:
+            lines.append(f"| {cell(key)} | `{cell(value)}` |")
+    else:
+        lines.append("| - | - |")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate test-summary.json and render COVERAGE_REPORT.md"
+        description=(
+            "Validate test-summary.json and render TEST_REPORT.md plus the "
+            "dedicated COVERAGE_REPORT.md"
+        )
     )
     parser.add_argument("summary_json", help="Path to test-summary.json")
-    parser.add_argument("--output", help="Markdown output path")
+    parser.add_argument(
+        "--output",
+        help="Overall test report path (default <result-dir>/TEST_REPORT.md)",
+    )
+    parser.add_argument(
+        "--coverage-output",
+        help="Dedicated coverage report path (default <result-dir>/COVERAGE_REPORT.md)",
+    )
     parser.add_argument("--validate-only", action="store_true")
     args = parser.parse_args()
 
@@ -631,11 +1174,19 @@ def main() -> int:
     output_path = (
         Path(args.output).resolve()
         if args.output
+        else summary_path.parent / "TEST_REPORT.md"
+    )
+    coverage_output_path = (
+        Path(args.coverage_output).resolve()
+        if args.coverage_output
         else summary_path.parent / "COVERAGE_REPORT.md"
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(render_report(data), encoding="utf-8")
+    coverage_output_path.parent.mkdir(parents=True, exist_ok=True)
+    coverage_output_path.write_text(render_coverage_report(data), encoding="utf-8")
     print(f"Report written to: {output_path}")
+    print(f"Coverage report written to: {coverage_output_path}")
     return 0
 
 

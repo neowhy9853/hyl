@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965",
+  "patch_id": "66d9658f5f557e0e525e5db5449ef94686df50d3",
+  "min_priority": "all",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "safe_strncpy",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/util.c",
+        "old_lines": [
+          327,
+          339
+        ],
+        "new_lines": [
+          327,
+          341
+        ],
+        "symbol": "safe_strncpy"
+      },
+      "old_behavior": "safe_strncpy called strncpy(dest, src, size-1) without NULL-checking src. If src was NULL (e.g., empty DHCP SNAME option dhcp-option=66,), strncpy receives NULL and causes segfault (undefined behavior). dest[size-1] was set to \\0 but dest[0] was not explicitly zeroed before strncpy.",
+      "new_behavior": "safe_strncpy now checks if (src) before calling strncpy; if src is NULL, it returns an empty string (dest[0] = \\0). Additionally, dest[0] = dest[size-1] = \\0 zeroes both first and last byte before strncpy, providing defense-in-depth. The function contract is documented: \"src may be NULL in which case we return an empty string.\"",
+      "compatibility_reason": "Internal utility fix for NULL-safety. For callers that already pass valid non-NULL strings (vast majority of 30+ call sites), behavior is byte-identical after strncpy. For callers that may pass NULL (specifically DHCP SNAME/file code paths via rfc2131.c), behavior changes from crash (segfault) to defined empty-string output. This is a contract relaxation: previously-Undefined input (NULL) now produces defined behavior. No existing correct caller behavior is broken. The dest[0] initialization is a minor side-effect change but matches what strncpy would write for typical non-NULL short strings.",
+      "test_recommendation": "Test DHCP option dhcp-option=66, (empty SNAME) and dhcp-boot with empty filename to confirm no crash and correct DHCP response. Test safe_strncpy with NULL src, empty src (\"\"), and normal src to confirm all three paths produce correct null-terminated strings.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/66d965/compatibility-testing"
+}

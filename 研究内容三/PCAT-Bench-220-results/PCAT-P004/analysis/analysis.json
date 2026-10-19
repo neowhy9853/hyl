@@ -1,0 +1,198 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/kernel",
+  "analysis_repo": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P004/analysis/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/PCAT-Bench-220-results/PCAT-P004/analysis",
+  "base_ref": "ffc253263a1375a65fa6c9f62a893e9767fbebfa",
+  "base_commit": "ffc253263a1375a65fa6c9f62a893e9767fbebfa",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "c6d4181a1e8281b4e446ba83aa8eb06021cafdc7",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/home/soong/pca_benchmark/PCAT-Bench-220/items/PCAT-P004/patch.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "kernel_6_6",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 680,
+    "patch_lines": 18,
+    "diff_added_lines": 1,
+    "diff_deleted_lines": 1,
+    "diff_context_lines": 6,
+    "churn": 2,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 1939,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "public_headers": 1,
+      "syscall_wrappers": 1,
+      "proc_sys_consumers": 1,
+      "uapi": 1
+    },
+    "candidates_json_bytes": 6627
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.99,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "Linux sysctl 稳定 UAPI 头文件中的公开最大路径分量宏",
+      "affected_api": {
+        "name": "CTL_MAXNAME",
+        "kind": "macro",
+        "language": "c",
+        "signature_old": "#define CTL_MAXNAME 10",
+        "signature_new": "#define CTL_MAXNAME 8"
+      },
+      "location": {
+        "file": "include/uapi/linux/sysctl.h",
+        "old_lines": [
+          30,
+          30
+        ],
+        "new_lines": [
+          30,
+          30
+        ],
+        "symbol": "CTL_MAXNAME"
+      },
+      "old_behavior": "包含 <linux/sysctl.h> 的用户态 C 代码在编译时得到 CTL_MAXNAME == 10；该公开常量将 sysctl 二进制接口的 name/nlen 最大路径分量数描述为 10。",
+      "new_behavior": "同一用户态源码针对补丁后安装头文件编译时得到 CTL_MAXNAME == 8；依赖该公开常量的数组上限、长度校验或静态断言随之收紧为 8。",
+      "compatibility_reason": "CTL_MAXNAME 位于 include/uapi/linux/sysctl.h，并由相邻注释明确规定 struct __sysctl_args.nlen 的最大可接受值。把 10 改为 8 会让针对新头文件重编译的既有消费者改变长度校验、缓冲区大小或编译期断言，原先按公开常量允许 9 或 10 个路径分量的源码不再满足同一契约，因此构成输入契约收紧。",
+      "evidence": [
+        {
+          "file": "include/uapi/linux/sysctl.h",
+          "lines": [
+            30,
+            33
+          ],
+          "snippet": "-#define CTL_MAXNAME 10\t\t/* how many path components do we allow in a\n+#define CTL_MAXNAME 8\t\t/* how many path components do we allow in a\n\t\t\t\t   call to sysctl? ... largest acceptable value for the nlen\n\t\t\t\t   member of a struct __sysctl_args to have? */"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "该定义位于 include/uapi/linux/sysctl.h；有效 kernel_6_6 profile 将 include/uapi/** 标记为 public=true、stability=stable。头文件自身还明确声明这些值通过 sysctl 二进制接口导出给用户空间。",
+      "uncertainty": "精确符号检索只发现该宏定义，未发现补丁后内核执行代码引用 CTL_MAXNAME；因此确认的是重编译消费者可观察的编译期输入契约变化，不宣称已构建二进制或当前内核运行时会改变 sysctl 系统调用结果。",
+      "manual_review_required": false,
+      "recommended_review": "复核分配 int name[CTL_MAXNAME]、以 CTL_MAXNAME 校验 nlen 或断言该值至少为 9/10 的用户态消费者；同时避免把头文件常量变化误报为内核运行路径变化。",
+      "test_recommendation": "分别执行 before/after headers_install，用两套安装头文件编译同一 C 探针并比较 CTL_MAXNAME、由其决定的数组容量及 8/9/10 边界判定；再用要求 CTL_MAXNAME >= 9 的静态断言证明既有源码从可编译变为编译失败。",
+      "test_priority_reason": "变更位于稳定 UAPI 公共头文件，并把文档化的最大输入路径分量从 10 收紧为 8；现有消费者重编译后可直接改变输入接受范围，因此需要高优先级契约测试。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "变更位于稳定 UAPI 公共头文件，并把文档化的最大输入路径分量从 10 收紧为 8；现有消费者重编译后可直接改变输入接受范围，因此需要高优先级契约测试。",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=macro with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "include/uapi/linux/sysctl.h",
+            "old_lines": [
+              27,
+              33
+            ],
+            "new_lines": [
+              27,
+              33
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "syscall_wrappers",
+              "proc_sys_consumers",
+              "uapi"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers and declarations."
+              },
+              {
+                "name": "syscall_wrappers",
+                "test_priority": "high",
+                "public": true,
+                "description": "User-space syscall wrappers, fallbacks, flags, errno, and retry behavior."
+              },
+              {
+                "name": "proc_sys_consumers",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-space parsers or generators for /proc, /proc/sys, or /sys text output."
+              },
+              {
+                "name": "uapi",
+                "test_priority": "high",
+                "public": true,
+                "description": "Userspace API headers — stable ABI"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

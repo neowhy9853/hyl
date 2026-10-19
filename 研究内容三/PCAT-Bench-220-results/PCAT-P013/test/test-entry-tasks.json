@@ -1,0 +1,75 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P013/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/cpython",
+  "analysis_repo": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P013/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P013",
+  "patch_id": "07ae6f133ad7a4e7ed506f6a511809b1fc3d1465",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "sysconfig.parse_config_h",
+        "kind": "exported_function",
+        "language": "python",
+        "signature_old": "def parse_config_h(fp, vars=None)",
+        "signature_new": "def parse_config_h(fp, vars=None)"
+      },
+      "target_location": {
+        "file": "Lib/sysconfig/__init__.py",
+        "old_lines": [
+          437,
+          450
+        ],
+        "new_lines": [
+          437,
+          453
+        ],
+        "symbol": "parse_config_h"
+      },
+      "old_behavior": "parse_config_h() 解析 pyconfig.h 中的 #define 行时，将匹配到的值 v 原样存入字典。对于字符串类型的定义如 #define PY_BUILTIN_HASHLIB_HASHES \"md5,sha1,sha256\"，v 保留双引号，导致字典中的值为 '\"md5,sha1,sha256\"'（含引号）。",
+      "new_behavior": "parse_config_h() 在提取值 v 后，先通过正则 '^\"(.*)\"$' 检查是否被双引号包裹；如果是则剥去引号，仅保留引号内内容。同一示例的结果变为 'md5,sha1,sha256'（无引号）。",
+      "compatibility_reason": "sysconfig.parse_config_h() 是 __all__ 中声明的公共 API，也在官方文档中有说明。调用方如果依赖返回字典中字符串值保留 pyconfig.h 原始双引号的行为（例如直接比较或拼接带引号的值），升级后引号被剥离，会导致字符串不匹配。此外，该变化在 CPython 构建时会影响 _sysconfigdata_*.py 的生成，进而影响 sysconfig.get_config_vars() 中对应键的值。",
+      "test_recommendation": "1) 使用已知带双引号字符串值的 pyconfig.h 文件调用 parse_config_h()，验证返回值不再包含外围引号。2) 通过 sysconfig.get_config_vars() 检查 PY_BUILTIN_HASHLIB_HASHES 等已知字符串配置变量的值不再以双引号开头。3) 对已构建的 Python 运行 test_sysconfig 中新增的 test_PY_BUILTIN_HASHLIB_HASHES_in_vars 测试用例。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "return_value_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "return_contract_stability",
+        "comparison": "exit_code",
+        "required_observation": "return value, exit status, output value, and ownership convention",
+        "input_axes": [
+          "success",
+          "failure",
+          "boundary",
+          "null result",
+          "partial result"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/opencode-results/pcat-cpython-deepseek-v4-flash-max/PCAT-P013/compatibility-testing"
+}

@@ -1,0 +1,135 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/openldap/pca-results/pca_op/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/openldap",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/openldap/pca-results/pca_op/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/pca_op",
+  "patch_id": "pca_openldap_60458c",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "olcDbPageSize",
+        "kind": "config_key",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "servers/slapd/back-mdb/config.c",
+        "old_lines": [
+          71,
+          82
+        ],
+        "new_lines": [
+          71,
+          88
+        ],
+        "symbol": "mdbcfg"
+      },
+      "old_behavior": "The slapd-mdb backend configuration schema had no 'dbpagesize' config option. The olcMdbConfig object class MAY clause did not include olcDbPageSize. The mdb_info struct had no mi_pagesize field.",
+      "new_behavior": "A new optional 'dbpagesize' config option (olcDbPageSize, OID OLcfgDbAt:1.15) is added to the slapd-mdb backend. It accepts a uint value in range 256-65536 representing the LMDB page size in bytes. Setting it causes mdb_env_set_pagesize() to be called at database open time, which affects newly created databases only. The olcMdbConfig object class now includes olcDbPageSize in its MAY clause.",
+      "compatibility_reason": "The config schema of slapd-mdb has changed: a new optional attribute (olcDbPageSize) is added to the olcMdbConfig object class, and the slapd.conf/config parser now recognizes the 'dbpagesize' keyword. This is additive and backward compatible — existing configs without this option produce identical behavior. However, configuration management tools that validate schema against known attributes or config keys will see a new recognized key and attribute. Additionally, databases created with a non-default pagesize will have different internal LMDB page structures (affecting max key length, I/O granularity, and file layout), which could affect downstream tools or replication scenarios that depend on the default pagesize.",
+      "test_recommendation": "Test that slapd-mdb starts and operates normally without 'dbpagesize' set (backward compatibility). Test that setting 'dbpagesize' to valid values (4096, 8192, 16384) correctly creates databases with the specified page size. Test that invalid values (e.g., 1000, 0, 131072) are rejected with appropriate error messages.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "temporary config file plus command invocation",
+        "trigger_surface": "load a minimal config/env setting that reaches the changed parser or behavior",
+        "seed_sources": [
+          "sample configs",
+          "existing parser tests",
+          "documentation"
+        ],
+        "surface_entry_kind": "config_reproducer",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "low",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "affected_api": {
+        "name": "mdb_db_open",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "servers/slapd/back-mdb/init.c",
+        "old_lines": [
+          126,
+          131
+        ],
+        "new_lines": [
+          126,
+          142
+        ],
+        "symbol": "mdb_db_open"
+      },
+      "old_behavior": "The mdb_db_open() function created an LMDB environment with mdb_env_create() and then immediately proceeded to encryption setup, reader config, mapsize config, and database open. No pagesize was explicitly set, so LMDB used the default (filesystem block size, typically 4096 or 8192).",
+      "new_behavior": "After mdb_env_create() and before encryption setup, mdb_db_open() now conditionally calls mdb_env_set_pagesize() if mi_pagesize is non-zero. If mdb_env_set_pagesize() fails, the database open fails with a goto to the fail label, printing a debug message with the LMDB error string.",
+      "compatibility_reason": "This is a conditional behavioral change that only activates when the new 'dbpagesize' config option is explicitly set. When not set (mi_pagesize == 0), behavior is identical to before the patch. When set, the LMDB pagesize is explicitly configured before environment open. This is backward compatible but introduces a new failure path: if mdb_env_set_pagesize() fails (e.g., invalid pagesize value), the database will fail to open with a new error message, whereas previously this code path did not exist.",
+      "test_recommendation": "Test that mdb_db_open succeeds without mi_pagesize set (backward compat). Test that it succeeds with a valid pagesize set. Test that it fails gracefully with an invalid pagesize (non-power-of-2). Use a unit-level test that calls through the config parsing and database open sequence.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "config_cli_precedence_matrix",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "config_cli_behavior_stability",
+        "comparison": "exact",
+        "required_observation": "acceptance, default, precedence, exit status, output, and resulting state",
+        "input_axes": [
+          "default",
+          "explicit setting",
+          "legacy alias",
+          "invalid value",
+          "CLI/config/env precedence"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/openldap/pca-results/pca_op/compatibility-testing"
+}

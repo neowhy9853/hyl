@@ -1,0 +1,147 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/bc05a8/analysis.json",
+  "patch_id": "bc05a801bdca5f982f5712f1220e34a47a993f33",
+  "result_dir": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/bc05a8/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/lvm2",
+    "base_commit": "13cb047d13c1f186d5b376d866db0cb00e61fa32",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/lvm2/pca-results/bc05a8/_worktrees/patched",
+    "package_profile": "lvm2"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc",
+    "optimization": "-O0 -g --coverage",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Host cannot safely exercise kernel device-mapper state.",
+      "/dev/mapper/control creation fails with Operation not permitted.",
+      "Tests limited to compilation, binary string analysis, and CLI behavior comparison.",
+      "Full integration tests (dmsetup, VG operations, PV metadata reads) blocked."
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 3,
+    "inputs_executed": 2,
+    "contracts_total": 2,
+    "contracts_passed": 1,
+    "contracts_breached": 1,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 2,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 2,
+    "patch_line_coverage_rate": 0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "medium",
+      "status": "partial",
+      "target_location": {
+        "file": "lib/config/config.c",
+        "new_lines": [512, 525],
+        "symbol": "config_file_read_fd"
+      },
+      "entries": [
+        {
+          "entry_id": "ENTRY-0001",
+          "status": "executed",
+          "artifact_path": "test-entry-work/runs/pca-0001-harness",
+          "run_command": "strings tools/lvm | grep 'Metadata buffer size overflow'",
+          "expected_signal": "new format string present in binary",
+          "reachability_signal": "strings output shows the new format string"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "CTR-0001",
+          "status": "breached",
+          "detail": "Old: 'Metadata buffer size overflow.' → New: 'Metadata buffer size overflow %zu + %zu on %s.'"
+        },
+        {
+          "contract_id": "CTR-0002",
+          "status": "passed",
+          "detail": "CLI behavior (dumpconfig/version/help) identical before/after"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 2,
+        "covered_lines": 0,
+        "uncovered_lines": ["lib/config/config.c:515-518 (error message)", "lib/config/config.c:553 (strncpy)"],
+        "rate": 0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I1",
+          "diff_type": "OUTPUT_FORMAT_CHANGE",
+          "before": "Metadata buffer size overflow.",
+          "after": "Metadata buffer size overflow %zu + %zu on %s.",
+          "evidence": "strings tools/lvm output confirmed the format string change in compiled binary"
+        }
+      ],
+      "notes": [
+        "Binary string analysis confirms the OUTPUT_FORMAT_CHANGE",
+        "Specific error path (size+size2<size) cannot be triggered without kernel device-mapper support",
+        "Normal CLI operation unchanged before/after"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "environment",
+      "id": "BLK-ENV-001",
+      "reason": "/dev/mapper/control not available - kernel device-mapper driver inaccessible from this host",
+      "required_action": "Run in a privileged disposable VM with device-mapper kernel support"
+    },
+    {
+      "scope": "entry",
+      "id": "BLK-ENT-001",
+      "reason": "config_file_read_fd requires struct device * backed by devmapper infrastructure - cannot call without kernel support",
+      "required_action": "Use a VM or container with /dev/mapper/control available"
+    },
+    {
+      "scope": "coverage",
+      "id": "BLK-COV-001",
+      "reason": "config.c gcov shows 0% for config_file_read_fd function - no test inputs reached this code path without devmapper",
+      "required_action": "Run dmsetup/VG operations in a privileged environment to exercise config_file_read_fd"
+    },
+    {
+      "scope": "input",
+      "id": "BLK-INP-001",
+      "reason": "Overflow error path (size+size2<size) requires calling config_file_read_fd with crafted size parameters - function unreachable without devmapper",
+      "required_action": "Provide device-mapper support or write a unit test that directly calls config_file_read_fd with mocked device"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "phase1_impact/impact_map.json",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": false,
+    "rationale": "The error message format for metadata buffer overflow has changed from 'Metadata buffer size overflow.' to 'Metadata buffer size overflow %zu + %zu on %s.'. This is an OUTPUT_FORMAT_CHANGE confirmed by binary string analysis. The coverage gate of 80% is not met because config_file_read_fd requires kernel device-mapper support and could not be exercised from this host. Normal CLI operation (dumpconfig, version, help) is identical before/after, confirming no regression in non-device code paths.",
+    "recommended_actions": [
+      "Run directed tests in a VM with /dev/mapper/control to exercise the specific error path",
+      "Write a unit test that mocks struct device to call config_file_read_fd with crafted size parameters triggering integer overflow",
+      "Verify the old fixed string is not relied upon by any external monitoring or parsing tools"
+    ]
+  }
+}

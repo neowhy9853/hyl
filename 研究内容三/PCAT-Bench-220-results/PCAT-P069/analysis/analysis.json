@@ -1,0 +1,524 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/rsyslog",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8",
+  "base_ref": "HEAD",
+  "base_commit": "f9f5b3ca41d64d8e48a5c7e6b98c72339a7f7547",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "available",
+  "patch_id": "e671f885037435884f070493be753eb021e26e79",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/rsyslog-e671f88.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "rsyslog",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "soft threshold exceeded",
+    "candidates_json_bytes=112341 >= 100000"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 14740,
+    "patch_lines": 362,
+    "diff_added_lines": 180,
+    "diff_deleted_lines": 11,
+    "diff_context_lines": 113,
+    "churn": 191,
+    "raw_hunks": 15,
+    "candidate_hunks": 14,
+    "skipped_doc_hunks": 1,
+    "changed_files": 8,
+    "candidate_context_bytes": 41613,
+    "public_candidate_hunks": 10,
+    "surface_counts": {
+      "ioctl_netlink_consumers": 1,
+      "user_visible_output": 12,
+      "ioctl_netlink": 1,
+      "plugin_api": 1,
+      "module_api": 9,
+      "config_language": 13,
+      "daemon_interfaces": 14,
+      "config_keys": 11,
+      "logging": 9,
+      "network_protocol": 2,
+      "persistence_state": 2,
+      "output_format": 8,
+      "environment_variables": 1,
+      "env_vars": 1,
+      "syscall_wrappers": 3,
+      "public_headers": 2,
+      "tests": 4,
+      "cli_options": 1,
+      "cli": 1
+    },
+    "candidates_json_bytes": 112341
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 7
+  },
+  "summary": {
+    "total_changed_files": 8,
+    "total_candidates": 14,
+    "compatibility_changes": 2,
+    "high_priority": 1,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "rsyslog",
+      "affected_surface": "Daemon systemd readiness notification timing - cli_options, daemon_interfaces",
+      "affected_api": {
+        "name": "sd_notify(READY=1) via main() in rsyslogd.c",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "tools/rsyslogd.c",
+        "old_lines": [
+          2666,
+          2677
+        ],
+        "new_lines": [
+          2666,
+          2682
+        ],
+        "symbol": "main"
+      },
+      "old_behavior": "When built with HAVE_LIBSYSTEMD, rsyslog always called rsconfWaitForModulesReady() before sd_notify(0, \"READY=1\"), ensuring all modules had signalled readiness before informing systemd the service is fully started.",
+      "new_behavior": "rsconfWaitForModulesReady() and subsequent sd_notify(READY=1) are only executed when global(systemd.notifyReadyDelay=\"on\") is explicitly configured. By default (systemdNotifyReadyDelay=0), READY=1 is sent immediately after initAll() without waiting for module readiness. The sd_notify is now guarded by rsconfShouldDelayReadyNotify(runConf).",
+      "compatibility_reason": "Operators depending on rsyslog delaying systemd READY=1 until input modules have initialized will find the service starts faster but modules may not be fully ready when dependent services are ordered after rsyslog. The historical behavior was to always wait; the new default is to not wait. Operators relying on the delay for startup sequencing must explicitly add global(systemd.notifyReadyDelay=\"on\") to their configuration.",
+      "evidence": [
+        {
+          "file": "tools/rsyslogd.c",
+          "lines": [
+            2666,
+            2682
+          ],
+          "snippet": "#ifdef HAVE_LIBSYSTEMD\n    if (rsconfShouldDelayReadyNotify(runConf)) {\n        rsconfWaitForModulesReady();\n    }\n    if (sd_watchdog_enabled(0, &systemdWatchdogUsec) > 0) {\n        systemdWatchdogEnabled = 1;\n        dbgprintf(\"systemd watchdog enabled with interval %llu usec\n\", (unsigned long long)systemdWatchdogUsec);\n    }\n    sd_notify(0, \"READY=1\");\n    if (rsconfShouldDelayReadyNotify(runConf)) {\n        rsconfReadyNotifySent();\n    }"
+        },
+        {
+          "file": "runtime/rsconf.h",
+          "lines": [
+            113,
+            119
+          ],
+          "snippet": "int systemdNotifyReadyDelay; /* delay sd_notify READY=1 until opt-in modules report ready */"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "sd_notify(READY=1) is a systemd service management interface directly consumed by the systemd init system. The timing of READY=1 affects service ordering for all units with After=rsyslog.service and Type=notify. This is an externally observable behavioral change.",
+      "uncertainty": "The exact impact depends on whether operators use systemd service ordering that depends on rsyslog's READY=1 timing. For most setups where rsyslog starts after network.target, the change should be benign or beneficial (faster start).",
+      "manual_review_required": true,
+      "recommended_review": "Verify with operators who use After=rsyslog.service in their systemd unit files to ensure the earlier READY=1 notification does not cause dependency issues. The default behavior change should be documented in release notes.",
+      "test_recommendation": "Verify that config validation accepts both systemd.notifyReadyDelay=\"on\" and \"off\". Verify that with the default (off), rsyslog sends READY=1 immediately. Verify that with \"on\", READY=1 is delayed until modules signal readiness (or 60s timeout).",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0015",
+            "file": "tools/rsyslogd.c",
+            "old_lines": [
+              2666,
+              2677
+            ],
+            "new_lines": [
+              2666,
+              2682
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "cli_options",
+              "user_visible_output",
+              "cli",
+              "logging",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "rsyslog",
+      "affected_surface": "Module readiness barrier - syscall_wrappers, module_api, daemon_interfaces",
+      "affected_api": {
+        "name": "Module readiness barrier API (rsconfRegisterReadiness, rsconfSignalReady, rsconfWaitForModulesReady)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "runtime/rsconf.c",
+        "old_lines": [
+          90,
+          137
+        ],
+        "new_lines": [
+          90,
+          200
+        ],
+        "symbol": "rsconfRegisterReadiness/rsconfSignalReady/rsconfWaitForModulesReady"
+      },
+      "old_behavior": "The module readiness barrier was always active when built with HAVE_LIBSYSTEMD. rsconfRegisterReadiness() unconditionally incremented nModulesPendingReady. rsconfSignalReady() unconditionally decremented and broadcast. rsconfWaitForModulesReady() always waited with a 60s timeout via timeoutComp(). The condition variable used PTHREAD_COND_INITIALIZER (CLOCK_REALTIME).",
+      "new_behavior": "The readiness barrier is gated by rsconfShouldDelayReadyNotify(). When disabled (default): rsconfRegisterReadiness() and rsconfSignalReady() return immediately as no-ops; rsconfWaitForModulesReady() is only called from main() when the delay is enabled. When enabled: the barrier works similarly but with improvements: (1) condition variable initialized at runtime with pthread_once supporting CLOCK_MONOTONIC, (2) timeout computed via clock_gettime instead of timeoutComp(), (3) late-registration detection via bModulesReadyWaitStarted/bModulesReadyWaitActive/bModulesReadyNotifySent state tracking, (4) new rsconfReadyNotifySent() function to mark that READY=1 was already delivered.",
+      "compatibility_reason": "Modules (like imfile) that called rsconfRegisterReadiness() to delay startup sequencing will find their readiness registration is a no-op by default. While this does not cause blocking (since the wait is also skipped), modules that relied on the barrier for internal sequencing may need attention. The clock source change from CLOCK_REALTIME to CLOCK_MONOTONIC changes timeout behavior during system clock jumps - the 60s timeout is now wall-clock-independent, which is more robust.",
+      "evidence": [
+        {
+          "file": "runtime/rsconf.c",
+          "lines": [
+            90,
+            153
+          ],
+          "snippet": "static pthread_cond_t condModulesReady;\nstatic pthread_once_t onceModulesReadyCond = PTHREAD_ONCE_INIT;\nstatic clockid_t clockModulesReady = CLOCK_REALTIME;\nstatic int bModulesReadyWaitStarted = 0;\nstatic int bModulesReadyWaitActive = 0;\nstatic int bModulesReadyNotifySent = 0;\n\nstatic void initModulesReadyCond(void) {\n    pthread_condattr_t attr;\n    if (pthread_condattr_init(&attr) != 0) {\n        pthread_cond_init(&condModulesReady, NULL);\n        return;\n    }\n    if (pthread_condattr_setclock(&attr, CLOCK_MONOTONIC) == 0) {\n        clockModulesReady = CLOCK_MONOTONIC;\n    }\n    ...\n}\n\nvoid rsconfRegisterReadiness(void) {\n    pthread_once(&onceModulesReadyCond, initModulesReadyCond);\n    if (!rsconfShouldDelayReadyNotify(runConf)) return;"
+        },
+        {
+          "file": "runtime/rsconf.h",
+          "lines": [
+            321,
+            328
+          ],
+          "snippet": "void rsconfReadyNotifySent(void);\nint rsconfShouldDelayReadyNotify(rsconf_t *cnf);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The readiness barrier functions (rsconfRegisterReadiness, rsconfSignalReady) are called by loadable plugins (imfile, etc.) that may be developed by third parties. The barrier's behavior change from always-active to config-gated affects the module development contract.",
+      "uncertainty": "The practical impact is low since the wait is also skipped when the delay is disabled. Modules calling rsconfRegisterReadiness() without the delay enabled just have no-op calls, which should be safe as long as they don't depend on barrier side effects.",
+      "manual_review_required": false,
+      "recommended_review": "Review all opt-in modules that call rsconfRegisterReadiness() to confirm they function correctly when the readiness barrier is bypassed (default).",
+      "test_recommendation": "Test that modules like imfile function correctly with default (no delay) configuration. Test that with delay enabled, the new clock_gettime-based 60s timeout works correctly.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 3 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 3,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0006",
+            "file": "runtime/rsconf.c",
+            "old_lines": [
+              90,
+              111
+            ],
+            "new_lines": [
+              90,
+              153
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "syscall_wrappers",
+              "config_keys",
+              "user_visible_output",
+              "logging",
+              "module_api",
+              "config_language",
+              "output_format",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "syscall_wrappers",
+                "test_priority": "high",
+                "public": true,
+                "description": "C/C++ library wrappers or consumers of Linux system calls. Treat signature,\nerrno, flag validation, blocking/retry, timeout, and fallback-path changes\nas compatibility candidates when reachable from public APIs or commands."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "output_format",
+                "test_priority": "high",
+                "public": true,
+                "description": "Log template, property, and output formatting behavior"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0007",
+            "file": "runtime/rsconf.c",
+            "old_lines": [
+              114,
+              120
+            ],
+            "new_lines": [
+              156,
+              175
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "syscall_wrappers",
+              "config_keys",
+              "user_visible_output",
+              "logging",
+              "module_api",
+              "config_language",
+              "output_format",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "syscall_wrappers",
+                "test_priority": "high",
+                "public": true,
+                "description": "C/C++ library wrappers or consumers of Linux system calls. Treat signature,\nerrno, flag validation, blocking/retry, timeout, and fallback-path changes\nas compatibility candidates when reachable from public APIs or commands."
+              },
+              {
+                "name": "config_keys",
+                "test_priority": "high",
+                "public": true,
+                "description": "Configuration keys, parsing behavior, defaults, and diagnostics."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "output_format",
+                "test_priority": "high",
+                "public": true,
+                "description": "Log template, property, and output formatting behavior"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0008",
+            "file": "runtime/rsconf.c",
+            "old_lines": [
+              132,
+              137
+            ],
+            "new_lines": [
+              187,
+              200
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "syscall_wrappers",
+              "user_visible_output",
+              "logging",
+              "module_api",
+              "config_language",
+              "output_format",
+              "daemon_interfaces"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "syscall_wrappers",
+                "test_priority": "high",
+                "public": true,
+                "description": "C/C++ library wrappers or consumers of Linux system calls. Treat signature,\nerrno, flag validation, blocking/retry, timeout, and fallback-path changes\nas compatibility candidates when reachable from public APIs or commands."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Input/output/parser module API"
+              },
+              {
+                "name": "config_language",
+                "test_priority": "high",
+                "public": true,
+                "description": "rsyslog.conf and RainerScript parsing semantics"
+              },
+              {
+                "name": "output_format",
+                "test_priority": "high",
+                "public": true,
+                "description": "Log template, property, and output formatting behavior"
+              },
+              {
+                "name": "daemon_interfaces",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Daemon input/output module runtime behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 3 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

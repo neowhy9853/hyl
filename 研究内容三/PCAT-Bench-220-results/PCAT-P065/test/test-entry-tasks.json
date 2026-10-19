@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/ef191c/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/haproxy",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/ef191c/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/ef191c",
+  "patch_id": "ef191c4",
+  "min_priority": "low",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "low",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "cli_parse_del_map",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "src/map.c",
+        "old_lines": [
+          998,
+          1005
+        ],
+        "new_lines": [
+          998,
+          1009
+        ],
+        "symbol": "cli_parse_del_map"
+      },
+      "old_behavior": "When deleting a map or ACL entry via the CLI command 'del map' or 'del acl' with an invalid identifier, the error message always said \"Unknown map identifier. Please use #<id> or <file>.\n\" regardless of whether the operation was on a map or an ACL.",
+      "new_behavior": "When deleting with an invalid identifier, the error message now varies by context: if the operation is on a map (PAT_REF_MAP), it still says \"Unknown map identifier.\"; if on an ACL (PAT_REF_ACL), it correctly says \"Unknown ACL identifier.\"",
+      "compatibility_reason": "The user-visible CLI error message text changed for the ACL deletion path. Any script, monitoring tool, or automation that parses HAProxy CLI error output to detect \"Unknown map identifier\" would fail to match when deleting ACL entries, as the message now reads \"Unknown ACL identifier\" instead.",
+      "test_recommendation": "Verify via HAProxy CLI that 'del acl' with an invalid identifier produces \"Unknown ACL identifier\" and 'del map' with an invalid identifier still produces \"Unknown map identifier\". Use parser-only mode (haproxy -c -f <config>) for basic verification, or connect via admin socket for full CLI testing.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "single command line or regression test in the project's CLI test framework",
+        "trigger_surface": "run the command/option combination that exercises the changed behavior",
+        "seed_sources": [
+          "existing CLI tests",
+          "manual pages",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "cli_command",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/haproxy/pca-results/ef191c/compatibility-testing"
+}

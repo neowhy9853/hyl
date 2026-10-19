@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P073/analysis.json",
+  "patch_id": "48291d27ac20",
+  "result_dir": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P073/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/lvm2",
+    "base_commit": "fe5081ca9588a9c7ecfe75cff8c2260f6eb04554",
+    "analysis_repo": "/home/soong/pca_benchmark/output_dir_rerun/PCAT-P073/_worktrees/patched",
+    "package_profile": "lvm2"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc",
+    "optimization": "-O0 -g",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Reduced userspace build per AGENTS.md: --disable-udev_sync --disable-udev_rules --disable-selinux --disable-readline --without-blkid --with-thin=none --with-cache=none --with-vdo=none --with-writecache=none --disable-lvmimportvdo",
+      "Kernel device-mapper access not available; only userspace testing possible"
+    ]
+  },
+  "summary": {
+    "findings_total": 1,
+    "findings_targeted": 1,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 19,
+    "inputs_executed": 2,
+    "contracts_total": 1,
+    "contracts_passed": 1,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 4,
+    "patch_lines_covered": 0,
+    "patch_lines_uncovered": 4,
+    "patch_line_coverage_rate": 0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "test_priority": "low",
+      "status": "partial",
+      "target_location": {
+        "file": "tools/vgchange.c",
+        "new_lines": [1114, 1120],
+        "symbol": "vgchange"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "runnable_verified",
+          "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+          "run_command": "bash test-entry-work/PCA-0001/reproducer.sh",
+          "expected_signal": "Source code grep confirms the changed string 'volume groups' in patched source; identical output between before and after for all reachable commands",
+          "reachability_signal": "static_source_verification"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "CT-PCA-0001-output_format_stability-1",
+          "status": "passed",
+          "detail": "canonical observation is identical: before and after vgchange --help output matches exactly"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 4,
+        "covered_lines": 0,
+        "uncovered_lines": [
+          "tools/vgchange.c:1116",
+          "tools/vgchange.c:1117",
+          "tools/vgchange.c:1118",
+          "tools/vgchange.c:1119"
+        ],
+        "rate": 0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "The --clustered option (clustered_ARG) is not registered in the vgchange command definition; the changed code path is dead code",
+        "gcov shows ##### (0 executions) for lines 1116-1119 in both before and after builds",
+        "Before and after binaries produce identical output for all reachable commands"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "coverage",
+      "id": "PCA-0001-dead-code",
+      "reason": "The changed code path (tools/vgchange.c:1116-1119) is unreachable from CLI because the --clustered option is not registered for vgchange command. The arg_is_set(cmd, clustered_ARG) guard can never return true.",
+      "required_action": "This is a static dead-code finding; no input can exercise this path through CLI. Coverage gate cannot be met without code restructuring."
+    },
+    {
+      "scope": "environment",
+      "id": "no-kernel-access",
+      "reason": "Kernel device-mapper access and root privileges not available. Not applicable for this finding as the changed line is in dead code.",
+      "required_action": "Run in a privileged VM with /dev/mapper/control access if kernel-level verification is required."
+    }
+  ],
+  "artifacts": {
+    "impact_map": "N/A",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-work/test-entries.json",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contracts.jsonl",
+    "coverage_data": "/tmp/pca-lvm2-after/vgchange.c.gcov (after), /tmp/pca-lvm2-before/vgchange.c.gcov (before)",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "inconclusive",
+    "coverage_gate_met": false,
+    "rationale": "The change is a one-word grammar fix ('volumes' -> 'volume') in a yes_no_prompt text string within dead code. The code path guarded by arg_is_set(cmd, clustered_ARG) cannot be triggered because --clustered is not registered for vgchange. Before and after binaries produce identical output. No contract breach. Coverage gate not met because all patch-impacted lines are in unreachable dead code (gcov confirms 0 executions). The change has no compatibility impact.",
+    "recommended_actions": [
+      "Consider removing the dead code guarded by arg_is_set(cmd, clustered_ARG) from vgchange.c since --clustered is not a valid option for vgchange",
+      "If the prompt text must be tested, consider a unit-level test that directly calls the yes_no_prompt function"
+    ]
+  }
+}

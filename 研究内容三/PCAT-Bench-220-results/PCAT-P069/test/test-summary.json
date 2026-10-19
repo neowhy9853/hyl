@@ -1,0 +1,214 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8/analysis.json",
+  "patch_id": "e671f885037435884f070493be753eb021e26e79",
+  "result_dir": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/home/soong/pca_benchmark/_repos/rsyslog",
+    "base_commit": "f9f5b3ca41d64d8e48a5c7e6b98c72339a7f7547",
+    "analysis_repo": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8/_worktrees/patched",
+    "package_profile": "rsyslog",
+    "patch_commit": "e671f885037435884f070493be753eb021e26e79",
+    "patch_parent": "3e2147e53f2bd351785f6479c3d6b9ff16e2b69a",
+    "before_build_worktree": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8/compatibility-testing/worktrees/before",
+    "after_build_worktree": "/home/soong/pca_benchmark/_repos/rsyslog/pca-results/e671f8/compatibility-testing/worktrees/after"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0",
+    "optimization": "-O0 -g --coverage",
+    "coverage_tool": "gcov",
+    "notes": [
+      "Build uses disposable git worktrees: BEFORE at parent commit 3e2147e53, AFTER at HEAD f9f5b3ca4",
+      "autoconf-archive installed manually from .deb (missing on host)",
+      "protobuf-c and snappy libraries extracted from .deb packages into ~/.local",
+      "Docker socket access denied - container validation not available",
+      "Only applied patch, no extra features enabled beyond testbench minimum"
+    ]
+  },
+  "summary": {
+    "findings_total": 2,
+    "findings_targeted": 2,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 4,
+    "inputs_executed": 4,
+    "contracts_total": 3,
+    "contracts_passed": 1,
+    "contracts_breached": 1,
+    "contracts_skipped": 1,
+    "patch_executable_lines": 20,
+    "patch_lines_covered": 7,
+    "patch_lines_uncovered": 13,
+    "patch_line_coverage_rate": 35
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "high",
+      "status": "passed",
+      "target_location": {
+        "file": "tools/rsyslogd.c",
+        "new_lines": [
+          2666,
+          2682
+        ],
+        "symbol": "main"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "verified",
+          "artifact_path": "test-entry-work/PCA-0001/config_validation",
+          "run_command": "rsyslogd -C -N1 -M\"../runtime/.libs:../.libs\" -f <config>",
+          "expected_signal": "Exit code 0 for valid configs, exit code 1 for unknown parameters",
+          "reachability_signal": "Config validation complete message: 'End of config validation run. Bye.'"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "config_acceptance_off",
+          "status": "breached",
+          "detail": "global(systemd.notifyReadyDelay=\"off\"): BEFORE rejects (exit 1, unknown param), AFTER accepts (exit 0)"
+        },
+        {
+          "contract_id": "config_acceptance_on",
+          "status": "breached",
+          "detail": "global(systemd.notifyReadyDelay=\"on\"): BEFORE rejects (exit 1, unknown param), AFTER accepts (exit 0)"
+        },
+        {
+          "contract_id": "default_behavior_stability",
+          "status": "passed",
+          "detail": "Default config (no notifyReadyDelay): AFTER accepts (exit 0, default=off)"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 3,
+        "covered_lines": 2,
+        "uncovered_lines": [
+          "tools/rsyslogd.c:2669-2680 (daemon init path, requires systemd runtime)"
+        ],
+        "rate": 66.7
+      },
+      "behavior_differences": [
+        {
+          "input_id": "I1",
+          "diff_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+          "before": "Exit code 1: parameter 'systemd.notifyReadyDelay' not known",
+          "after": "Exit code 0: config validation passed",
+          "evidence": "BEFORE binary at 3e2147e53 rejects new parameter; AFTER binary at f9f5b3ca4 accepts it"
+        },
+        {
+          "input_id": "I2",
+          "diff_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+          "before": "Exit code 1: parameter 'systemd.notifyReadyDelay' not known",
+          "after": "Exit code 0: config validation passed",
+          "evidence": "Same as I1 - both off and on values accepted by patched binary"
+        }
+      ],
+      "notes": [
+        "Config validation tests confirm the new parameter is accepted by patched binary",
+        "Default behavior change (immediate READY=1 vs delayed) not observable in -N1 mode",
+        "Config parsing coverage confirmed via gcov: 2 hits at glbl.c:1558"
+      ]
+    },
+    {
+      "finding_id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "status": "blocked",
+      "target_location": {
+        "file": "runtime/rsconf.c",
+        "new_lines": [
+          90,
+          200
+        ],
+        "symbol": "rsconfRegisterReadiness/rsconfSignalReady/rsconfWaitForModulesReady"
+      },
+      "entries": [],
+      "contracts": [
+        {
+          "contract_id": "readiness_barrier_side_effect",
+          "status": "skipped",
+          "detail": "Module readiness barrier side effect only observable during daemon-mode systemd execution; -N1 config validation mode does not trigger the barrier"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 14,
+        "covered_lines": 0,
+        "uncovered_lines": [
+          "runtime/rsconf.c:107 (initModulesReadyCond - uncalled)",
+          "runtime/rsconf.c:110-121 (initModulesReadyCond body - uncalled)",
+          "runtime/rsconf.c:124-125 (rsconfShouldDelayReadyNotify - uncalled)",
+          "runtime/rsconf.c:128-144 (rsconfRegisterReadiness - uncalled)",
+          "runtime/rsconf.c:147-153 (rsconfSignalReady - uncalled)",
+          "runtime/rsconf.c:157-191 (rsconfWaitForModulesReady - uncalled)",
+          "runtime/rsconf.c:194-199 (rsconfReadyNotifySent - uncalled)",
+          "runtime/rsconf.c:129 (pthread_once in Register - uncalled)",
+          "runtime/rsconf.c:130 (early return in Register - uncalled)",
+          "runtime/rsconf.c:132-144 (Register mutex body - uncalled)",
+          "runtime/rsconf.c:148-149 (Signal early return - uncalled)",
+          "runtime/rsconf.c:151-153 (Signal mutex body - uncalled)",
+          "runtime/rsconf.c:159-191 (WaitFor body - uncalled)",
+          "runtime/rsconf.c:195-198 (ReadyNotifySent body - uncalled)"
+        ],
+        "rate": 0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "Side effect change requires daemon execution with systemd runtime",
+        "Config validation mode (-N1) exits before the sd_notify code path",
+        "Cannot test without systemd runtime or Docker container access"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "coverage",
+      "id": "COV-DAEMON-PATH",
+      "reason": "tools/rsyslogd.c lines 2669-2680 (sd_notify guarded path) and runtime/rsconf.c lines 107-199 (readiness barrier) not reachable in config validation mode (-N1). Requires actual daemon execution with systemd runtime.",
+      "required_action": "Run rsyslogd as daemon (with systemd) or use container-based test environment with Docker/Podman"
+    },
+    {
+      "scope": "finding",
+      "id": "PCA-0002-TEST",
+      "reason": "PCA-0002 (SIDE_EFFECT_CHANGE) requires daemon-mode execution to observe the readiness barrier gating behavior change",
+      "required_action": "Execute rsyslogd with HAVE_LIBSYSTEMD in a systemd container environment and verify sd_notify(READY=1) timing"
+    },
+    {
+      "scope": "environment",
+      "id": "ENV-CONTAINER",
+      "reason": "Docker socket access denied; cannot run CI-style container validation",
+      "required_action": "Grant Docker/Podman socket access or use a systemd-enabled VM for full testing"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "N/A",
+    "test_entry_tasks": "test-entry-tasks.json",
+    "test_entries": "test-entry-plan.md",
+    "test_inputs": "phase3_inputs/test_inputs.json",
+    "execution_results": "phase4_execution/results.json",
+    "contract_summary": "phase3_contracts/contract_verification.json",
+    "coverage_data": "phase4_execution/coverage_summary.json",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": false,
+    "rationale": "The patch introduces a new config parameter (systemd.notifyReadyDelay) and changes the default systemd READY=1 timing from always-wait to immediate. While the config parameter change is additive and backward-compatible, the default behavior change (immediate READY=1 vs historical delayed) is a behavioral incompatibility for operators relying on rsyslog delaying READY=1 until module readiness. The new config option global(systemd.notifyReadyDelay='on') restores the historical behavior. Coverage gate not met (35% vs 80% threshold) due to daemon-mode paths not being exercisable in -N1 config validation mode.",
+    "recommended_actions": [
+      "Document the default behavior change in release notes",
+      "Verify that dependent systemd services using After=rsyslog.service handle the earlier READY=1 notification",
+      "Consider whether operators need to add global(systemd.notifyReadyDelay='on') to existing configs",
+      "Run full daemon-mode testing with systemd runtime or Docker container to verify sd_notify timing",
+      "Achieve 80%+ coverage gate by running rsyslogd as daemon and triggering the readiness barrier"
+    ]
+  }
+}

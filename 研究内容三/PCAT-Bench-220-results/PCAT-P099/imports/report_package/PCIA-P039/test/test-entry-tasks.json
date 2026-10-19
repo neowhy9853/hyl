@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux/pca-results/09dc18/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux/pca-results/09dc18/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux/pca-results/09dc18",
+  "patch_id": "09dc18894148381d3bfc550083b1236043870dce",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "rereg_user_mr (ibv_rereg_mr via uverbs)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "drivers/infiniband/core/umem.c",
+        "old_lines": [
+          326,
+          328
+        ],
+        "new_lines": [
+          326,
+          344
+        ],
+        "symbol": "ib_umem_check_rereg"
+      },
+      "old_behavior": "调用 ibv_rereg_mr() 时使用 IBV_REREG_MR_ACCESS 将 read-only MR 改为 read-write（不设 IBV_REREG_MR_TRANS），若 underlying umem 并非 writable，操作仍然成功返回 0/NULL，但由于底层内存未正确 pin 为可写，可能导致静默数据损坏或内核问题。",
+      "new_behavior": "同样的操作现在返回 -EACCES（用户态收到 errno=EACCES），只有重新创建 writable umem 并通过 IB_MR_REREG_TRANS 重新注册 translation，或使用原本已 writable 的 umem，才能成功。",
+      "compatibility_reason": "补丁在五个 RDMA 驱动（hns/irdma/mlx4/mlx5/rxe）的 rereg_user_mr 入口处新增 ib_umem_check_rereg() 调用，该函数在 IB_MR_REREG_ACCESS 单独设置且新访问标志为 writable、umem 不可写时返回 -EACCES。此前这种状态组合会成功（尽管 unsafe），现在会被拒绝。对于依赖该行为的用户态 RDMA 程序，调用会失败。mlx4 驱动的错误码从 -EPERM 变为 -EACCES。",
+      "test_recommendation": "编写回归测试：创建一个 read-only ibv_reg_mr，对返回的 MR 调用 ibv_rereg_mr 设置 IBV_REREG_MR_ACCESS 并请求 IBV_ACCESS_REMOTE_WRITE（不设 IBV_REREG_MR_TRANS），验证返回 -EACCES (errno=EACCES)。另测试 writable umem 的 MR 同样操作应成功。对 mlx4 驱动，验证从 -EPERM 到 -EACCES 的错误码变更。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux/pca-results/09dc18/compatibility-testing"
+}

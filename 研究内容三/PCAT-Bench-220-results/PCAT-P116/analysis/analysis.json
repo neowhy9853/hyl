@@ -1,0 +1,465 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P056/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P056",
+  "base_ref": "8e14f88e25192080ac237cb64be452c592c1e4fe^",
+  "base_commit": "902b38d33a9761eba12c6a53e13c6fb89a167b39",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "8e14f88e25192080ac237cb64be452c592c1e4fe",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/GNOME/libsoup/commit/8e14f88e25192080ac237cb64be452c592c1e4fe",
+    "download_url": "https://github.com/GNOME/libsoup/commit/8e14f88e25192080ac237cb64be452c592c1e4fe.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P056/_patch-cache/8e14f88e2519.patch",
+    "commit": "8e14f88e25192080ac237cb64be452c592c1e4fe",
+    "base_ref_inferred": "8e14f88e25192080ac237cb64be452c592c1e4fe^",
+    "base_ref_inference": "target commit parent exists in source repo"
+  },
+  "package_profile": "c_project",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "heavy",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "soft threshold exceeded",
+    "churn=301 >= 250",
+    "candidate_hunks=28 >= 25",
+    "candidates_json_bytes=151976 >= 100000"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 20227,
+    "patch_lines": 576,
+    "diff_added_lines": 253,
+    "diff_deleted_lines": 48,
+    "diff_context_lines": 212,
+    "churn": 301,
+    "raw_hunks": 28,
+    "candidate_hunks": 28,
+    "skipped_doc_hunks": 0,
+    "changed_files": 6,
+    "candidate_context_bytes": 71107,
+    "public_candidate_hunks": 11,
+    "surface_counts": {
+      "callbacks": 6,
+      "plugin_api": 6,
+      "config_keys": 1,
+      "user_visible_output": 7,
+      "logging": 4,
+      "ioctl_netlink_consumers": 2,
+      "ioctl_netlink": 2,
+      "tests": 4
+    },
+    "candidates_json_bytes": 151976
+  },
+  "shard_artifacts": {
+    "plan": "shards.json",
+    "workspace": "shards/",
+    "shard_count": 11
+  },
+  "analysis_summary": {
+    "notes": "This patch introduces two new public GObject signals (request-queued and request-unqueued) on SoupSession to provide a clearer message lifecycle. The internal auth manager, NTLM auth manager, and logger were adapted to use these new signals, which also fixes the bug where SoupSession::authenticate was emitted multiple times per message (#522601). All internal adaptations are not public API changes; only the new signals and their emission constitute compatibility-relevant changes.",
+    "report_language": "zh"
+  },
+  "summary": {
+    "total_changed_files": 6,
+    "total_candidates": 28,
+    "compatibility_changes": 2,
+    "high_priority": 1,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "API_SIGNATURE_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.95,
+      "package_profile": "c_project",
+      "affected_surface": "GObject signal definitions on SoupSession public type. Two new signals request-queued and request-unqueued added to the signal enum and registered via g_signal_new.",
+      "affected_api": {
+        "name": "SoupSession::request-queued and SoupSession::request-unqueued",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-session.c",
+        "old_lines": [
+          121,
+          127
+        ],
+        "new_lines": [
+          121,
+          129
+        ],
+        "symbol": "SoupSession"
+      },
+      "old_behavior": "SoupSession had three signals: request-started, authenticate. The signal enum was {REQUEST_STARTED, AUTHENTICATE, LAST_SIGNAL}.",
+      "new_behavior": "SoupSession now has five signals: request-queued, request-started, request-unqueued, authenticate. The signal enum is {REQUEST_QUEUED, REQUEST_STARTED, REQUEST_UNQUEUED, AUTHENTICATE, LAST_SIGNAL}. Two new signals are registered with signature (SoupSession*, SoupMessage*) -> void, using G_SIGNAL_RUN_FIRST and soup_marshal_NONE__OBJECT marshaller.",
+      "compatibility_reason": "This is a public API addition — new GObject signals on a public type. While additive (does not break existing API consumers), the new signals become visible to GObject introspection bindings (Python, JavaScript, etc.) and signal-connected code. Downstream consumers using g_signal_lookup or generating language bindings will discover new signals. The addition is source-compatible and ABI-compatible (signals are indexed into a guint array, and the new signals are inserted before existing signals, shifting the existing signal IDs).",
+      "evidence": [
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            121,
+            129
+          ],
+          "snippet": "enum {\n\tREQUEST_QUEUED,\n\tREQUEST_STARTED,\n\tREQUEST_UNQUEUED,\n\tAUTHENTICATE,\n\tLAST_SIGNAL\n};"
+        },
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            256,
+            321
+          ],
+          "snippet": "signals[REQUEST_QUEUED] =\n\tg_signal_new (\"request-queued\",\n\t\t      G_OBJECT_CLASS_TYPE (object_class),\n\t\t      G_SIGNAL_RUN_FIRST,\n\t\t      0, /* FIXME? */\n\t\t      NULL, NULL,\n\t\t      soup_marshal_NONE__OBJECT,\n\t\t      G_TYPE_NONE, 1,\n\t\t      SOUP_TYPE_MESSAGE);"
+        },
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            328,
+            353
+          ],
+          "snippet": "signals[REQUEST_UNQUEUED] =\n\tg_signal_new (\"request-unqueued\",\n\t\t      G_OBJECT_CLASS_TYPE (object_class),\n\t\t      G_SIGNAL_RUN_FIRST,\n\t\t      0, /* FIXME? */\n\t\t      NULL, NULL,\n\t\t      soup_marshal_NONE__OBJECT,\n\t\t      G_TYPE_NONE, 1,\n\t\t      SOUP_TYPE_MESSAGE);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "GObject signals on a public GObject type (SoupSession) are inherently part of the public API. They are discoverable via GObject introspection, g_signal_lookup, and are accessible to all downstream consumers including language bindings.",
+      "uncertainty": "None. Signal registration is clearly in class_init function of soup_session, a public type.",
+      "manual_review_required": false,
+      "recommended_review": "Confirm that the signal ID shift (REQUEST_STARTED now at index 1 instead of 0, AUTHENTICATE at index 3 instead of 1) does not break any downstream code that has hardcoded signal IDs. GObject best practice is to always use g_signal_lookup by name, so this should be safe.",
+      "test_recommendation": "Verify that GObject introspection bindings (Python GI, JavaScript GJS) can discover and connect to the new request-queued and request-unqueued signals. Verify that existing code connecting to request-started and authenticate signals still works after the enum shift.",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 3 matched candidate hunk(s)"
+        ],
+        "matched_candidate_count": 3,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0019",
+            "file": "libsoup/soup-session.c",
+            "old_lines": [
+              121,
+              127
+            ],
+            "new_lines": [
+              121,
+              129
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "plugin_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0020",
+            "file": "libsoup/soup-session.c",
+            "old_lines": [
+              254,
+              266
+            ],
+            "new_lines": [
+              256,
+              321
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "plugin_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0021",
+            "file": "libsoup/soup-session.c",
+            "old_lines": [
+              273,
+              278
+            ],
+            "new_lines": [
+              328,
+              353
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "plugin_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 3 matched candidate hunk(s)"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.9,
+      "package_profile": "c_project",
+      "affected_surface": "SoupSession message lifecycle. The queue_message and message_finished internal functions now emit new GObject signals, changing the observable sequence of events during request processing.",
+      "affected_api": {
+        "name": "SoupSession message lifecycle (queue_message, message_finished, connection_started_request)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-session.c",
+        "old_lines": [
+          984,
+          1009
+        ],
+        "new_lines": [
+          1065,
+          1094
+        ],
+        "symbol": "queue_message"
+      },
+      "old_behavior": "When a message was queued (via soup_session_queue_message or send_message), only SOUP_MESSAGE_IO_STATUS_QUEUED was set and the message was appended to the internal queue. When a message finished, signal handlers were disconnected but no REQUEST_UNQUEUED was emitted.",
+      "new_behavior": "queue_message now emits g_signal_emit(session, signals[REQUEST_QUEUED], 0, msg) after setting queued status. message_finished now emits g_signal_emit(session, signals[REQUEST_UNQUEUED], 0, msg) after removing the message from the queue. Additionally, connection_started_request emits REQUEST_QUEUED for CONNECT messages that bypass the normal queuing path.",
+      "compatibility_reason": "Any code that has connected to request-started or authenticate signals will now observe additional request-queued and request-unqueued signal emissions interspersed in the request lifecycle. This changes the observable side effects: (1) signal-connected handlers may now be called at new points in the lifecycle, (2) the auth manager, NTLM manager, and logger internally use these new signals for their own lifecycle management, meaning the exact timing of auth setup and log output may shift relative to the old code. The REQUEST_UNQUEUED signal in message_finished is emitted before disconnecting the redirect_handler, which changes when cleanup callbacks fire.",
+      "evidence": [
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            1087,
+            1094
+          ],
+          "snippet": "g_signal_emit (session, signals[REQUEST_QUEUED], 0, msg);"
+        },
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            1065,
+            1072
+          ],
+          "snippet": "g_signal_handlers_disconnect_by_func (msg, redirect_handler, session);\ng_signal_emit (session, signals[REQUEST_UNQUEUED], 0, msg);"
+        },
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            791,
+            802
+          ],
+          "snippet": "/* Kludge to deal with the fact that CONNECT msgs come from the\n * SoupConnection rather than being queued normally.\n */\nif (msg->method == SOUP_METHOD_CONNECT)\n\tg_signal_emit (session, signals[REQUEST_QUEUED], 0, msg);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "The signal emissions are visible to all external signal handlers connected to the SoupSession object. This affects not only internal consumers (auth manager, logger) but also any external code that has connected to these signals for monitoring or interception purposes. The side effects propagate through the GObject signal system, which is part of the public API surface.",
+      "uncertainty": "The exact timing difference in signal emission ordering relative to old code paths could be subtle and may not cause observable breakage in practice. However, any code relying on the order of signal emissions or the presence/absence of signal-connected callbacks during the message lifecycle could be affected.",
+      "manual_review_required": true,
+      "recommended_review": "Verify that existing downstream consumers of the authenticate signal do not see regressions in the number of authenticate signal emissions. The patch description explicitly states this fixes bug #522601 (authenticate emitted multiple times per message), which is a behavioral fix but could cause downstream code that was inadvertently relying on the old multiple-emit behavior to break.",
+      "test_recommendation": "Test the complete message lifecycle with signal monitoring: verify request-queued is emitted exactly once per message, request-unqueued is emitted exactly once per message, request-started may be emitted multiple times (on requeue), and authenticate is not emitted multiple times for the same message (regression test for #522601). Verify CONNECT tunnel messages emit request-queued and request-unqueued properly.",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 2 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 2,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0024",
+            "file": "libsoup/soup-session.c",
+            "old_lines": [
+              1004,
+              1009
+            ],
+            "new_lines": [
+              1087,
+              1094
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "ioctl_netlink_consumers",
+              "user_visible_output",
+              "ioctl_netlink",
+              "plugin_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "ioctl_netlink_consumers",
+                "test_priority": "high",
+                "public": true,
+                "description": "ioctl and netlink ABI consumers or producers."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "ioctl_netlink",
+                "test_priority": "high",
+                "public": true,
+                "description": "ioctl command, netlink attribute, and kernel ABI consumers"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              }
+            ]
+          },
+          {
+            "hunk_id": "HUNK-0023",
+            "file": "libsoup/soup-session.c",
+            "old_lines": [
+              984,
+              989
+            ],
+            "new_lines": [
+              1065,
+              1072
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "callbacks",
+              "ioctl_netlink_consumers",
+              "ioctl_netlink",
+              "plugin_api"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "callbacks",
+                "test_priority": "high",
+                "public": true,
+                "description": "Library callback function type changes"
+              },
+              {
+                "name": "ioctl_netlink_consumers",
+                "test_priority": "high",
+                "public": true,
+                "description": "ioctl and netlink ABI consumers or producers."
+              },
+              {
+                "name": "ioctl_netlink",
+                "test_priority": "high",
+                "public": true,
+                "description": "ioctl command, netlink attribute, and kernel ABI consumers"
+              },
+              {
+                "name": "plugin_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "Plugin or module API"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 2 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  }
+}

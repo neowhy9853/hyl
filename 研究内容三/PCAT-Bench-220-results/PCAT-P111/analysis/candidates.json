@@ -1,0 +1,192 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P051/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P051/patch.diff",
+  "profile": "c_project",
+  "summary": {
+    "total_changed_files": 2,
+    "changed_files": [
+      "libsoup/soup-session.c",
+      "tests/redirect-test.c"
+    ],
+    "total_hunks": 2,
+    "public_api_hunks": 0,
+    "patch_metrics": {
+      "patch_bytes": 1612,
+      "patch_lines": 45,
+      "diff_added_lines": 5,
+      "diff_deleted_lines": 2,
+      "diff_context_lines": 17,
+      "churn": 7,
+      "raw_hunks": 2,
+      "candidate_hunks": 2,
+      "skipped_doc_hunks": 0,
+      "changed_files": 2,
+      "candidate_context_bytes": 3968,
+      "public_candidate_hunks": 0,
+      "surface_counts": {
+        "tests": 1,
+        "user_visible_output": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "libsoup/soup-session.c",
+      "old_start": 845,
+      "old_end": 851,
+      "new_start": 845,
+      "new_end": 853,
+      "context_hint": "redirect_handler (SoupMessage *msg, gpointer user_data)",
+      "added_lines": [
+        "\t     !SOUP_METHOD_IS_SAFE (msg->method)) ||",
+        "\t    (msg->status_code == SOUP_STATUS_MOVED_PERMANENTLY &&",
+        "\t     msg->method == SOUP_METHOD_POST)) {"
+      ],
+      "deleted_lines": [
+        "\t     !SOUP_METHOD_IS_SAFE (msg->method))) {"
+      ],
+      "context_lines": [
+        "",
+        "\tif (msg->status_code == SOUP_STATUS_SEE_OTHER ||",
+        "\t    (msg->status_code == SOUP_STATUS_FOUND &&",
+        "\t\t/* Redirect using a GET */",
+        "\t\tg_object_set (msg,",
+        "\t\t\t      SOUP_MESSAGE_METHOD, SOUP_METHOD_GET,"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "redirect_handler",
+        "SOUP_METHOD_IS_SAFE",
+        "msg",
+        "method",
+        "status_code",
+        "SOUP_STATUS_MOVED_PERMANENTLY"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [],
+        "surface_reasons": [],
+        "profile": "c_project",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "redirect_handler",
+        "snippet_start_line": 816,
+        "snippet_end_line": 883,
+        "snippet": "\n\tsoup_uri_free (host->uri);\n\tg_object_unref (host->addr);\n\tg_slice_free (SoupSessionHost, host);\n}\t\n\nstatic void\nauth_manager_authenticate (SoupAuthManager *manager, SoupMessage *msg,\n\t\t\t   SoupAuth *auth, gboolean retrying,\n\t\t\t   gpointer session)\n{\n\tg_signal_emit (session, signals[AUTHENTICATE], 0, msg, auth, retrying);\n}\n\n#define SOUP_METHOD_IS_SAFE(method) (method == SOUP_METHOD_GET || \\\n\t\t\t\t     method == SOUP_METHOD_HEAD || \\\n\t\t\t\t     method == SOUP_METHOD_OPTIONS || \\\n\t\t\t\t     method == SOUP_METHOD_PROPFIND)\n\nstatic void\nredirect_handler (SoupMessage *msg, gpointer user_data)\n{\n\tSoupSession *session = user_data;\n\tconst char *new_loc;\n\tSoupURI *new_uri;\n\n\tnew_loc = soup_message_headers_get_one (msg->response_headers,\n\t\t\t\t\t\t\"Location\");\n\tg_return_if_fail (new_loc != NULL);\n\n\tif (msg->status_code == SOUP_STATUS_SEE_OTHER ||\n\t    (msg->status_code == SOUP_STATUS_FOUND &&\n\t     !SOUP_METHOD_IS_SAFE (msg->method)) ||\n\t    (msg->status_code == SOUP_STATUS_MOVED_PERMANENTLY &&\n\t     msg->method == SOUP_METHOD_POST)) {\n\t\t/* Redirect using a GET */\n\t\tg_object_set (msg,\n\t\t\t      SOUP_MESSAGE_METHOD, SOUP_METHOD_GET,\n\t\t\t      NULL);\n\t\tsoup_message_set_request (msg, NULL,\n\t\t\t\t\t  SOUP_MEMORY_STATIC, NULL, 0);\n\t\tsoup_message_headers_set_encoding (msg->request_headers,\n\t\t\t\t\t\t   SOUP_ENCODING_NONE);\n\t} else if (msg->status_code == SOUP_STATUS_MOVED_PERMANENTLY ||\n\t\t   msg->status_code == SOUP_STATUS_TEMPORARY_REDIRECT ||\n\t\t   msg->status_code == SOUP_STATUS_FOUND) {\n\t\t/* Don't redirect non-safe methods */\n\t\tif (!SOUP_METHOD_IS_SAFE (msg->method))\n\t\t\treturn;\n\t} else {\n\t\t/* Three possibilities:\n\t\t *\n\t\t *   1) This was a non-3xx response that happened to\n\t\t *      have a \"Location\" header\n\t\t *   2) It's a non-redirecty 3xx response (300, 304,\n\t\t *      305, 306)\n\t\t *   3) It's some newly-defined 3xx response (308+)\n\t\t *\n\t\t * We ignore all of these cases. In the first two,\n\t\t * redirecting would be explicitly wrong, and in the\n\t\t * last case, we have no clue if the 3xx response is\n\t\t * supposed to be redirecty or non-redirecty. Plus,\n\t\t * 2616 says unrecognized status codes should be\n\t\t * treated as the equivalent to the x00 code, and we\n\t\t * don't redirect on 300, so therefore we shouldn't\n\t\t * redirect on 308+ either.\n\t\t */\n\t\treturn;\n"
+      }
+    },
+    {
+      "file": "tests/redirect-test.c",
+      "old_start": 82,
+      "old_end": 90,
+      "new_start": 82,
+      "new_end": 91,
+      "context_hint": "static struct {",
+      "added_lines": [
+        "\t/* POST should only automatically redirect on 301, 302 and 303 */",
+        "\t    { \"GET\", \"/\", 200 },"
+      ],
+      "deleted_lines": [
+        "\t/* POST should only automatically redirect on 302 and 303 */"
+      ],
+      "context_lines": [
+        "\t    { \"HEAD\", \"/302\", 302 },",
+        "\t    { \"HEAD\", \"/\", 200 } } },",
+        "",
+        "",
+        "\t{ { { \"POST\", \"/301\", 301 },",
+        "\t    { NULL } } },",
+        "\t{ { { \"POST\", \"/302\", 302 },",
+        "\t    { \"GET\", \"/\", 200 },",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "POST",
+        "should",
+        "only",
+        "automatically",
+        "redirect",
+        "on",
+        "Copyright"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "user_visible_output"
+        ],
+        "profile": "c_project",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "medium",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "Copyright",
+        "snippet_start_line": 53,
+        "snippet_end_line": 121,
+        "snippet": "\t/* A non-redirecty response to a GET or HEAD should not */\n\n\t{ { { \"GET\", \"/300\", 300 },\n\t    { NULL } } },\n\t{ { { \"GET\", \"/304\", 304 },\n\t    { NULL } } },\n\t{ { { \"GET\", \"/305\", 305 },\n\t    { NULL } } },\n\t{ { { \"GET\", \"/306\", 306 },\n\t    { NULL } } },\n\t{ { { \"GET\", \"/308\", 308 },\n\t    { NULL } } },\n\t{ { { \"HEAD\", \"/300\", 300 },\n\t    { NULL } } },\n\t{ { { \"HEAD\", \"/304\", 304 },\n\t    { NULL } } },\n\t{ { { \"HEAD\", \"/305\", 305 },\n\t    { NULL } } },\n\t{ { { \"HEAD\", \"/306\", 306 },\n\t    { NULL } } },\n\t{ { { \"HEAD\", \"/308\", 308 },\n\t    { NULL } } },\n\t\n\t/* Test double-redirect */\n\n\t{ { { \"GET\", \"/301/302\", 301 },\n\t    { \"GET\", \"/302\", 302 },\n\t    { \"GET\", \"/\", 200 } } },\n\t{ { { \"HEAD\", \"/301/302\", 301 },\n\t    { \"HEAD\", \"/302\", 302 },\n\t    { \"HEAD\", \"/\", 200 } } },\n\n\t/* POST should only automatically redirect on 301, 302 and 303 */\n\n\t{ { { \"POST\", \"/301\", 301 },\n\t    { \"GET\", \"/\", 200 },\n\t    { NULL } } },\n\t{ { { \"POST\", \"/302\", 302 },\n\t    { \"GET\", \"/\", 200 },\n\t    { NULL } } },\n\t{ { { \"POST\", \"/303\", 303 },\n\t    { \"GET\", \"/\", 200 },\n\t    { NULL } } },\n\t{ { { \"POST\", \"/307\", 307 },\n\t    { NULL } } },\n\n\t/* Test behavior with recoverably-bad Location header\n\t */\n\t{ { { \"GET\", \"/bad\", 302 },\n\t    { \"GET\", \"/bad%20with%20spaces\", 200 },\n\t    { NULL } } }\n};\nstatic const int n_tests = G_N_ELEMENTS (tests);\n\nstatic void\ngot_headers (SoupMessage *msg, gpointer user_data)\n{\n\tTestRequest **req = user_data;\n\tconst char *location;\n\n\tdebug_printf (2, \"    -> %d %s\\n\", msg->status_code,\n\t\t      msg->reason_phrase);\n\tlocation = soup_message_headers_get_one (msg->response_headers,\n\t\t\t\t\t\t \"Location\");\n\tif (location)\n\t\tdebug_printf (2, \"       Location: %s\\n\", location);\n\n\tif (!(*req)->method)\n\t\treturn;\n"
+      }
+    }
+  ]
+}

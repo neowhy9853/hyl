@@ -1,0 +1,246 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/vim",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/vim/pca-results/e397c8/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/vim/pca-results/e397c8",
+  "base_ref": "e6f47839a",
+  "base_commit": "e6f47839a8a8b4790a037bfec32b784b308e4133",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "Applied cleanly to 3/4 files; version.c conflict resolved by keeping base version",
+  "analysis_worktree_status": "available",
+  "patch_id": "e397c8",
+  "package_profile": "vim",
+  "summary": {
+    "total_changed_files": 4,
+    "total_candidates": 11,
+    "compatibility_changes": 2,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 2
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "vim",
+      "affected_surface": "Vimscript API: extend() / extendnew() built-in functions",
+      "affected_api": {
+        "name": "dict_extend_func / extend() / extendnew()",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/dict.c",
+        "old_lines": [
+          1335,
+          1340
+        ],
+        "new_lines": [
+          1335,
+          1340
+        ],
+        "symbol": "dict_extend_func"
+      },
+      "old_behavior": "When dict_extend_func is called with a NULL second argument (expr2), the early-return at the d2==NULL check (old lines 1338-1340) exits before the is_new block and the rettv assignment. For extendnew() (is_new=true), d1 is never copied and rettv is left uninitialized. For extend() (is_new=false), the return value for the caller is also left unset.",
+      "new_behavior": "The d2==NULL check is moved after the is_new copy block. When d2 is NULL, execution jumps to the 'theend:' label which properly sets rettv: for extendnew() returns a copied dict, for extend() returns the original dict reference via copy_tv().",
+      "compatibility_reason": "The return value contract for extend() and extendnew() changed when the second argument is NULL. Previously the return value was undefined/uninitialized (a bug). Now it returns a proper copy (extendnew) or the original reference (extend). Vim scripts that passed a NULL second argument would previously get garbage; now they get a valid result. This is a bug fix but technically changes observable behavior for the NULL expr2 input case.",
+      "evidence": [
+        {
+          "file": "src/dict.c",
+          "lines": [
+            1335,
+            1340
+          ],
+          "snippet": "Deleted (old):\n    d2 = argvars[1].vval.v_dict;\n    if (d2 == NULL)\n\treturn;\n\nAdded (new) at lines 1346-1349:\n    d2 = argvars[1].vval.v_dict;\n    if (d2 == NULL)\n\tgoto theend;\n\n'theend:' label added at line 1388:\ntheend:\n    if (is_new)\n    {\n\trettv->v_type = VAR_DICT;\n\trettv->vval.v_dict = d1;\n\trettv->v_lock = FALSE;\n    }\n    else\n\tcopy_tv(&argvars[0], rettv);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "dict_extend_func is called from extend(), which is a public Vimscript built-in function (extend() and extendnew()). The return value of these functions is part of the user-visible Vimscript API surface.",
+      "uncertainty": "The old behavior was clearly a bug (returning with unset rettv). The practical compatibility impact is very low because no well-written Vim script would depend on getting undefined values from extendnew(). However, technically the return contract for the NULL expr2 case has changed.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that existing Vim scripts using extend()/extendnew() with test_null_dict() or NULL dicts still work correctly. The fix is backwards-compatible for all non-NULL inputs.",
+      "test_recommendation": "Run existing test_listdict.vim tests, particularly Test_listdict_extend and Test_listdict_extendnew. Add assertions for extendnew() with test_null_dict() to verify the return value is a valid copy.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "src/dict.c",
+            "old_lines": [
+              1335,
+              1343
+            ],
+            "new_lines": [
+              1335,
+              1340
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "ex_commands",
+              "vimscript",
+              "ui_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "ex_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ex command syntax and behavior"
+              },
+              {
+                "name": "vimscript",
+                "test_priority": "high",
+                "public": true,
+                "description": "Vimscript/Vim9 API, functions, and type semantics"
+              },
+              {
+                "name": "ui_behavior",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible editor behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "RETURN_CONTRACT_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "vim",
+      "affected_surface": "Vimscript API: extend() / extendnew() built-in functions",
+      "affected_api": {
+        "name": "list_extend_func / extend() / extendnew()",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "src/list.c",
+        "old_lines": [
+          3014,
+          3022
+        ],
+        "new_lines": [
+          3014,
+          3020
+        ],
+        "symbol": "list_extend_func"
+      },
+      "old_behavior": "When list_extend_func is called with a NULL second argument, the condition at old line 3017-3019 'if ((is_new || !value_check_lock(...)) && l2 != NULL)' fails because l2 is NULL, skipping the entire block. The rettv is never set. For extendnew() (is_new=true), the list is never copied and rettv is uninitialized. For extend() (is_new=false), rettv is also left unset.",
+      "new_behavior": "The l2==NULL check is extracted from the if-condition and moved inside the block. The block is entered based on is_new/lock status alone. When l2 is NULL, execution jumps to 'theend:' label which properly sets rettv: for extendnew() returns a copied list, for extend() returns the original list reference via copy_tv().",
+      "compatibility_reason": "The return value contract for extend() and extendnew() changed when the second argument is NULL. Previously the return value was undefined/uninitialized (a bug). Now it returns a proper copy (extendnew) or the original reference (extend). Vim scripts that passed a NULL second argument would previously get garbage; now they get a valid result. This is a bug fix but technically changes observable behavior for the NULL expr2 input case.",
+      "evidence": [
+        {
+          "file": "src/list.c",
+          "lines": [
+            3014,
+            3022
+          ],
+          "snippet": "Deleted (old):\n    l2 = argvars[1].vval.v_list;\n    if ((is_new || !value_check_lock(l1->lv_lock, arg_errmsg, TRUE))\n\t\t\t\t\t\t\t\t && l2 != NULL)\n    {\n\nChanged to (new):\n    if (is_new || !value_check_lock(l1->lv_lock, arg_errmsg, TRUE))\n    {\n\nAdded inside block at new lines 3026-3029:\n\tl2 = argvars[1].vval.v_list;\n\tif (l2 == NULL)\n\t    goto theend;\n\n'theend:' label inside block:\ntheend:\n\tif (is_new)\n\t{\n\t    rettv->v_type = VAR_LIST;\n\t    rettv->vval.v_list = l1;\n\t    rettv->v_lock = FALSE;\n\t}\n\telse\n\t    copy_tv(&argvars[0], rettv);"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "list_extend_func is called from extend(), which is a public Vimscript built-in function (extend() and extendnew()). The return value of these functions is part of the user-visible Vimscript API surface.",
+      "uncertainty": "The old behavior was clearly a bug (returning with unset rettv). The practical compatibility impact is very low because no well-written Vim script would depend on getting undefined values from extendnew(). However, technically the return contract for the NULL expr2 case has changed.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that existing Vim scripts using extend()/extendnew() with test_null_list() or NULL lists still work correctly. The fix is backwards-compatible for all non-NULL inputs.",
+      "test_recommendation": "Run existing test_listdict.vim tests, particularly Test_listdict_extend and Test_listdict_extendnew. Add assertions for extendnew() with test_null_list() to verify the return value is a valid copy.",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0004",
+            "file": "src/list.c",
+            "old_lines": [
+              3014,
+              3022
+            ],
+            "new_lines": [
+              3014,
+              3020
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "ex_commands",
+              "vimscript",
+              "ui_behavior"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "ex_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "Ex command syntax and behavior"
+              },
+              {
+                "name": "vimscript",
+                "test_priority": "high",
+                "public": true,
+                "description": "Vimscript/Vim9 API, functions, and type semantics"
+              },
+              {
+                "name": "ui_behavior",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible editor behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=RETURN_CONTRACT_CHANGE -> high"
+    }
+  ]
+}

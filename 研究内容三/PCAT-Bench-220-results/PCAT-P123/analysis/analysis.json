@@ -1,0 +1,366 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P063/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P063",
+  "base_ref": "HEAD",
+  "base_commit": "fe274638bb01104f56fce0caebe0a238ac5fc6a4",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "8811797b13b31605fd02155e44c7299bfee2ab4a",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/rhboot/grub2/commit/8811797b13b31605fd02155e44c7299bfee2ab4a.patch",
+    "download_url": "https://github.com/rhboot/grub2/commit/8811797b13b31605fd02155e44c7299bfee2ab4a.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P063/_patch-cache/8811797b13b3.patch",
+    "commit": "8811797b13b31605fd02155e44c7299bfee2ab4a"
+  },
+  "package_profile": "grub2",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 3643,
+    "patch_lines": 105,
+    "diff_added_lines": 19,
+    "diff_deleted_lines": 4,
+    "diff_context_lines": 38,
+    "churn": 23,
+    "raw_hunks": 5,
+    "candidate_hunks": 5,
+    "skipped_doc_hunks": 0,
+    "changed_files": 4,
+    "candidate_context_bytes": 8649,
+    "public_candidate_hunks": 5,
+    "surface_counts": {
+      "proc_sys_consumers": 2,
+      "user_visible_output": 3,
+      "config": 5,
+      "module_api": 5,
+      "boot_protocol": 3,
+      "cli_options": 2,
+      "cli": 2,
+      "public_headers": 1,
+      "struct_layout": 1,
+      "cli_commands": 1
+    },
+    "candidates_json_bytes": 27840
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 4,
+    "total_candidates": 5,
+    "compatibility_changes": 2,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 1
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "grub2",
+      "affected_surface": "grub.cfg 脚本引擎函数定义行为 — grub_script_function_create 现在拒绝重定义正在执行的函数",
+      "affected_api": {
+        "name": "grub_script_function_create",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "grub-core/script/function.c",
+        "old_lines": [
+          60,
+          69
+        ],
+        "new_lines": [
+          61,
+          79
+        ],
+        "symbol": "grub_script_function_create"
+      },
+      "old_behavior": "当通过 grub.cfg 中的 function 语句重定义一个已存在且正在执行的函数时，旧函数体会被释放并替换为新函数体。这导致在执行过程中释放正在使用的 grub_script 内存，引发 use-after-free，可能导致任意代码执行、崩溃或意外行为。",
+      "new_behavior": "当重定义一个正在执行的函数（executing > 0）时，grub_script_function_create 拒绝操作，设置 grub_errno 为 GRUB_ERR_BAD_ARGUMENT 并返回 NULL。当前执行继续使用旧函数定义不变。调用方 parser.y 正确处理 NULL 返回值，通过 grub_script_free 释放未使用的脚本内存。",
+      "compatibility_reason": "grub_script_function_create 的返回契约发生了变化：之前该函数在重定义场景下从不失败（总是返回有效指针），现在当一个正在执行的函数被重定义时会返回 NULL。下游调用方（如 parser.y 中的 function 语法规则）必须检查 NULL 返回值，否则将引用空指针。不过，旧行为（use-after-free）本身就是损坏的，任何依赖旧行为的 grub.cfg 配置本身就存在内存安全问题，因此此变更是向后兼容的缺陷修复。",
+      "evidence": [
+        {
+          "file": "grub-core/script/function.c",
+          "lines": [
+            64,
+            70
+          ],
+          "snippet": "      q = *p;\n      grub_free (func);\n      if (q->executing > 0)\n        {\n          grub_error (GRUB_ERR_BAD_ARGUMENT,\n                      N_(\"attempt to redefine a function being executed\"));\n          func = NULL;\n        }"
+        },
+        {
+          "file": "grub-core/script/parser.y",
+          "lines": [
+            289,
+            294
+          ],
+          "snippet": "            if (! script)\n              grub_script_mem_free (state->func_mem);\n            else {\n              script->children = state->scripts;\n              if (!grub_script_function_create ($2, script))\n                grub_script_free (script);"
+        },
+        {
+          "file": "grub-core/script/execute.c",
+          "lines": [
+            894,
+            897
+          ],
+          "snippet": "  func->executing++;\n  ret = grub_script_execute (func->func);\n  func->executing--;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "grub_script_function_create 在 include/grub/script_sh.h 中声明，是公开导出的 API。该函数被 parser.y 中的 function 语法规则调用，处理 grub.cfg 中的用户脚本定义。grub.cfg 中的 function 语句变更直接影响所有使用 GRUB 引导的系统和用户。",
+      "uncertainty": "仅当 grub.cfg 中存在递归函数定义或运行中重定义函数时才会触发新的错误路径。大多数 grub.cfg 配置文件在顶层定义函数且不重定义运行中的函数，因此实际触发概率较低。但触发时行为从 '崩溃/未定义行为' 变为 '定义被拒绝'，这是一个明确的语义变更。",
+      "manual_review_required": true,
+      "recommended_review": "建议人工确认：1) parser.y 中新增的 NULL 检查是否覆盖了所有 grub_script_function_create 调用点；2) grub_error 设置的错误码是否会被正确传播和展示给用户；3) 是否有其他模块（非 parser.y）直接调用 grub_script_function_create 且未处理 NULL 返回值。",
+      "test_recommendation": "建议编写定向测试：1) 在 grub.cfg 中定义一个自引用函数（如递归调用自身的函数），执行时触发重定义，验证 grub_error 被正确设置且函数定义被正确拒绝；2) 验证函数执行计数器在嵌套调用、递归和异常退出场景下正确增减；3) 测试正常重定义（非执行中）行为不受影响。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0003",
+            "file": "grub-core/script/function.c",
+            "old_lines": [
+              60,
+              69
+            ],
+            "new_lines": [
+              61,
+              79
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "user_visible_output",
+              "config",
+              "module_api",
+              "boot_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "grub.cfg parsing and environment semantics"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    },
+    {
+      "id": "PCA-0002",
+      "compatibility_type": "ABI_CHANGE",
+      "test_priority": "low",
+      "confidence": 0.85,
+      "package_profile": "grub2",
+      "affected_surface": "公开头文件 include/grub/script_sh.h 中 struct grub_script_function 的布局变更",
+      "affected_api": {
+        "name": "struct grub_script_function",
+        "kind": "struct_type",
+        "language": "c"
+      },
+      "location": {
+        "file": "include/grub/script_sh.h",
+        "old_lines": [
+          361,
+          366
+        ],
+        "new_lines": [
+          361,
+          368
+        ],
+        "symbol": "grub_script_function"
+      },
+      "old_behavior": "struct grub_script_function 包含三个字段：char *name（函数名）、struct grub_script *func（脚本体）、struct grub_script_function *next（链表指针）。结构体大小为 3 个指针大小。",
+      "new_behavior": "struct grub_script_function 末尾新增 unsigned executing 字段，增加了结构体总大小（增加 sizeof(unsigned) 字节，在大多数平台上为 4 字节）。",
+      "compatibility_reason": "该结构体定义在公开头文件 include/grub/script_sh.h 中，布局和大小发生了变化。任何直接使用 sizeof(struct grub_script_function) 或在栈上分配该结构体的外部代码都会受到影响。不过，实际使用中所有代码均通过 grub_script_function_t 指针类型（typedef struct grub_script_function *）访问，且所有内存分配由库内部 grub_script_function_create 通过 grub_malloc(sizeof(*func)) 管理，外部模块不会直接分配或嵌入该结构体。因此实际 ABI 影响极小。",
+      "evidence": [
+        {
+          "file": "include/grub/script_sh.h",
+          "lines": [
+            355,
+            368
+          ],
+          "snippet": "struct grub_script_function\n{\n  /* The name.  */\n  char *name;\n\n  /* The script function.  */\n  struct grub_script *func;\n\n  /* The next element.  */\n  struct grub_script_function *next;\n\n  unsigned executing;\n};\ntypedef struct grub_script_function *grub_script_function_t;"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "结构体定义位于 include/grub/script_sh.h 公开头文件中，该头文件被 grub-core/script/function.c、grub-core/script/execute.c 等多个模块包含。宏 FOR_SCRIPT_FUNCTIONS 也定义在此头文件中并访问该结构体的 next 字段。GRUB 外部模块可以包含此头文件并通过 grub_script_function_t 指针类型访问结构体。",
+      "uncertainty": "实际 ABI 影响取决于是否有外部 GRUB 模块直接依赖 sizeof(struct grub_script_function) 或在栈/嵌入结构中分配该类型。根据 GRUB 模块开发实践，外部模块通过 grub_script_function_t 指针使用该类型，不直接操作结构体布局。但如果存在直接使用 sizeof 的外部模块，将因大小不匹配产生未定义行为。",
+      "manual_review_required": false,
+      "recommended_review": "无需人工复核。该变更实际影响极小，因为所有分配和访问都通过库内部函数管理。",
+      "test_recommendation": "建议进行基本的模块加载兼容性测试：加载使用 FOR_SCRIPT_FUNCTIONS 宏的外部 GRUB 模块，验证模块仍能正常加载和遍历函数列表。如果项目有 ABI 兼容性测试套件，建议运行以确保无 ABI 回归。",
+      "priority_decision": {
+        "agent_priority": "low",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "low",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=struct_type with contract/signature type=ABI_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0005",
+            "file": "include/grub/script_sh.h",
+            "old_lines": [
+              361,
+              366
+            ],
+            "new_lines": [
+              361,
+              368
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "proc_sys_consumers",
+              "cli_options",
+              "cli",
+              "config",
+              "struct_layout",
+              "module_api",
+              "boot_protocol",
+              "cli_commands"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "proc_sys_consumers",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-space parsing or generation of /proc, /proc/sys, or /sys text output.\nField order, delimiter, unit, default value, missing-entry, and error-path\nchanges can break scripts, monitoring, installers, and service managers.\n"
+              },
+              {
+                "name": "cli_options",
+                "test_priority": "high",
+                "public": true,
+                "description": "CLI commands, options, parsing, defaults, exit codes, and output."
+              },
+              {
+                "name": "cli",
+                "test_priority": "high",
+                "public": true,
+                "description": "Command-line interface"
+              },
+              {
+                "name": "config",
+                "test_priority": "high",
+                "public": true,
+                "description": "grub.cfg parsing and environment semantics"
+              },
+              {
+                "name": "struct_layout",
+                "test_priority": "high",
+                "public": true,
+                "description": "ABI-sensitive definitions:\n- Struct layout (size, field order, field type)\n- Enum values\n- Macro definitions\n- Constants\n"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              },
+              {
+                "name": "cli_commands",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB shell commands and options"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is low. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=struct_type with contract/signature type=ABI_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "analysis complete. findings confirmed. proceed to validation."
+}

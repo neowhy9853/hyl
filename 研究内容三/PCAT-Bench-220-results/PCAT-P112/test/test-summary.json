@@ -1,0 +1,180 @@
+{
+  "schema_version": "1.0",
+  "report_language": "zh-CN",
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/analysis.json",
+  "patch_id": "becb3a0ab8aa986f829efb77a52d53e75419c413",
+  "result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/compatibility-testing",
+  "status": "partial",
+  "coverage_gate": 80,
+  "target": {
+    "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+    "base_commit": "21e5e79b0a0ea426b0d3319c519c2b2df3f43f19",
+    "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/_worktrees/patched",
+    "package_profile": "libsoup"
+  },
+  "environment": {
+    "kind": "host",
+    "before_build": "passed",
+    "after_build": "passed",
+    "compiler": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04)",
+    "optimization": "-O0 -g",
+    "coverage_tool": "gcov (GCC 11.4.0)",
+    "notes": [
+      "使用 autotools (autoreconf + configure + make) 构建",
+      "禁用了 SSL (--disable-ssl) 和 GNOME (--without-gnome) 支持以简化构建依赖",
+      "创建了两个隔离 worktree：baseline (base_commit) 和 patched (patch applied)",
+      "补丁版本的 redirect-test 程序被用于测试基线库和补丁库"
+    ]
+  },
+  "summary": {
+    "findings_total": 3,
+    "findings_targeted": 3,
+    "entries_planned": 1,
+    "entries_generated": 1,
+    "entries_verified": 1,
+    "inputs_planned": 1,
+    "inputs_executed": 1,
+    "contracts_total": 1,
+    "contracts_passed": 1,
+    "contracts_breached": 0,
+    "contracts_skipped": 0,
+    "patch_executable_lines": 4,
+    "patch_lines_covered": 4,
+    "patch_lines_uncovered": 0,
+    "patch_line_coverage_rate": 100.0
+  },
+  "finding_results": [
+    {
+      "finding_id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "status": "passed",
+      "target_location": {
+        "file": "libsoup/soup-session.c",
+        "new_lines": [890, 890],
+        "symbol": "redirect_handler"
+      },
+      "entries": [
+        {
+          "entry_id": "PCA-TE-0001",
+          "status": "passed",
+          "artifact_path": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/_worktrees/patched/tests/.libs/redirect-test",
+          "run_command": "LD_LIBRARY_PATH=<libsoup_lib> ./redirect-test",
+          "expected_signal": "redirect-test: OK (exit 0) with patched library; SIGSEGV (exit 139) with baseline library on bad-no-host redirect",
+          "reachability_signal": "gcov coverage: soup-session.c:890 executed 32 times, error branch (line 891) entered 2 times"
+        }
+      ],
+      "contracts": [
+        {
+          "contract_id": "backward_input_acceptance",
+          "status": "passed",
+          "detail": "输入契约验证通过：补丁前重定向到无 host URI（如 about:blank）导致 SIGSEGV 崩溃；补丁后返回 SOUP_STATUS_MALFORMED 错误。新行为正确拒绝无效输入而不崩溃，正常重定向（有 host 的 URL）不受影响。"
+        }
+      ],
+      "coverage": {
+        "executable_lines": 4,
+        "covered_lines": 4,
+        "uncovered_lines": [],
+        "rate": 100.0
+      },
+      "behavior_differences": [
+        {
+          "input_id": "redirect-to-about:blank",
+          "diff_type": "INPUT_CONTRACT_CHANGE",
+          "before": "进程因 SIGSEGV 崩溃 (exit code 139)，日志中有 GLib 警告（无害）",
+          "after": "测试通过 (exit code 0)，输出 \"redirect-test: OK\"，/bad-no-host 测试用例正确收到 SOUP_STATUS_MALFORMED",
+          "evidence": "Before: `LD_LIBRARY_PATH=baseline/libsoup/.libs ./redirect-test` → exit 139 (SIGSEGV)。After: `LD_LIBRARY_PATH=patched/libsoup/.libs ./redirect-test` → exit 0 (OK)。gcov 确认 soup-session.c:890 行被执行 32 次，错误分支（行 891）被进入 2 次。"
+        }
+      ],
+      "notes": [
+        "补丁的 redirect-test 新增了 /bad-no-host 测试用例，验证对无 host 重定向的正确处理",
+        "gcov 显示: soup-session.c:890 覆盖 32 次执行 (完整路径覆盖), soup-uri.c:968 覆盖 204 次, soup-uri.c:992-993 覆盖 196 次",
+        "所有 4 条补丁变更可执行行均已被 redirect-test 测试覆盖"
+      ]
+    },
+    {
+      "finding_id": "PCA-0002",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "medium",
+      "status": "not_run",
+      "target_location": {
+        "file": "libsoup/soup-uri.c",
+        "new_lines": [968, 968],
+        "symbol": "soup_uri_host_hash"
+      },
+      "entries": [],
+      "contracts": [],
+      "coverage": {
+        "executable_lines": 1,
+        "covered_lines": 1,
+        "uncovered_lines": [],
+        "rate": 100.0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "非高优先级 finding，按 --min-priority high 过滤未生成专项测试入口",
+        "redirect-test 间接触发了 soup_uri_host_hash（从 GHashTable 内部调用），gcov 显示该行被执行 204 次",
+        "defensive g_return_val_if_fail 检查，正常路径已覆盖"
+      ]
+    },
+    {
+      "finding_id": "PCA-0003",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "medium",
+      "status": "not_run",
+      "target_location": {
+        "file": "libsoup/soup-uri.c",
+        "new_lines": [992, 993],
+        "symbol": "soup_uri_host_equal"
+      },
+      "entries": [],
+      "contracts": [],
+      "coverage": {
+        "executable_lines": 2,
+        "covered_lines": 2,
+        "uncovered_lines": [],
+        "rate": 100.0
+      },
+      "behavior_differences": [],
+      "notes": [
+        "非高优先级 finding，按 --min-priority high 过滤未生成专项测试入口",
+        "redirect-test 间接触发了 soup_uri_host_equal（从 GHashTable 内部调用），gcov 显示该行被执行 196 次",
+        "defensive g_return_val_if_fail 检查，正常路径已覆盖"
+      ]
+    }
+  ],
+  "blocked_or_not_run": [
+    {
+      "scope": "entry",
+      "id": "PCA-0002-medium",
+      "reason": "finding PCA-0002 测试优先级为 medium，按 --min-priority high 过滤未生成测试入口",
+      "required_action": "若需要覆盖 PCA-0002，使用 --min-priority medium 重新运行 test_entry_planner.py"
+    },
+    {
+      "scope": "entry",
+      "id": "PCA-0003-medium",
+      "reason": "finding PCA-0003 测试优先级为 medium，按 --min-priority high 过滤未生成测试入口",
+      "required_action": "若需要覆盖 PCA-0003，使用 --min-priority medium 重新运行 test_entry_planner.py"
+    }
+  ],
+  "artifacts": {
+    "impact_map": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/compatibility-testing/phase1_impact/impact_map.json",
+    "test_entry_tasks": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/compatibility-testing/test-entry-tasks.json",
+    "test_entries": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/compatibility-testing/test-entry-work/test-entries.json",
+    "test_inputs": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/compatibility-testing/phase3_inputs/test_inputs.json",
+    "execution_results": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/compatibility-testing/phase4_execution/results.json",
+    "contract_summary": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/compatibility-testing/contract_verification.json",
+    "coverage_data": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P052/compatibility-testing/coverage-data.json",
+    "report": "COVERAGE_REPORT.md"
+  },
+  "conclusion": {
+    "backward_compatibility": "incompatible",
+    "coverage_gate_met": true,
+    "rationale": "补丁将 HTTP 重定向处理中无 host URI 的行为从崩溃（SIGSEGV）改为返回 SOUP_STATUS_MALFORMED 错误。虽然新行为更安全、正确，但这构成向后不兼容的行为变更：依赖旧崩溃行为的调用方现在会收到 HTTP 错误而非进程终止。所有补丁变更行（4 条可执行行）均已通过 redirect-test 覆盖，覆盖率 100%。PCA-0002/0003 的 defensive 检查也被间接触发。",
+    "recommended_actions": [
+      "依赖 libsoup 进行 HTTP 重定向的应用程序应更新其错误处理逻辑，捕获 SOUP_STATUS_MALFORMED 状态码",
+      "确认所有 HTTP 重定向场景下的正常流程不受影响（已验证 redirect-test 全部通过）",
+      "建议对 PCA-0002（soup_uri_host_hash）和 PCA-0003（soup_uri_host_equal）进行专项 NULL host 路径测试"
+    ]
+  }
+}

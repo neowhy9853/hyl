@@ -1,0 +1,72 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P048/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P048/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P048",
+  "patch_id": "7f9c7c8731821149ff42971fad18e2a9abbb4c10",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "ABI_CHANGE",
+      "affected_api": {
+        "name": "SoupKnownStatusCode",
+        "kind": "enum_type",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libsoup/soup-status.h",
+        "old_lines": [
+          97,
+          97
+        ],
+        "new_lines": [
+          97,
+          97
+        ],
+        "symbol": "SoupKnownStatusCode"
+      },
+      "old_behavior": "SoupKnownStatusCode 是一个 typedef enum，包含所有已知 HTTP 状态码和传输错误码。enum 值名称为 SOUP_STATUS_* 前缀，enum typedef 名称为 SoupKnownStatusCode。",
+      "new_behavior": "同一 enum（值和数值完全相同）改名为 SoupStatus。enum 值名称保持不变（SOUP_STATUS_*），但 typedef 名称从 SoupKnownStatusCode 变为 SoupStatus。新增一个 #ifndef SOUP_DISABLE_DEPRECATED 保护下的 deprecated SoupKnownStatusCode enum，但其值名称使用 SOUP_KNOWN_STATUS_CODE_* 前缀（与原有 SOUP_STATUS_* 不同），专门用于 GObject introspection 绑定保持向后兼容。",
+      "compatibility_reason": "这是一个在公共头文件中对 typedef enum 进行的重命名，构成源级别 ABI 不兼容变更。直接使用 SoupKnownStatusCode 类型名的 C/C++ 代码将编译失败。GObject introspection (gir/typelib) 中的类型名也从 SoupKnownStatusCode 变为 SoupStatus，会影响使用 GObject introspection 的语言绑定（Python、JavaScript、Vala 等）——它们需要通过新的 SoupStatus 类型名来引用该枚举。位于 #ifndef SOUP_DISABLE_DEPRECATED 下的兼容枚举使用了不同的值名称（SOUP_KNOWN_STATUS_CODE_*），因此不能直接替代旧代码中提到的 SoupKnownStatusCode。",
+      "test_recommendation": "使用旧类型名（SoupKnownStatusCode）和新类型名（SoupStatus）编译或运行 C 代码，验证编译结果。测试 GObject introspection 绑定（Python GI、Vala、gjs），验证它们能否使用新的 SoupStatus 类型访问状态码。使用 g-ir-scanner 生成 .gir 文件，验证类型注解是否正确。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "abi_dump_and_consumer_harness",
+        "preferred_artifact": "project-native regression test or minimal command",
+        "trigger_surface": "use the nearest public entry point or existing test fixture that reaches the changed symbol",
+        "seed_sources": [
+          "existing tests",
+          "static_call_chains",
+          "finding evidence"
+        ],
+        "surface_entry_kind": "project_test_harness",
+        "contract_id": "binary_abi_compatibility",
+        "comparison": "success",
+        "required_observation": "symbol/version manifest plus size, alignment, offset, enum, and calling ABI",
+        "input_axes": [
+          "exported symbols",
+          "symbol versions",
+          "type layouts",
+          "old binary consumer"
+        ],
+        "requires_explicit_probe": true
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P048/compatibility-testing"
+}

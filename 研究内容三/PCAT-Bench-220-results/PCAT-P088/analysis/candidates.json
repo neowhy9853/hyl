@@ -1,0 +1,339 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P028/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P028/patch.diff",
+  "profile": "cpython",
+  "summary": {
+    "total_changed_files": 3,
+    "changed_files": [
+      "Misc/NEWS.d/next/Library/2026-05-19-18-25-00.gh-issue-150077.zstopen-close.rst",
+      "Lib/tarfile.py",
+      "Lib/test/test_tarfile.py"
+    ],
+    "total_hunks": 3,
+    "public_api_hunks": 2,
+    "patch_metrics": {
+      "patch_bytes": 3105,
+      "patch_lines": 79,
+      "diff_added_lines": 36,
+      "diff_deleted_lines": 1,
+      "diff_context_lines": 18,
+      "churn": 37,
+      "raw_hunks": 3,
+      "candidate_hunks": 3,
+      "skipped_doc_hunks": 0,
+      "changed_files": 3,
+      "candidate_context_bytes": 5559,
+      "public_candidate_hunks": 2,
+      "surface_counts": {
+        "python_public_api": 1,
+        "python_exceptions": 3,
+        "python_stdlib": 1,
+        "exceptions": 1,
+        "tests": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "Lib/tarfile.py",
+      "old_start": 2129,
+      "old_end": 2135,
+      "new_start": 2129,
+      "new_end": 2135,
+      "context_hint": "def zstopen(cls, name, mode=\"r\", fileobj=None, level=None, options=None,",
+      "added_lines": [
+        "        except:"
+      ],
+      "deleted_lines": [
+        "        except Exception:"
+      ],
+      "context_lines": [
+        "            if mode == 'r':",
+        "                raise ReadError(\"not a zstd file\") from e",
+        "            raise",
+        "            fileobj.close()",
+        "            raise",
+        "        t._extfileobj = False"
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "zstopen",
+        "except",
+        "Exception"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_public_api",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "side_effect"
+            ],
+            "description": "Public Python module, class, function, method, and attribute behavior."
+          },
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          },
+          {
+            "name": "python_stdlib",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Python standard library public API"
+          },
+          {
+            "name": "exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Exception type and message changes"
+          }
+        ],
+        "surface_reasons": [
+          "python_public_api",
+          "python_exceptions",
+          "python_stdlib",
+          "exceptions"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "zstopen",
+        "snippet_start_line": 2100,
+        "snippet_end_line": 2165,
+        "snippet": "        t._extfileobj = False\n        return t\n\n    @classmethod\n    def zstopen(cls, name, mode=\"r\", fileobj=None, level=None, options=None,\n                zstd_dict=None, **kwargs):\n        \"\"\"Open zstd compressed tar archive name for reading or writing.\n           Appending is not allowed.\n        \"\"\"\n        if mode not in (\"r\", \"w\", \"x\"):\n            raise ValueError(\"mode must be 'r', 'w' or 'x'\")\n\n        try:\n            from compression.zstd import ZstdFile, ZstdError\n        except ImportError:\n            raise CompressionError(\"compression.zstd module is not available\") from None\n\n        fileobj = ZstdFile(\n            fileobj or name,\n            mode,\n            level=level,\n            options=options,\n            zstd_dict=zstd_dict\n        )\n\n        try:\n            t = cls.taropen(name, mode, fileobj, **kwargs)\n        except (ZstdError, EOFError) as e:\n            fileobj.close()\n            if mode == 'r':\n                raise ReadError(\"not a zstd file\") from e\n            raise\n        except:\n            fileobj.close()\n            raise\n        t._extfileobj = False\n        return t\n\n    # All *open() methods are registered here.\n    OPEN_METH = {\n        \"tar\": \"taropen\",   # uncompressed tar\n        \"gz\":  \"gzopen\",    # gzip compressed tar\n        \"bz2\": \"bz2open\",   # bzip2 compressed tar\n        \"xz\":  \"xzopen\",    # lzma compressed tar\n        \"zst\": \"zstopen\",   # zstd compressed tar\n    }\n\n    #--------------------------------------------------------------------------\n    # The public methods which TarFile provides:\n\n    def close(self):\n        \"\"\"Close the TarFile. In write-mode, two finishing zero blocks are\n           appended to the archive.\n        \"\"\"\n        if self.closed:\n            return\n\n        self.closed = True\n        try:\n            if self.mode in (\"a\", \"w\", \"x\"):\n                self.fileobj.write(NUL * (BLOCKSIZE * 2))\n                self.offset += (BLOCKSIZE * 2)\n                # fill up the end with zero-blocks\n                # (like option -b20 for tar does)\n                blocks, remainder = divmod(self.offset, RECORDSIZE)\n                if remainder > 0:\n"
+      }
+    },
+    {
+      "file": "Lib/test/test_tarfile.py",
+      "old_start": 1141,
+      "old_end": 1146,
+      "new_start": 1141,
+      "new_end": 1178,
+      "context_hint": "class LzmaDetectReadTest(LzmaTest, DetectReadTest):",
+      "added_lines": [
+        "",
+        "@support.requires_zstd()",
+        "class ZstdOpenTest(unittest.TestCase):",
+        "    \"\"\"",
+        "    See: https://github.com/python/cpython/issues/150077",
+        "    \"\"\"",
+        "    def test_zstopen_closes_fileobj_on_base_exception(self):",
+        "        path = os_helper.TESTFN + \".tar.zst\"",
+        "        self.addCleanup(os_helper.unlink, path)",
+        "        with tarfile.open(path, \"w:zst\"):",
+        "            pass",
+        "",
+        "        opened = []",
+        "        real_ZstdFile = zstd.ZstdFile",
+        "",
+        "        def tracking_ZstdFile(*args, **kwargs):",
+        "            fileobj = real_ZstdFile(*args, **kwargs)",
+        "            opened.append(fileobj)",
+        "            return fileobj",
+        "",
+        "        with (",
+        "            unittest.mock.patch(\"compression.zstd.ZstdFile\", tracking_ZstdFile),",
+        "            unittest.mock.patch.object(",
+        "                tarfile.TarFile, \"taropen\", side_effect=KeyboardInterrupt),",
+        "            self.assertRaises(KeyboardInterrupt),",
+        "        ):",
+        "            tarfile.TarFile.zstopen(path)",
+        "",
+        "        self.assertEqual(len(opened), 1)",
+        "        self.assertTrue(opened[0].closed)",
+        "",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "class ZstdDetectReadTest(ZstdTest, DetectReadTest):",
+        "    pass",
+        "",
+        "class GzipBrokenHeaderCorrectException(GzipTest, unittest.TestCase):",
+        "    \"\"\"",
+        "    See: https://github.com/python/cpython/issues/107396"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "LzmaDetectReadTest",
+        "support",
+        "requires_zstd",
+        "class",
+        "ZstdOpenTest",
+        "unittest",
+        "ZstdDetectReadTest"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          },
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          }
+        ],
+        "surface_reasons": [
+          "tests",
+          "python_exceptions"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "LzmaDetectReadTest",
+        "snippet_start_line": 1112,
+        "snippet_end_line": 1208,
+        "snippet": "        testfunc(self.tarname, \"r|*\")\n\n    def test_detect_file(self):\n        self._test_modes(self._testfunc_file)\n\n    def test_detect_fileobj(self):\n        self._test_modes(self._testfunc_fileobj)\n\nclass GzipDetectReadTest(GzipTest, DetectReadTest):\n    pass\n\nclass Bz2DetectReadTest(Bz2Test, DetectReadTest):\n    def test_detect_stream_bz2(self):\n        # Originally, tarfile's stream detection looked for the string\n        # \"BZh91\" at the start of the file. This is incorrect because\n        # the '9' represents the blocksize (900,000 bytes). If the file was\n        # compressed using another blocksize autodetection fails.\n        with open(tarname, \"rb\") as fobj:\n            data = fobj.read()\n\n        # Compress with blocksize 100,000 bytes, the file starts with \"BZh11\".\n        with bz2.BZ2File(tmpname, \"wb\", compresslevel=1) as fobj:\n            fobj.write(data)\n\n        self._testfunc_file(tmpname, \"r|*\")\n\nclass LzmaDetectReadTest(LzmaTest, DetectReadTest):\n    pass\n\nclass ZstdDetectReadTest(ZstdTest, DetectReadTest):\n    pass\n\n\n@support.requires_zstd()\nclass ZstdOpenTest(unittest.TestCase):\n    \"\"\"\n    See: https://github.com/python/cpython/issues/150077\n    \"\"\"\n    def test_zstopen_closes_fileobj_on_base_exception(self):\n        path = os_helper.TESTFN + \".tar.zst\"\n        self.addCleanup(os_helper.unlink, path)\n        with tarfile.open(path, \"w:zst\"):\n            pass\n\n        opened = []\n        real_ZstdFile = zstd.ZstdFile\n\n        def tracking_ZstdFile(*args, **kwargs):\n            fileobj = real_ZstdFile(*args, **kwargs)\n            opened.append(fileobj)\n            return fileobj\n\n        with (\n            unittest.mock.patch(\"compression.zstd.ZstdFile\", tracking_ZstdFile),\n            unittest.mock.patch.object(\n                tarfile.TarFile, \"taropen\", side_effect=KeyboardInterrupt),\n            self.assertRaises(KeyboardInterrupt),\n        ):\n            tarfile.TarFile.zstopen(path)\n\n        self.assertEqual(len(opened), 1)\n        self.assertTrue(opened[0].closed)\n\n\nclass GzipBrokenHeaderCorrectException(GzipTest, unittest.TestCase):\n    \"\"\"\n    See: https://github.com/python/cpython/issues/107396\n    \"\"\"\n    def runTest(self):\n        f = io.BytesIO(\n            b'\\x1f\\x8b'  # header\n            b'\\x08'  # compression method\n            b'\\x04'  # flags\n            b'\\0\\0\\0\\0\\0\\0'  # timestamp, compression data, OS ID\n            b'\\0\\x01'  # size\n            b'\\0\\0\\0\\0\\0'  # corrupt data (zeros)\n        )\n        with self.assertRaises(tarfile.ReadError):\n            tarfile.open(fileobj=f, mode='r|gz')\n\n\nclass MemberReadTest(ReadTest, unittest.TestCase):\n\n    def _test_member(self, tarinfo, chksum=None, **kwargs):\n        if chksum is not None:\n            with self.tar.extractfile(tarinfo) as f:\n                self.assertEqual(sha256sum(f.read()), chksum,\n                        \"wrong sha256sum for %s\" % tarinfo.name)\n\n        kwargs[\"mtime\"] = 0o7606136617\n        kwargs[\"uid\"] = 1000\n        kwargs[\"gid\"] = 100\n        if \"old-v7\" not in tarinfo.name:\n            # V7 tar can't handle alphabetic owners.\n            kwargs[\"uname\"] = \"tarfile\"\n            kwargs[\"gname\"] = \"tarfile\"\n        for k, v in kwargs.items():\n"
+      }
+    },
+    {
+      "file": "Misc/NEWS.d/next/Library/2026-05-19-18-25-00.gh-issue-150077.zstopen-close.rst",
+      "old_start": 0,
+      "old_end": -1,
+      "new_start": 1,
+      "new_end": 3,
+      "context_hint": "",
+      "added_lines": [
+        "Fix ``tarfile.TarFile.zstopen`` to close the underlying zstd file object",
+        "when opening the tar archive is interrupted by a :exc:`BaseException`",
+        "subclass such as :exc:`KeyboardInterrupt`."
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        ""
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "Fix",
+        "tarfile",
+        "TarFile",
+        "zstopen",
+        "to",
+        "close"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "python_exceptions",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "error_contract",
+              "output_format"
+            ],
+            "description": "Exception type, message, and failure-path compatibility."
+          }
+        ],
+        "surface_reasons": [
+          "python_exceptions"
+        ],
+        "profile": "cpython",
+        "effective_profile_layers": [
+          "default",
+          "python_base",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "unknown",
+        "snippet_start_line": 1,
+        "snippet_end_line": 3,
+        "snippet": "Fix ``tarfile.TarFile.zstopen`` to close the underlying zstd file object\nwhen opening the tar archive is interrupted by a :exc:`BaseException`\nsubclass such as :exc:`KeyboardInterrupt`.\n"
+      }
+    }
+  ]
+}

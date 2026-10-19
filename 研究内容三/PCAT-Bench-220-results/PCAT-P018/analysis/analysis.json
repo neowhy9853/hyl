@@ -1,0 +1,204 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/libxml2",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/d33525/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/libxml2/pca-results/d33525",
+  "base_ref": "6be0acd2afb3f55af3c721e1e35ac6675df3057a",
+  "base_commit": "6be0acd2afb3f55af3c721e1e35ac6675df3057a",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "d3352554e4c1f052b914cda7b415d06b7eab5dfa",
+  "patch_source": {
+    "kind": "local_file",
+    "input": "/tmp/d335255.patch",
+    "cached_patch": "",
+    "commit": ""
+  },
+  "package_profile": "libxml2",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 909,
+    "patch_lines": 28,
+    "diff_added_lines": 2,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 9,
+    "churn": 4,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 1683,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "environment_variables": 1,
+      "user_visible_output": 1,
+      "env_vars": 1,
+      "logging": 1
+    },
+    "candidates_json_bytes": 5943
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "CONFIG_CLI_BEHAVIOR_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "libxml2",
+      "affected_surface": "CLI option --maxmem behavior change (bug fix)",
+      "affected_api": {
+        "name": "xmllintMain --maxmem",
+        "kind": "cli_command",
+        "language": "c"
+      },
+      "location": {
+        "file": "xmllint.c",
+        "old_lines": [
+          3075,
+          3082
+        ],
+        "new_lines": [
+          3075,
+          3083
+        ],
+        "symbol": "xmllintMain"
+      },
+      "old_behavior": "When --maxmem was specified with a non-zero value N, xmllintMaxmem was incorrectly set to 0 instead of N. Since the custom memory allocators check xmlMemUsed() + size > xmllintMaxmem, a value of 0 caused every allocation to immediately exceed the limit, making --maxmem effectively unusable (instant OOM on first allocation).",
+      "new_behavior": "xmllintMaxmem is initialized to 0 before the if block. When --maxmem is specified with a non-zero value N, xmllintMaxmem is correctly set to N. The custom memory allocators now enforce the intended memory limit, and --maxmem works as documented.",
+      "compatibility_reason": "The --maxmem CLI option behavior has changed from broken (always OOM immediately) to working correctly. Any user who previously specified --maxmem would have experienced immediate OOM errors; after the fix, the option actually limits memory usage to the specified value. Users who never used --maxmem are unaffected. This is a bug fix restoring documented behavior.",
+      "evidence": [
+        {
+          "file": "xmllint.c",
+          "lines": [
+            3075,
+            3083
+          ],
+          "snippet": "    xmllintMaxmem = 0;\n    if (lint->maxmem != 0) {\n        xmllintMaxmem = lint->maxmem;\n        xmllintMaxmemReached = 0;\n        xmllintOom = 0;\n        xmlMemSetup(myFreeFunc, myMallocFunc, myReallocFunc, myStrdupFunc);\n    }"
+        },
+        {
+          "file": "xmllint.c",
+          "lines": [
+            513,
+            575
+          ],
+          "snippet": "myMallocFunc/myReallocFunc/myStrdupFunc use xmllintMaxmem check:\n    if (xmlMemUsed() + size > (size_t) xmllintMaxmem) {\n        xmllintMaxmemReached = 1;\n        xmllintOom = 1;\n        ...\n    }"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "xmllintMain is the CLI entry point for the xmllint binary. The --maxmem option is a documented CLI interface. Changes to its behavior are externally visible to all users of the xmllint command.",
+      "uncertainty": "The old behavior was clearly broken (instant OOM), so the fix restores intended documented behavior. Low uncertainty that this is a bug fix. Medium confidence as compatibility change because behavior changed.",
+      "manual_review_required": false,
+      "recommended_review": "Verify that --maxmem now correctly enforces the memory limit by testing with various positive integer values and confirming that OOM triggers at the expected threshold.",
+      "test_recommendation": "Test --maxmem with values 1, 100, 1000000, and 0 (unlimited/default). Verify that processing succeeds when memory stays under limit and fails with OOM when exceeded. Also verify that not passing --maxmem works as before (no custom allocators installed).",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=medium from 1 matched candidate hunk(s)",
+          "high-value affected_api.kind=cli_command with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "xmllint.c",
+            "old_lines": [
+              3075,
+              3082
+            ],
+            "new_lines": [
+              3075,
+              3083
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "environment_variables",
+              "user_visible_output",
+              "env_vars",
+              "logging"
+            ],
+            "surface_test_priority": "medium",
+            "matched_surfaces": [
+              {
+                "name": "environment_variables",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Environment-variable configuration behavior."
+              },
+              {
+                "name": "user_visible_output",
+                "test_priority": "medium",
+                "public": true,
+                "description": "User-visible output, diagnostics, and log text."
+              },
+              {
+                "name": "env_vars",
+                "test_priority": "medium",
+                "public": true,
+                "description": "Environment variable behavior"
+              },
+              {
+                "name": "logging",
+                "test_priority": "low",
+                "public": true,
+                "description": "Log output format (usually low test priority)"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=medium from 1 matched candidate hunk(s); high-value affected_api.kind=cli_command with compatibility_type=CONFIG_CLI_BEHAVIOR_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

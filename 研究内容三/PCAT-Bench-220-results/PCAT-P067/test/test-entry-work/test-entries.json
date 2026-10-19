@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0",
+  "provenance": "manual-recovery",
+  "entries": [
+    {
+      "finding_id": "PCA-0001",
+      "entry_id": "PCA-TE-0001",
+      "entry_kind": "api_harness",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0001/reproducer.sh",
+      "run_command": "sh test-entry-work/PCA-0001/reproducer.sh /tmp/pca-rsyslog-before /tmp/pca-rsyslog-after",
+      "target_location": {"file": "runtime/net.h", "new_lines": [148, 245], "symbol": "BEGINinterface(net) / netCURR_IF_VERSION"},
+      "reachability_signal": "The unchanged source compiles against each version's configured net.h; an after compile diagnostic demonstrates the v11 source contract no longer holds.",
+      "expected_signal": "Both compiles succeed for compatibility; an after compile failure is a contract breach requiring investigation.",
+      "execution": {"cwd": "result_dir", "timeout_seconds": 120, "uses_clean_source_copy": false},
+      "input_strategy": "Use the unchanged v11 interface-version assertion against matched configured source trees.",
+      "contract_probe": {"probe_id": "old_v11_consumer_compile", "command": "cc -I{VERSION_DIR} -I{VERSION_DIR}/runtime test-entry-work/PCA-0001/v11_compile_probe.c -o /tmp/pca-v11-probe", "comparison": "success", "cwd": "result_dir", "timeout_seconds": 120},
+      "prerequisites": ["matched configured before and after source trees", "C compiler"],
+      "limitations": "Not executed during recovery because the baseline build/worktree was unavailable; this compile-only probe also does not replace the requested external module load check."
+    },
+    {
+      "finding_id": "PCA-0002",
+      "entry_id": "PCA-TE-0002",
+      "entry_kind": "abi_layout_harness",
+      "status": "generated",
+      "artifact_path": "test-entry-work/PCA-0002/reproducer.sh",
+      "run_command": "sh test-entry-work/PCA-0002/reproducer.sh /tmp/pca-rsyslog-before /tmp/pca-rsyslog-after",
+      "target_location": {"file": "runtime/tcpsrv.h", "new_lines": [64, 71], "symbol": "tcpLstnParams_s"},
+      "reachability_signal": "The harness compiles against the public header and emits sizeof(tcpLstnParams_t) from each version.",
+      "expected_signal": "The canonical layout observation remains equal; any size difference is an ABI contract breach.",
+      "execution": {"cwd": "result_dir", "timeout_seconds": 120, "uses_clean_source_copy": false},
+      "input_strategy": "Compare the same layout observation from matched configured before and after trees.",
+      "contract_probe": {"probe_id": "tcp_listener_layout", "command": "cc -I{VERSION_DIR} -I{VERSION_DIR}/runtime test-entry-work/PCA-0002/tcp_layout_probe.c -o /tmp/pca-tcp-layout && /tmp/pca-tcp-layout", "comparison": "exact", "cwd": "result_dir", "timeout_seconds": 120},
+      "prerequisites": ["matched configured before and after source trees", "C compiler"],
+      "limitations": "Not executed during recovery because the baseline build/worktree was unavailable; abidiff and an old binary consumer are still required for a complete ABI conclusion."
+    },
+    {
+      "finding_id": "PCA-0003",
+      "entry_id": "PCA-TE-0003",
+      "entry_kind": "project_native_regression_test",
+      "status": "generated",
+      "artifact_path": "tests/allowed-sender-modern.sh",
+      "run_command": "timeout 180 make check TESTS='allowed-sender-modern.sh allowed-sender-empty-array.sh yaml-allowed-sender-modern.sh'",
+      "target_location": {"file": "plugins/imtcp/imtcp.c", "new_lines": [258, 264], "symbol": "modpdescr / inppdescr"},
+      "reachability_signal": "The native scripts instantiate the new allowedsender module/input parameters and check listener acceptance or configuration rejection.",
+      "expected_signal": "Automake reports three requested tests passed and zero failed.",
+      "execution": {"cwd": "analysis_repo", "timeout_seconds": 180, "uses_clean_source_copy": false},
+      "input_strategy": "Modern config, YAML config, and empty-array rejection.",
+      "contract_probe": {"probe_id": "allowedsender_config_matrix", "command": "timeout 180 make check TESTS='allowed-sender-modern.sh allowed-sender-empty-array.sh yaml-allowed-sender-modern.sh'", "comparison": "exact", "cwd": "version_dir", "timeout_seconds": 180},
+      "prerequisites": ["configured rsyslog testbench build"],
+      "limitations": "Verified only on the patched build; no matched before execution or patch-line coverage was retained."
+    },
+    {
+      "finding_id": "PCA-0004",
+      "entry_id": "PCA-TE-0004",
+      "entry_kind": "project_native_regression_test",
+      "status": "generated",
+      "artifact_path": "tests/allowed-sender-tcp-ok.sh",
+      "run_command": "timeout 300 make check TESTS='allowed-sender-tcp-ok.sh allowed-sender-tcp-fail.sh allowed-sender-tcp-zero-mask.sh allowed-sender-tcp-hostname-ok.sh allowed-sender-tcp-hostname-fail.sh allowed-sender-wildcard-invalid-bits.sh'",
+      "target_location": {"file": "plugins/imudp/imudp.c", "new_lines": [566, 576], "symbol": "processPacket"},
+      "reachability_signal": "Native ACL tests observe allowed and rejected senders across address, zero-mask, hostname, and invalid-wildcard cases.",
+      "expected_signal": "All six legacy/edge ACL scripts pass with zero failures.",
+      "execution": {"cwd": "analysis_repo", "timeout_seconds": 300, "uses_clean_source_copy": false},
+      "input_strategy": "Positive, negative, boundary-mask, hostname, and invalid wildcard ACL behavior.",
+      "contract_probe": {"probe_id": "allowed_sender_side_effects", "command": "timeout 300 make check TESTS='allowed-sender-tcp-ok.sh allowed-sender-tcp-fail.sh allowed-sender-tcp-zero-mask.sh allowed-sender-tcp-hostname-ok.sh allowed-sender-tcp-hostname-fail.sh allowed-sender-wildcard-invalid-bits.sh'", "comparison": "exact", "cwd": "version_dir", "timeout_seconds": 300},
+      "prerequisites": ["configured rsyslog testbench build", "loopback networking"],
+      "limitations": "Verified only on the patched build; no matched before side-effect snapshot or patch-line coverage was retained."
+    }
+  ]
+}

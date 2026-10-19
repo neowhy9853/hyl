@@ -1,0 +1,245 @@
+{
+  "repo": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/19f3e0/_worktrees/patched",
+  "patch_file": "/home/soong/pca_benchmark/_repos/dnsmasq/pca-results/19f3e0/patch.diff",
+  "profile": "dnsmasq",
+  "summary": {
+    "total_changed_files": 2,
+    "changed_files": [
+      "src/option.c",
+      "src/edns0.c"
+    ],
+    "total_hunks": 2,
+    "public_api_hunks": 2,
+    "patch_metrics": {
+      "patch_bytes": 1001,
+      "patch_lines": 26,
+      "diff_added_lines": 2,
+      "diff_deleted_lines": 2,
+      "diff_context_lines": 12,
+      "churn": 4,
+      "raw_hunks": 2,
+      "candidate_hunks": 2,
+      "skipped_doc_hunks": 0,
+      "changed_files": 2,
+      "candidate_context_bytes": 2848,
+      "public_candidate_hunks": 2,
+      "surface_counts": {
+        "protocol": 1,
+        "network_protocol": 1,
+        "config_cli": 2,
+        "dhcp_protocol": 1,
+        "user_visible_output": 1,
+        "logging": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "src/edns0.c",
+      "old_start": 103,
+      "old_end": 109,
+      "new_start": 103,
+      "new_end": 109,
+      "context_hint": "unsigned char *find_pseudoheader(struct dns_header *header, size_t plen, size_t",
+      "added_lines": [
+        "  unsigned char *lenp = NULL, *datap = NULL, *p, *udp_len, *buff = NULL;"
+      ],
+      "deleted_lines": [
+        "  unsigned char *lenp, *datap, *p, *udp_len, *buff = NULL;"
+      ],
+      "context_lines": [
+        "size_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, ",
+        "\t\t\tint optno, unsigned char *opt, size_t optlen, int set_do, int replace)",
+        "{ ",
+        "  int rdlen = 0, is_sign, is_last;",
+        "  unsigned short flags = set_do ? 0x8000 : 0, rcode = 0;",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "dns_header",
+        "lenp",
+        "NULL",
+        "datap",
+        "p",
+        "udp_len",
+        "add_pseudoheader"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Network protocol behavior"
+          },
+          {
+            "name": "network_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "output_format",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "Network protocol request/response and capability behavior."
+          },
+          {
+            "name": "config_cli",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Command-line and dnsmasq.conf option behavior"
+          },
+          {
+            "name": "dhcp_protocol",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "DHCPv4/v6 lease and option behavior"
+          }
+        ],
+        "surface_reasons": [
+          "protocol",
+          "network_protocol",
+          "config_cli",
+          "dhcp_protocol"
+        ],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "dns_header",
+        "snippet_start_line": 74,
+        "snippet_end_line": 139,
+        "snippet": "\treturn NULL;\n      if (type == T_OPT)\n\t{\n\t  if (len)\n\t    *len = ansp - start;\n\n\t  if (p)\n\t    *p = save;\n\t  \n\t  if (is_last)\n\t    *is_last = (i == arcount-1);\n\n\t  ret = start;\n\t}\n      else if (is_sign && \n\t       i == arcount - 1 && \n\t       class == C_ANY && \n\t       type == T_TSIG)\n\t*is_sign = 1;\n    }\n  \n  return ret;\n}\n \n\n/* replace == 0 ->don't replace existing option\n   replace == 1 ->replace existing or add option\n   replace == 2 ->relpace existing option only.\n*/\nsize_t add_pseudoheader(struct dns_header *header, size_t plen, unsigned char *limit, \n\t\t\tint optno, unsigned char *opt, size_t optlen, int set_do, int replace)\n{ \n  unsigned char *lenp = NULL, *datap = NULL, *p, *udp_len, *buff = NULL;\n  int rdlen = 0, is_sign, is_last;\n  unsigned short flags = set_do ? 0x8000 : 0, rcode = 0;\n\n  p = find_pseudoheader(header, plen, NULL, &udp_len, &is_sign, &is_last);\n  \n  if (is_sign)\n    return plen;\n\n  if (p)\n    {\n      /* Existing header */\n      int i;\n      unsigned short code, len;\n      \n      p = udp_len;\n\n      PUTSHORT(daemon->edns_pktsz, p);\n      GETSHORT(rcode, p);\n      GETSHORT(flags, p);\n\n      if (set_do)\n\t{\n\t  p -= 2;\n\t  flags |= 0x8000;\n\t  PUTSHORT(flags, p);\n\t}\n\n      lenp = p;\n      GETSHORT(rdlen, p);\n      if (!CHECK_LEN(header, p, plen, rdlen))\n\treturn plen; /* bad packet */\n      datap = p;\n\n"
+      }
+    },
+    {
+      "file": "src/option.c",
+      "old_start": 5734,
+      "old_end": 5740,
+      "new_start": 5734,
+      "new_end": 5740,
+      "context_hint": "struct hostsfile *expand_filelist(struct hostsfile *list)",
+      "added_lines": [
+        "  for (last = NULL, i = SRC_AH, ah = list; ah; ah = ah->next)"
+      ],
+      "deleted_lines": [
+        "  for (i = SRC_AH, ah = list; ah; ah = ah->next)"
+      ],
+      "context_lines": [
+        "  struct dirent **namelist;",
+        "",
+        "  /* find largest used index */",
+        "    {",
+        "      last = ah;",
+        "      ",
+        ""
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "hostsfile",
+        "last",
+        "NULL",
+        "i",
+        "SRC_AH",
+        "ah",
+        "file_filter"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "user_visible_output",
+            "public": true,
+            "test_priority": "medium",
+            "stability": "semi_stable",
+            "semantic_dimensions": [
+              "output_format",
+              "error_contract"
+            ],
+            "description": "User-visible output, diagnostics, and log text."
+          },
+          {
+            "name": "logging",
+            "public": true,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Log output format (usually low test priority)"
+          },
+          {
+            "name": "config_cli",
+            "public": true,
+            "test_priority": "high",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Command-line and dnsmasq.conf option behavior"
+          }
+        ],
+        "surface_reasons": [
+          "user_visible_output",
+          "logging",
+          "config_cli"
+        ],
+        "profile": "dnsmasq",
+        "effective_profile_layers": [
+          "c_project",
+          "cli_tool",
+          "daemon_network"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "hostsfile",
+        "snippet_start_line": 5705,
+        "snippet_end_line": 5770,
+        "snippet": "      if (rc != 0)\n\tdie(_(\"%s returns non-zero error code\"), file, rc+10);\n    }\n  else\n    fclose(f);\n\t\n  return 1;\n}\n\nstatic int file_filter(const struct dirent *ent)\n{\n  size_t lenfile = strlen(ent->d_name);\n\n  /* ignore emacs backups and dotfiles */\n\n  if (lenfile == 0 || \n      ent->d_name[lenfile - 1] == '~' ||\n      (ent->d_name[0] == '#' && ent->d_name[lenfile - 1] == '#') ||\n      ent->d_name[0] == '.')\n    return 0;\n\n  return 1;\n}\n/* expand any name which is a directory */\nstruct hostsfile *expand_filelist(struct hostsfile *list)\n{\n  unsigned int i;\n  int entcnt, n;\n  struct hostsfile *ah, *last, *next, **up;\n  struct dirent **namelist;\n\n  /* find largest used index */\n  for (last = NULL, i = SRC_AH, ah = list; ah; ah = ah->next)\n    {\n      last = ah;\n      \n      if (i <= ah->index)\n\ti = ah->index + 1;\n\n      if (ah->flags & AH_DIR)\n\tah->flags |= AH_INACTIVE;\n      else\n\tah->flags &= ~AH_INACTIVE;\n    }\n\n  for (ah = list; ah; ah = ah->next)\n    if (!(ah->flags & AH_INACTIVE))\n      {\n\tstruct stat buf;\n\tif (stat(ah->fname, &buf) != -1 && S_ISDIR(buf.st_mode))\n\t  {\n\t    struct dirent *ent;\n\t    \n\t    /* don't read this as a file */\n\t    ah->flags |= AH_INACTIVE;\n\t    \n\t    entcnt = scandir(ah->fname, &namelist, file_filter, alphasort);\n\t    if (entcnt < 0)\n\t      my_syslog(LOG_ERR, _(\"cannot access directory %s: %s\"), \n\t\t\tah->fname, strerror(errno));\n\t    else\n\t      {\n\t\tfor (n = 0; n < entcnt; n++)\n\t\t  {\n\t\t    ent = namelist[n];\n\t\t    size_t lendir = strlen(ah->fname);\n"
+      }
+    }
+  ]
+}

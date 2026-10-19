@@ -1,0 +1,2044 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P045/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_151130/PCIA-P045/patch.diff",
+  "profile": "kernel_6_6",
+  "summary": {
+    "total_changed_files": 7,
+    "changed_files": [
+      "fs/smb/server/mgmt/user_config.h",
+      "fs/smb/server/ksmbd_netlink.h",
+      "fs/smb/server/transport_ipc.c",
+      "fs/smb/server/transport_ipc.h",
+      "fs/smb/server/auth.c",
+      "fs/smb/server/smb_common.c",
+      "fs/smb/server/mgmt/user_config.c"
+    ],
+    "total_hunks": 20,
+    "public_api_hunks": 20,
+    "patch_metrics": {
+      "patch_bytes": 12103,
+      "patch_lines": 383,
+      "diff_added_lines": 137,
+      "diff_deleted_lines": 17,
+      "diff_context_lines": 157,
+      "churn": 154,
+      "raw_hunks": 20,
+      "candidate_hunks": 20,
+      "skipped_doc_hunks": 0,
+      "changed_files": 7,
+      "candidate_context_bytes": 36585,
+      "public_candidate_hunks": 20,
+      "surface_counts": {
+        "syscall": 20,
+        "public_headers": 7,
+        "ioctl_netlink_consumers": 6,
+        "netlink": 5
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "fs/smb/server/auth.c",
+      "old_start": 514,
+      "old_end": 519,
+      "new_start": 514,
+      "new_end": 520,
+      "context_hint": "int ksmbd_krb5_authenticate(struct ksmbd_session *sess, char *in_blob,",
+      "added_lines": [
+        "\tstruct ksmbd_login_response_ext *resp_ext = NULL;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\t\t    int in_len, char *out_blob, int *out_len)",
+        "{",
+        "\tstruct ksmbd_spnego_authen_response *resp;",
+        "\tstruct ksmbd_user *user = NULL;",
+        "\tint retval;",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "ksmbd_session",
+        "ksmbd_login_response_ext",
+        "resp_ext",
+        "NULL",
+        "ksmbd_krb5_authenticate"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_session",
+        "snippet_start_line": 485,
+        "snippet_end_line": 550,
+        "snippet": "\tmemcpy(target_name, name, uni_len);\n\ttinfo = (struct target_info *)(target_name + uni_len);\n\n\tchgblob->TargetInfoArray.Length = 0;\n\t/* Add target info list for NetBIOS/DNS settings */\n\tfor (type = NTLMSSP_AV_NB_COMPUTER_NAME;\n\t     type <= NTLMSSP_AV_DNS_DOMAIN_NAME; type++) {\n\t\ttinfo->Type = cpu_to_le16(type);\n\t\ttinfo->Length = cpu_to_le16(uni_len);\n\t\tmemcpy(tinfo->Content, name, uni_len);\n\t\ttinfo = (struct target_info *)((char *)tinfo + 4 + uni_len);\n\t\ttarget_info_len += 4 + uni_len;\n\t}\n\n\t/* Add terminator subblock */\n\ttinfo->Type = 0;\n\ttinfo->Length = 0;\n\ttarget_info_len += 4;\n\n\tchgblob->TargetInfoArray.Length = cpu_to_le16(target_info_len);\n\tchgblob->TargetInfoArray.MaximumLength = cpu_to_le16(target_info_len);\n\tblob_len += target_info_len;\n\tkfree(name);\n\tksmbd_debug(AUTH, \"NTLMSSP SecurityBufferLength %d\\n\", blob_len);\n\treturn blob_len;\n}\n\n#ifdef CONFIG_SMB_SERVER_KERBEROS5\nint ksmbd_krb5_authenticate(struct ksmbd_session *sess, char *in_blob,\n\t\t\t    int in_len, char *out_blob, int *out_len)\n{\n\tstruct ksmbd_spnego_authen_response *resp;\n\tstruct ksmbd_login_response_ext *resp_ext = NULL;\n\tstruct ksmbd_user *user = NULL;\n\tint retval;\n\n\tresp = ksmbd_ipc_spnego_authen_request(in_blob, in_len);\n\tif (!resp) {\n\t\tksmbd_debug(AUTH, \"SPNEGO_AUTHEN_REQUEST failure\\n\");\n\t\treturn -EINVAL;\n\t}\n\n\tif (!(resp->login_response.status & KSMBD_USER_FLAG_OK)) {\n\t\tksmbd_debug(AUTH, \"krb5 authentication failure\\n\");\n\t\tretval = -EPERM;\n\t\tgoto out;\n\t}\n\n\tif (*out_len <= resp->spnego_blob_len) {\n\t\tksmbd_debug(AUTH, \"buf len %d, but blob len %d\\n\",\n\t\t\t    *out_len, resp->spnego_blob_len);\n\t\tretval = -EINVAL;\n\t\tgoto out;\n\t}\n\n\tif (resp->session_key_len > sizeof(sess->sess_key)) {\n\t\tksmbd_debug(AUTH, \"session key is too long\\n\");\n\t\tretval = -EINVAL;\n\t\tgoto out;\n\t}\n\n\tif (resp->login_response.status & KSMBD_USER_FLAG_EXTENSION)\n\t\tresp_ext = ksmbd_ipc_login_request_ext(resp->login_response.account);\n\n\tuser = ksmbd_alloc_user(&resp->login_response, resp_ext);\n\tif (!user) {\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/auth.c",
+      "old_start": 542,
+      "old_end": 548,
+      "new_start": 543,
+      "new_end": 552,
+      "context_hint": "int ksmbd_krb5_authenticate(struct ksmbd_session *sess, char *in_blob,",
+      "added_lines": [
+        "\tif (resp->login_response.status & KSMBD_USER_FLAG_EXTENSION)",
+        "\t\tresp_ext = ksmbd_ipc_login_request_ext(resp->login_response.account);",
+        "",
+        "\tuser = ksmbd_alloc_user(&resp->login_response, resp_ext);"
+      ],
+      "deleted_lines": [
+        "\tuser = ksmbd_alloc_user(&resp->login_response);"
+      ],
+      "context_lines": [
+        "\t\tgoto out;",
+        "\t}",
+        "",
+        "\tif (!user) {",
+        "\t\tksmbd_debug(AUTH, \"login failure\\n\");",
+        "\t\tretval = -ENOMEM;"
+      ],
+      "hunk_id": "HUNK-0002",
+      "changed_symbols": [
+        "ksmbd_session",
+        "resp",
+        "login_response",
+        "status",
+        "KSMBD_USER_FLAG_EXTENSION",
+        "resp_ext",
+        "ksmbd_debug"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_session",
+        "snippet_start_line": 513,
+        "snippet_end_line": 582,
+        "snippet": "int ksmbd_krb5_authenticate(struct ksmbd_session *sess, char *in_blob,\n\t\t\t    int in_len, char *out_blob, int *out_len)\n{\n\tstruct ksmbd_spnego_authen_response *resp;\n\tstruct ksmbd_login_response_ext *resp_ext = NULL;\n\tstruct ksmbd_user *user = NULL;\n\tint retval;\n\n\tresp = ksmbd_ipc_spnego_authen_request(in_blob, in_len);\n\tif (!resp) {\n\t\tksmbd_debug(AUTH, \"SPNEGO_AUTHEN_REQUEST failure\\n\");\n\t\treturn -EINVAL;\n\t}\n\n\tif (!(resp->login_response.status & KSMBD_USER_FLAG_OK)) {\n\t\tksmbd_debug(AUTH, \"krb5 authentication failure\\n\");\n\t\tretval = -EPERM;\n\t\tgoto out;\n\t}\n\n\tif (*out_len <= resp->spnego_blob_len) {\n\t\tksmbd_debug(AUTH, \"buf len %d, but blob len %d\\n\",\n\t\t\t    *out_len, resp->spnego_blob_len);\n\t\tretval = -EINVAL;\n\t\tgoto out;\n\t}\n\n\tif (resp->session_key_len > sizeof(sess->sess_key)) {\n\t\tksmbd_debug(AUTH, \"session key is too long\\n\");\n\t\tretval = -EINVAL;\n\t\tgoto out;\n\t}\n\n\tif (resp->login_response.status & KSMBD_USER_FLAG_EXTENSION)\n\t\tresp_ext = ksmbd_ipc_login_request_ext(resp->login_response.account);\n\n\tuser = ksmbd_alloc_user(&resp->login_response, resp_ext);\n\tif (!user) {\n\t\tksmbd_debug(AUTH, \"login failure\\n\");\n\t\tretval = -ENOMEM;\n\t\tgoto out;\n\t}\n\n\tif (!sess->user) {\n\t\t/* First successful authentication */\n\t\tsess->user = user;\n\t} else {\n\t\tif (!ksmbd_compare_user(sess->user, user)) {\n\t\t\tksmbd_debug(AUTH, \"different user tried to reuse session\\n\");\n\t\t\tretval = -EPERM;\n\t\t\tksmbd_free_user(user);\n\t\t\tgoto out;\n\t\t}\n\t\tksmbd_free_user(user);\n\t}\n\n\tmemcpy(sess->sess_key, resp->payload, resp->session_key_len);\n\tmemcpy(out_blob, resp->payload + resp->session_key_len,\n\t       resp->spnego_blob_len);\n\t*out_len = resp->spnego_blob_len;\n\tretval = 0;\nout:\n\tkvfree(resp);\n\treturn retval;\n}\n#else\nint ksmbd_krb5_authenticate(struct ksmbd_session *sess, char *in_blob,\n\t\t\t    int in_len, char *out_blob, int *out_len)\n{\n\treturn -EOPNOTSUPP;\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/ksmbd_netlink.h",
+      "old_start": 51,
+      "old_end": 56,
+      "new_start": 51,
+      "new_end": 59,
+      "context_hint": "",
+      "added_lines": [
+        " *",
+        " *  - KSMBD_EVENT_LOGIN_REQUEST_EXT/RESPONSE_EXT(ksmbd_login_request_ext/response_ext)",
+        " *    This event is to get user account extension info to user IPC daemon."
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        " *  - KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST/RESPONSE(ksmbd_spnego_authen_request/response)",
+        " *    This event is to make kerberos authentication to be processed in",
+        " *    userspace.",
+        " */",
+        "",
+        "#define KSMBD_GENL_NAME\t\t\"SMBD_GENL\""
+      ],
+      "hunk_id": "HUNK-0003",
+      "changed_symbols": [
+        "KSMBD_EVENT_LOGIN_REQUEST_EXT",
+        "RESPONSE_EXT",
+        "ksmbd_login_request_ext",
+        "response_ext",
+        "This",
+        "event",
+        "Copyright"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "Copyright",
+        "snippet_start_line": 22,
+        "snippet_end_line": 89,
+        "snippet": " *\n *  - KSMBD_EVENT_STARTING_UP(ksmbd_startup_request)\n *    This event is to receive the information that initializes the ksmbd\n *    server from the user IPC daemon and to start the server. The global\n *    section parameters are given from smb.conf as initialization\n *    information.\n *\n *  - KSMBD_EVENT_SHUTTING_DOWN(ksmbd_shutdown_request)\n *    This event is to shutdown ksmbd server.\n *\n *  - KSMBD_EVENT_LOGIN_REQUEST/RESPONSE(ksmbd_login_request/response)\n *    This event is to get user account info to user IPC daemon.\n *\n *  - KSMBD_EVENT_SHARE_CONFIG_REQUEST/RESPONSE(ksmbd_share_config_request/response)\n *    This event is to get net share configuration info.\n *\n *  - KSMBD_EVENT_TREE_CONNECT_REQUEST/RESPONSE(ksmbd_tree_connect_request/response)\n *    This event is to get session and tree connect info.\n *\n *  - KSMBD_EVENT_TREE_DISCONNECT_REQUEST(ksmbd_tree_disconnect_request)\n *    This event is to send tree disconnect info to user IPC daemon.\n *\n *  - KSMBD_EVENT_LOGOUT_REQUEST(ksmbd_logout_request)\n *    This event is to send logout request to user IPC daemon.\n *\n *  - KSMBD_EVENT_RPC_REQUEST/RESPONSE(ksmbd_rpc_command)\n *    This event is to make DCE/RPC request like srvsvc, wkssvc, lsarpc,\n *    samr to be processed in userspace.\n *\n *  - KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST/RESPONSE(ksmbd_spnego_authen_request/response)\n *    This event is to make kerberos authentication to be processed in\n *    userspace.\n *\n *  - KSMBD_EVENT_LOGIN_REQUEST_EXT/RESPONSE_EXT(ksmbd_login_request_ext/response_ext)\n *    This event is to get user account extension info to user IPC daemon.\n */\n\n#define KSMBD_GENL_NAME\t\t\"SMBD_GENL\"\n#define KSMBD_GENL_VERSION\t\t0x01\n\n#define KSMBD_REQ_MAX_ACCOUNT_NAME_SZ\t48\n#define KSMBD_REQ_MAX_HASH_SZ\t\t18\n#define KSMBD_REQ_MAX_SHARE_NAME\t64\n\n/*\n * IPC heartbeat frame to check whether user IPC daemon is alive.\n */\nstruct ksmbd_heartbeat {\n\t__u32\thandle;\n};\n\n/*\n * Global config flags.\n */\n#define KSMBD_GLOBAL_FLAG_INVALID\t\t(0)\n#define KSMBD_GLOBAL_FLAG_SMB2_LEASES\t\tBIT(0)\n#define KSMBD_GLOBAL_FLAG_SMB2_ENCRYPTION\tBIT(1)\n#define KSMBD_GLOBAL_FLAG_SMB3_MULTICHANNEL\tBIT(2)\n#define KSMBD_GLOBAL_FLAG_SMB2_ENCRYPTION_OFF\tBIT(3)\n#define KSMBD_GLOBAL_FLAG_DURABLE_HANDLE\tBIT(4)\n\n/*\n * IPC request for ksmbd server startup\n */\nstruct ksmbd_startup_request {\n\t__u32\tflags;\t\t\t/* Flags for global config */\n\t__s32\tsigning;\t\t/* Signing enabled */\n\t__s8\tmin_prot[16];\t\t/* The minimum SMB protocol version */\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/ksmbd_netlink.h",
+      "old_start": 147,
+      "old_end": 152,
+      "new_start": 150,
+      "new_end": 165,
+      "context_hint": "struct ksmbd_login_response {",
+      "added_lines": [
+        "/*",
+        " * IPC user login response extension.",
+        " */",
+        "struct ksmbd_login_response_ext {",
+        "\t__u32\thandle;",
+        "\t__s32\tngroups;\t\t\t/* supplementary group count */",
+        "\t__s8\treserved[128];\t\t\t/* Reserved room */",
+        "\t__s8\t____payload[];",
+        "};",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t__u32\treserved[16];\t\t\t/* Reserved room */",
+        "};",
+        "",
+        "/*",
+        " * IPC request to fetch net share config.",
+        " */"
+      ],
+      "hunk_id": "HUNK-0004",
+      "changed_symbols": [
+        "ksmbd_login_response",
+        "IPC",
+        "user",
+        "login",
+        "response",
+        "extension",
+        "bit"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_login_response",
+        "snippet_start_line": 118,
+        "snippet_end_line": 195,
+        "snippet": "\t__s8\t____payload[];\n} __packed;\n\n#define KSMBD_STARTUP_CONFIG_INTERFACES(s)\t((s)->____payload)\n\n/*\n * IPC request to shutdown ksmbd server.\n */\nstruct ksmbd_shutdown_request {\n\t__s32\treserved[16];\n};\n\n/*\n * IPC user login request.\n */\nstruct ksmbd_login_request {\n\t__u32\thandle;\n\t__s8\taccount[KSMBD_REQ_MAX_ACCOUNT_NAME_SZ]; /* user account name */\n\t__u32\treserved[16];\t\t\t\t/* Reserved room */\n};\n\n/*\n * IPC user login response.\n */\nstruct ksmbd_login_response {\n\t__u32\thandle;\n\t__u32\tgid;\t\t\t\t\t/* group id */\n\t__u32\tuid;\t\t\t\t\t/* user id */\n\t__s8\taccount[KSMBD_REQ_MAX_ACCOUNT_NAME_SZ]; /* user account name */\n\t__u16\tstatus;\n\t__u16\thash_sz;\t\t\t/* hash size */\n\t__s8\thash[KSMBD_REQ_MAX_HASH_SZ];\t/* password hash */\n\t__u32\treserved[16];\t\t\t/* Reserved room */\n};\n\n/*\n * IPC user login response extension.\n */\nstruct ksmbd_login_response_ext {\n\t__u32\thandle;\n\t__s32\tngroups;\t\t\t/* supplementary group count */\n\t__s8\treserved[128];\t\t\t/* Reserved room */\n\t__s8\t____payload[];\n};\n\n/*\n * IPC request to fetch net share config.\n */\nstruct ksmbd_share_config_request {\n\t__u32\thandle;\n\t__s8\tshare_name[KSMBD_REQ_MAX_SHARE_NAME]; /* share name */\n\t__u32\treserved[16];\t\t/* Reserved room */\n};\n\n/*\n * IPC response to the net share config request.\n */\nstruct ksmbd_share_config_response {\n\t__u32\thandle;\n\t__u32\tflags;\n\t__u16\tcreate_mask;\n\t__u16\tdirectory_mask;\n\t__u16\tforce_create_mode;\n\t__u16\tforce_directory_mode;\n\t__u16\tforce_uid;\n\t__u16\tforce_gid;\n\t__s8\tshare_name[KSMBD_REQ_MAX_SHARE_NAME];\n\t__u32\treserved[111];\t\t/* Reserved room */\n\t__u32\tpayload_sz;\n\t__u32\tveto_list_sz;\n\t__s8\t____payload[];\n};\n\n#define KSMBD_SHARE_CONFIG_VETO_LIST(s)\t((s)->____payload)\n\nstatic inline char *\nksmbd_share_config_path(struct ksmbd_share_config_response *sc)\n{\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/ksmbd_netlink.h",
+      "old_start": 308,
+      "old_end": 313,
+      "new_start": 321,
+      "new_end": 329,
+      "context_hint": "enum ksmbd_event {",
+      "added_lines": [
+        "\tKSMBD_EVENT_LOGIN_REQUEST_EXT,",
+        "\tKSMBD_EVENT_LOGIN_RESPONSE_EXT,",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\tKSMBD_EVENT_SPNEGO_AUTHEN_REQUEST,",
+        "\tKSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE\t= 15,",
+        "",
+        "\t__KSMBD_EVENT_MAX,",
+        "\tKSMBD_EVENT_MAX = __KSMBD_EVENT_MAX - 1",
+        "};"
+      ],
+      "hunk_id": "HUNK-0005",
+      "changed_symbols": [
+        "ksmbd_event",
+        "KSMBD_EVENT_LOGIN_REQUEST_EXT",
+        "KSMBD_EVENT_LOGIN_RESPONSE_EXT",
+        "ksmbd_share_config_path"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_event",
+        "snippet_start_line": 279,
+        "snippet_end_line": 359,
+        "snippet": "\t\t\t\t\t\t     * a user identified by the\n\t\t\t\t\t\t     * GSS token from a client\n\t\t\t\t\t\t     */\n\t__u16\tsession_key_len; /* the length of the session key */\n\t__u16\tspnego_blob_len; /*\n\t\t\t\t  * the length of  the GSS token which will be\n\t\t\t\t  * stored in SecurityBuffer of SMB2 SESSION\n\t\t\t\t  * SETUP response\n\t\t\t\t  */\n\t__u8\tpayload[]; /* session key + AP_REP */\n};\n\n/*\n * This also used as NETLINK attribute type value.\n *\n * NOTE:\n * Response message type value should be equal to\n * request message type value + 1.\n */\nenum ksmbd_event {\n\tKSMBD_EVENT_UNSPEC\t\t\t= 0,\n\tKSMBD_EVENT_HEARTBEAT_REQUEST,\n\n\tKSMBD_EVENT_STARTING_UP,\n\tKSMBD_EVENT_SHUTTING_DOWN,\n\n\tKSMBD_EVENT_LOGIN_REQUEST,\n\tKSMBD_EVENT_LOGIN_RESPONSE\t\t= 5,\n\n\tKSMBD_EVENT_SHARE_CONFIG_REQUEST,\n\tKSMBD_EVENT_SHARE_CONFIG_RESPONSE,\n\n\tKSMBD_EVENT_TREE_CONNECT_REQUEST,\n\tKSMBD_EVENT_TREE_CONNECT_RESPONSE,\n\n\tKSMBD_EVENT_TREE_DISCONNECT_REQUEST\t= 10,\n\n\tKSMBD_EVENT_LOGOUT_REQUEST,\n\n\tKSMBD_EVENT_RPC_REQUEST,\n\tKSMBD_EVENT_RPC_RESPONSE,\n\n\tKSMBD_EVENT_SPNEGO_AUTHEN_REQUEST,\n\tKSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE\t= 15,\n\n\tKSMBD_EVENT_LOGIN_REQUEST_EXT,\n\tKSMBD_EVENT_LOGIN_RESPONSE_EXT,\n\n\t__KSMBD_EVENT_MAX,\n\tKSMBD_EVENT_MAX = __KSMBD_EVENT_MAX - 1\n};\n\n/*\n * Enumeration for IPC tree connect status.\n */\nenum KSMBD_TREE_CONN_STATUS {\n\tKSMBD_TREE_CONN_STATUS_OK\t\t= 0,\n\tKSMBD_TREE_CONN_STATUS_NOMEM,\n\tKSMBD_TREE_CONN_STATUS_NO_SHARE,\n\tKSMBD_TREE_CONN_STATUS_NO_USER,\n\tKSMBD_TREE_CONN_STATUS_INVALID_USER,\n\tKSMBD_TREE_CONN_STATUS_HOST_DENIED\t= 5,\n\tKSMBD_TREE_CONN_STATUS_CONN_EXIST,\n\tKSMBD_TREE_CONN_STATUS_TOO_MANY_CONNS,\n\tKSMBD_TREE_CONN_STATUS_TOO_MANY_SESSIONS,\n\tKSMBD_TREE_CONN_STATUS_ERROR,\n};\n\n/*\n * User config flags.\n */\n#define KSMBD_USER_FLAG_INVALID\t\t(0)\n#define KSMBD_USER_FLAG_OK\t\tBIT(0)\n#define KSMBD_USER_FLAG_BAD_PASSWORD\tBIT(1)\n#define KSMBD_USER_FLAG_BAD_UID\t\tBIT(2)\n#define KSMBD_USER_FLAG_BAD_USER\tBIT(3)\n#define KSMBD_USER_FLAG_GUEST_ACCOUNT\tBIT(4)\n#define KSMBD_USER_FLAG_DELAY_SESSION\tBIT(5)\n#define KSMBD_USER_FLAG_EXTENSION\tBIT(6)\n\n/*\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/ksmbd_netlink.h",
+      "old_start": 338,
+      "old_end": 343,
+      "new_start": 354,
+      "new_end": 360,
+      "context_hint": "enum KSMBD_TREE_CONN_STATUS {",
+      "added_lines": [
+        "#define KSMBD_USER_FLAG_EXTENSION\tBIT(6)"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "#define KSMBD_USER_FLAG_BAD_USER\tBIT(3)",
+        "#define KSMBD_USER_FLAG_GUEST_ACCOUNT\tBIT(4)",
+        "#define KSMBD_USER_FLAG_DELAY_SESSION\tBIT(5)",
+        "",
+        "/*",
+        " * Share config flags."
+      ],
+      "hunk_id": "HUNK-0006",
+      "changed_symbols": [
+        "KSMBD_TREE_CONN_STATUS",
+        "define",
+        "KSMBD_USER_FLAG_EXTENSION",
+        "BIT",
+        "ksmbd_share_config_path"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "KSMBD_TREE_CONN_STATUS",
+        "snippet_start_line": 309,
+        "snippet_end_line": 390,
+        "snippet": "\tKSMBD_EVENT_SHARE_CONFIG_RESPONSE,\n\n\tKSMBD_EVENT_TREE_CONNECT_REQUEST,\n\tKSMBD_EVENT_TREE_CONNECT_RESPONSE,\n\n\tKSMBD_EVENT_TREE_DISCONNECT_REQUEST\t= 10,\n\n\tKSMBD_EVENT_LOGOUT_REQUEST,\n\n\tKSMBD_EVENT_RPC_REQUEST,\n\tKSMBD_EVENT_RPC_RESPONSE,\n\n\tKSMBD_EVENT_SPNEGO_AUTHEN_REQUEST,\n\tKSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE\t= 15,\n\n\tKSMBD_EVENT_LOGIN_REQUEST_EXT,\n\tKSMBD_EVENT_LOGIN_RESPONSE_EXT,\n\n\t__KSMBD_EVENT_MAX,\n\tKSMBD_EVENT_MAX = __KSMBD_EVENT_MAX - 1\n};\n\n/*\n * Enumeration for IPC tree connect status.\n */\nenum KSMBD_TREE_CONN_STATUS {\n\tKSMBD_TREE_CONN_STATUS_OK\t\t= 0,\n\tKSMBD_TREE_CONN_STATUS_NOMEM,\n\tKSMBD_TREE_CONN_STATUS_NO_SHARE,\n\tKSMBD_TREE_CONN_STATUS_NO_USER,\n\tKSMBD_TREE_CONN_STATUS_INVALID_USER,\n\tKSMBD_TREE_CONN_STATUS_HOST_DENIED\t= 5,\n\tKSMBD_TREE_CONN_STATUS_CONN_EXIST,\n\tKSMBD_TREE_CONN_STATUS_TOO_MANY_CONNS,\n\tKSMBD_TREE_CONN_STATUS_TOO_MANY_SESSIONS,\n\tKSMBD_TREE_CONN_STATUS_ERROR,\n};\n\n/*\n * User config flags.\n */\n#define KSMBD_USER_FLAG_INVALID\t\t(0)\n#define KSMBD_USER_FLAG_OK\t\tBIT(0)\n#define KSMBD_USER_FLAG_BAD_PASSWORD\tBIT(1)\n#define KSMBD_USER_FLAG_BAD_UID\t\tBIT(2)\n#define KSMBD_USER_FLAG_BAD_USER\tBIT(3)\n#define KSMBD_USER_FLAG_GUEST_ACCOUNT\tBIT(4)\n#define KSMBD_USER_FLAG_DELAY_SESSION\tBIT(5)\n#define KSMBD_USER_FLAG_EXTENSION\tBIT(6)\n\n/*\n * Share config flags.\n */\n#define KSMBD_SHARE_FLAG_INVALID\t\t\t(0)\n#define KSMBD_SHARE_FLAG_AVAILABLE\t\t\tBIT(0)\n#define KSMBD_SHARE_FLAG_BROWSEABLE\t\t\tBIT(1)\n#define KSMBD_SHARE_FLAG_WRITEABLE\t\t\tBIT(2)\n#define KSMBD_SHARE_FLAG_READONLY\t\t\tBIT(3)\n#define KSMBD_SHARE_FLAG_GUEST_OK\t\t\tBIT(4)\n#define KSMBD_SHARE_FLAG_GUEST_ONLY\t\t\tBIT(5)\n#define KSMBD_SHARE_FLAG_STORE_DOS_ATTRS\t\tBIT(6)\n#define KSMBD_SHARE_FLAG_OPLOCKS\t\t\tBIT(7)\n#define KSMBD_SHARE_FLAG_PIPE\t\t\t\tBIT(8)\n#define KSMBD_SHARE_FLAG_HIDE_DOT_FILES\t\t\tBIT(9)\n#define KSMBD_SHARE_FLAG_INHERIT_OWNER\t\t\tBIT(10)\n#define KSMBD_SHARE_FLAG_STREAMS\t\t\tBIT(11)\n#define KSMBD_SHARE_FLAG_FOLLOW_SYMLINKS\t\tBIT(12)\n#define KSMBD_SHARE_FLAG_ACL_XATTR\t\t\tBIT(13)\n#define KSMBD_SHARE_FLAG_UPDATE\t\t\t\tBIT(14)\n#define KSMBD_SHARE_FLAG_CROSSMNT\t\t\tBIT(15)\n#define KSMBD_SHARE_FLAG_CONTINUOUS_AVAILABILITY\tBIT(16)\n\n/*\n * Tree connect request flags.\n */\n#define KSMBD_TREE_CONN_FLAG_REQUEST_SMB1\t(0)\n#define KSMBD_TREE_CONN_FLAG_REQUEST_IPV6\tBIT(0)\n#define KSMBD_TREE_CONN_FLAG_REQUEST_SMB2\tBIT(1)\n\n/*\n * Tree connect flags.\n */\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/mgmt/user_config.c",
+      "old_start": 12,
+      "old_end": 17,
+      "new_start": 12,
+      "new_end": 18,
+      "context_hint": "",
+      "added_lines": [
+        "\tstruct ksmbd_login_response_ext *resp_ext = NULL;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "struct ksmbd_user *ksmbd_login_user(const char *account)",
+        "{",
+        "\tstruct ksmbd_login_response *resp;",
+        "\tstruct ksmbd_user *user = NULL;",
+        "",
+        "\tresp = ksmbd_ipc_login_request(account);"
+      ],
+      "hunk_id": "HUNK-0007",
+      "changed_symbols": [
+        "ksmbd_login_response_ext",
+        "resp_ext",
+        "NULL",
+        "Copyright"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "Copyright",
+        "snippet_start_line": 1,
+        "snippet_end_line": 48,
+        "snippet": "// SPDX-License-Identifier: GPL-2.0-or-later\n/*\n *   Copyright (C) 2018 Samsung Electronics Co., Ltd.\n */\n\n#include <linux/slab.h>\n#include <linux/mm.h>\n\n#include \"user_config.h\"\n#include \"../transport_ipc.h\"\n\nstruct ksmbd_user *ksmbd_login_user(const char *account)\n{\n\tstruct ksmbd_login_response *resp;\n\tstruct ksmbd_login_response_ext *resp_ext = NULL;\n\tstruct ksmbd_user *user = NULL;\n\n\tresp = ksmbd_ipc_login_request(account);\n\tif (!resp)\n\t\treturn NULL;\n\n\tif (!(resp->status & KSMBD_USER_FLAG_OK))\n\t\tgoto out;\n\n\tif (resp->status & KSMBD_USER_FLAG_EXTENSION)\n\t\tresp_ext = ksmbd_ipc_login_request_ext(account);\n\n\tuser = ksmbd_alloc_user(resp, resp_ext);\nout:\n\tkvfree(resp);\n\treturn user;\n}\n\nstruct ksmbd_user *ksmbd_alloc_user(struct ksmbd_login_response *resp,\n\t\tstruct ksmbd_login_response_ext *resp_ext)\n{\n\tstruct ksmbd_user *user;\n\n\tuser = kmalloc(sizeof(struct ksmbd_user), GFP_KERNEL);\n\tif (!user)\n\t\treturn NULL;\n\n\tuser->name = kstrdup(resp->account, GFP_KERNEL);\n\tuser->flags = resp->status;\n\tuser->gid = resp->gid;\n\tuser->uid = resp->uid;\n\tuser->passkey_sz = resp->hash_sz;\n\tuser->passkey = kmalloc(resp->hash_sz, GFP_KERNEL);\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/mgmt/user_config.c",
+      "old_start": 21,
+      "old_end": 35,
+      "new_start": 22,
+      "new_end": 40,
+      "context_hint": "struct ksmbd_user *ksmbd_login_user(const char *account)",
+      "added_lines": [
+        "\tif (resp->status & KSMBD_USER_FLAG_EXTENSION)",
+        "\t\tresp_ext = ksmbd_ipc_login_request_ext(account);",
+        "",
+        "\tuser = ksmbd_alloc_user(resp, resp_ext);",
+        "struct ksmbd_user *ksmbd_alloc_user(struct ksmbd_login_response *resp,",
+        "\t\tstruct ksmbd_login_response_ext *resp_ext)",
+        "\tstruct ksmbd_user *user;"
+      ],
+      "deleted_lines": [
+        "\tuser = ksmbd_alloc_user(resp);",
+        "struct ksmbd_user *ksmbd_alloc_user(struct ksmbd_login_response *resp)",
+        "\tstruct ksmbd_user *user = NULL;"
+      ],
+      "context_lines": [
+        "\tif (!(resp->status & KSMBD_USER_FLAG_OK))",
+        "\t\tgoto out;",
+        "",
+        "out:",
+        "\tkvfree(resp);",
+        "\treturn user;",
+        "}",
+        "",
+        "{",
+        "",
+        "\tuser = kmalloc(sizeof(struct ksmbd_user), GFP_KERNEL);",
+        "\tif (!user)"
+      ],
+      "hunk_id": "HUNK-0008",
+      "changed_symbols": [
+        "ksmbd_user",
+        "resp",
+        "status",
+        "KSMBD_USER_FLAG_EXTENSION",
+        "resp_ext",
+        "ksmbd_ipc_login_request_ext",
+        "Copyright"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_user",
+        "snippet_start_line": 1,
+        "snippet_end_line": 70,
+        "snippet": "// SPDX-License-Identifier: GPL-2.0-or-later\n/*\n *   Copyright (C) 2018 Samsung Electronics Co., Ltd.\n */\n\n#include <linux/slab.h>\n#include <linux/mm.h>\n\n#include \"user_config.h\"\n#include \"../transport_ipc.h\"\n\nstruct ksmbd_user *ksmbd_login_user(const char *account)\n{\n\tstruct ksmbd_login_response *resp;\n\tstruct ksmbd_login_response_ext *resp_ext = NULL;\n\tstruct ksmbd_user *user = NULL;\n\n\tresp = ksmbd_ipc_login_request(account);\n\tif (!resp)\n\t\treturn NULL;\n\n\tif (!(resp->status & KSMBD_USER_FLAG_OK))\n\t\tgoto out;\n\n\tif (resp->status & KSMBD_USER_FLAG_EXTENSION)\n\t\tresp_ext = ksmbd_ipc_login_request_ext(account);\n\n\tuser = ksmbd_alloc_user(resp, resp_ext);\nout:\n\tkvfree(resp);\n\treturn user;\n}\n\nstruct ksmbd_user *ksmbd_alloc_user(struct ksmbd_login_response *resp,\n\t\tstruct ksmbd_login_response_ext *resp_ext)\n{\n\tstruct ksmbd_user *user;\n\n\tuser = kmalloc(sizeof(struct ksmbd_user), GFP_KERNEL);\n\tif (!user)\n\t\treturn NULL;\n\n\tuser->name = kstrdup(resp->account, GFP_KERNEL);\n\tuser->flags = resp->status;\n\tuser->gid = resp->gid;\n\tuser->uid = resp->uid;\n\tuser->passkey_sz = resp->hash_sz;\n\tuser->passkey = kmalloc(resp->hash_sz, GFP_KERNEL);\n\tif (user->passkey)\n\t\tmemcpy(user->passkey, resp->hash, resp->hash_sz);\n\n\tuser->ngroups = 0;\n\tuser->sgid = NULL;\n\n\tif (!user->name || !user->passkey)\n\t\tgoto err_free;\n\n\tif (resp_ext) {\n\t\tif (resp_ext->ngroups > NGROUPS_MAX) {\n\t\t\tpr_err(\"ngroups(%u) from login response exceeds max groups(%d)\\n\",\n\t\t\t\t\tresp_ext->ngroups, NGROUPS_MAX);\n\t\t\tgoto err_free;\n\t\t}\n\n\t\tuser->sgid = kmemdup(resp_ext->____payload,\n\t\t\t\t     resp_ext->ngroups * sizeof(gid_t),\n\t\t\t\t     GFP_KERNEL);\n\t\tif (!user->sgid)\n\t\t\tgoto err_free;\n\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/mgmt/user_config.c",
+      "old_start": 44,
+      "old_end": 61,
+      "new_start": 49,
+      "new_end": 90,
+      "context_hint": "struct ksmbd_user *ksmbd_alloc_user(struct ksmbd_login_response *resp)",
+      "added_lines": [
+        "\tuser->ngroups = 0;",
+        "\tuser->sgid = NULL;",
+        "",
+        "\tif (!user->name || !user->passkey)",
+        "\t\tgoto err_free;",
+        "",
+        "\tif (resp_ext) {",
+        "\t\tif (resp_ext->ngroups > NGROUPS_MAX) {",
+        "\t\t\tpr_err(\"ngroups(%u) from login response exceeds max groups(%d)\\n\",",
+        "\t\t\t\t\tresp_ext->ngroups, NGROUPS_MAX);",
+        "\t\t\tgoto err_free;",
+        "\t\t}",
+        "",
+        "\t\tuser->sgid = kmemdup(resp_ext->____payload,",
+        "\t\t\t\t     resp_ext->ngroups * sizeof(gid_t),",
+        "\t\t\t\t     GFP_KERNEL);",
+        "\t\tif (!user->sgid)",
+        "\t\t\tgoto err_free;",
+        "",
+        "\t\tuser->ngroups = resp_ext->ngroups;",
+        "\t\tksmbd_debug(SMB, \"supplementary groups : %d\\n\", user->ngroups);",
+        "",
+        "",
+        "err_free:",
+        "\tkfree(user->name);",
+        "\tkfree(user->passkey);",
+        "\tkfree(user);",
+        "\treturn NULL;",
+        "\tkfree(user->sgid);"
+      ],
+      "deleted_lines": [
+        "\tif (!user->name || !user->passkey) {",
+        "\t\tkfree(user->name);",
+        "\t\tkfree(user->passkey);",
+        "\t\tkfree(user);",
+        "\t\tuser = NULL;"
+      ],
+      "context_lines": [
+        "\tif (user->passkey)",
+        "\t\tmemcpy(user->passkey, resp->hash, resp->hash_sz);",
+        "",
+        "\t}",
+        "\treturn user;",
+        "}",
+        "",
+        "void ksmbd_free_user(struct ksmbd_user *user)",
+        "{",
+        "\tksmbd_ipc_logout_request(user->name, user->flags);",
+        "\tkfree(user->name);",
+        "\tkfree(user->passkey);",
+        "\tkfree(user);"
+      ],
+      "hunk_id": "HUNK-0009",
+      "changed_symbols": [
+        "ksmbd_user",
+        "user",
+        "ngroups",
+        "sgid",
+        "NULL",
+        "name",
+        "pr_err",
+        "Copyright"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_user",
+        "snippet_start_line": 15,
+        "snippet_end_line": 108,
+        "snippet": "\tstruct ksmbd_login_response_ext *resp_ext = NULL;\n\tstruct ksmbd_user *user = NULL;\n\n\tresp = ksmbd_ipc_login_request(account);\n\tif (!resp)\n\t\treturn NULL;\n\n\tif (!(resp->status & KSMBD_USER_FLAG_OK))\n\t\tgoto out;\n\n\tif (resp->status & KSMBD_USER_FLAG_EXTENSION)\n\t\tresp_ext = ksmbd_ipc_login_request_ext(account);\n\n\tuser = ksmbd_alloc_user(resp, resp_ext);\nout:\n\tkvfree(resp);\n\treturn user;\n}\n\nstruct ksmbd_user *ksmbd_alloc_user(struct ksmbd_login_response *resp,\n\t\tstruct ksmbd_login_response_ext *resp_ext)\n{\n\tstruct ksmbd_user *user;\n\n\tuser = kmalloc(sizeof(struct ksmbd_user), GFP_KERNEL);\n\tif (!user)\n\t\treturn NULL;\n\n\tuser->name = kstrdup(resp->account, GFP_KERNEL);\n\tuser->flags = resp->status;\n\tuser->gid = resp->gid;\n\tuser->uid = resp->uid;\n\tuser->passkey_sz = resp->hash_sz;\n\tuser->passkey = kmalloc(resp->hash_sz, GFP_KERNEL);\n\tif (user->passkey)\n\t\tmemcpy(user->passkey, resp->hash, resp->hash_sz);\n\n\tuser->ngroups = 0;\n\tuser->sgid = NULL;\n\n\tif (!user->name || !user->passkey)\n\t\tgoto err_free;\n\n\tif (resp_ext) {\n\t\tif (resp_ext->ngroups > NGROUPS_MAX) {\n\t\t\tpr_err(\"ngroups(%u) from login response exceeds max groups(%d)\\n\",\n\t\t\t\t\tresp_ext->ngroups, NGROUPS_MAX);\n\t\t\tgoto err_free;\n\t\t}\n\n\t\tuser->sgid = kmemdup(resp_ext->____payload,\n\t\t\t\t     resp_ext->ngroups * sizeof(gid_t),\n\t\t\t\t     GFP_KERNEL);\n\t\tif (!user->sgid)\n\t\t\tgoto err_free;\n\n\t\tuser->ngroups = resp_ext->ngroups;\n\t\tksmbd_debug(SMB, \"supplementary groups : %d\\n\", user->ngroups);\n\t}\n\n\treturn user;\n\nerr_free:\n\tkfree(user->name);\n\tkfree(user->passkey);\n\tkfree(user);\n\treturn NULL;\n}\n\nvoid ksmbd_free_user(struct ksmbd_user *user)\n{\n\tksmbd_ipc_logout_request(user->name, user->flags);\n\tkfree(user->sgid);\n\tkfree(user->name);\n\tkfree(user->passkey);\n\tkfree(user);\n}\n\nint ksmbd_anonymous_user(struct ksmbd_user *user)\n{\n\tif (user->name[0] == '\\0')\n\t\treturn 1;\n\treturn 0;\n}\n\nbool ksmbd_compare_user(struct ksmbd_user *u1, struct ksmbd_user *u2)\n{\n\tif (strcmp(u1->name, u2->name))\n\t\treturn false;\n\tif (memcmp(u1->passkey, u2->passkey, u1->passkey_sz))\n\t\treturn false;\n\n\treturn true;\n}\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/mgmt/user_config.h",
+      "old_start": 18,
+      "old_end": 23,
+      "new_start": 18,
+      "new_end": 25,
+      "context_hint": "struct ksmbd_user {",
+      "added_lines": [
+        "\tint\t\t\tngroups;",
+        "\tgid_t\t\t\t*sgid;"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "\tsize_t\t\t\tpasskey_sz;",
+        "\tchar\t\t\t*passkey;",
+        "};",
+        "",
+        "static inline bool user_guest(struct ksmbd_user *user)"
+      ],
+      "hunk_id": "HUNK-0010",
+      "changed_symbols": [
+        "ksmbd_user",
+        "ngroups",
+        "gid_t",
+        "sgid",
+        "Copyright"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_user",
+        "snippet_start_line": 1,
+        "snippet_end_line": 55,
+        "snippet": "/* SPDX-License-Identifier: GPL-2.0-or-later */\n/*\n *   Copyright (C) 2018 Samsung Electronics Co., Ltd.\n */\n\n#ifndef __USER_CONFIG_MANAGEMENT_H__\n#define __USER_CONFIG_MANAGEMENT_H__\n\n#include \"../glob.h\"\n\nstruct ksmbd_user {\n\tunsigned short\t\tflags;\n\n\tunsigned int\t\tuid;\n\tunsigned int\t\tgid;\n\n\tchar\t\t\t*name;\n\n\tsize_t\t\t\tpasskey_sz;\n\tchar\t\t\t*passkey;\n\tint\t\t\tngroups;\n\tgid_t\t\t\t*sgid;\n};\n\nstatic inline bool user_guest(struct ksmbd_user *user)\n{\n\treturn user->flags & KSMBD_USER_FLAG_GUEST_ACCOUNT;\n}\n\nstatic inline void set_user_flag(struct ksmbd_user *user, int flag)\n{\n\tuser->flags |= flag;\n}\n\nstatic inline int test_user_flag(struct ksmbd_user *user, int flag)\n{\n\treturn user->flags & flag;\n}\n\nstatic inline void set_user_guest(struct ksmbd_user *user)\n{\n}\n\nstatic inline char *user_passkey(struct ksmbd_user *user)\n{\n\treturn user->passkey;\n}\n\nstatic inline char *user_name(struct ksmbd_user *user)\n{\n\treturn user->name;\n}\n\nstatic inline unsigned int user_uid(struct ksmbd_user *user)\n{\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/mgmt/user_config.h",
+      "old_start": 60,
+      "old_end": 66,
+      "new_start": 62,
+      "new_end": 69,
+      "context_hint": "static inline unsigned int user_gid(struct ksmbd_user *user)",
+      "added_lines": [
+        "struct ksmbd_user *ksmbd_alloc_user(struct ksmbd_login_response *resp,",
+        "\t\tstruct ksmbd_login_response_ext *resp_ext);"
+      ],
+      "deleted_lines": [
+        "struct ksmbd_user *ksmbd_alloc_user(struct ksmbd_login_response *resp);"
+      ],
+      "context_lines": [
+        "}",
+        "",
+        "struct ksmbd_user *ksmbd_login_user(const char *account);",
+        "void ksmbd_free_user(struct ksmbd_user *user);",
+        "int ksmbd_anonymous_user(struct ksmbd_user *user);",
+        "bool ksmbd_compare_user(struct ksmbd_user *u1, struct ksmbd_user *u2);"
+      ],
+      "hunk_id": "HUNK-0011",
+      "changed_symbols": [
+        "ksmbd_user",
+        "ksmbd_alloc_user",
+        "ksmbd_login_response",
+        "resp",
+        "ksmbd_login_response_ext",
+        "resp_ext",
+        "user_gid"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_user",
+        "snippet_start_line": 31,
+        "snippet_end_line": 70,
+        "snippet": "{\n\tuser->flags |= flag;\n}\n\nstatic inline int test_user_flag(struct ksmbd_user *user, int flag)\n{\n\treturn user->flags & flag;\n}\n\nstatic inline void set_user_guest(struct ksmbd_user *user)\n{\n}\n\nstatic inline char *user_passkey(struct ksmbd_user *user)\n{\n\treturn user->passkey;\n}\n\nstatic inline char *user_name(struct ksmbd_user *user)\n{\n\treturn user->name;\n}\n\nstatic inline unsigned int user_uid(struct ksmbd_user *user)\n{\n\treturn user->uid;\n}\n\nstatic inline unsigned int user_gid(struct ksmbd_user *user)\n{\n\treturn user->gid;\n}\n\nstruct ksmbd_user *ksmbd_login_user(const char *account);\nstruct ksmbd_user *ksmbd_alloc_user(struct ksmbd_login_response *resp,\n\t\tstruct ksmbd_login_response_ext *resp_ext);\nvoid ksmbd_free_user(struct ksmbd_user *user);\nint ksmbd_anonymous_user(struct ksmbd_user *user);\nbool ksmbd_compare_user(struct ksmbd_user *u1, struct ksmbd_user *u2);\n#endif /* __USER_CONFIG_MANAGEMENT_H__ */\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/smb_common.c",
+      "old_start": 740,
+      "old_end": 752,
+      "new_start": 740,
+      "new_end": 754,
+      "context_hint": "int __ksmbd_override_fsids(struct ksmbd_work *work,",
+      "added_lines": [
+        "\tstruct ksmbd_user *user = sess->user;",
+        "\tint i;",
+        "\tuid = user_uid(user);",
+        "\tgid = user_gid(user);"
+      ],
+      "deleted_lines": [
+        "\tuid = user_uid(sess->user);",
+        "\tgid = user_gid(sess->user);"
+      ],
+      "context_lines": [
+        "\t\tstruct ksmbd_share_config *share)",
+        "{",
+        "\tstruct ksmbd_session *sess = work->sess;",
+        "\tstruct cred *cred;",
+        "\tstruct group_info *gi;",
+        "\tunsigned int uid;",
+        "\tunsigned int gid;",
+        "",
+        "\tif (share->force_uid != KSMBD_SHARE_INVALID_UID)",
+        "\t\tuid = share->force_uid;",
+        "\tif (share->force_gid != KSMBD_SHARE_INVALID_GID)"
+      ],
+      "hunk_id": "HUNK-0012",
+      "changed_symbols": [
+        "ksmbd_work",
+        "ksmbd_user",
+        "user",
+        "sess",
+        "i",
+        "uid",
+        "__ksmbd_override_fsids"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_work",
+        "snippet_start_line": 711,
+        "snippet_end_line": 784,
+        "snippet": "\t\tif (prev_fp->daccess & (FILE_WRITE_DATA_LE | FILE_APPEND_DATA_LE) &&\n\t\t    !(curr_fp->saccess & FILE_SHARE_WRITE_LE)) {\n\t\t\tsmb_shared_mode_error(FILE_WRITE_ERROR,\n\t\t\t\t\t      prev_fp,\n\t\t\t\t\t      curr_fp);\n\t\t\trc = -EPERM;\n\t\t\tbreak;\n\t\t}\n\n\t\tif (prev_fp->daccess & FILE_DELETE_LE &&\n\t\t    !(curr_fp->saccess & FILE_SHARE_DELETE_LE)) {\n\t\t\tsmb_shared_mode_error(FILE_DELETE_ERROR,\n\t\t\t\t\t      prev_fp,\n\t\t\t\t\t      curr_fp);\n\t\t\trc = -EPERM;\n\t\t\tbreak;\n\t\t}\n\t}\n\tup_read(&curr_fp->f_ci->m_lock);\n\n\treturn rc;\n}\n\nbool is_asterisk(char *p)\n{\n\treturn p && p[0] == '*';\n}\n\nint __ksmbd_override_fsids(struct ksmbd_work *work,\n\t\tstruct ksmbd_share_config *share)\n{\n\tstruct ksmbd_session *sess = work->sess;\n\tstruct ksmbd_user *user = sess->user;\n\tstruct cred *cred;\n\tstruct group_info *gi;\n\tunsigned int uid;\n\tunsigned int gid;\n\tint i;\n\n\tuid = user_uid(user);\n\tgid = user_gid(user);\n\tif (share->force_uid != KSMBD_SHARE_INVALID_UID)\n\t\tuid = share->force_uid;\n\tif (share->force_gid != KSMBD_SHARE_INVALID_GID)\n\t\tgid = share->force_gid;\n\n\tcred = prepare_kernel_cred(&init_task);\n\tif (!cred)\n\t\treturn -ENOMEM;\n\n\tcred->fsuid = make_kuid(&init_user_ns, uid);\n\tcred->fsgid = make_kgid(&init_user_ns, gid);\n\n\tgi = groups_alloc(user->ngroups);\n\tif (!gi) {\n\t\tabort_creds(cred);\n\t\treturn -ENOMEM;\n\t}\n\n\tfor (i = 0; i < user->ngroups; i++)\n\t\tgi->gid[i] = make_kgid(&init_user_ns, user->sgid[i]);\n\n\tif (user->ngroups)\n\t\tgroups_sort(gi);\n\n\tset_groups(cred, gi);\n\tput_group_info(gi);\n\n\tif (!uid_eq(cred->fsuid, GLOBAL_ROOT_UID))\n\t\tcred->cap_effective = cap_drop_fs_set(cred->cap_effective);\n\n\tWARN_ON(work->saved_cred);\n\twork->saved_cred = override_creds(cred);\n\tif (!work->saved_cred) {\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/smb_common.c",
+      "old_start": 759,
+      "old_end": 769,
+      "new_start": 761,
+      "new_end": 778,
+      "context_hint": "int __ksmbd_override_fsids(struct ksmbd_work *work,",
+      "added_lines": [
+        "\tgi = groups_alloc(user->ngroups);",
+        "",
+        "\tfor (i = 0; i < user->ngroups; i++)",
+        "\t\tgi->gid[i] = make_kgid(&init_user_ns, user->sgid[i]);",
+        "",
+        "\tif (user->ngroups)",
+        "\t\tgroups_sort(gi);",
+        ""
+      ],
+      "deleted_lines": [
+        "\tgi = groups_alloc(0);"
+      ],
+      "context_lines": [
+        "\tcred->fsuid = make_kuid(&init_user_ns, uid);",
+        "\tcred->fsgid = make_kgid(&init_user_ns, gid);",
+        "",
+        "\tif (!gi) {",
+        "\t\tabort_creds(cred);",
+        "\t\treturn -ENOMEM;",
+        "\t}",
+        "\tset_groups(cred, gi);",
+        "\tput_group_info(gi);",
+        ""
+      ],
+      "hunk_id": "HUNK-0013",
+      "changed_symbols": [
+        "ksmbd_work",
+        "gi",
+        "groups_alloc",
+        "user",
+        "ngroups",
+        "i",
+        "__ksmbd_override_fsids"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_work",
+        "snippet_start_line": 730,
+        "snippet_end_line": 808,
+        "snippet": "\n\treturn rc;\n}\n\nbool is_asterisk(char *p)\n{\n\treturn p && p[0] == '*';\n}\n\nint __ksmbd_override_fsids(struct ksmbd_work *work,\n\t\tstruct ksmbd_share_config *share)\n{\n\tstruct ksmbd_session *sess = work->sess;\n\tstruct ksmbd_user *user = sess->user;\n\tstruct cred *cred;\n\tstruct group_info *gi;\n\tunsigned int uid;\n\tunsigned int gid;\n\tint i;\n\n\tuid = user_uid(user);\n\tgid = user_gid(user);\n\tif (share->force_uid != KSMBD_SHARE_INVALID_UID)\n\t\tuid = share->force_uid;\n\tif (share->force_gid != KSMBD_SHARE_INVALID_GID)\n\t\tgid = share->force_gid;\n\n\tcred = prepare_kernel_cred(&init_task);\n\tif (!cred)\n\t\treturn -ENOMEM;\n\n\tcred->fsuid = make_kuid(&init_user_ns, uid);\n\tcred->fsgid = make_kgid(&init_user_ns, gid);\n\n\tgi = groups_alloc(user->ngroups);\n\tif (!gi) {\n\t\tabort_creds(cred);\n\t\treturn -ENOMEM;\n\t}\n\n\tfor (i = 0; i < user->ngroups; i++)\n\t\tgi->gid[i] = make_kgid(&init_user_ns, user->sgid[i]);\n\n\tif (user->ngroups)\n\t\tgroups_sort(gi);\n\n\tset_groups(cred, gi);\n\tput_group_info(gi);\n\n\tif (!uid_eq(cred->fsuid, GLOBAL_ROOT_UID))\n\t\tcred->cap_effective = cap_drop_fs_set(cred->cap_effective);\n\n\tWARN_ON(work->saved_cred);\n\twork->saved_cred = override_creds(cred);\n\tif (!work->saved_cred) {\n\t\tabort_creds(cred);\n\t\treturn -EINVAL;\n\t}\n\treturn 0;\n}\n\nint ksmbd_override_fsids(struct ksmbd_work *work)\n{\n\treturn __ksmbd_override_fsids(work, work->tcon->share_conf);\n}\n\nvoid ksmbd_revert_fsids(struct ksmbd_work *work)\n{\n\tconst struct cred *cred;\n\n\tWARN_ON(!work->saved_cred);\n\n\tcred = current_cred();\n\trevert_creds(work->saved_cred);\n\tput_cred(cred);\n\twork->saved_cred = NULL;\n}\n\n__le32 smb_map_generic_desired_access(__le32 daccess)\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/transport_ipc.c",
+      "old_start": 120,
+      "old_end": 125,
+      "new_start": 120,
+      "new_end": 131,
+      "context_hint": "static const struct nla_policy ksmbd_nl_policy[KSMBD_EVENT_MAX + 1] = {",
+      "added_lines": [
+        "\t[KSMBD_EVENT_LOGIN_REQUEST_EXT] = {",
+        "\t\t.len = sizeof(struct ksmbd_login_request),",
+        "\t},",
+        "\t[KSMBD_EVENT_LOGIN_RESPONSE_EXT] = {",
+        "\t\t.len = sizeof(struct ksmbd_login_response_ext),",
+        "\t},"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t},",
+        "\t[KSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE] = {",
+        "\t},",
+        "};",
+        "",
+        "static struct genl_ops ksmbd_genl_ops[] = {"
+      ],
+      "hunk_id": "HUNK-0014",
+      "changed_symbols": [
+        "nla_policy",
+        "KSMBD_EVENT_LOGIN_REQUEST_EXT",
+        "len",
+        "ksmbd_login_request",
+        "KSMBD_EVENT_LOGIN_RESPONSE_EXT",
+        "ksmbd_login_response_ext",
+        "ksmbd_ipc_heartbeat_request"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": true,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          },
+          {
+            "name": "netlink",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract",
+              "output_format"
+            ],
+            "description": "Netlink protocol interface, attributes, families, and policies"
+          }
+        ],
+        "surface_reasons": [
+          "ioctl_netlink_consumers",
+          "syscall",
+          "netlink"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "nla_policy",
+        "snippet_start_line": 91,
+        "snippet_end_line": 161,
+        "snippet": "\t[KSMBD_EVENT_LOGIN_REQUEST] = {\n\t\t.len = sizeof(struct ksmbd_login_request),\n\t},\n\t[KSMBD_EVENT_LOGIN_RESPONSE] = {\n\t\t.len = sizeof(struct ksmbd_login_response),\n\t},\n\t[KSMBD_EVENT_SHARE_CONFIG_REQUEST] = {\n\t\t.len = sizeof(struct ksmbd_share_config_request),\n\t},\n\t[KSMBD_EVENT_SHARE_CONFIG_RESPONSE] = {\n\t\t.len = sizeof(struct ksmbd_share_config_response),\n\t},\n\t[KSMBD_EVENT_TREE_CONNECT_REQUEST] = {\n\t\t.len = sizeof(struct ksmbd_tree_connect_request),\n\t},\n\t[KSMBD_EVENT_TREE_CONNECT_RESPONSE] = {\n\t\t.len = sizeof(struct ksmbd_tree_connect_response),\n\t},\n\t[KSMBD_EVENT_TREE_DISCONNECT_REQUEST] = {\n\t\t.len = sizeof(struct ksmbd_tree_disconnect_request),\n\t},\n\t[KSMBD_EVENT_LOGOUT_REQUEST] = {\n\t\t.len = sizeof(struct ksmbd_logout_request),\n\t},\n\t[KSMBD_EVENT_RPC_REQUEST] = {\n\t},\n\t[KSMBD_EVENT_RPC_RESPONSE] = {\n\t},\n\t[KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST] = {\n\t},\n\t[KSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE] = {\n\t},\n\t[KSMBD_EVENT_LOGIN_REQUEST_EXT] = {\n\t\t.len = sizeof(struct ksmbd_login_request),\n\t},\n\t[KSMBD_EVENT_LOGIN_RESPONSE_EXT] = {\n\t\t.len = sizeof(struct ksmbd_login_response_ext),\n\t},\n};\n\nstatic struct genl_ops ksmbd_genl_ops[] = {\n\t{\n\t\t.cmd\t= KSMBD_EVENT_UNSPEC,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_HEARTBEAT_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_STARTING_UP,\n\t\t.doit\t= handle_startup_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_SHUTTING_DOWN,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_LOGIN_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_LOGIN_RESPONSE,\n\t\t.doit\t= handle_generic_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_SHARE_CONFIG_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_SHARE_CONFIG_RESPONSE,\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/transport_ipc.c",
+      "old_start": 187,
+      "old_end": 192,
+      "new_start": 193,
+      "new_end": 206,
+      "context_hint": "static struct genl_ops ksmbd_genl_ops[] = {",
+      "added_lines": [
+        "\t{",
+        "\t\t.cmd\t= KSMBD_EVENT_LOGIN_REQUEST_EXT,",
+        "\t\t.doit\t= handle_unsupported_event,",
+        "\t},",
+        "\t{",
+        "\t\t.cmd\t= KSMBD_EVENT_LOGIN_RESPONSE_EXT,",
+        "\t\t.doit\t= handle_generic_event,",
+        "\t},"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\t.cmd\t= KSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE,",
+        "\t\t.doit\t= handle_generic_event,",
+        "\t},",
+        "};",
+        "",
+        "static struct genl_family ksmbd_genl_family = {"
+      ],
+      "hunk_id": "HUNK-0015",
+      "changed_symbols": [
+        "genl_ops",
+        "cmd",
+        "KSMBD_EVENT_LOGIN_REQUEST_EXT",
+        "doit",
+        "handle_unsupported_event",
+        "KSMBD_EVENT_LOGIN_RESPONSE_EXT",
+        "handle_generic_event",
+        "ksmbd_ipc_heartbeat_request"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": true,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          },
+          {
+            "name": "netlink",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract",
+              "output_format"
+            ],
+            "description": "Netlink protocol interface, attributes, families, and policies"
+          }
+        ],
+        "surface_reasons": [
+          "ioctl_netlink_consumers",
+          "syscall",
+          "netlink"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "genl_ops",
+        "snippet_start_line": 158,
+        "snippet_end_line": 236,
+        "snippet": "\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_SHARE_CONFIG_RESPONSE,\n\t\t.doit\t= handle_generic_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_TREE_CONNECT_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_TREE_CONNECT_RESPONSE,\n\t\t.doit\t= handle_generic_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_TREE_DISCONNECT_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_LOGOUT_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_RPC_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_RPC_RESPONSE,\n\t\t.doit\t= handle_generic_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE,\n\t\t.doit\t= handle_generic_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_LOGIN_REQUEST_EXT,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_LOGIN_RESPONSE_EXT,\n\t\t.doit\t= handle_generic_event,\n\t},\n};\n\nstatic struct genl_family ksmbd_genl_family = {\n\t.name\t\t= KSMBD_GENL_NAME,\n\t.version\t= KSMBD_GENL_VERSION,\n\t.hdrsize\t= 0,\n\t.maxattr\t= KSMBD_EVENT_MAX,\n\t.netnsok\t= true,\n\t.module\t\t= THIS_MODULE,\n\t.ops\t\t= ksmbd_genl_ops,\n\t.n_ops\t\t= ARRAY_SIZE(ksmbd_genl_ops),\n\t.resv_start_op\t= KSMBD_EVENT_LOGIN_RESPONSE_EXT + 1,\n};\n\nstatic void ksmbd_nl_init_fixup(void)\n{\n\tint i;\n\n\tfor (i = 0; i < ARRAY_SIZE(ksmbd_genl_ops); i++)\n\t\tksmbd_genl_ops[i].validate = GENL_DONT_VALIDATE_STRICT |\n\t\t\t\t\t\tGENL_DONT_VALIDATE_DUMP;\n\n\tksmbd_genl_family.policy = ksmbd_nl_policy;\n}\n\nstatic int rpc_context_flags(struct ksmbd_session *sess)\n{\n\tif (user_guest(sess->user))\n\t\treturn KSMBD_RPC_RESTRICTED_CONTEXT;\n\treturn 0;\n}\n\nstatic void ipc_update_last_active(void)\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/transport_ipc.c",
+      "old_start": 198,
+      "old_end": 204,
+      "new_start": 212,
+      "new_end": 218,
+      "context_hint": "static struct genl_family ksmbd_genl_family = {",
+      "added_lines": [
+        "\t.resv_start_op\t= KSMBD_EVENT_LOGIN_RESPONSE_EXT + 1,"
+      ],
+      "deleted_lines": [
+        "\t.resv_start_op\t= KSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE + 1,"
+      ],
+      "context_lines": [
+        "\t.module\t\t= THIS_MODULE,",
+        "\t.ops\t\t= ksmbd_genl_ops,",
+        "\t.n_ops\t\t= ARRAY_SIZE(ksmbd_genl_ops),",
+        "};",
+        "",
+        "static void ksmbd_nl_init_fixup(void)"
+      ],
+      "hunk_id": "HUNK-0016",
+      "changed_symbols": [
+        "genl_family",
+        "resv_start_op",
+        "KSMBD_EVENT_LOGIN_RESPONSE_EXT",
+        "KSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE",
+        "ksmbd_ipc_heartbeat_request"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": true,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          },
+          {
+            "name": "netlink",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract",
+              "output_format"
+            ],
+            "description": "Netlink protocol interface, attributes, families, and policies"
+          }
+        ],
+        "surface_reasons": [
+          "ioctl_netlink_consumers",
+          "syscall",
+          "netlink"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "genl_family",
+        "snippet_start_line": 169,
+        "snippet_end_line": 248,
+        "snippet": "\t\t.cmd\t= KSMBD_EVENT_TREE_CONNECT_RESPONSE,\n\t\t.doit\t= handle_generic_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_TREE_DISCONNECT_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_LOGOUT_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_RPC_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_RPC_RESPONSE,\n\t\t.doit\t= handle_generic_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_SPNEGO_AUTHEN_RESPONSE,\n\t\t.doit\t= handle_generic_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_LOGIN_REQUEST_EXT,\n\t\t.doit\t= handle_unsupported_event,\n\t},\n\t{\n\t\t.cmd\t= KSMBD_EVENT_LOGIN_RESPONSE_EXT,\n\t\t.doit\t= handle_generic_event,\n\t},\n};\n\nstatic struct genl_family ksmbd_genl_family = {\n\t.name\t\t= KSMBD_GENL_NAME,\n\t.version\t= KSMBD_GENL_VERSION,\n\t.hdrsize\t= 0,\n\t.maxattr\t= KSMBD_EVENT_MAX,\n\t.netnsok\t= true,\n\t.module\t\t= THIS_MODULE,\n\t.ops\t\t= ksmbd_genl_ops,\n\t.n_ops\t\t= ARRAY_SIZE(ksmbd_genl_ops),\n\t.resv_start_op\t= KSMBD_EVENT_LOGIN_RESPONSE_EXT + 1,\n};\n\nstatic void ksmbd_nl_init_fixup(void)\n{\n\tint i;\n\n\tfor (i = 0; i < ARRAY_SIZE(ksmbd_genl_ops); i++)\n\t\tksmbd_genl_ops[i].validate = GENL_DONT_VALIDATE_STRICT |\n\t\t\t\t\t\tGENL_DONT_VALIDATE_DUMP;\n\n\tksmbd_genl_family.policy = ksmbd_nl_policy;\n}\n\nstatic int rpc_context_flags(struct ksmbd_session *sess)\n{\n\tif (user_guest(sess->user))\n\t\treturn KSMBD_RPC_RESTRICTED_CONTEXT;\n\treturn 0;\n}\n\nstatic void ipc_update_last_active(void)\n{\n\tif (server_conf.ipc_timeout)\n\t\tserver_conf.ipc_last_active = jiffies;\n}\n\nstatic struct ksmbd_ipc_msg *ipc_msg_alloc(size_t sz)\n{\n\tstruct ksmbd_ipc_msg *msg;\n\tsize_t msg_sz = sz + sizeof(struct ksmbd_ipc_msg);\n\n\tmsg = kvzalloc(msg_sz, GFP_KERNEL);\n\tif (msg)\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/transport_ipc.c",
+      "old_start": 478,
+      "old_end": 493,
+      "new_start": 492,
+      "new_end": 515,
+      "context_hint": "static int ipc_validate_msg(struct ipc_msg_table_entry *entry)",
+      "added_lines": [
+        "\tswitch (entry->type) {",
+        "\tcase KSMBD_EVENT_RPC_REQUEST:",
+        "\t{",
+        "\t\tbreak;",
+        "\t}",
+        "\tcase KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST:",
+        "\t{",
+        "\t\tbreak;",
+        "\t}",
+        "\tcase KSMBD_EVENT_SHARE_CONFIG_REQUEST:",
+        "\t{"
+      ],
+      "deleted_lines": [
+        "\tif (entry->type == KSMBD_EVENT_RPC_REQUEST) {",
+        "\t} else if (entry->type == KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST) {",
+        "\t} else if (entry->type == KSMBD_EVENT_SHARE_CONFIG_REQUEST) {"
+      ],
+      "context_lines": [
+        "{",
+        "\tunsigned int msg_sz = entry->msg_sz;",
+        "",
+        "\t\tstruct ksmbd_rpc_command *resp = entry->response;",
+        "",
+        "\t\tmsg_sz = sizeof(struct ksmbd_rpc_command) + resp->payload_sz;",
+        "\t\tstruct ksmbd_spnego_authen_response *resp = entry->response;",
+        "",
+        "\t\tmsg_sz = sizeof(struct ksmbd_spnego_authen_response) +",
+        "\t\t\t\tresp->session_key_len + resp->spnego_blob_len;",
+        "\t\tstruct ksmbd_share_config_response *resp = entry->response;",
+        "",
+        "\t\tif (resp->payload_sz) {"
+      ],
+      "hunk_id": "HUNK-0017",
+      "changed_symbols": [
+        "ipc_msg_table_entry",
+        "entry",
+        "type",
+        "KSMBD_EVENT_RPC_REQUEST",
+        "break",
+        "KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST",
+        "ipc_validate_msg"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": true,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          },
+          {
+            "name": "netlink",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract",
+              "output_format"
+            ],
+            "description": "Netlink protocol interface, attributes, families, and policies"
+          }
+        ],
+        "surface_reasons": [
+          "ioctl_netlink_consumers",
+          "syscall",
+          "netlink"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ipc_msg_table_entry",
+        "snippet_start_line": 449,
+        "snippet_end_line": 545,
+        "snippet": "\tif (!info->attrs[type])\n\t\treturn -EINVAL;\n\n\tpayload = nla_data(info->attrs[info->genlhdr->cmd]);\n\tsz = nla_len(info->attrs[info->genlhdr->cmd]);\n\treturn handle_response(type, payload, sz);\n}\n\nstatic int ipc_msg_send(struct ksmbd_ipc_msg *msg)\n{\n\tstruct genlmsghdr *nlh;\n\tstruct sk_buff *skb;\n\tint ret = -EINVAL;\n\n\tif (!ksmbd_tools_pid)\n\t\treturn ret;\n\n\tskb = genlmsg_new(msg->sz, GFP_KERNEL);\n\tif (!skb)\n\t\treturn -ENOMEM;\n\n\tnlh = genlmsg_put(skb, 0, 0, &ksmbd_genl_family, 0, msg->type);\n\tif (!nlh)\n\t\tgoto out;\n\n\tret = nla_put(skb, msg->type, msg->sz, msg->payload);\n\tif (ret) {\n\t\tgenlmsg_cancel(skb, nlh);\n\t\tgoto out;\n\t}\n\n\tgenlmsg_end(skb, nlh);\n\tret = genlmsg_unicast(&init_net, skb, ksmbd_tools_pid);\n\tif (!ret)\n\t\tipc_update_last_active();\n\treturn ret;\n\nout:\n\tnlmsg_free(skb);\n\treturn ret;\n}\n\nstatic int ipc_validate_msg(struct ipc_msg_table_entry *entry)\n{\n\tunsigned int msg_sz = entry->msg_sz;\n\n\tswitch (entry->type) {\n\tcase KSMBD_EVENT_RPC_REQUEST:\n\t{\n\t\tstruct ksmbd_rpc_command *resp = entry->response;\n\n\t\tmsg_sz = sizeof(struct ksmbd_rpc_command) + resp->payload_sz;\n\t\tbreak;\n\t}\n\tcase KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST:\n\t{\n\t\tstruct ksmbd_spnego_authen_response *resp = entry->response;\n\n\t\tmsg_sz = sizeof(struct ksmbd_spnego_authen_response) +\n\t\t\t\tresp->session_key_len + resp->spnego_blob_len;\n\t\tbreak;\n\t}\n\tcase KSMBD_EVENT_SHARE_CONFIG_REQUEST:\n\t{\n\t\tstruct ksmbd_share_config_response *resp = entry->response;\n\n\t\tif (resp->payload_sz) {\n\t\t\tif (resp->payload_sz < resp->veto_list_sz)\n\t\t\t\treturn -EINVAL;\n\n\t\t\tmsg_sz = sizeof(struct ksmbd_share_config_response) +\n\t\t\t\t\tresp->payload_sz;\n\t\t}\n\t\tbreak;\n\t}\n\tcase KSMBD_EVENT_LOGIN_REQUEST_EXT:\n\t{\n\t\tstruct ksmbd_login_response_ext *resp = entry->response;\n\n\t\tif (resp->ngroups) {\n\t\t\tmsg_sz = sizeof(struct ksmbd_login_response_ext) +\n\t\t\t\t\tresp->ngroups * sizeof(gid_t);\n\t\t}\n\t}\n\t}\n\n\treturn entry->msg_sz != msg_sz ? -EINVAL : 0;\n}\n\nstatic void *ipc_msg_send_request(struct ksmbd_ipc_msg *msg, unsigned int handle)\n{\n\tstruct ipc_msg_table_entry entry;\n\tint ret;\n\n\tif ((int)handle < 0)\n\t\treturn NULL;\n\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/transport_ipc.c",
+      "old_start": 497,
+      "old_end": 502,
+      "new_start": 519,
+      "new_end": 535,
+      "context_hint": "static int ipc_validate_msg(struct ipc_msg_table_entry *entry)",
+      "added_lines": [
+        "\t\tbreak;",
+        "\t}",
+        "\tcase KSMBD_EVENT_LOGIN_REQUEST_EXT:",
+        "\t{",
+        "\t\tstruct ksmbd_login_response_ext *resp = entry->response;",
+        "",
+        "\t\tif (resp->ngroups) {",
+        "\t\t\tmsg_sz = sizeof(struct ksmbd_login_response_ext) +",
+        "\t\t\t\t\tresp->ngroups * sizeof(gid_t);",
+        "\t\t}",
+        "\t}"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\t\t\tmsg_sz = sizeof(struct ksmbd_share_config_response) +",
+        "\t\t\t\t\tresp->payload_sz;",
+        "\t\t}",
+        "\t}",
+        "",
+        "\treturn entry->msg_sz != msg_sz ? -EINVAL : 0;"
+      ],
+      "hunk_id": "HUNK-0018",
+      "changed_symbols": [
+        "ipc_msg_table_entry",
+        "break",
+        "KSMBD_EVENT_LOGIN_REQUEST_EXT",
+        "ksmbd_login_response_ext",
+        "resp",
+        "entry",
+        "ipc_validate_msg"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": true,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          },
+          {
+            "name": "netlink",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract",
+              "output_format"
+            ],
+            "description": "Netlink protocol interface, attributes, families, and policies"
+          }
+        ],
+        "surface_reasons": [
+          "ioctl_netlink_consumers",
+          "syscall",
+          "netlink"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ipc_msg_table_entry",
+        "snippet_start_line": 468,
+        "snippet_end_line": 565,
+        "snippet": "\t\treturn -ENOMEM;\n\n\tnlh = genlmsg_put(skb, 0, 0, &ksmbd_genl_family, 0, msg->type);\n\tif (!nlh)\n\t\tgoto out;\n\n\tret = nla_put(skb, msg->type, msg->sz, msg->payload);\n\tif (ret) {\n\t\tgenlmsg_cancel(skb, nlh);\n\t\tgoto out;\n\t}\n\n\tgenlmsg_end(skb, nlh);\n\tret = genlmsg_unicast(&init_net, skb, ksmbd_tools_pid);\n\tif (!ret)\n\t\tipc_update_last_active();\n\treturn ret;\n\nout:\n\tnlmsg_free(skb);\n\treturn ret;\n}\n\nstatic int ipc_validate_msg(struct ipc_msg_table_entry *entry)\n{\n\tunsigned int msg_sz = entry->msg_sz;\n\n\tswitch (entry->type) {\n\tcase KSMBD_EVENT_RPC_REQUEST:\n\t{\n\t\tstruct ksmbd_rpc_command *resp = entry->response;\n\n\t\tmsg_sz = sizeof(struct ksmbd_rpc_command) + resp->payload_sz;\n\t\tbreak;\n\t}\n\tcase KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST:\n\t{\n\t\tstruct ksmbd_spnego_authen_response *resp = entry->response;\n\n\t\tmsg_sz = sizeof(struct ksmbd_spnego_authen_response) +\n\t\t\t\tresp->session_key_len + resp->spnego_blob_len;\n\t\tbreak;\n\t}\n\tcase KSMBD_EVENT_SHARE_CONFIG_REQUEST:\n\t{\n\t\tstruct ksmbd_share_config_response *resp = entry->response;\n\n\t\tif (resp->payload_sz) {\n\t\t\tif (resp->payload_sz < resp->veto_list_sz)\n\t\t\t\treturn -EINVAL;\n\n\t\t\tmsg_sz = sizeof(struct ksmbd_share_config_response) +\n\t\t\t\t\tresp->payload_sz;\n\t\t}\n\t\tbreak;\n\t}\n\tcase KSMBD_EVENT_LOGIN_REQUEST_EXT:\n\t{\n\t\tstruct ksmbd_login_response_ext *resp = entry->response;\n\n\t\tif (resp->ngroups) {\n\t\t\tmsg_sz = sizeof(struct ksmbd_login_response_ext) +\n\t\t\t\t\tresp->ngroups * sizeof(gid_t);\n\t\t}\n\t}\n\t}\n\n\treturn entry->msg_sz != msg_sz ? -EINVAL : 0;\n}\n\nstatic void *ipc_msg_send_request(struct ksmbd_ipc_msg *msg, unsigned int handle)\n{\n\tstruct ipc_msg_table_entry entry;\n\tint ret;\n\n\tif ((int)handle < 0)\n\t\treturn NULL;\n\n\tentry.type = msg->type;\n\tentry.response = NULL;\n\tinit_waitqueue_head(&entry.wait);\n\n\tdown_write(&ipc_msg_table_lock);\n\tentry.handle = handle;\n\thash_add(ipc_msg_table, &entry.ipc_table_hlist, entry.handle);\n\tup_write(&ipc_msg_table_lock);\n\n\tret = ipc_msg_send(msg);\n\tif (ret) {\n\t\tdown_write(&ipc_msg_table_lock);\n\t\tgoto out;\n\t}\n\n\tret = wait_event_interruptible_timeout(entry.wait,\n\t\t\t\t\t       entry.response != NULL,\n\t\t\t\t\t       IPC_WAIT_TIMEOUT);\n\n\tdown_write(&ipc_msg_table_lock);\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/transport_ipc.c",
+      "old_start": 582,
+      "old_end": 587,
+      "new_start": 615,
+      "new_end": 643,
+      "context_hint": "struct ksmbd_login_response *ksmbd_ipc_login_request(const char *account)",
+      "added_lines": [
+        "struct ksmbd_login_response_ext *ksmbd_ipc_login_request_ext(const char *account)",
+        "{",
+        "\tstruct ksmbd_ipc_msg *msg;",
+        "\tstruct ksmbd_login_request *req;",
+        "\tstruct ksmbd_login_response_ext *resp;",
+        "",
+        "\tif (strlen(account) >= KSMBD_REQ_MAX_ACCOUNT_NAME_SZ)",
+        "\t\treturn NULL;",
+        "",
+        "\tmsg = ipc_msg_alloc(sizeof(struct ksmbd_login_request));",
+        "\tif (!msg)",
+        "\t\treturn NULL;",
+        "",
+        "\tmsg->type = KSMBD_EVENT_LOGIN_REQUEST_EXT;",
+        "\treq = (struct ksmbd_login_request *)msg->payload;",
+        "\treq->handle = ksmbd_acquire_id(&ipc_ida);",
+        "\tstrscpy(req->account, account, KSMBD_REQ_MAX_ACCOUNT_NAME_SZ);",
+        "\tresp = ipc_msg_send_request(msg, req->handle);",
+        "\tipc_msg_handle_free(req->handle);",
+        "\tipc_msg_free(msg);",
+        "\treturn resp;",
+        "}",
+        ""
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "\treturn resp;",
+        "}",
+        "",
+        "struct ksmbd_spnego_authen_response *",
+        "ksmbd_ipc_spnego_authen_request(const char *spnego_blob, int blob_len)",
+        "{"
+      ],
+      "hunk_id": "HUNK-0019",
+      "changed_symbols": [
+        "ksmbd_login_response",
+        "ksmbd_login_response_ext",
+        "ksmbd_ipc_login_request_ext",
+        "account",
+        "ksmbd_ipc_msg",
+        "msg",
+        "ksmbd_ipc_heartbeat_request"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "ksmbd_login_response",
+        "snippet_start_line": 553,
+        "snippet_end_line": 673,
+        "snippet": "\tup_write(&ipc_msg_table_lock);\n\n\tret = ipc_msg_send(msg);\n\tif (ret) {\n\t\tdown_write(&ipc_msg_table_lock);\n\t\tgoto out;\n\t}\n\n\tret = wait_event_interruptible_timeout(entry.wait,\n\t\t\t\t\t       entry.response != NULL,\n\t\t\t\t\t       IPC_WAIT_TIMEOUT);\n\n\tdown_write(&ipc_msg_table_lock);\n\tif (entry.response) {\n\t\tret = ipc_validate_msg(&entry);\n\t\tif (ret) {\n\t\t\tkvfree(entry.response);\n\t\t\tentry.response = NULL;\n\t\t}\n\t}\nout:\n\thash_del(&entry.ipc_table_hlist);\n\tup_write(&ipc_msg_table_lock);\n\treturn entry.response;\n}\n\nstatic int ksmbd_ipc_heartbeat_request(void)\n{\n\tstruct ksmbd_ipc_msg *msg;\n\tint ret;\n\n\tmsg = ipc_msg_alloc(sizeof(struct ksmbd_heartbeat));\n\tif (!msg)\n\t\treturn -EINVAL;\n\n\tmsg->type = KSMBD_EVENT_HEARTBEAT_REQUEST;\n\tret = ipc_msg_send(msg);\n\tipc_msg_free(msg);\n\treturn ret;\n}\n\nstruct ksmbd_login_response *ksmbd_ipc_login_request(const char *account)\n{\n\tstruct ksmbd_ipc_msg *msg;\n\tstruct ksmbd_login_request *req;\n\tstruct ksmbd_login_response *resp;\n\n\tif (strlen(account) >= KSMBD_REQ_MAX_ACCOUNT_NAME_SZ)\n\t\treturn NULL;\n\n\tmsg = ipc_msg_alloc(sizeof(struct ksmbd_login_request));\n\tif (!msg)\n\t\treturn NULL;\n\n\tmsg->type = KSMBD_EVENT_LOGIN_REQUEST;\n\treq = (struct ksmbd_login_request *)msg->payload;\n\treq->handle = ksmbd_acquire_id(&ipc_ida);\n\tstrscpy(req->account, account, KSMBD_REQ_MAX_ACCOUNT_NAME_SZ);\n\n\tresp = ipc_msg_send_request(msg, req->handle);\n\tipc_msg_handle_free(req->handle);\n\tipc_msg_free(msg);\n\treturn resp;\n}\n\nstruct ksmbd_login_response_ext *ksmbd_ipc_login_request_ext(const char *account)\n{\n\tstruct ksmbd_ipc_msg *msg;\n\tstruct ksmbd_login_request *req;\n\tstruct ksmbd_login_response_ext *resp;\n\n\tif (strlen(account) >= KSMBD_REQ_MAX_ACCOUNT_NAME_SZ)\n\t\treturn NULL;\n\n\tmsg = ipc_msg_alloc(sizeof(struct ksmbd_login_request));\n\tif (!msg)\n\t\treturn NULL;\n\n\tmsg->type = KSMBD_EVENT_LOGIN_REQUEST_EXT;\n\treq = (struct ksmbd_login_request *)msg->payload;\n\treq->handle = ksmbd_acquire_id(&ipc_ida);\n\tstrscpy(req->account, account, KSMBD_REQ_MAX_ACCOUNT_NAME_SZ);\n\tresp = ipc_msg_send_request(msg, req->handle);\n\tipc_msg_handle_free(req->handle);\n\tipc_msg_free(msg);\n\treturn resp;\n}\n\nstruct ksmbd_spnego_authen_response *\nksmbd_ipc_spnego_authen_request(const char *spnego_blob, int blob_len)\n{\n\tstruct ksmbd_ipc_msg *msg;\n\tstruct ksmbd_spnego_authen_request *req;\n\tstruct ksmbd_spnego_authen_response *resp;\n\n\tif (blob_len > KSMBD_IPC_MAX_PAYLOAD)\n\t\treturn NULL;\n\n\tmsg = ipc_msg_alloc(sizeof(struct ksmbd_spnego_authen_request) +\n\t\t\tblob_len + 1);\n\tif (!msg)\n\t\treturn NULL;\n\n\tmsg->type = KSMBD_EVENT_SPNEGO_AUTHEN_REQUEST;\n\treq = (struct ksmbd_spnego_authen_request *)msg->payload;\n\treq->handle = ksmbd_acquire_id(&ipc_ida);\n\treq->spnego_blob_len = blob_len;\n\tmemcpy(req->spnego_blob, spnego_blob, blob_len);\n\n\tresp = ipc_msg_send_request(msg, req->handle);\n\tipc_msg_handle_free(req->handle);\n\tipc_msg_free(msg);\n\treturn resp;\n}\n\nstruct ksmbd_tree_connect_response *\nksmbd_ipc_tree_connect_request(struct ksmbd_session *sess,\n\t\t\t       struct ksmbd_share_config *share,\n\t\t\t       struct ksmbd_tree_connect *tree_conn,\n\t\t\t       struct sockaddr *peer_addr)\n{\n"
+      }
+    },
+    {
+      "file": "fs/smb/server/transport_ipc.h",
+      "old_start": 12,
+      "old_end": 17,
+      "new_start": 12,
+      "new_end": 19,
+      "context_hint": "",
+      "added_lines": [
+        "struct ksmbd_login_response_ext *",
+        "ksmbd_ipc_login_request_ext(const char *account);"
+      ],
+      "deleted_lines": [],
+      "context_lines": [
+        "",
+        "struct ksmbd_login_response *",
+        "ksmbd_ipc_login_request(const char *account);",
+        "",
+        "struct ksmbd_session;",
+        "struct ksmbd_share_config;",
+        ""
+      ],
+      "hunk_id": "HUNK-0020",
+      "changed_symbols": [
+        "ksmbd_login_response_ext",
+        "ksmbd_ipc_login_request_ext",
+        "account",
+        "ksmbd_ipc_login_request"
+      ],
+      "api_surface": {
+        "is_header": true,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": false,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "public_headers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "signature",
+              "abi_layout",
+              "input_contract",
+              "return_contract"
+            ],
+            "description": "Public C/C++ headers and declarations."
+          },
+          {
+            "name": "ioctl_netlink_consumers",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "abi_layout",
+              "return_contract"
+            ],
+            "description": "ioctl and netlink ABI consumers or producers."
+          },
+          {
+            "name": "syscall",
+            "public": true,
+            "test_priority": "high",
+            "stability": "stable",
+            "semantic_dimensions": [
+              "input_contract",
+              "return_contract",
+              "error_contract",
+              "timeout_retry",
+              "side_effect"
+            ],
+            "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+          }
+        ],
+        "surface_reasons": [
+          "public_headers",
+          "ioctl_netlink_consumers",
+          "syscall"
+        ],
+        "profile": "kernel_6_6",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "kernel_base"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "high",
+        "is_public": true
+      },
+      "context": {
+        "enclosing_function": "Copyright",
+        "snippet_start_line": 1,
+        "snippet_end_line": 49,
+        "snippet": "/* SPDX-License-Identifier: GPL-2.0-or-later */\n/*\n *   Copyright (C) 2018 Samsung Electronics Co., Ltd.\n */\n\n#ifndef __KSMBD_TRANSPORT_IPC_H__\n#define __KSMBD_TRANSPORT_IPC_H__\n\n#include <linux/wait.h>\n\n#define KSMBD_IPC_MAX_PAYLOAD\t4096\n\nstruct ksmbd_login_response *\nksmbd_ipc_login_request(const char *account);\nstruct ksmbd_login_response_ext *\nksmbd_ipc_login_request_ext(const char *account);\n\nstruct ksmbd_session;\nstruct ksmbd_share_config;\nstruct ksmbd_tree_connect;\nstruct sockaddr;\n\nstruct ksmbd_tree_connect_response *\nksmbd_ipc_tree_connect_request(struct ksmbd_session *sess,\n\t\t\t       struct ksmbd_share_config *share,\n\t\t\t       struct ksmbd_tree_connect *tree_conn,\n\t\t\t       struct sockaddr *peer_addr);\nint ksmbd_ipc_tree_disconnect_request(unsigned long long session_id,\n\t\t\t\t      unsigned long long connect_id);\nint ksmbd_ipc_logout_request(const char *account, int flags);\nstruct ksmbd_share_config_response *\nksmbd_ipc_share_config_request(const char *name);\nstruct ksmbd_spnego_authen_response *\nksmbd_ipc_spnego_authen_request(const char *spnego_blob, int blob_len);\nint ksmbd_ipc_id_alloc(void);\nvoid ksmbd_rpc_id_free(int handle);\nstruct ksmbd_rpc_command *ksmbd_rpc_open(struct ksmbd_session *sess, int handle);\nstruct ksmbd_rpc_command *ksmbd_rpc_close(struct ksmbd_session *sess, int handle);\nstruct ksmbd_rpc_command *ksmbd_rpc_write(struct ksmbd_session *sess, int handle,\n\t\t\t\t\t  void *payload, size_t payload_sz);\nstruct ksmbd_rpc_command *ksmbd_rpc_read(struct ksmbd_session *sess, int handle);\nstruct ksmbd_rpc_command *ksmbd_rpc_ioctl(struct ksmbd_session *sess, int handle,\n\t\t\t\t\t  void *payload, size_t payload_sz);\nstruct ksmbd_rpc_command *ksmbd_rpc_rap(struct ksmbd_session *sess, void *payload,\n\t\t\t\t\tsize_t payload_sz);\nvoid ksmbd_ipc_release(void);\nvoid ksmbd_ipc_soft_reset(void);\nint ksmbd_ipc_init(void);\n#endif /* __KSMBD_TRANSPORT_IPC_H__ */\n"
+      }
+    }
+  ]
+}

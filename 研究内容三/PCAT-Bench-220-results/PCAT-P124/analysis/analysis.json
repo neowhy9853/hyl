@@ -1,0 +1,205 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/grub2",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P064/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P064",
+  "base_ref": "HEAD",
+  "base_commit": "fe274638bb01104f56fce0caebe0a238ac5fc6a4",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "531750f7bfc475332b2046dd516bab582ba7decf",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/rhboot/grub2/commit/531750f7bfc475332b2046dd516bab582ba7decf",
+    "download_url": "https://github.com/rhboot/grub2/commit/531750f7bfc475332b2046dd516bab582ba7decf.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P064/_patch-cache/531750f7bfc4.patch",
+    "commit": "531750f7bfc475332b2046dd516bab582ba7decf"
+  },
+  "package_profile": "grub2",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 6046,
+    "patch_lines": 124,
+    "diff_added_lines": 5,
+    "diff_deleted_lines": 0,
+    "diff_context_lines": 71,
+    "churn": 5,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 1361,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "public_headers": 1,
+      "struct_layout": 1,
+      "module_api": 1,
+      "boot_protocol": 1
+    },
+    "candidates_json_bytes": 5576
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 0,
+    "medium_priority": 1,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "SIDE_EFFECT_CHANGE",
+      "test_priority": "medium",
+      "confidence": 0.85,
+      "package_profile": "grub2",
+      "affected_surface": "public_headers / module_api / boot_protocol",
+      "affected_api": {
+        "name": "grub_get_tsc",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "include/grub/i386/tsc.h",
+        "old_lines": [
+          47,
+          52
+        ],
+        "new_lines": [
+          47,
+          57
+        ],
+        "symbol": "grub_get_tsc"
+      },
+      "old_behavior": "grub_get_tsc()调用 cpuid 作为 rdtsc 前的串行化屏障，然后执行 rdtsc 读取 TSC 值，之后直接返回。由于 rdtsc 指令不是串行化指令，后续指令（包括调用者中的下一条指令）可能在 rdtsc 完成之前就开始执行，导致 TSC 读取的时间点不可靠，在某些多核/多 socket 服务器上可能导致 TSC 校准失败和 GRUB 菜单卡死。",
+      "new_behavior": "grub_get_tsc()在 rdtsc 指令之后新增了 cpuid 串行化屏障，确保 rdtsc 在任何后续指令之前完成执行。返回值不变，但函数的侧效应（串行化保证）发生了变化。",
+      "compatibility_reason": "该函数位于公共头文件 include/grub/i386/tsc.h 中，作为 static __inline 函数被多个 GRUB 内核模块使用（tsc.c、tsc_pmtimer.c、tsc_pit.c、efi/tsc.c）。新增的 cpuid 指令作为串行化屏障改变了函数的执行顺序保证（侧效应变化），同时增加了每次调用的延迟（cpuid 是一个耗时较长的串行化指令）。虽然这是一个正确性修复，但侧效应的变化可能影响依赖该函数时序特性的代码。",
+      "evidence": [
+        {
+          "file": "include/grub/i386/tsc.h",
+          "lines": [
+            49,
+            54
+          ],
+          "snippet": "  asm volatile (\"rdtsc\":\"=a\" (lo), \"=d\" (hi));\n  /*\n   * Run cpuid after rdtsc instruction to ensure rdtsc is executed before\n   * subsequent instruction.\n   */\n  grub_cpuid (0, a, b, c, d);"
+        },
+        {
+          "file": "grub-core/kern/i386/tsc_pmtimer.c",
+          "lines": [
+            50,
+            58
+          ],
+          "snippet": "  start_tsc = grub_get_tsc ();\n  while (1)\n    {\n      ...\n      end_tsc = grub_get_tsc();"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "grub_get_tsc 位于公共头文件 include/grub/i386/tsc.h 中，被 tsc.c、tsc_pmtimer.c、tsc_pit.c、efi/tsc.c 等多个 GRUB 内核模块包含并调用，属于公共头文件中的 API，非单一模块内部函数。",
+      "uncertainty": "无法确定硬件平台上 cpuid 指令的确切耗时，以及是否有代码依赖原有的时序特性。",
+      "manual_review_required": false,
+      "recommended_review": "检查所有调用 grub_get_tsc 的代码路径，确认新增的 cpuid 串行化化不会导致紧密循环或时序敏感代码中的负面影响。重点关注 tsc_pmtimer.c 中的校准循环。",
+      "test_recommendation": "在 i386 平台上运行 GRUB ，验证 TSC 校准成功（grub_tsc_rate > 0），且菜单超时计时正常工作，不会出现卡死。在多次重复启动测试中确认问题已修复。",
+      "priority_decision": {
+        "agent_priority": "medium",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "medium",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": true,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": true,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function on public surface -> at least medium"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "include/grub/i386/tsc.h",
+            "old_lines": [
+              47,
+              52
+            ],
+            "new_lines": [
+              47,
+              57
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "public_headers",
+              "struct_layout",
+              "module_api",
+              "boot_protocol"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "public_headers",
+                "test_priority": "high",
+                "public": true,
+                "description": "Public C/C++ headers"
+              },
+              {
+                "name": "struct_layout",
+                "test_priority": "high",
+                "public": true,
+                "description": "ABI-sensitive definitions:\n- Struct layout (size, field order, field type)\n- Enum values\n- Macro definitions\n- Constants\n"
+              },
+              {
+                "name": "module_api",
+                "test_priority": "high",
+                "public": true,
+                "description": "GRUB module and command API"
+              },
+              {
+                "name": "boot_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Boot protocol, loader, and platform behavior"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is medium. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function on public surface -> at least medium"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings. If analysis_mode is heavy, analyze shard files under shards/ first and merge shard results with orchestrator.py --aggregate-shards analysis.json. Final findings should include only confirmed compatibility changes. Every finding must include location.file, location.old_lines, location.new_lines, location.symbol, and evidence[].lines. Read analysis-context.json before candidates.json/report.md; it contains the bounded hunk, surface, changed-line context, and source_excerpt needed for normal adjudication. Treat source_excerpt as the first-pass source window and open candidates.json or source files only when the compact context is insufficient. If a command is rejected, do not retry equivalent list/search/read commands. Post-patch source search/read operations, including rg/grep/sed/git grep, must use analysis_repo as the root. repo is only the source repository and artifact location. For pre-patch code, use git show base_commit:path against repo. If analysis_worktree_status is cleaned or analysis_repo is missing, run orchestrator.py --ensure-worktree analysis.json before post-patch source search or callgraph. Do not generate runnable test entries in the analysis stage. After final validation and reporting, if the user has not already requested testing, ask whether to continue with directed dynamic testing via the sibling patch-compatibility-testing skill."
+}

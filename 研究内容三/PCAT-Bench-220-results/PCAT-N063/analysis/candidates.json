@@ -1,0 +1,109 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-N023/_worktrees/patched",
+  "patch_file": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-N023/patch.diff",
+  "profile": "c_project",
+  "summary": {
+    "total_changed_files": 1,
+    "changed_files": [
+      "Lib/test/test_socket.py"
+    ],
+    "total_hunks": 1,
+    "public_api_hunks": 0,
+    "patch_metrics": {
+      "patch_bytes": 1124,
+      "patch_lines": 28,
+      "diff_added_lines": 2,
+      "diff_deleted_lines": 1,
+      "diff_context_lines": 9,
+      "churn": 3,
+      "raw_hunks": 1,
+      "candidate_hunks": 1,
+      "skipped_doc_hunks": 0,
+      "changed_files": 1,
+      "candidate_context_bytes": 2855,
+      "public_candidate_hunks": 0,
+      "surface_counts": {
+        "tests": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "file": "Lib/test/test_socket.py",
+      "old_start": 1302,
+      "old_end": 1308,
+      "new_start": 1302,
+      "new_end": 1309,
+      "context_hint": "def testGetServBy(self):",
+      "added_lines": [
+        "                ('linux', 'android', 'freebsd', 'dragonfly', 'netbsd',",
+        "                 'gnukfreebsd'))"
+      ],
+      "deleted_lines": [
+        "                ('linux', 'android', 'freebsd', 'netbsd', 'gnukfreebsd'))"
+      ],
+      "context_lines": [
+        "        # protocol, at least for modern Linuxes.",
+        "        if (",
+        "            sys.platform.startswith(",
+        "            or is_apple",
+        "        ):",
+        "            # avoid the 'echo' service on this platform, as there is an",
+        ""
+      ],
+      "hunk_id": "HUNK-0001",
+      "changed_symbols": [
+        "testGetServBy",
+        "linux",
+        "android",
+        "freebsd",
+        "dragonfly",
+        "netbsd"
+      ],
+      "api_surface": {
+        "is_header": false,
+        "is_uapi": false,
+        "is_exported": false,
+        "is_symbol_version": false,
+        "is_pkgconfig": false,
+        "is_syscall": false,
+        "is_ioctl": false,
+        "is_netlink": false,
+        "is_procfs": false,
+        "is_sysfs": false,
+        "is_sysctl": false,
+        "is_test": true,
+        "is_config": false,
+        "is_doc": false,
+        "matched_surfaces": [
+          {
+            "name": "tests",
+            "public": false,
+            "test_priority": "low",
+            "stability": "unknown",
+            "semantic_dimensions": [],
+            "description": "Test-only files. Use as reachability evidence, not as public API by itself."
+          }
+        ],
+        "surface_reasons": [
+          "tests"
+        ],
+        "profile": "c_project",
+        "effective_profile_layers": [
+          "default",
+          "c_family",
+          "cli_tool"
+        ],
+        "applied_profile_variants": [],
+        "surface_test_priority": "low",
+        "is_public": false
+      },
+      "context": {
+        "enclosing_function": "testGetServBy",
+        "snippet_start_line": 1273,
+        "snippet_end_line": 1339,
+        "snippet": "\n    def testNtoHErrors(self):\n        s_good_values = [0, 1, 2, 0xffff]\n        l_good_values = s_good_values + [0xffffffff]\n        neg_values = [-1, -2, -(1<<15)-1, -(1<<31)-1, -(1<<63)-1, -1<<1000]\n        l_bad_values = [1<<32, 1<<1000]\n        s_bad_values = l_bad_values + [1 << 16, (1<<31)-1, 1<<31]\n        for k in s_good_values:\n            socket.ntohs(k)\n            socket.htons(k)\n        for k in l_good_values:\n            socket.ntohl(k)\n            socket.htonl(k)\n        for k in neg_values:\n            self.assertRaises(ValueError, socket.ntohs, k)\n            self.assertRaises(ValueError, socket.htons, k)\n            self.assertRaises(ValueError, socket.ntohl, k)\n            self.assertRaises(ValueError, socket.htonl, k)\n        for k in s_bad_values:\n            self.assertRaises(OverflowError, socket.ntohs, k)\n            self.assertRaises(OverflowError, socket.htons, k)\n        for k in l_bad_values:\n            self.assertRaises(OverflowError, socket.ntohl, k)\n            self.assertRaises(OverflowError, socket.htonl, k)\n\n    def testGetServBy(self):\n        eq = self.assertEqual\n        # Find one service that exists, then check all the related interfaces.\n        # I've ordered this by protocols that have both a tcp and udp\n        # protocol, at least for modern Linuxes.\n        if (\n            sys.platform.startswith(\n                ('linux', 'android', 'freebsd', 'dragonfly', 'netbsd',\n                 'gnukfreebsd'))\n            or is_apple\n        ):\n            # avoid the 'echo' service on this platform, as there is an\n            # assumption breaking non-standard port/protocol entry\n            services = ('daytime', 'qotd', 'domain')\n        else:\n            services = ('echo', 'daytime', 'domain')\n        for service in services:\n            try:\n                port = socket.getservbyname(service, 'tcp')\n                break\n            except OSError:\n                pass\n        else:\n            raise OSError\n        # Try same call with optional protocol omitted\n        # Issue gh-71123: this fails on Android before API level 23.\n        if not (support.is_android and platform.android_ver().api_level < 23):\n            port2 = socket.getservbyname(service)\n            eq(port, port2)\n        # Try udp, but don't barf if it doesn't exist\n        try:\n            udpport = socket.getservbyname(service, 'udp')\n        except OSError:\n            udpport = None\n        else:\n            eq(udpport, port)\n        # Now make sure the lookup by port returns the same service name\n        # Issue #26936: when the protocol is omitted, this fails on Android\n        # before API level 28.\n        if not (support.is_android and platform.android_ver().api_level < 28):\n            eq(socket.getservbyport(port2), service)\n        eq(socket.getservbyport(port, 'tcp'), service)\n"
+      }
+    }
+  ]
+}

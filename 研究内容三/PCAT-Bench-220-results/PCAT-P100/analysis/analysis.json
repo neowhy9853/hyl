@@ -1,0 +1,198 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/linux",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040",
+  "base_ref": "HEAD",
+  "base_commit": "1229e2e57a5c2980ccd457b9b53ea0eed5a22ab3",
+  "patch_apply_status": "already_applied",
+  "patch_apply_message": "patch content is already present in analysis worktree",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "ba760c38b38b4fc5377f30bea492deba5f17df60",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/gregkh/linux/commit/ba760c38b38b4fc5377f30bea492deba5f17df60.patch",
+    "download_url": "https://github.com/gregkh/linux/commit/ba760c38b38b4fc5377f30bea492deba5f17df60.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260723_222955/PCIA-P040/_patch-cache/ba760c38b38b.patch",
+    "commit": "ba760c38b38b4fc5377f30bea492deba5f17df60"
+  },
+  "package_profile": "kernel_6_6",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 1644,
+    "patch_lines": 38,
+    "diff_added_lines": 3,
+    "diff_deleted_lines": 2,
+    "diff_context_lines": 8,
+    "churn": 5,
+    "raw_hunks": 1,
+    "candidate_hunks": 1,
+    "skipped_doc_hunks": 0,
+    "changed_files": 1,
+    "candidate_context_bytes": 1642,
+    "public_candidate_hunks": 1,
+    "surface_counts": {
+      "syscall": 1,
+      "sysctl": 1
+    },
+    "candidates_json_bytes": 5744
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 1,
+    "total_candidates": 1,
+    "compatibility_changes": 1,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.95,
+      "package_profile": "kernel_6_6",
+      "affected_surface": "Bluetooth MGMT socket protocol — MGMT_OP_ADD_EXT_ADV_DATA command handler registered in the MGMT command table",
+      "affected_api": {
+        "name": "MGMT_OP_ADD_EXT_ADV_DATA",
+        "kind": "daemon_handler",
+        "language": "c"
+      },
+      "location": {
+        "file": "net/bluetooth/mgmt.c",
+        "old_lines": [
+          9147,
+          9148
+        ],
+        "new_lines": [
+          9147,
+          9149
+        ],
+        "symbol": "add_ext_adv_data"
+      },
+      "old_behavior": "MGMT_OP_ADD_EXT_ADV_DATA 要求传入的 data_len 必须精确等于 struct_size(cp, data, cp->adv_data_len + cp->scan_rsp_len)，即使用精确长度匹配。如果 bluetoothd 发送了额外字节（如因自身 bug 导致多余尾部数据），内核会以 MGMT_STATUS_INVALID_PARAMS 拒绝命令。",
+      "new_behavior": "MGMT_OP_ADD_EXT_ADV_DATA 仅检查 expected_len > data_len，即仅在期望长度大于实际数据长度（会导致越界访问）时拒绝。如果 data_len 大于 expected_len（存在额外尾部字节），多余字节被静默忽略，命令正常继续执行。",
+      "compatibility_reason": "内核 MGMT 协议对长度校验从严格精确匹配放宽为上限检查。之前由于内核提交 d3f7d17960ed 引入的严格长度校验导致与带有尾部多余字节的 bluetoothd 不兼容；本补丁将校验放宽，使得 bluetoothd 发送的带有额外字节的 MGMT_OP_ADD_EXT_ADV_DATA 命令可以正常处理，恢复与旧版本 bluetoothd 的向后兼容性。符合 profile 中 'INPUT_CONTRACT_CHANGE: Input validation or accepted flag/range change' 分类。",
+      "evidence": [
+        {
+          "file": "net/bluetooth/mgmt.c",
+          "lines": [
+            9147,
+            9149
+          ],
+          "snippet": "-\texpected_len = struct_size(cp, data, cp->adv_data_len + cp->scan_rsp_len);\n-\tif (expected_len != data_len)\n+\texpected_len = struct_size(cp, data, cp->adv_data_len +\n+\t\t\t\t   cp->scan_rsp_len);\n+\tif (expected_len > data_len)"
+        },
+        {
+          "file": "net/bluetooth/mgmt.c",
+          "lines": [
+            9534,
+            9535
+          ],
+          "snippet": "\t{ add_ext_adv_data,        MGMT_ADD_EXT_ADV_DATA_SIZE,\n\t\t\t\t\t\tHCI_MGMT_VAR_LEN },"
+        }
+      ],
+      "static_call_chains": [
+        {
+          "entry_kind": "mgmt_command",
+          "entry": "mgmt.c::mgmt_process_cmd -> add_ext_adv_data",
+          "chain": [
+            "MGMT_OP_ADD_EXT_ADV_DATA handler table dispatch",
+            "add_ext_adv_data"
+          ]
+        }
+      ],
+      "why_not_internal_only": "该函数虽标记为 static，但通过 MGMT 命令表（mgmt_handlers[]）注册为 MGMT_OP_ADD_EXT_ADV_DATA 的处理函数。MGMT 协议是内核与 bluetoothd 用户空间守护进程之间的稳定接口，通过 AF_BLUETOOTH socket 传输。长度为 HCI_MGMT_VAR_LEN，表明预期接收变长数据。输入校验契约变更直接影响 bluetoothd 用户空间应用程序的行为。",
+      "uncertainty": "无。变更逻辑明确，commit message 中已明确描述 backward compatibility 问题和修复意图。",
+      "manual_review_required": false,
+      "recommended_review": "验证 bluetoothd 发送 MGMT_OP_ADD_EXT_ADV_DATA 时是否确实带有额外字节，确认旧版 bluetoothd 在新内核上正常工作。",
+      "test_recommendation": "使用 bluetoothd 或模拟 MGMT 客户端发送 MGMT_OP_ADD_EXT_ADV_DATA 命令：1) data_len 精确匹配时正常执行；2) data_len 带有少量额外字节时不再返回 MGMT_STATUS_INVALID_PARAMS，而是正常处理；3) data_len 小于 expected_len 时（越界风险）仍应返回 MGMT_STATUS_INVALID_PARAMS。建议同时验证 hci_cmd_sync_queue 异步路径通过 add_ext_adv_data_sync 和 add_ext_adv_data_complete 的完整生命周期。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=daemon_handler with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "net/bluetooth/mgmt.c",
+            "old_lines": [
+              9144,
+              9151
+            ],
+            "new_lines": [
+              9144,
+              9152
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "syscall",
+              "sysctl"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "syscall",
+                "test_priority": "high",
+                "public": true,
+                "description": "System call interface and user-visible syscall tables. Changes to syscall\nnumber, argument validation, errno, flag semantics, copy_to/from_user\nbehavior, compat handling, blocking, or timeout behavior are high-priority\ncompatibility candidates.\n"
+              },
+              {
+                "name": "sysctl",
+                "test_priority": "high",
+                "public": true,
+                "description": "/proc/sys sysctl names, permissions, parsers, ranges, defaults, and output"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=daemon_handler with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 1,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "next_step": "Findings adjudicated and written. Run validate_analysis.py to confirm schema compliance. If validation passes, the analysis is complete."
+}

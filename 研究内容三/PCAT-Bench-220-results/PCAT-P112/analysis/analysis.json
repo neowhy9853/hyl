@@ -1,0 +1,189 @@
+{
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P052/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P052",
+  "base_ref": "becb3a0ab8aa986f829efb77a52d53e75419c413~1",
+  "base_commit": "21e5e79b0a0ea426b0d3319c519c2b2df3f43f19",
+  "patch_apply_status": "applied",
+  "patch_apply_message": "patch applied cleanly",
+  "analysis_worktree_status": "cleaned",
+  "patch_id": "becb3a0ab8aa986f829efb77a52d53e75419c413",
+  "patch_source": {
+    "kind": "url",
+    "input": "https://github.com/GNOME/libsoup/commit/becb3a0ab8aa986f829efb77a52d53e75419c413",
+    "download_url": "https://github.com/GNOME/libsoup/commit/becb3a0ab8aa986f829efb77a52d53e75419c413.patch",
+    "cached_patch": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P052/_patch-cache/becb3a0ab8aa.patch",
+    "commit": "becb3a0ab8aa986f829efb77a52d53e75419c413"
+  },
+  "package_profile": "libsoup",
+  "effective_profile": "effective-profile.yaml",
+  "analysis_mode": "normal",
+  "analysis_mode_requested": "auto",
+  "heavy_reason": [
+    "below heavy thresholds"
+  ],
+  "heavy_thresholds": {
+    "soft": {
+      "patch_lines": 600,
+      "raw_hunks": 30,
+      "changed_files": 12,
+      "churn": 250,
+      "candidate_hunks": 25,
+      "candidate_context_bytes": 100000,
+      "candidates_json_bytes": 100000
+    },
+    "hard": {
+      "patch_lines": 1000,
+      "raw_hunks": 45,
+      "changed_files": 25,
+      "candidate_hunks": 40,
+      "candidate_context_bytes": 180000,
+      "candidates_json_bytes": 180000
+    }
+  },
+  "patch_metrics": {
+    "patch_bytes": 5980,
+    "patch_lines": 198,
+    "diff_added_lines": 48,
+    "diff_deleted_lines": 27,
+    "diff_context_lines": 94,
+    "churn": 75,
+    "raw_hunks": 6,
+    "candidate_hunks": 6,
+    "skipped_doc_hunks": 0,
+    "changed_files": 3,
+    "candidate_context_bytes": 12435,
+    "public_candidate_hunks": 3,
+    "surface_counts": {
+      "network_protocol": 4,
+      "http_semantics": 6,
+      "tests": 3,
+      "config_keys": 1,
+      "user_visible_output": 3,
+      "callbacks": 2,
+      "plugin_api": 2
+    },
+    "candidates_json_bytes": 37609
+  },
+  "shard_artifacts": {},
+  "summary": {
+    "total_changed_files": 3,
+    "total_candidates": 6,
+    "compatibility_changes": 1,
+    "high_priority": 1,
+    "medium_priority": 0,
+    "low_priority": 0
+  },
+  "findings": [
+    {
+      "id": "PCA-0001",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "test_priority": "high",
+      "confidence": 0.85,
+      "package_profile": "libsoup",
+      "affected_surface": "HTTP session redirect handling (http_semantics, network_protocol)",
+      "affected_api": {
+        "name": "redirect_handler (SoupSession redirect pipeline)",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "location": {
+        "file": "libsoup/soup-session.c",
+        "old_lines": [
+          887,
+          893
+        ],
+        "new_lines": [
+          887,
+          893
+        ],
+        "symbol": "redirect_handler"
+      },
+      "old_behavior": "当 HTTP 重定向的目标 Location header 指向非 HTTP URI（如 about:blank）时，soup_uri_new_with_base() 可能返回一个非 NULL 但没有 host 字段的 SoupURI 对象。旧代码仅检查 !new_uri，因此会通过该检查，继续执行 soup_message_set_uri 和 soup_session_requeue_message，最终可能在后续处理中因访问 NULL host 而崩溃（segfault）。",
+      "new_behavior": "新代码增加了 !new_uri->host 检查，当 soup_uri_new_with_base() 返回的 URI 没有 host 字段时（例如 about:blank），会设置消息状态为 SOUP_STATUS_MALFORMED 并返回，拒绝执行该重定向。调用方的 SoupSession 将收到一个 MALFORMED 状态的消息，而不是崩溃。",
+      "compatibility_reason": "这是一项输入契约收紧（input contract tightening）变更。对于合法的 HTTP/HTTPS 重定向 URL，行为不变。对于非法的、无法解析出 host 的重定向 URL（如 about:blank、data: URI 等），行为从\"未定义（可能导致崩溃）\"变为\"返回 SOUP_STATUS_MALFORMED 错误\"。依赖 SoupSession 自动处理重定向的应用程序现在可以观察到新的错误状态码，而不是之前的崩溃行为。这是一个 bug 修复，将未定义行为转为明确定义的错误处理，属于 INPUT_CONTRACT_CHANGE。",
+      "evidence": [
+        {
+          "file": "libsoup/soup-session.c",
+          "lines": [
+            886,
+            895
+          ],
+          "snippet": "\t/* Location is supposed to be an absolute URI, but some sites\n\t * are lame, so we use soup_uri_new_with_base().\n\t */\n\tnew_uri = soup_uri_new_with_base (soup_message_get_uri (msg), new_loc);\n\tif (!new_uri || !new_uri->host) {\n\t\tsoup_message_set_status_full (msg,\n\t\t\t\t\t      SOUP_STATUS_MALFORMED,\n\t\t\t\t\t      \"Invalid Redirect URL\");\n\t\treturn;\n\t}"
+        }
+      ],
+      "static_call_chains": [],
+      "why_not_internal_only": "虽然 redirect_handler 是一个 static 函数，但它是 SoupSession 内部重定向管道的核心部分。它通过 g_signal_connect 连接到 SoupMessage 的 restarted 信号，影响所有通过 SoupSession 发送 HTTP 请求的客户端代码。外部调用者通过 soup_session_send_message() API 触发请求后，自动重定向的行为由该函数控制，因此其行为变化对库用户是可观察的。",
+      "uncertainty": "需要确认 soup_uri_new_with_base() 对于非 HTTP scheme（如 about:、data:、javascript:）的具体返回值行为。可能存在某些 non-HTTP URI scheme 返回的 URI 有 host 字段但未被 HTTP 层面正确处理的情况。此外，g_return_val_if_fail 在 soup_uri_host_hash 和 soup_uri_host_equal 中添加的防御性检查（HUNK-0002、HUNK-0003）在 release 构建中可能被 G_DISABLE_CHECKS 编译掉，实际运行时效果取决于构建配置。",
+      "manual_review_required": false,
+      "recommended_review": "建议验证以下场景：1) 使用不同类型的非 HTTP scheme（about:、data:、ftp:、file:、javascript:）作为重定向目标，确认行为一致；2) 确认 SOUP_STATUS_MALFORMED 被正确传递给 SoupSession 调用者的 SoupMessage 回调；3) 确认 soup_uri_host_hash 和 soup_uri_host_equal 的 g_return_val_if_fail 在典型 Linux 发行版的 release 构建中是否生效。",
+      "test_recommendation": "建议执行以下测试：1) 使用 SoupSession 发送请求到返回 Location: about:blank 的重定向服务器，验证收到 SOUP_STATUS_MALFORMED 而非崩溃；2) 构造 HTTP 服务器返回各种非法重定向 URL（相对路径、空字符串、data: URI、非标准 scheme），验证 SoupSession 的行为一致性；3) 对 soup_uri_host_hash 和 soup_uri_host_equal 传入 NULL/无 host 的 SoupURI 进行单元测试，确认 g_return_val_if_fail 正确触发。",
+      "priority_decision": {
+        "agent_priority": "high",
+        "recommended_priority": "high",
+        "deterministic_priority": "high",
+        "final_priority": "high",
+        "decision_policy": "agent_final_with_deterministic_recommendation",
+        "agent_decision_reason": "",
+        "recommendation_disagreed": false,
+        "recommendation_disagreement_reasons": [],
+        "invalid_disagreement_reasons": [],
+        "missing_disagreement_reasons": false,
+        "deterministic_trace": [
+          "candidate_surface_priority=high from 1 matched candidate hunk(s)",
+          "public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+        ],
+        "matched_candidate_count": 1,
+        "matched_surfaces": [
+          {
+            "hunk_id": "HUNK-0001",
+            "file": "libsoup/soup-session.c",
+            "old_lines": [
+              887,
+              893
+            ],
+            "new_lines": [
+              887,
+              893
+            ],
+            "is_public": true,
+            "is_test": false,
+            "is_doc": false,
+            "surface_reasons": [
+              "network_protocol",
+              "http_semantics"
+            ],
+            "surface_test_priority": "high",
+            "matched_surfaces": [
+              {
+                "name": "network_protocol",
+                "test_priority": "high",
+                "public": true,
+                "description": "Network protocol request/response and capability behavior."
+              },
+              {
+                "name": "http_semantics",
+                "test_priority": "high",
+                "public": true,
+                "description": "HTTP request/response behavior and header/status handling"
+              }
+            ]
+          }
+        ]
+      },
+      "test_priority_reason": "Agent final priority is high. Deterministic recommendation is high: candidate_surface_priority=high from 1 matched candidate hunk(s); public code API kind=exported_function with contract/signature type=INPUT_CONTRACT_CHANGE -> high"
+    }
+  ],
+  "candidate_artifacts": {
+    "analysis_context": "analysis-context.json",
+    "candidates": "candidates.json",
+    "callchains": "callchains.json",
+    "callchain_count": 0,
+    "effective_profile": "effective-profile.yaml",
+    "patch_metrics": "patch-metrics.json"
+  },
+  "analysis_summary": {
+    "notes": "本次分析确认 1 项兼容性变更。HUNK-0001（soup-session.c redirect_handler）为 INPUT_CONTRACT_CHANGE——Session 发起的 HTTP 请求遇到重定向到非 HTTP/hostless URI 时，行为从崩溃变为返回 SOUP_STATUS_MALFORMED。HUNK-0002 和 HUNK-0003（soup-uri.c soup_uri_host_hash/soup_uri_host_equal）仅添加 g_return_val_if_fail 防御性检查，在 debug 构建中将 NULL 参数崩溃转为优雅返回，在 release 构建中无变化。由于这些函数是公共 API 但变更是纯防御性的（修复非法输入导致的崩溃，不改变合法输入的行为），且 g_return_val_if_fail 在 release 构建中可能被禁用，将其留在 candidates 而不放入最终 findings。HUNK-0004、HUNK-0005、HUNK-0006 均为测试文件变更，不涉及公共 API。"
+  },
+  "next_step": "Agent must adjudicate candidates and write final compatibility findings."
+}

@@ -1,0 +1,73 @@
+{
+  "analysis_json": "/home/soong/pca_benchmark/_repos/git/pca-results/b8cda1/analysis.json",
+  "repo": "/home/soong/pca_benchmark/_repos/git",
+  "analysis_repo": "/home/soong/pca_benchmark/_repos/git/pca-results/b8cda1/_worktrees/patched",
+  "artifact_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/b8cda1",
+  "patch_id": "888054aadda3",
+  "min_priority": "medium",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "medium",
+      "compatibility_type": "OUTPUT_FORMAT_CHANGE",
+      "affected_api": {
+        "name": "lookup_hostname / get_ip_address",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "daemon.c",
+        "old_lines": [
+          674,
+          682
+        ],
+        "new_lines": [
+          674,
+          693
+        ],
+        "symbol": "lookup_hostname"
+      },
+      "old_behavior": "When getaddrinfo() returns an AF_INET6 (IPv6) address, lookup_hostname() casts ai->ai_addr to struct sockaddr_in* and reads sin_addr, which is at the wrong offset for struct sockaddr_in6. The resulting IP address string is corrupted/garbage for IPv6 clients. For unexpected address families (e.g. AF_UNSPEC), the same corruption occurs silently.",
+      "new_behavior": "lookup_hostname() checks ai->ai_family: for AF_INET reads struct sockaddr_in::sin_addr, for AF_INET6 reads struct sockaddr_in6::sin6_addr correctly. For any unexpected address family, it calls die() which terminates the daemon connection with a diagnostic message. inet_ntop() is called with the correct address family.",
+      "compatibility_reason": "The IP address string stored in hi->ip_address and returned by get_ip_address() changes for IPv6 clients from corrupted to correct. This IP address is used in: (1) daemon repository path interpolation via %%IP format specifier, (2) access hook arguments, (3) daemon logging. The change is a bug fix, but any scripts or hooks that consumed the corrupted IPv6 address will observe a different value. Additionally, unexpected address families now cause daemon connection termination (die()) instead of silent garbage output.",
+      "test_recommendation": "Test git daemon with an IPv6 client connection and verify the IP address is correctly formatted. Test with a dual-stack host. Test the die() path by simulating an unexpected address family return.",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "golden_output_probe",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "output_format_stability",
+        "comparison": "exact",
+        "required_observation": "byte-level stdout/stderr or parsed structured-output schema",
+        "input_axes": [
+          "machine format",
+          "human format",
+          "TTY/pipe",
+          "locale",
+          "extreme values"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/home/soong/pca_benchmark/_repos/git/pca-results/b8cda1/compatibility-testing"
+}

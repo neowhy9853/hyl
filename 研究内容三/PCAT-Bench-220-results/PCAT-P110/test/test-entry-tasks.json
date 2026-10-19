@@ -1,0 +1,197 @@
+{
+  "analysis_json": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P050/analysis.json",
+  "repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/repo/libsoup",
+  "analysis_repo": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P050/_worktrees/patched",
+  "artifact_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P050",
+  "patch_id": "48f07d3fe9254520dc7371666fb517e7aa201aeb",
+  "min_priority": "high",
+  "tasks": [
+    {
+      "id": "PCA-TE-0001",
+      "finding_id": "PCA-0001",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "soup_cookie_parse",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libsoup/cookies/soup-cookie.c",
+        "old_lines": [
+          175,
+          179
+        ],
+        "new_lines": [
+          175,
+          177
+        ],
+        "symbol": "soup_cookie_parse"
+      },
+      "old_behavior": "soup_cookie_parse 通过其内部 static 函数 parse_one_cookie 中的 `g_return_val_if_fail (origin == NULL || SOUP_URI_IS_VALID (origin), NULL)` 检查，要求 origin 要么为 NULL，要么通过 SOUP_URI_IS_VALID 检查（即非 NULL 且 host 非 NULL 且 host[0] 非空）。传入空字符串 host 的 URI 会返回 NULL。另外，传入 NULL cookie 字符串会导致崩溃（无 NULL 检查）。",
+      "new_behavior": "parse_one_cookie 中移除了 SOUP_URI_IS_VALID 检查。在 soup_cookie_parse 入口新增两个 g_return_val_if_fail 检查：(1) cookie != NULL 返回 NULL，防止崩溃；(2) origin == NULL || g_uri_get_host(origin) != NULL，只要求 host 非 NULL，不再检查 host[0]。空字符串 host 的 URI 现在被接受。",
+      "compatibility_reason": "soup_cookie_parse 是公开导出的 API 函数，被 WebKit 等消费者广泛使用。变更前，传入含空字符串 host 的 URI（如 file:///path 或某些自定义 scheme URI）会被拒绝并返回 NULL；变更后此类 URI 被接受。这是输入合法性规则放宽（INPUT_CONTRACT_CHANGE），可能导致之前返回 NULL 的场景现在返回有效的 SoupCookie 对象。增加 cookie NULL 检查是防御性改进，将崩溃转变为安全的 NULL 返回。",
+      "test_recommendation": "测试传入 file:///path 或 data:text/html,foo 等非 HTTP URI 作为 origin 调用 soup_cookie_parse，验证返回值不为 NULL 且 cookie 属性（domain、path）被正确默认填充。同时测试 origin 为 NULL 和 origin host 为 NULL 的情况确保仍然返回 NULL。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0002",
+      "finding_id": "PCA-0002",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "soup_cookie_applies_to_uri",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libsoup/cookies/soup-cookie.c",
+        "old_lines": [
+          1061,
+          1067
+        ],
+        "new_lines": [
+          1062,
+          1069
+        ],
+        "symbol": "soup_cookie_applies_to_uri"
+      },
+      "old_behavior": "soup_cookie_applies_to_uri 通过 `g_return_val_if_fail (SOUP_URI_IS_VALID (uri), FALSE)` 检查，要求 uri 通过 SOUP_URI_IS_VALID（非 NULL 且 host 非 NULL 且 host[0] 非空）。不满足条件时返回 FALSE。无 cookie 参数 NULL 检查。",
+      "new_behavior": "新增 `g_return_val_if_fail (cookie != NULL, FALSE)` 和 `g_return_val_if_fail (uri != NULL, FALSE)`。只检查 cookie 和 uri 是否为 NULL，不再检查 uri 的 host 是否存在或非空。空字符串 host 或 NULL host 的 URI 现在通过检查，进入后续逻辑（secure check、path matching 等）。",
+      "compatibility_reason": "soup_cookie_applies_to_uri 是判断 cookie 是否适用于特定 URI 的核心公开 API。变更前，非 HTTP URI（host 为空或不存在）会直接返回 FALSE（不适用）；变更后此类 URI 进入完整的 cookie 匹配逻辑（secure check、path matching、expiry check 等）。这改变了 cookie 对非 HTTP URI 的适用范围语义，是输入契约放宽。",
+      "test_recommendation": "测试对含有效 path 和 domain 的 cookie 调用 soup_cookie_applies_to_uri(cookie, non_http_uri)，验证返回值变化。测试传入 file:///path 样式的 URI 和仅有 scheme 无 host 的 URI。测试 cookie 参数为 NULL 时返回 FALSE。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    },
+    {
+      "id": "PCA-TE-0003",
+      "finding_id": "PCA-0003",
+      "test_priority": "high",
+      "compatibility_type": "INPUT_CONTRACT_CHANGE",
+      "affected_api": {
+        "name": "soup_message_set_first_party",
+        "kind": "exported_function",
+        "language": "c"
+      },
+      "target_location": {
+        "file": "libsoup/soup-message.c",
+        "old_lines": [
+          1849,
+          1855
+        ],
+        "new_lines": [
+          1849,
+          1855
+        ],
+        "symbol": "soup_message_set_first_party"
+      },
+      "old_behavior": "soup_message_set_first_party 通过 `g_return_if_fail (SOUP_URI_IS_VALID (first_party))` 检查，要求 first_party 通过 SOUP_URI_IS_VALID（非 NULL 且 host 非 NULL 且 host[0] 非空）。不满足时触发 g_return_if_fail 警告并中止执行，first_party 不会被设置。",
+      "new_behavior": "改为 `g_return_if_fail (first_party != NULL)`，只检查 first_party 是否为 NULL。空字符串 host 或 NULL host 的 URI 现在通过检查并继续执行（后续 soup_uri_copy_with_normalized_flags 可能返回 NULL 导致提前 return）。",
+      "compatibility_reason": "soup_message_set_first_party 设置消息的第一方上下文，影响 cookie SameSite 策略判定。变更前，非 HTTP first_party URI 会被拒绝（函数 silently abort）；变更后此类 URI 被接受。这改变了 cookie 策略的输入面：之前依赖 SOUP_URI_IS_VALID 过滤的场景现在可能设置非 HTTP 的 first_party，进而影响 SameSite cookie 判定。",
+      "test_recommendation": "测试调用 soup_message_set_first_party(msg, file_uri) 后检查 first_party 是否被正确设置。测试涉及 SameSite cookie 策略的场景，验证非 HTTP first_party 不会导致 SameSite 检查被绕过。",
+      "static_call_chains": [],
+      "strategy": {
+        "entry_kind": "input_boundary_harness",
+        "preferred_artifact": "unit test, small linked program, or language-level test case",
+        "trigger_surface": "call the public API with old/new contract boundary inputs and assert behavior",
+        "seed_sources": [
+          "existing unit tests",
+          "public headers",
+          "examples"
+        ],
+        "surface_entry_kind": "api_harness",
+        "contract_id": "backward_input_acceptance",
+        "comparison": "acceptance",
+        "required_observation": "accept/reject result at old and new validation boundaries",
+        "input_axes": [
+          "old-valid",
+          "old-invalid",
+          "exact boundary",
+          "null/empty",
+          "maximum"
+        ],
+        "requires_explicit_probe": false
+      },
+      "required_output": {
+        "goal": "produce one command or code artifact that reaches target_location.new_lines",
+        "must_include": [
+          "setup/build prerequisites",
+          "exact command(s) or generated code path",
+          "expected reachability signal such as return code, log, output, coverage, breakpoint, or tracepoint",
+          "input values that exercise old/new compatibility behavior",
+          "contract_probe with before/after commands and the registered comparison oracle",
+          "limitations and any manual steps"
+        ],
+        "do_not_execute": "Generate artifacts and commands; do not run destructive or privileged tests unless the user explicitly asks."
+      }
+    }
+  ],
+  "test_result_dir": "/data2/wanghy/hyl_part3/PCIA-evaluate/results/20260724_123944/PCIA-P050/compatibility-testing"
+}
