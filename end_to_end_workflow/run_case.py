@@ -154,7 +154,8 @@ def compatibility_gate(directory, target, patch):
             or result.get("patch_id") != analysis.get("patch_id")
             or analysis.get("base_commit") != target
             or result.get("target", {}).get("base_commit") != target
-            or Path(result.get("analysis_json", "")).resolve() != (directory / "analysis.json").resolve()
+            or (summary_path.parent / Path(result.get("analysis_json", ""))).resolve()
+                != (directory / "analysis.json").resolve()
             or digest(artifact(directory, "patch.diff")) != digest(patch)):
         raise ValueError("兼容性分析/测试未使用本 case 的目标基线及实际合入补丁")
     status = result.get("status")

@@ -17,6 +17,7 @@
 ## 1. 主机需要准备什么
 
 - Python 3.10+、Git，以及正在运行且当前用户可访问的 Docker 服务。
+- Docker Buildx；镜像构建使用 BuildKit 的缓存挂载。已有匹配镜像时不会要求重新构建。
 - 可访问源码、镜像和依赖下载源、模型服务的网络，以及足够保存完整 Git 历史和构建工作区的磁盘空间。
 - 支持工具调用的 OpenAI Chat Completions 兼容模型服务配置。
 - 上游仓库 URL、修复提交，以及下游仓库/目标版本信息。仅有一个 SHA 无法凭空恢复不存在于公开仓库中的私有下游源码。
@@ -29,6 +30,7 @@ Linux 可直接运行；Windows 使用 WSL2 和可访问的 Docker 服务。macO
 python3 --version
 git --version
 docker version
+docker buildx version
 ```
 
 ## 2. 模型配置
@@ -44,8 +46,8 @@ export WORKFLOW_OUTPUT="$HOME/hyl-runs/new-case"
 
 ```bash
 mkdir -p "$HOME/.config/hyl-workflow"
-cp -n end_to_end_workflow/opencode.example.json "$HOME/.config/hyl-end_to_end_workflow/opencode.json"
-export EVAL_CONFIG="$HOME/.config/hyl-end_to_end_workflow/opencode.json"
+cp -n end_to_end_workflow/opencode.example.json "$HOME/.config/hyl-workflow/opencode.json"
+export EVAL_CONFIG="$HOME/.config/hyl-workflow/opencode.json"
 read -r -p '模型 API 基地址: ' MODEL_BASE_URL
 export MODEL_BASE_URL
 read -r -s -p '模型 API Key: ' MODEL_API_KEY
@@ -79,7 +81,7 @@ python3 end_to_end_workflow/run_case.py \
 1. 检查参数和 Docker；解析模型连接信息。
 2. 下载源码与参考提交，获取下游目标版本；下载失败默认重试三次并保存日志。
 3. 必要时导入目标基线包，校验其 SHA-256、目标提交和源码树。
-4. 构建或复用与 Dockerfile 哈希对应的运行镜像，将本次实际 Skill 和入口复制到隔离运行目录。
+4. 构建或复用与 Dockerfile 哈希对应的运行镜像；需要构建时先检查 Docker Buildx，并显式启用 BuildKit。随后将本次实际 Skill 和入口复制到隔离运行目录。
 5. 启动隔离容器，执行内容一。只有分类为 `CVE` 才继续，这是现有流程门槛。
 6. 执行内容二分析、实施和独立验证；三个门禁全部通过后，编排层再独立重放实际候选补丁。
 7. 将实际候选补丁和指定下游基线交给内容三，执行兼容性分析与定向测试，保存总状态及阶段证据。
@@ -136,6 +138,8 @@ python3 end_to_end_workflow/run_case.py \
 - `--rebuild`：刷新基础镜像并禁用镜像层缓存；APT 依赖下载缓存仍保留，用于恢复短暂下载失败。普通运行会自动复用匹配镜像，无需此参数。
 - `--download-attempts 3`、`--download-timeout 7200`：控制 Git 下载重试次数和每次超时。
 - `--timeout 3600`：每个研究内容的模型阶段超时。
+
+首次构建及使用 `--rebuild` 时需要 `docker buildx version` 成功。入口会在构建前检查，并设置 `DOCKER_BUILDKIT=1`；缺少 Buildx 时会直接给出安装或启用提示，不会等到 Dockerfile 执行中途才失败。
 
 若准备阶段失败，相同命令可以继续使用本次已经下载的对象。输入参数变化请使用新输出目录。若已经存在 `run/`，入口拒绝重跑以保护阶段证据；目前不支持模型阶段断点续跑，重新执行应使用另一个新目录。
 

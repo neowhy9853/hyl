@@ -40,4 +40,4 @@ evaluation/
 | [config/](config/README.md) | 公开源码清单与模型服务配置模板 |
 | [results/](results/README.md) | 按数据集和案例保存的输入、候选补丁、判定、工具轨迹和指标 |
 
-每个案例目录仅含 `input.json`、`result.json`、`trace.jsonl`。新运行写入调用者指定的项目外目录。评测器和 Skill 的回归测试统一位于项目的 [`../tests/`](../tests/)。
+每个案例目录仅含 `input.json`、`result.json`、`trace.jsonl`。新运行写入调用者指定的项目外目录。评测执行与结果核验脚本统一位于项目的 [`scripts/`](scripts/)，当前交付版本不包含独立的回归测试目录。

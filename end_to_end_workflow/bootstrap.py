@@ -257,6 +257,13 @@ def build(args, output):
     tag = "hyl-pipeline:" + sha(dockerfile)[:16]
     inspect = subprocess.run(["docker", "image", "inspect", tag], capture_output=True)
     if args.rebuild or inspect.returncode:
+        build_env = environment()
+        build_env["DOCKER_BUILDKIT"] = "1"
+        try:
+            command(["docker", "buildx", "version"], env=build_env)
+        except ValueError as exc:
+            raise ValueError("构建运行镜像需要 Docker Buildx/BuildKit；请安装或启用 "
+                             "Buildx，并确认 `docker buildx version` 可执行") from exc
         context = output / "runtime/build"
         context.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(dockerfile, context / "Dockerfile")
@@ -271,7 +278,7 @@ def build(args, output):
         argv.append(str(context))
         print("构建运行环境；日志：" + str(output / "build.log"), flush=True)
         with (output / "build.log").open("wb") as log:
-            p = subprocess.run(argv, stdout=log, stderr=log, env=environment())
+            p = subprocess.run(argv, stdout=log, stderr=log, env=build_env)
         if p.returncode:
             raise ValueError("镜像构建失败；检查 build.log 后可用相同命令重试")
     return command(["docker", "image", "inspect", "--format", "{{.Id}}", tag])
