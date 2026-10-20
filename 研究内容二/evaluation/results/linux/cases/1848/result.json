@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1848",
+  "candidate_sha256": "1857fdd48543c4c5c10633dd4082b17aaef718177f453fa4c003701a64becd48",
+  "oracle_sha256": "d449c245ae200c5c55cabd40134552cbf64bd79401fcac4f43911cb5aa51dee2",
+  "candidate_nonempty": true,
+  "target_ref": "91350acb28a60304636f9a8d6f739e0b2e99ef10",
+  "baseline_tree": "d4f28d2b8413de87f7e7bf5986a463a15170d5da",
+  "candidate_tree": "66ecf6514c6be58b50976bc1d59711ba47a1b0b9",
+  "oracle_tree": "66ecf6514c6be58b50976bc1d59711ba47a1b0b9",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1848",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "1857fdd48543c4c5c10633dd4082b17aaef718177f453fa4c003701a64becd48",
+    "text": "diff --git a/fs/exec.c b/fs/exec.c\nindex 26bb91bf203..d8b46a19717 100644\n--- a/fs/exec.c\n+++ b/fs/exec.c\n@@ -1272,6 +1272,53 @@ static int check_unsafe_exec(struct linux_binprm *bprm)\n \treturn res;\n }\n \n+static void bprm_fill_uid(struct linux_binprm *bprm)\n+{\n+\tstruct inode *inode;\n+\tunsigned int mode;\n+\tkuid_t uid;\n+\tkgid_t gid;\n+\n+\t/* clear any previous set[ug]id data from a previous binary */\n+\tbprm->cred->euid = current_euid();\n+\tbprm->cred->egid = current_egid();\n+\n+\tif (bprm->file->f_path.mnt->mnt_flags & MNT_NOSUID)\n+\t\treturn;\n+\n+\tif (current->no_new_privs)\n+\t\treturn;\n+\n+\tinode = file_inode(bprm->file);\n+\tmode = ACCESS_ONCE(inode->i_mode);\n+\tif (!(mode & (S_ISUID|S_ISGID)))\n+\t\treturn;\n+\n+\t/* Be careful if suid/sgid is set */\n+\tmutex_lock(&inode->i_mutex);\n+\n+\t/* reload atomically mode/uid/gid now that lock held */\n+\tmode = inode->i_mode;\n+\tuid = inode->i_uid;\n+\tgid = inode->i_gid;\n+\tmutex_unlock(&inode->i_mutex);\n+\n+\t/* We ignore suid/sgid if there are no mappings for them in the ns */\n+\tif (!kuid_has_mapping(bprm->cred->user_ns, uid) ||\n+\t\t !kgid_has_mapping(bprm->cred->user_ns, gid))\n+\t\treturn;\n+\n+\tif (mode & S_ISUID) {\n+\t\tbprm->per_clear |= PER_CLEAR_ON_SETID;\n+\t\tbprm->cred->euid = uid;\n+\t}\n+\n+\tif ((mode & (S_ISGID | S_IXGRP)) == (S_ISGID | S_IXGRP)) {\n+\t\tbprm->per_clear |= PER_CLEAR_ON_SETID;\n+\t\tbprm->cred->egid = gid;\n+\t}\n+}\n+\n /* \n  * Fill the binprm structure from the inode. \n  * Check permissions, then read the first 128 (BINPRM_BUF_SIZE) bytes\n@@ -1280,39 +1327,12 @@ static int check_unsafe_exec(struct linux_binprm *bprm)\n  */\n int prepare_binprm(struct linux_binprm *bprm)\n {\n-\tumode_t mode;\n-\tstruct inode * inode = file_inode(bprm->file);\n \tint retval;\n \n-\tmode = inode->i_mode;\n \tif (bprm->file->f_op == NULL)\n \t\treturn -EACCES;\n \n-\t/* clear any previous set[ug]id data from a previous binary */\n-\tbprm->cred->euid = current_euid();\n-\tbprm->cred->egid = current_egid();\n-\n-\tif (!(bprm->file->f_path.mnt->mnt_flags & MNT_NOSUID) &&\n-\t    !current->no_new_privs &&\n-\t    kuid_has_mapping(bprm->cred->user_ns, inode->i_uid) &&\n-\t    kgid_has_mapping(bprm->cred->user_ns, inode->i_gid)) {\n-\t\t/* Set-uid? */\n-\t\tif (mode & S_ISUID) {\n-\t\t\tbprm->per_clear |= PER_CLEAR_ON_SETID;\n-\t\t\tbprm->cred->euid = inode->i_uid;\n-\t\t}\n-\n-\t\t/* Set-gid? */\n-\t\t/*\n-\t\t * If setgid is set but no group execute bit then this\n-\t\t * is a candidate for mandatory locking, not a setgid\n-\t\t * executable.\n-\t\t */\n-\t\tif ((mode & (S_ISGID | S_IXGRP)) == (S_ISGID | S_IXGRP)) {\n-\t\t\tbprm->per_clear |= PER_CLEAR_ON_SETID;\n-\t\t\tbprm->cred->egid = inode->i_gid;\n-\t\t}\n-\t}\n+\tbprm_fill_uid(bprm);\n \n \t/* fill in binprm security blob */\n \tretval = security_bprm_set_creds(bprm);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

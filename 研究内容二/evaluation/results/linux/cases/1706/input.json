@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1706",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-1706-9c_jko38/repo",
+      "target_ref": "bda6ebf290fa3bedacb3ba0f32c1fcb38ee5ad55",
+      "target_tree": "de76559bc6f8b1ee8ce1f65a55d9156606db8888"
+    },
+    "source_commit": "ce7fcdd544fbc07a2c327d18b0712754cf1557d2",
+    "reference_parent": "ca9cc955d7e74843f9dafea2130c83ffc5908655",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/media/usb/go7007/snd-go7007.c b/drivers/media/usb/go7007/snd-go7007.c\nindex d22d7d574672..803d47a86a00 100644\n--- a/drivers/media/usb/go7007/snd-go7007.c\n+++ b/drivers/media/usb/go7007/snd-go7007.c\n@@ -243,22 +243,18 @@ int go7007_snd_init(struct go7007 *go)\n \tgosnd->capturing = 0;\n \tret = snd_card_new(go->dev, index[dev], id[dev], THIS_MODULE, 0,\n \t\t\t   &gosnd->card);\n-\tif (ret < 0) {\n-\t\tkfree(gosnd);\n-\t\treturn ret;\n-\t}\n+\tif (ret < 0)\n+\t\tgoto free_snd;\n+\n \tret = snd_device_new(gosnd->card, SNDRV_DEV_LOWLEVEL, go,\n \t\t\t&go7007_snd_device_ops);\n-\tif (ret < 0) {\n-\t\tkfree(gosnd);\n-\t\treturn ret;\n-\t}\n+\tif (ret < 0)\n+\t\tgoto free_card;\n+\n \tret = snd_pcm_new(gosnd->card, \"go7007\", 0, 0, 1, &gosnd->pcm);\n-\tif (ret < 0) {\n-\t\tsnd_card_free(gosnd->card);\n-\t\tkfree(gosnd);\n-\t\treturn ret;\n-\t}\n+\tif (ret < 0)\n+\t\tgoto free_card;\n+\n \tstrlcpy(gosnd->card->driver, \"go7007\", sizeof(gosnd->card->driver));\n \tstrlcpy(gosnd->card->shortname, go->name, sizeof(gosnd->card->driver));\n \tstrlcpy(gosnd->card->longname, gosnd->card->shortname,\n@@ -269,11 +265,8 @@ int go7007_snd_init(struct go7007 *go)\n \t\t\t&go7007_snd_capture_ops);\n \n \tret = snd_card_register(gosnd->card);\n-\tif (ret < 0) {\n-\t\tsnd_card_free(gosnd->card);\n-\t\tkfree(gosnd);\n-\t\treturn ret;\n-\t}\n+\tif (ret < 0)\n+\t\tgoto free_card;\n \n \tgosnd->substream = NULL;\n \tgo->snd_context = gosnd;\n@@ -281,6 +274,12 @@ int go7007_snd_init(struct go7007 *go)\n \t++dev;\n \n \treturn 0;\n+\n+free_card:\n+\tsnd_card_free(gosnd->card);\n+free_snd:\n+\tkfree(gosnd);\n+\treturn ret;\n }\n EXPORT_SYMBOL(go7007_snd_init);\n \n",
+      "sha256": "60be0cc188bb7eb0509b88039d609c92adafa239b9b2f7bda0a8fa4009dd6af7"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2019-20810\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-1706-9c_jko38/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-1706-9c_jko38/repo/.patch-port/reference.diff\nreference_fix: ce7fcdd544fbc07a2c327d18b0712754cf1557d2\nreference_parent: ca9cc955d7e74843f9dafea2130c83ffc5908655\ntarget_ref: bda6ebf290fa3bedacb3ba0f32c1fcb38ee5ad55\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-1706-9c_jko38/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-1706-9c_jko38/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history"
+    },
+    "cve": "CVE-2019-20810"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "6e688a315acf9c2b9b6e8c3e3b7a0c2720f72cba",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "ac242e434058757975cdf0319f736013a812e2df2f2fa0bbb4c24f5044218261",
+      "text": "diff --git a/drivers/media/usb/go7007/snd-go7007.c b/drivers/media/usb/go7007/snd-go7007.c\nindex b05fa227ffb2..95756cbb722f 100644\n--- a/drivers/media/usb/go7007/snd-go7007.c\n+++ b/drivers/media/usb/go7007/snd-go7007.c\n@@ -236,22 +236,18 @@ int go7007_snd_init(struct go7007 *go)\n \tgosnd->capturing = 0;\n \tret = snd_card_new(go->dev, index[dev], id[dev], THIS_MODULE, 0,\n \t\t\t   &gosnd->card);\n-\tif (ret < 0) {\n-\t\tkfree(gosnd);\n-\t\treturn ret;\n-\t}\n+\tif (ret < 0)\n+\t\tgoto free_snd;\n+\n \tret = snd_device_new(gosnd->card, SNDRV_DEV_LOWLEVEL, go,\n \t\t\t&go7007_snd_device_ops);\n-\tif (ret < 0) {\n-\t\tkfree(gosnd);\n-\t\treturn ret;\n-\t}\n+\tif (ret < 0)\n+\t\tgoto free_card;\n+\n \tret = snd_pcm_new(gosnd->card, \"go7007\", 0, 0, 1, &gosnd->pcm);\n-\tif (ret < 0) {\n-\t\tsnd_card_free(gosnd->card);\n-\t\tkfree(gosnd);\n-\t\treturn ret;\n-\t}\n+\tif (ret < 0)\n+\t\tgoto free_card;\n+\n \tstrscpy(gosnd->card->driver, \"go7007\", sizeof(gosnd->card->driver));\n \tstrscpy(gosnd->card->shortname, go->name, sizeof(gosnd->card->shortname));\n \tstrscpy(gosnd->card->longname, gosnd->card->shortname,\n@@ -262,11 +258,8 @@ int go7007_snd_init(struct go7007 *go)\n \t\t\t&go7007_snd_capture_ops);\n \n \tret = snd_card_register(gosnd->card);\n-\tif (ret < 0) {\n-\t\tsnd_card_free(gosnd->card);\n-\t\tkfree(gosnd);\n-\t\treturn ret;\n-\t}\n+\tif (ret < 0)\n+\t\tgoto free_card;\n \n \tgosnd->substream = NULL;\n \tgo->snd_context = gosnd;\n@@ -274,6 +267,12 @@ int go7007_snd_init(struct go7007 *go)\n \t++dev;\n \n \treturn 0;\n+\n+free_card:\n+\tsnd_card_free(gosnd->card);\n+free_snd:\n+\tkfree(gosnd);\n+\treturn ret;\n }\n EXPORT_SYMBOL(go7007_snd_init);\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "ebe634d448e51cfcffe9e566c0ed023fcd60c2e344e3c8ff58f3c21f5fccf812",
+    "reference_patch_source": "/data/SCA-repair/src/core-c/result/opencode_agent_robust_failed404_random20_work/01706_CVE-2019-20810/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1706,
+      "cve": "CVE-2019-20810",
+      "source_commit": "ce7fcdd544fbc07a2c327d18b0712754cf1557d2",
+      "oracle_commit": "6e688a315acf9c2b9b6e8c3e3b7a0c2720f72cba"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

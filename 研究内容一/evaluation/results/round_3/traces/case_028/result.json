@@ -1,0 +1,49 @@
+{
+  "round": 3,
+  "case_id": "case_028",
+  "source_index": 27,
+  "repo": "kernel",
+  "commit_id": "f8e08d8857ca929bcac00ab82a2f2891ed0d0de9",
+  "oracle_label": "feat",
+  "predicted_label": "fix",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "cfa80262898b",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "提交修复了在 CONFIG_MODULES=n 时，bpf_struct_ops 注册使用模块指针但缺少模块 btf_id 导致的潜在 UAF 问题。",
+    "intent_items": [
+      {
+        "target": "bpf_struct_ops 注册逻辑",
+        "change": "在 bpf_struct_ops_desc_init 中添加检查，如果结构体操作包含 'struct module *' 成员但缺少模块 btf_id，则拒绝注册。",
+        "effect_or_reason": "防止在 CONFIG_MODULES=n 配置下，因无法正确进行引用计数而导致的释放后使用 (UAF) 漏洞。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交修复了 bpf_struct_ops 在 CONFIG_MODULES=n 时的 UAF 问题。",
+            "当结构体操作包含 'struct module *owner' 成员但缺少模块 btf_id 时，注册将被拒绝。"
+          ],
+          "message_only_details": [
+            "此问题自 bpf_struct_ops 引入以来就存在，但 CONFIG_MODULES=n 并不常见。",
+            "报告来自 tcp_congestion_ops 结构体操作。"
+          ],
+          "code_only_details": [
+            "新增 is_module_member 函数来检查成员类型是否为 'struct module'。",
+            "在遍历结构体成员时，如果 st_ops_ids[IDX_MODULE_ID] 不存在且成员是模块类型，则返回错误。"
+          ]
+        },
+        "evidence": [
+          "Commit message 明确指出存在 UAF 报告，原因是 CONFIG_MODULES=n 时缺少 'struct module' 的 btf_id，导致 bpf_try_module_get() 无法正确进行引用计数。",
+          "Patch 在 kernel/bpf/bpf_struct_ops.c 的 bpf_struct_ops_desc_init 函数中添加了条件检查 (if (!st_ops_ids[IDX_MODULE_ID] && is_module_member(...))) 并返回 -EOPNOTSUPP 错误，从而纠正了错误路径。"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_028",
+  "trace_status": "available"
+}

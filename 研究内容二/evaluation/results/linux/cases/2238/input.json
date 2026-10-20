@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2238",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2238-jz1c_cii/repo",
+      "target_ref": "b8481db0d2e80fd974bd7169962a56422c56e358",
+      "target_tree": "88ab192c2850c9a3e6b34dc2a5cb8cfff74d930d"
+    },
+    "source_commit": "70a9116b9e5ccd5332d3a60b359fb5902d268fd0",
+    "reference_parent": "512286ddc3e889c84c600a0393d9882b5e791a4f",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/can/bcm.c b/net/can/bcm.c\nindex a7abced7937654a026dbd428e562d50816595724..1e17778d5ceeb5394eab2d8ed30ba97b1acdd1e7 100644\n--- a/net/can/bcm.c\n+++ b/net/can/bcm.c\n@@ -787,6 +787,7 @@ static int bcm_delete_rx_op(struct list_head *ops, struct bcm_msg_head *mh,\n \t\t\t\t\t\t  bcm_rx_handler, op);\n \n \t\t\tlist_del(&op->list);\n+\t\t\tsynchronize_rcu();\n \t\t\tbcm_remove_op(op);\n \t\t\treturn 1; /* done */\n \t\t}\n@@ -1535,9 +1536,13 @@ static int bcm_release(struct socket *sock)\n \t\t\t\t\t  REGMASK(op->can_id),\n \t\t\t\t\t  bcm_rx_handler, op);\n \n-\t\tbcm_remove_op(op);\n \t}\n \n+\tsynchronize_rcu();\n+\n+\tlist_for_each_entry_safe(op, next, &bo->rx_ops, list)\n+\t\tbcm_remove_op(op);\n+\n #if IS_ENABLED(CONFIG_PROC_FS)\n \t/* remove procfs entry */\n \tif (net->can.bcmproc_dir && bo->bcm_proc_read)\n",
+      "sha256": "0413e0f7027a8cc69655a7f53fccb151dbec3be87baff5db97d46499482b4bcc"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2021-3609\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2238-jz1c_cii/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2238-jz1c_cii/repo/.patch-port/reference.diff\nreference_fix: 70a9116b9e5ccd5332d3a60b359fb5902d268fd0\nreference_parent: 512286ddc3e889c84c600a0393d9882b5e791a4f\ntarget_ref: b8481db0d2e80fd974bd7169962a56422c56e358\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2238-jz1c_cii/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2238-jz1c_cii/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2021-3609"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "9c47fa9295ce58433cae4376240b738b126637d4",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "c755cd2a714e30ae61759de34d3b9bea5d72018756042c610fe6444e6aadec93",
+      "text": "diff --git a/net/can/bcm.c b/net/can/bcm.c\nindex c6fee58baac4c6b069873ad522c3617611bc19e8..3e131dc5f0e5258a92889bf34d3f77aca604f06a 100644\n--- a/net/can/bcm.c\n+++ b/net/can/bcm.c\n@@ -813,6 +813,7 @@ static int bcm_delete_rx_op(struct list_head *ops, canid_t can_id, int ifindex)\n \t\t\t\t\t\t  bcm_rx_handler, op);\n \n \t\t\tlist_del(&op->list);\n+\t\t\tsynchronize_rcu();\n \t\t\tbcm_remove_op(op);\n \t\t\treturn 1; /* done */\n \t\t}\n@@ -1538,9 +1539,13 @@ static int bcm_release(struct socket *sock)\n \t\t\t\t\t  REGMASK(op->can_id),\n \t\t\t\t\t  bcm_rx_handler, op);\n \n-\t\tbcm_remove_op(op);\n \t}\n \n+\tsynchronize_rcu();\n+\n+\tlist_for_each_entry_safe(op, next, &bo->rx_ops, list)\n+\t\tbcm_remove_op(op);\n+\n \t/* remove procfs entry */\n \tif (proc_dir && bo->bcm_proc_read)\n \t\tremove_proc_entry(bo->procname, proc_dir);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "9c8a6dbe90ffaff9fa9cb7b394871a6a2c25bbee7b2c48731f88f2f93770f1e9",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/02238_CVE-2021-3609/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2238,
+      "cve": "CVE-2021-3609",
+      "source_commit": "70a9116b9e5ccd5332d3a60b359fb5902d268fd0",
+      "oracle_commit": "9c47fa9295ce58433cae4376240b738b126637d4"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

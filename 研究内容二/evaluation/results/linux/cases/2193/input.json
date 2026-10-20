@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2193",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2193-j7wvc3j4/repo",
+      "target_ref": "60a98e535b39d5dbc2bb5c8e701b8caecb4a1f6c",
+      "target_tree": "05f577f65c7bb77506a9b5c4fb83db6e93deeaee"
+    },
+    "source_commit": "20e825cdf7a1627f92371d45a5322ccecdebcb3b",
+    "reference_parent": "99542e468b76ae180675566692e0528c4c712661",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/usb/usbip/stub_rx.c b/drivers/usb/usbip/stub_rx.c\nindex 191b176ffedfdaa119df7f4d31b8941e388b2299..4f03c611c16d2c1264fa2c3e965ea81945add2c8 100644\n--- a/drivers/usb/usbip/stub_rx.c\n+++ b/drivers/usb/usbip/stub_rx.c\n@@ -342,15 +342,15 @@ static int get_pipe(struct stub_device *sdev, int epnum, int dir)\n \tstruct usb_host_endpoint *ep;\n \tstruct usb_endpoint_descriptor *epd = NULL;\n \n+\tif (epnum < 0 || epnum > 15)\n+\t\tgoto err_ret;\n+\n \tif (dir == USBIP_DIR_IN)\n \t\tep = udev->ep_in[epnum & 0x7f];\n \telse\n \t\tep = udev->ep_out[epnum & 0x7f];\n-\tif (!ep) {\n-\t\tdev_err(&sdev->udev->dev, \"no such endpoint?, %d\\n\",\n-\t\t\tepnum);\n-\t\tBUG();\n-\t}\n+\tif (!ep)\n+\t\tgoto err_ret;\n \n \tepd = &ep->desc;\n \tif (usb_endpoint_xfer_control(epd)) {\n@@ -381,9 +381,10 @@ static int get_pipe(struct stub_device *sdev, int epnum, int dir)\n \t\t\treturn usb_rcvisocpipe(udev, epnum);\n \t}\n \n+err_ret:\n \t/* NOT REACHED */\n-\tdev_err(&sdev->udev->dev, \"get pipe, epnum %d\\n\", epnum);\n-\treturn 0;\n+\tdev_err(&sdev->udev->dev, \"get pipe() invalid epnum %d\\n\", epnum);\n+\treturn -1;\n }\n \n static void masking_bogus_flags(struct urb *urb)\n@@ -449,6 +450,9 @@ static void stub_recv_cmd_submit(struct stub_device *sdev,\n \tstruct usb_device *udev = sdev->udev;\n \tint pipe = get_pipe(sdev, pdu->base.ep, pdu->base.direction);\n \n+\tif (pipe == -1)\n+\t\treturn;\n+\n \tpriv = stub_priv_alloc(sdev, pdu);\n \tif (!priv)\n \t\treturn;\n",
+      "sha256": "ce5f3531531565960eef23a0f74470deea3ea2ab5ba012d13581b2282c59a068"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2017-16912\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2193-j7wvc3j4/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2193-j7wvc3j4/repo/.patch-port/reference.diff\nreference_fix: 20e825cdf7a1627f92371d45a5322ccecdebcb3b\nreference_parent: 99542e468b76ae180675566692e0528c4c712661\ntarget_ref: 60a98e535b39d5dbc2bb5c8e701b8caecb4a1f6c\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2193-j7wvc3j4/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2193-j7wvc3j4/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2017-16912"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "fcd31102e7ff3c83c6a6cda08156393e18c5e8f3",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "642e07bf46c8caf4283a04ea7770d578eda7dc23866e9e9f3bdc8ded29125692",
+      "text": "diff --git a/drivers/usb/usbip/stub_rx.c b/drivers/usb/usbip/stub_rx.c\nindex 7de54a66044f936bb1d2ad972a72ca6fbea71295..e617c90661b4b5ea11f3b0699281e517ff63bbad 100644\n--- a/drivers/usb/usbip/stub_rx.c\n+++ b/drivers/usb/usbip/stub_rx.c\n@@ -344,15 +344,15 @@ static int get_pipe(struct stub_device *sdev, int epnum, int dir)\n \tstruct usb_host_endpoint *ep;\n \tstruct usb_endpoint_descriptor *epd = NULL;\n \n+\tif (epnum < 0 || epnum > 15)\n+\t\tgoto err_ret;\n+\n \tif (dir == USBIP_DIR_IN)\n \t\tep = udev->ep_in[epnum & 0x7f];\n \telse\n \t\tep = udev->ep_out[epnum & 0x7f];\n-\tif (!ep) {\n-\t\tdev_err(&sdev->interface->dev, \"no such endpoint?, %d\\n\",\n-\t\t\tepnum);\n-\t\tBUG();\n-\t}\n+\tif (!ep)\n+\t\tgoto err_ret;\n \n \tepd = &ep->desc;\n \tif (usb_endpoint_xfer_control(epd)) {\n@@ -383,9 +383,10 @@ static int get_pipe(struct stub_device *sdev, int epnum, int dir)\n \t\t\treturn usb_rcvisocpipe(udev, epnum);\n \t}\n \n+err_ret:\n \t/* NOT REACHED */\n-\tdev_err(&sdev->interface->dev, \"get pipe, epnum %d\\n\", epnum);\n-\treturn 0;\n+\tdev_err(&sdev->udev->dev, \"get pipe() invalid epnum %d\\n\", epnum);\n+\treturn -1;\n }\n \n static void masking_bogus_flags(struct urb *urb)\n@@ -451,6 +452,9 @@ static void stub_recv_cmd_submit(struct stub_device *sdev,\n \tstruct usb_device *udev = sdev->udev;\n \tint pipe = get_pipe(sdev, pdu->base.ep, pdu->base.direction);\n \n+\tif (pipe == -1)\n+\t\treturn;\n+\n \tpriv = stub_priv_alloc(sdev, pdu);\n \tif (!priv)\n \t\treturn;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "2263cca84432b2578418ac37e2f5a067fc27c29dd1be10443b2fbf6f990caaf8",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/02193_CVE-2017-16912/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2193,
+      "cve": "CVE-2017-16912",
+      "source_commit": "20e825cdf7a1627f92371d45a5322ccecdebcb3b",
+      "oracle_commit": "fcd31102e7ff3c83c6a6cda08156393e18c5e8f3"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

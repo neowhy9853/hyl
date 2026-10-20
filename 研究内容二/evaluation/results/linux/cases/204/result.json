@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "204",
+  "candidate_sha256": "82bc49e42d15687b68d1be7c0cb6be4ad8f3162d95ef4c32a4bcc89eace9dd6f",
+  "oracle_sha256": "45addadb895cc534cb97ed5a1972c60c55f3bee8f3332a3c3ea60e04bf827574",
+  "candidate_nonempty": true,
+  "target_ref": "f259af26ee04f11cb2c3af0a6873a6bcb67dd338",
+  "baseline_tree": "53322f465c8af4a0ace4dd4c94575181204f5316",
+  "candidate_tree": "f8a66169ffbff046d84f6f902e41cace2bbaa137",
+  "oracle_tree": "f8a66169ffbff046d84f6f902e41cace2bbaa137",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/204",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "82bc49e42d15687b68d1be7c0cb6be4ad8f3162d95ef4c32a4bcc89eace9dd6f",
+    "text": "diff --git a/arch/x86/coco/tdx/tdx.c b/arch/x86/coco/tdx/tdx.c\nindex 1d6b863c42b0..70d708cae961 100644\n--- a/arch/x86/coco/tdx/tdx.c\n+++ b/arch/x86/coco/tdx/tdx.c\n@@ -10,6 +10,7 @@\n #include <asm/coco.h>\n #include <asm/tdx.h>\n #include <asm/vmx.h>\n+#include <asm/ia32.h>\n #include <asm/insn.h>\n #include <asm/insn-eval.h>\n #include <asm/pgtable.h>\n@@ -820,5 +821,14 @@ void __init tdx_early_init(void)\n \t */\n \tx86_cpuinit.parallel_bringup = false;\n \n+\t/*\n+\t * The VMM is capable of injecting interrupt 0x80 and triggering the\n+\t * compatibility syscall path.\n+\t *\n+\t * By default, the 32-bit emulation is disabled in order to ensure\n+\t * the safety of the VM.\n+\t */\n+\tia32_disable();\n+\n \tpr_info(\"Guest detected\\n\");\n }\ndiff --git a/arch/x86/include/asm/ia32.h b/arch/x86/include/asm/ia32.h\nindex 5a2ae24b1204..9805629479d9 100644\n--- a/arch/x86/include/asm/ia32.h\n+++ b/arch/x86/include/asm/ia32.h\n@@ -75,6 +75,11 @@ static inline bool ia32_enabled(void)\n \treturn __ia32_enabled;\n }\n \n+static inline void ia32_disable(void)\n+{\n+\t__ia32_enabled = false;\n+}\n+\n #else /* !CONFIG_IA32_EMULATION */\n \n static inline bool ia32_enabled(void)\n@@ -82,6 +87,8 @@ static inline bool ia32_enabled(void)\n \treturn IS_ENABLED(CONFIG_X86_32);\n }\n \n+static inline void ia32_disable(void) {}\n+\n #endif\n \n #endif /* _ASM_X86_IA32_H */\ndiff --git a/arch/x86/mm/mem_encrypt_amd.c b/arch/x86/mm/mem_encrypt_amd.c\nindex 6faea41e99b6..45ff95264a09 100644\n--- a/arch/x86/mm/mem_encrypt_amd.c\n+++ b/arch/x86/mm/mem_encrypt_amd.c\n@@ -34,6 +34,7 @@\n #include <asm/msr.h>\n #include <asm/cmdline.h>\n #include <asm/sev.h>\n+#include <asm/ia32.h>\n \n #include \"mm_internal.h\"\n \n@@ -517,6 +518,16 @@ void __init sme_early_init(void)\n \t */\n \tif (sev_status & MSR_AMD64_SEV_ES_ENABLED)\n \t\tx86_cpuinit.parallel_bringup = false;\n+\n+\t/*\n+\t * The VMM is capable of injecting interrupt 0x80 and triggering the\n+\t * compatibility syscall path.\n+\t *\n+\t * By default, the 32-bit emulation is disabled in order to ensure\n+\t * the safety of the VM.\n+\t */\n+\tif (sev_status & MSR_AMD64_SEV_ENABLED)\n+\t\tia32_disable();\n }\n \n void __init mem_encrypt_free_decrypted_mem(void)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

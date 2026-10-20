@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1827",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1827-oevm820r/repo",
+      "target_ref": "b3df6e19199db0b7bc15e28124b8e23f33205c8c",
+      "target_tree": "1625ffba71a4e92eee634804064ab422c3c4458d"
+    },
+    "source_commit": "22fd4f3fc1cd37d3daa4462f3184b20adb9342f5",
+    "reference_parent": "9a7fa4be28ac13725e9e344572cced8b215b93c9",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/9p/trans_xen.c b/net/9p/trans_xen.c\nindex da843b68cdeb1070f1024dd25924b922dd5da454..ac6a69f6c5e25170b20723f2f83c352d25c6f3f6 100644\n--- a/net/9p/trans_xen.c\n+++ b/net/9p/trans_xen.c\n@@ -301,9 +301,9 @@ static void xen_9pfs_front_free(struct xen_9pfs_front_priv *priv)\n \t\t\t\tref = priv->rings[i].intf->ref[j];\n \t\t\t\tgnttab_end_foreign_access(ref, 0, 0);\n \t\t\t}\n-\t\t\tfree_pages((unsigned long)priv->rings[i].data.in,\n-\t\t\t\t   XEN_9PFS_RING_ORDER -\n-\t\t\t\t   (PAGE_SHIFT - XEN_PAGE_SHIFT));\n+\t\t\tfree_pages_exact(priv->rings[i].data.in,\n+\t\t\t\t   1UL << (XEN_9PFS_RING_ORDER +\n+\t\t\t\t\t   XEN_PAGE_SHIFT));\n \t\t}\n \t\tgnttab_end_foreign_access(priv->rings[i].ref, 0, 0);\n \t\tfree_page((unsigned long)priv->rings[i].intf);\n@@ -341,8 +341,8 @@ static int xen_9pfs_front_alloc_dataring(struct xenbus_device *dev,\n \tif (ret < 0)\n \t\tgoto out;\n \tring->ref = ret;\n-\tbytes = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,\n-\t\t\tXEN_9PFS_RING_ORDER - (PAGE_SHIFT - XEN_PAGE_SHIFT));\n+\tbytes = alloc_pages_exact(1UL << (XEN_9PFS_RING_ORDER + XEN_PAGE_SHIFT),\n+\t\t\t\t  GFP_KERNEL | __GFP_ZERO);\n \tif (!bytes) {\n \t\tret = -ENOMEM;\n \t\tgoto out;\n@@ -373,9 +373,7 @@ static int xen_9pfs_front_alloc_dataring(struct xenbus_device *dev,\n \tif (bytes) {\n \t\tfor (i--; i >= 0; i--)\n \t\t\tgnttab_end_foreign_access(ring->intf->ref[i], 0, 0);\n-\t\tfree_pages((unsigned long)bytes,\n-\t\t\t   XEN_9PFS_RING_ORDER -\n-\t\t\t   (PAGE_SHIFT - XEN_PAGE_SHIFT));\n+\t\tfree_pages_exact(bytes, 1UL << (XEN_9PFS_RING_ORDER + XEN_PAGE_SHIFT));\n \t}\n \tgnttab_end_foreign_access(ring->ref, 0, 0);\n \tfree_page((unsigned long)ring->intf);\n",
+      "sha256": "f4a65355cd55896b6fa0d5d624f5ccff9cd3497cc3cb2d3d022e4eb6485e9004"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2022-23041\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1827-oevm820r/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1827-oevm820r/repo/.patch-port/reference.diff\nreference_fix: 22fd4f3fc1cd37d3daa4462f3184b20adb9342f5\nreference_parent: 9a7fa4be28ac13725e9e344572cced8b215b93c9\ntarget_ref: b3df6e19199db0b7bc15e28124b8e23f33205c8c\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1827-oevm820r/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1827-oevm820r/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2022-23041"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "d83dd50f3c23bc887e4c67d547e5a21a23fb8bb8",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "4f241589d8c81f483a46c9371e5055ca1cd5ef60506625c76c16e19a5d75f6c6",
+      "text": "diff --git a/net/9p/trans_xen.c b/net/9p/trans_xen.c\nindex 2418fa0b58f36ac75646ecae51c9abc348c89193..cf2685ae5ffebb7890b675b0e84f25f0caff6b2b 100644\n--- a/net/9p/trans_xen.c\n+++ b/net/9p/trans_xen.c\n@@ -281,9 +281,9 @@ static void xen_9pfs_front_free(struct xen_9pfs_front_priv *priv)\n \t\t\t\tref = priv->rings[i].intf->ref[j];\n \t\t\t\tgnttab_end_foreign_access(ref, 0, 0);\n \t\t\t}\n-\t\t\tfree_pages((unsigned long)priv->rings[i].data.in,\n-\t\t\t\t   priv->rings[i].intf->ring_order -\n-\t\t\t\t   (PAGE_SHIFT - XEN_PAGE_SHIFT));\n+\t\t\tfree_pages_exact(priv->rings[i].data.in,\n+\t\t\t\t   1UL << (priv->rings[i].intf->ring_order +\n+\t\t\t\t\t   XEN_PAGE_SHIFT));\n \t\t}\n \t\tgnttab_end_foreign_access(priv->rings[i].ref, 0, 0);\n \t\tfree_page((unsigned long)priv->rings[i].intf);\n@@ -322,8 +322,8 @@ static int xen_9pfs_front_alloc_dataring(struct xenbus_device *dev,\n \tif (ret < 0)\n \t\tgoto out;\n \tring->ref = ret;\n-\tbytes = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,\n-\t\t\torder - (PAGE_SHIFT - XEN_PAGE_SHIFT));\n+\tbytes = alloc_pages_exact(1UL << (order + XEN_PAGE_SHIFT),\n+\t\t\t\t  GFP_KERNEL | __GFP_ZERO);\n \tif (!bytes) {\n \t\tret = -ENOMEM;\n \t\tgoto out;\n@@ -354,9 +354,7 @@ static int xen_9pfs_front_alloc_dataring(struct xenbus_device *dev,\n \tif (bytes) {\n \t\tfor (i--; i >= 0; i--)\n \t\t\tgnttab_end_foreign_access(ring->intf->ref[i], 0, 0);\n-\t\tfree_pages((unsigned long)bytes,\n-\t\t\t   ring->intf->ring_order -\n-\t\t\t   (PAGE_SHIFT - XEN_PAGE_SHIFT));\n+\t\tfree_pages_exact(bytes, 1UL << (order + XEN_PAGE_SHIFT));\n \t}\n \tgnttab_end_foreign_access(ring->ref, 0, 0);\n \tfree_page((unsigned long)ring->intf);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "a22cb20fca99f2325dfabc8047fb756af783a6211ec9c2a8ffdfd65f594bdd8c",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/01827_CVE-2022-23041/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1827,
+      "cve": "CVE-2022-23041",
+      "source_commit": "22fd4f3fc1cd37d3daa4462f3184b20adb9342f5",
+      "oracle_commit": "d83dd50f3c23bc887e4c67d547e5a21a23fb8bb8"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

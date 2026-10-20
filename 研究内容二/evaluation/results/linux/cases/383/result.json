@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "383",
+  "candidate_sha256": "e143348bad9b2aa2e4b99e40fb93f6160b1442c349eca90335a27e2aa0124004",
+  "oracle_sha256": "9098b416f18a22aa95351d3e730a7819bf0cc0a8a9531eeeb3203906ee3e479b",
+  "candidate_nonempty": true,
+  "target_ref": "aeeb1ad2dd4e2448b964f02af480a62aef1c6cf5",
+  "baseline_tree": "324e53a0a3dec8b3c587e8388e7c84feb4943389",
+  "candidate_tree": "c4250362d3faf5041123f49ecff042d1906416c0",
+  "oracle_tree": "dad027b2800ab8d4dbf5c4e11b1c68bb8fe45268",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/383",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "e143348bad9b2aa2e4b99e40fb93f6160b1442c349eca90335a27e2aa0124004",
+    "text": "diff --git a/io_uring/io_uring.c b/io_uring/io_uring.c\nindex 800b5cc385af..6fb2d8d48611 100644\n--- a/io_uring/io_uring.c\n+++ b/io_uring/io_uring.c\n@@ -10238,9 +10238,9 @@ static int io_uring_show_cred(struct seq_file *m, unsigned int id,\n \n static void __io_uring_show_fdinfo(struct io_ring_ctx *ctx, struct seq_file *m)\n {\n-\tstruct io_sq_data *sq = NULL;\n \tbool has_lock;\n \tint i;\n+\tint sq_pid = -1, sq_cpu = -1;\n \n \t/*\n \t * Avoid ABBA deadlock between the seq lock and the io_uring mutex,\n@@ -10251,13 +10251,19 @@ static void __io_uring_show_fdinfo(struct io_ring_ctx *ctx, struct seq_file *m)\n \thas_lock = mutex_trylock(&ctx->uring_lock);\n \n \tif (has_lock && (ctx->flags & IORING_SETUP_SQPOLL)) {\n-\t\tsq = ctx->sq_data;\n-\t\tif (!sq->thread)\n-\t\t\tsq = NULL;\n+\t\tstruct io_sq_data *sq = ctx->sq_data;\n+\n+\t\tif (mutex_trylock(&sq->lock)) {\n+\t\t\tif (sq->thread) {\n+\t\t\t\tsq_pid = task_pid_nr(sq->thread);\n+\t\t\t\tsq_cpu = task_cpu(sq->thread);\n+\t\t\t}\n+\t\t\tmutex_unlock(&sq->lock);\n+\t\t}\n \t}\n \n-\tseq_printf(m, \"SqThread:\\t%d\\n\", sq ? task_pid_nr(sq->thread) : -1);\n-\tseq_printf(m, \"SqThreadCpu:\\t%d\\n\", sq ? task_cpu(sq->thread) : -1);\n+\tseq_printf(m, \"SqThread:\\t%d\\n\", sq_pid);\n+\tseq_printf(m, \"SqThreadCpu:\\t%d\\n\", sq_cpu);\n \tseq_printf(m, \"UserFiles:\\t%u\\n\", ctx->nr_user_files);\n \tfor (i = 0; has_lock && i < ctx->nr_user_files; i++) {\n \t\tstruct file *f = io_file_from_index(ctx, i);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

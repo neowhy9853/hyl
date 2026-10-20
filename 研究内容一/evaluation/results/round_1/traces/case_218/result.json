@@ -1,0 +1,45 @@
+{
+  "round": 1,
+  "case_id": "case_218",
+  "source_index": 217,
+  "repo": "kernel",
+  "commit_id": "73b3361d0487b6f5801f6f864f52a681e0fc19ee",
+  "oracle_label": "feat",
+  "predicted_label": "fix",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "7759a6d3d76f",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "提交修复了 io_uring 中 timeout 请求的序列逻辑，纠正了之前共享的 defer 辅助函数对 timeout 请求的错误处理，解决了特定场景下 timeout 请求可能被错误延迟的问题。",
+    "intent_items": [
+      {
+        "target": "io_uring 的延迟请求和超时请求处理逻辑",
+        "change": "将共享的 io_sequence_defer 辅助函数拆分为两个独立的函数：io_sequence_defer（用于常规延迟请求）和 __io_sequence_defer（用于超时请求），并相应修改 io_get_deferred_req 和 io_get_timeout_req 的调用。",
+        "effect_or_reason": "确保超时请求（REQ_F_TIMEOUT）能正确遵循序列逻辑，避免因错误使用共享的 defer 检查逻辑而导致超时请求被不当延迟或提前处理。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交将共享的 defer 逻辑拆分为两个独立的辅助函数"
+          ],
+          "message_only_details": [
+            "报告指出存在两种延迟请求的方式：常规依赖和超时跟踪完成"
+          ],
+          "code_only_details": [
+            "补丁显示之前共享的 io_sequence_defer 函数包含对 REQ_F_TIMEOUT 标志的条件检查，拆分后该检查被移除"
+          ]
+        },
+        "evidence": [
+          "提交前 io_sequence_defer 函数对 timeout 请求有特殊处理（if (!(req->flags & REQ_F_TIMEOUT) && ...)），但该函数被 io_get_timeout_req 调用，导致逻辑矛盾；提交后 io_get_timeout_req 调用 __io_sequence_defer（无条件），纠正了此错误路径。"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_218",
+  "trace_status": "available"
+}

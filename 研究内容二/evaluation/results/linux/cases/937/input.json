@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "937",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-937-o8yvvud0/repo",
+      "target_ref": "0c863cab0e9173f8b6c7bc328bee3b8625f131b5",
+      "target_tree": "733196c6c9ec7fd17bcec3ce0d7a85183cfbb5d1"
+    },
+    "source_commit": "3f3c237a706580326d3b7a1b97697e5031ca4667",
+    "reference_parent": "2e150ccea13129eb048679114808eb9770443e4d",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/gpu/drm/amd/display/dc/dcn21/dcn21_hwseq.c b/drivers/gpu/drm/amd/display/dc/dcn21/dcn21_hwseq.c\nindex 7238930e6383f53f5164525b6c0eaa320bf89bd1..1b08749b084b1d4781f366828e51d83cccf124df 100644\n--- a/drivers/gpu/drm/amd/display/dc/dcn21/dcn21_hwseq.c\n+++ b/drivers/gpu/drm/amd/display/dc/dcn21/dcn21_hwseq.c\n@@ -206,28 +206,32 @@ void dcn21_set_abm_immediate_disable(struct pipe_ctx *pipe_ctx)\n void dcn21_set_pipe(struct pipe_ctx *pipe_ctx)\n {\n \tstruct abm *abm = pipe_ctx->stream_res.abm;\n-\tuint32_t otg_inst = pipe_ctx->stream_res.tg->inst;\n+\tstruct timing_generator *tg = pipe_ctx->stream_res.tg;\n \tstruct panel_cntl *panel_cntl = pipe_ctx->stream->link->panel_cntl;\n \tstruct dmcu *dmcu = pipe_ctx->stream->ctx->dc->res_pool->dmcu;\n+\tuint32_t otg_inst;\n+\n+\tif (!abm && !tg && !panel_cntl)\n+\t\treturn;\n+\n+\totg_inst = tg->inst;\n \n \tif (dmcu) {\n \t\tdce110_set_pipe(pipe_ctx);\n \t\treturn;\n \t}\n \n-\tif (abm && panel_cntl) {\n-\t\tif (abm->funcs && abm->funcs->set_pipe_ex) {\n-\t\t\tabm->funcs->set_pipe_ex(abm,\n+\tif (abm->funcs && abm->funcs->set_pipe_ex) {\n+\t\tabm->funcs->set_pipe_ex(abm,\n \t\t\t\t\totg_inst,\n \t\t\t\t\tSET_ABM_PIPE_NORMAL,\n \t\t\t\t\tpanel_cntl->inst,\n \t\t\t\t\tpanel_cntl->pwrseq_inst);\n-\t\t} else {\n-\t\t\t\tdmub_abm_set_pipe(abm, otg_inst,\n-\t\t\t\t\t\tSET_ABM_PIPE_NORMAL,\n-\t\t\t\t\t\tpanel_cntl->inst,\n-\t\t\t\t\t\tpanel_cntl->pwrseq_inst);\n-\t\t}\n+\t} else {\n+\t\tdmub_abm_set_pipe(abm, otg_inst,\n+\t\t\t\t  SET_ABM_PIPE_NORMAL,\n+\t\t\t\t  panel_cntl->inst,\n+\t\t\t\t  panel_cntl->pwrseq_inst);\n \t}\n }\n \n",
+      "sha256": "38d3c9c203a51371f6de5cf387315edd05fe2db43fe3d5d5df260c3b0d06bc1a"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2024-26661\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-937-o8yvvud0/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-937-o8yvvud0/repo/.patch-port/reference.diff\nreference_fix: 3f3c237a706580326d3b7a1b97697e5031ca4667\nreference_parent: 2e150ccea13129eb048679114808eb9770443e4d\ntarget_ref: 0c863cab0e9173f8b6c7bc328bee3b8625f131b5\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-937-o8yvvud0/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-937-o8yvvud0/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2024-26661"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "39f24c08363af1cd945abad84e3c87fd3e3c845a",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "1eda072f5040d5018b27a90670fb2ab9691c79eeabc6b97e2f30bed78f06b9c7",
+      "text": "diff --git a/drivers/gpu/drm/amd/display/dc/hwss/dcn21/dcn21_hwseq.c b/drivers/gpu/drm/amd/display/dc/hwss/dcn21/dcn21_hwseq.c\nindex a9cd39f7736040483d368dcf9cb70fe1035766bf..5c7f380a84f91ecb1a668e4798be6aaf9347a46f 100644\n--- a/drivers/gpu/drm/amd/display/dc/hwss/dcn21/dcn21_hwseq.c\n+++ b/drivers/gpu/drm/amd/display/dc/hwss/dcn21/dcn21_hwseq.c\n@@ -206,28 +206,32 @@ void dcn21_set_abm_immediate_disable(struct pipe_ctx *pipe_ctx)\n void dcn21_set_pipe(struct pipe_ctx *pipe_ctx)\n {\n \tstruct abm *abm = pipe_ctx->stream_res.abm;\n-\tuint32_t otg_inst = pipe_ctx->stream_res.tg->inst;\n+\tstruct timing_generator *tg = pipe_ctx->stream_res.tg;\n \tstruct panel_cntl *panel_cntl = pipe_ctx->stream->link->panel_cntl;\n \tstruct dmcu *dmcu = pipe_ctx->stream->ctx->dc->res_pool->dmcu;\n+\tuint32_t otg_inst;\n+\n+\tif (!abm && !tg && !panel_cntl)\n+\t\treturn;\n+\n+\totg_inst = tg->inst;\n \n \tif (dmcu) {\n \t\tdce110_set_pipe(pipe_ctx);\n \t\treturn;\n \t}\n \n-\tif (abm && panel_cntl) {\n-\t\tif (abm->funcs && abm->funcs->set_pipe_ex) {\n-\t\t\tabm->funcs->set_pipe_ex(abm,\n+\tif (abm->funcs && abm->funcs->set_pipe_ex) {\n+\t\tabm->funcs->set_pipe_ex(abm,\n \t\t\t\t\totg_inst,\n \t\t\t\t\tSET_ABM_PIPE_NORMAL,\n \t\t\t\t\tpanel_cntl->inst,\n \t\t\t\t\tpanel_cntl->pwrseq_inst);\n-\t\t} else {\n-\t\t\t\tdmub_abm_set_pipe(abm, otg_inst,\n-\t\t\t\t\t\tSET_ABM_PIPE_NORMAL,\n-\t\t\t\t\t\tpanel_cntl->inst,\n-\t\t\t\t\t\tpanel_cntl->pwrseq_inst);\n-\t\t}\n+\t} else {\n+\t\tdmub_abm_set_pipe(abm, otg_inst,\n+\t\t\t\t  SET_ABM_PIPE_NORMAL,\n+\t\t\t\t  panel_cntl->inst,\n+\t\t\t\t  panel_cntl->pwrseq_inst);\n \t}\n }\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "1eaec77c510408442683c7eee72e09ec245d9357edc1e8d2c758f0193a5b32db",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00937_CVE-2024-26661/reference.diff",
+    "source_dataset_record": {
+      "case_id": 937,
+      "cve": "CVE-2024-26661",
+      "source_commit": "3f3c237a706580326d3b7a1b97697e5031ca4667",
+      "oracle_commit": "39f24c08363af1cd945abad84e3c87fd3e3c845a"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-44-httpd",
+  "task_input": {
+    "repository": {
+      "name": "httpd",
+      "version": "2.4.58",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "846067e96eec1c857bd3959eb72cab0bf0a35765",
+      "target_tree": "6183353c61c4a1f2283f676fbc1331da7699552a"
+    },
+    "source_commit": "0d73970ec161300a55b630f71bbf72b5c41f28b9",
+    "reference_parent": "ac20389f3c816d990aba21720f1492b69ac5cb44",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 0d73970ec161300a55b630f71bbf72b5c41f28b9 Mon Sep 17 00:00:00 2001\nFrom: Eric Covener <covener@apache.org>\nDate: Wed, 3 Apr 2024 12:12:55 +0000\nSubject: [PATCH] Merge r1916771 from trunk:\n\nbail after too many failed reads\n\nSubmitted By: icing\n\n\n\n\ngit-svn-id: https://svn.apache.org/repos/asf/httpd/httpd/branches/2.4.x@1916779 13f79535-47bb-0310-9956-ffa450edef68\n---\n modules/http2/h2_session.c | 10 +++++++---\n modules/http2/h2_stream.c  |  1 +\n modules/http2/h2_stream.h  |  1 +\n 3 files changed, 9 insertions(+), 3 deletions(-)\n\ndiff --git a/modules/http2/h2_session.c b/modules/http2/h2_session.c\nindex 1e560e4779..5724fdadb0 100644\n--- a/modules/http2/h2_session.c\n+++ b/modules/http2/h2_session.c\n@@ -319,9 +319,13 @@ static int on_header_cb(nghttp2_session *ngh2, const nghttp2_frame *frame,\n     \n     status = h2_stream_add_header(stream, (const char *)name, namelen,\n                                   (const char *)value, valuelen);\n-    if (status != APR_SUCCESS\n-        && (!stream->rtmp\n-            || stream->rtmp->http_status == H2_HTTP_STATUS_UNSET)) {\n+    if (status != APR_SUCCESS &&\n+        (!stream->rtmp ||\n+         stream->rtmp->http_status == H2_HTTP_STATUS_UNSET ||\n+         /* We accept a certain amount of failures in order to reply\n+          * with an informative HTTP error response like 413. But if the\n+          * client is too wrong, we fail the request a RESET of the stream */\n+         stream->request_headers_failed > 100)) {\n         return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;\n     }\n     return 0;\ndiff --git a/modules/http2/h2_stream.c b/modules/http2/h2_stream.c\nindex f6c9202451..ee87555f9f 100644\n--- a/modules/http2/h2_stream.c\n+++ b/modules/http2/h2_stream.c\n@@ -813,6 +813,7 @@ apr_status_t h2_stream_add_header(h2_stream *stream,\n     \n cleanup:\n     if (error) {\n+        ++stream->request_headers_failed;\n         set_error_response(stream, error);\n         return APR_EINVAL; \n     }\ndiff --git a/modules/http2/h2_stream.h b/modules/http2/h2_stream.h\nindex d68d426038..405978a44d 100644\n--- a/modules/http2/h2_stream.h\n+++ b/modules/http2/h2_stream.h\n@@ -91,6 +91,7 @@ struct h2_stream {\n     struct h2_request *rtmp;    /* request being assembled */\n     apr_table_t *trailers_in;   /* optional, incoming trailers */\n     int request_headers_added;  /* number of request headers added */\n+    int request_headers_failed; /* number of request headers failed to add */\n \n #if AP_HAS_RESPONSE_BUCKETS\n     ap_bucket_response *response; /* the final, non-interim response or NULL */\n-- \n2.25.1\n\n",
+      "sha256": "d4daec81ae76ad38af42edededa9041eadec7ef34bd3e1c5d0d3747966c07006"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for httpd.\ncase_id: oe-44-httpd\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 0d73970ec161300a55b630f71bbf72b5c41f28b9\nreference_parent: ac20389f3c816d990aba21720f1492b69ac5cb44\ntarget_ref: 846067e96eec1c857bd3959eb72cab0bf0a35765\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "ea93ebbd2730e47908611198b41246107ebbd017b1cc8c6837bf73a96da8ea46",
+      "text": "From 0d73970ec161300a55b630f71bbf72b5c41f28b9 Mon Sep 17 00:00:00 2001\nFrom: Eric Covener <covener@apache.org>\nDate: Wed, 3 Apr 2024 12:12:55 +0000\nSubject: [PATCH] Merge r1916771 from trunk:\n \nbail after too many failed reads\n \nSubmitted By: icing\n \n \n \n \ngit-svn-id: https://svn.apache.org/repos/asf/httpd/httpd/branches/2.4.x@1916779 13f79535-47bb-0310-9956-ffa450edef68\n \nConflict:NA\nReference:https://github.com/apache/httpd/commit/0d73970ec161300a55b630f71bbf72b5c41f28b9\n\n---\n modules/http2/h2_session.c | 10 +++++++---\n modules/http2/h2_stream.c  |  1 +\n modules/http2/h2_stream.h  |  1 +\n 3 files changed, 9 insertions(+), 3 deletions(-)\n\ndiff --git a/modules/http2/h2_session.c b/modules/http2/h2_session.c\nindex 1e560e4..5724fda 100644\n--- a/modules/http2/h2_session.c\n+++ b/modules/http2/h2_session.c\n@@ -319,9 +319,13 @@ static int on_header_cb(nghttp2_session *ngh2, const nghttp2_frame *frame,\n     \n     status = h2_stream_add_header(stream, (const char *)name, namelen,\n                                   (const char *)value, valuelen);\n-    if (status != APR_SUCCESS\n-        && (!stream->rtmp\n-            || stream->rtmp->http_status == H2_HTTP_STATUS_UNSET)) {\n+    if (status != APR_SUCCESS &&\n+        (!stream->rtmp ||\n+         stream->rtmp->http_status == H2_HTTP_STATUS_UNSET ||\n+         /* We accept a certain amount of failures in order to reply\n+          * with an informative HTTP error response like 413. But if the\n+          * client is too wrong, we fail the request a RESET of the stream */\n+         stream->request_headers_failed > 100)) {\n         return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;\n     }\n     return 0;\ndiff --git a/modules/http2/h2_stream.c b/modules/http2/h2_stream.c\nindex f6c9202..ee87555 100644\n--- a/modules/http2/h2_stream.c\n+++ b/modules/http2/h2_stream.c\n@@ -813,6 +813,7 @@ apr_status_t h2_stream_add_header(h2_stream *stream,\n     \n cleanup:\n     if (error) {\n+        ++stream->request_headers_failed;\n         set_error_response(stream, error);\n         return APR_EINVAL; \n     }\ndiff --git a/modules/http2/h2_stream.h b/modules/http2/h2_stream.h\nindex d68d426..405978a 100644\n--- a/modules/http2/h2_stream.h\n+++ b/modules/http2/h2_stream.h\n@@ -91,6 +91,7 @@ struct h2_stream {\n     struct h2_request *rtmp;    /* request being assembled */\n     apr_table_t *trailers_in;   /* optional, incoming trailers */\n     int request_headers_added;  /* number of request headers added */\n+    int request_headers_failed; /* number of request headers failed to add */\n \n #if AP_HAS_RESPONSE_BUCKETS\n     ap_bucket_response *response; /* the final, non-interim response or NULL */\n-- \n2.33.0\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "216f029a7922c68f6a475510e82265805c5ae3b508e557bcc01f544618dc266c",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-44-httpd/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-44-httpd",
+      "package": "httpd",
+      "version": "2.4.58",
+      "source_commit": "0d73970ec161300a55b630f71bbf72b5c41f28b9",
+      "target_ref": "846067e96eec1c857bd3959eb72cab0bf0a35765",
+      "target_tree": "6183353c61c4a1f2283f676fbc1331da7699552a",
+      "reference_patch": "patches/oe-44-httpd/reference.patch",
+      "reference_sha256": "d4daec81ae76ad38af42edededa9041eadec7ef34bd3e1c5d0d3747966c07006",
+      "oracle_patch": "patches/oe-44-httpd/oracle.patch",
+      "oracle_sha256": "ea93ebbd2730e47908611198b41246107ebbd017b1cc8c6837bf73a96da8ea46"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

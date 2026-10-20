@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1855",
+  "candidate_sha256": "d0db0c6c0cc52029ad4ffa3ae285ed5bcf2bba263ef4a30faeb80e4d429b9312",
+  "oracle_sha256": "a6f6e2bf4de7528807b50e868d15b8aec5cc262d615e7aea102aa810254f19fb",
+  "candidate_nonempty": true,
+  "target_ref": "36983fc2f87ea3b74a33bf460c9ee7329735b7b5",
+  "baseline_tree": "955e2c56b71a50186aa77d5c34d8ac116b7a017c",
+  "candidate_tree": "fa72a66babb256127c91153219344662f61d677a",
+  "oracle_tree": "c86ab9cce6f7a16d7e72e465cc1800a3427419d8",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1855",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "d0db0c6c0cc52029ad4ffa3ae285ed5bcf2bba263ef4a30faeb80e4d429b9312",
+    "text": "diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c\nindex 3942a29413a4..941624108680 100644\n--- a/net/netfilter/nf_tables_api.c\n+++ b/net/netfilter/nf_tables_api.c\n@@ -5353,14 +5353,19 @@ static int nft_add_set_elem(struct nft_ctx *ctx, struct nft_set *set,\n \t\tobj->use++;\n \t}\n \tif (expr) {\n-\t\tmemcpy(nft_set_ext_expr(ext), expr, expr->ops->size);\n-\t\tkfree(expr);\n+\t\terr = nft_expr_clone(nft_set_ext_expr(ext), expr);\n+\t\tif (err < 0)\n+\t\t\tgoto err_elem_expr;\n+\n+\t\tnft_expr_destroy(ctx, expr);\n \t\texpr = NULL;\n \t}\n \n \ttrans = nft_trans_elem_alloc(ctx, NFT_MSG_NEWSETELEM, set);\n-\tif (trans == NULL)\n-\t\tgoto err_trans;\n+\tif (trans == NULL) {\n+\t\terr = -ENOMEM;\n+\t\tgoto err_elem_expr;\n+\t}\n \n \text->genmask = nft_genmask_cur(ctx->net) | NFT_SET_ELEM_BUSY_MASK;\n \terr = set->ops->insert(ctx->net, set, &elem, &ext2);\n@@ -5404,7 +5409,7 @@ static int nft_add_set_elem(struct nft_ctx *ctx, struct nft_set *set,\n \tset->ops->remove(ctx->net, set, &elem);\n err_element_clash:\n \tkfree(trans);\n-err_trans:\n+err_elem_expr:\n \tif (obj)\n \t\tobj->use--;\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

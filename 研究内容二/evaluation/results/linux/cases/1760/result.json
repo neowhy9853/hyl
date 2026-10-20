@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1760",
+  "candidate_sha256": "69ff75e33b26eced48d0ce9e88ec5218488a99d35f136546e21139bd1a394211",
+  "oracle_sha256": "7acdf94a87392ac6d6fe07968e284e0761f7dba2931138525dfe6d1665e3e9e0",
+  "candidate_nonempty": true,
+  "target_ref": "e292a6124d84ee7ecc8d1df0034e1bba142e83ba",
+  "baseline_tree": "dd2794481e3441068d217807a8c99f3a55a1354c",
+  "candidate_tree": "4d6d180786aba5d140ededcb337599da355df0e0",
+  "oracle_tree": "4d6d180786aba5d140ededcb337599da355df0e0",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1760",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "69ff75e33b26eced48d0ce9e88ec5218488a99d35f136546e21139bd1a394211",
+    "text": "diff --git a/net/sched/cls_u32.c b/net/sched/cls_u32.c\nindex d30256ac3537..ee8ef606a8e9 100644\n--- a/net/sched/cls_u32.c\n+++ b/net/sched/cls_u32.c\n@@ -778,11 +778,22 @@ static int u32_set_parms(struct net *net, struct tcf_proto *tp,\n \t\t\t struct netlink_ext_ack *extack)\n {\n \tint err;\n+#ifdef CONFIG_NET_CLS_IND\n+\tint ifindex = -1;\n+#endif\n \n \terr = tcf_exts_validate(net, tp, tb, est, &n->exts, ovr, extack);\n \tif (err < 0)\n \t\treturn err;\n \n+#ifdef CONFIG_NET_CLS_IND\n+\tif (tb[TCA_U32_INDEV]) {\n+\t\tifindex = tcf_change_indev(net, tb[TCA_U32_INDEV], extack);\n+\t\tif (ifindex < 0)\n+\t\t\treturn -EINVAL;\n+\t}\n+#endif\n+\n \tif (tb[TCA_U32_LINK]) {\n \t\tu32 handle = nla_get_u32(tb[TCA_U32_LINK]);\n \t\tstruct tc_u_hnode *ht_down = NULL, *ht_old;\n@@ -814,13 +825,8 @@ static int u32_set_parms(struct net *net, struct tcf_proto *tp,\n \t}\n \n #ifdef CONFIG_NET_CLS_IND\n-\tif (tb[TCA_U32_INDEV]) {\n-\t\tint ret;\n-\t\tret = tcf_change_indev(net, tb[TCA_U32_INDEV], extack);\n-\t\tif (ret < 0)\n-\t\t\treturn -EINVAL;\n-\t\tn->ifindex = ret;\n-\t}\n+\tif (ifindex >= 0)\n+\t\tn->ifindex = ifindex;\n #endif\n \treturn 0;\n }\n"
+  },
+  "trace_file": "trace.jsonl"
+}

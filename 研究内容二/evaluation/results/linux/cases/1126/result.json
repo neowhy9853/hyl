@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1126",
+  "candidate_sha256": "e9c71664ab428619bd01da05d85df39685100b603c4aac091d5444b8610420ec",
+  "oracle_sha256": "7481b7da840625b47305e67cb2d63a6f7ebe64b0f607b8bbbec8af4c0f403d47",
+  "candidate_nonempty": true,
+  "target_ref": "9913d9ffe7bb0601dd7f083507986cdb8246b727",
+  "baseline_tree": "ca475c79d5c9f8765a0cf04ca3b0b634b247b69d",
+  "candidate_tree": "f9cf9916e4ad2d4394a2fcbc14d309b2f90902c2",
+  "oracle_tree": "f9cf9916e4ad2d4394a2fcbc14d309b2f90902c2",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1126",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "e9c71664ab428619bd01da05d85df39685100b603c4aac091d5444b8610420ec",
+    "text": "diff --git a/Documentation/networking/ip-sysctl.rst b/Documentation/networking/ip-sysctl.rst\nindex 837d51f9e1fa..25e6673a085a 100644\n--- a/Documentation/networking/ip-sysctl.rst\n+++ b/Documentation/networking/ip-sysctl.rst\n@@ -1142,13 +1142,15 @@ icmp_ratelimit - INTEGER\n icmp_msgs_per_sec - INTEGER\n \tLimit maximal number of ICMP packets sent per second from this host.\n \tOnly messages whose type matches icmp_ratemask (see below) are\n-\tcontrolled by this limit.\n+\tcontrolled by this limit. For security reasons, the precise count\n+\tof messages per second is randomized.\n \n \tDefault: 1000\n \n icmp_msgs_burst - INTEGER\n \ticmp_msgs_per_sec controls number of ICMP packets sent per second,\n \twhile icmp_msgs_burst controls the burst size of these packets.\n+\tFor security reasons, the precise burst size is randomized.\n \n \tDefault: 50\n \ndiff --git a/net/ipv4/icmp.c b/net/ipv4/icmp.c\nindex cf36f955bfe6..650f0391e22a 100644\n--- a/net/ipv4/icmp.c\n+++ b/net/ipv4/icmp.c\n@@ -239,7 +239,7 @@ static struct {\n /**\n  * icmp_global_allow - Are we allowed to send one more ICMP message ?\n  *\n- * Uses a token bucket to limit our ICMP messages to sysctl_icmp_msgs_per_sec.\n+ * Uses a token bucket to limit our ICMP messages to ~sysctl_icmp_msgs_per_sec.\n  * Returns false if we reached the limit and can not send another packet.\n  * Note: called with BH disabled\n  */\n@@ -267,7 +267,10 @@ bool icmp_global_allow(void)\n \t}\n \tcredit = min_t(u32, icmp_global.credit + incr, sysctl_icmp_msgs_burst);\n \tif (credit) {\n-\t\tcredit--;\n+\t\t/* We want to use a credit of one in average, but need to randomize\n+\t\t * it for security reasons.\n+\t\t */\n+\t\tcredit = max_t(int, credit - prandom_u32_max(3), 0);\n \t\trc = true;\n \t}\n \tWRITE_ONCE(icmp_global.credit, credit);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

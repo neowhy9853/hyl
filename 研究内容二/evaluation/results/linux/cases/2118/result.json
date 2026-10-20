@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2118",
+  "candidate_sha256": "48a6cc21ed59f3d6e00c6d24a28f4646dd28fafe97055a72b9d3f5b0b7d73746",
+  "oracle_sha256": "17a10e5743bfb6f6ac49d89fccf6a27f3f02b876476c26b3994a6bd84ece7a3b",
+  "candidate_nonempty": true,
+  "target_ref": "b392225467b8066538dfa200dc925c844b76880b",
+  "baseline_tree": "9f1c7c3de61ea5e272a37db92abfb2a02107227c",
+  "candidate_tree": "2a612816f9e237171cf41fc796f40f8d523dc4b0",
+  "oracle_tree": "2a612816f9e237171cf41fc796f40f8d523dc4b0",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2118",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "48a6cc21ed59f3d6e00c6d24a28f4646dd28fafe97055a72b9d3f5b0b7d73746",
+    "text": "diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c\nindex 014c2d759916..a62679711de0 100644\n--- a/kernel/bpf/verifier.c\n+++ b/kernel/bpf/verifier.c\n@@ -191,6 +191,7 @@ struct bpf_insn_aux_data {\n \t\tenum bpf_reg_type ptr_type;\t/* pointer type for load/store insns */\n \t\tstruct bpf_map *map_ptr;\t/* pointer for call insn into lookup_elem */\n \t};\n+\tbool seen; /* this insn was processed by the verifier */\n };\n \n #define MAX_USED_MAPS 64 /* max number of maps accessed by one eBPF program */\n@@ -1793,6 +1794,7 @@ static int do_check(struct verifier_env *env)\n \t\t\tprint_bpf_insn(env, insn);\n \t\t}\n \n+\t\tenv->insn_aux_data[insn_idx].seen = true;\n \t\tif (class == BPF_ALU || class == BPF_ALU64) {\n \t\t\terr = check_alu_op(env, insn);\n \t\t\tif (err)\n@@ -1988,6 +1990,7 @@ process_bpf_exit:\n \t\t\t\t\treturn err;\n \n \t\t\t\tinsn_idx++;\n+\t\t\t\tenv->insn_aux_data[insn_idx].seen = true;\n \t\t\t} else {\n \t\t\t\tverbose(\"invalid BPF_LD mode\\n\");\n \t\t\t\treturn -EINVAL;\n@@ -2125,6 +2128,7 @@ static int adjust_insn_aux_data(struct verifier_env *env, u32 prog_len,\n \t\t\t\tu32 off, u32 cnt)\n {\n \tstruct bpf_insn_aux_data *new_data, *old_data = env->insn_aux_data;\n+\tint i;\n \n \tif (cnt == 1)\n \t\treturn 0;\n@@ -2134,6 +2138,8 @@ static int adjust_insn_aux_data(struct verifier_env *env, u32 prog_len,\n \tmemcpy(new_data, old_data, sizeof(struct bpf_insn_aux_data) * off);\n \tmemcpy(new_data + off + cnt - 1, old_data + off,\n \t       sizeof(struct bpf_insn_aux_data) * (prog_len - off - cnt + 1));\n+\tfor (i = off; i < off + cnt - 1; i++)\n+\t\tnew_data[i].seen = true;\n \tenv->insn_aux_data = new_data;\n \tvfree(old_data);\n \treturn 0;\n@@ -2152,6 +2158,25 @@ static struct bpf_prog *bpf_patch_insn_data(struct verifier_env *env, u32 off,\n \treturn new_prog;\n }\n \n+/* The verifier does more data flow analysis than llvm and will not explore\n+ * branches that are dead at run time. Malicious programs can have dead code\n+ * too. Therefore replace all dead at-run-time code with nops.\n+ */\n+static void sanitize_dead_code(struct verifier_env *env)\n+{\n+\tstruct bpf_insn_aux_data *aux_data = env->insn_aux_data;\n+\tstruct bpf_insn nop = BPF_MOV64_REG(BPF_REG_0, BPF_REG_0);\n+\tstruct bpf_insn *insn = env->prog->insnsi;\n+\tconst int insn_cnt = env->prog->len;\n+\tint i;\n+\n+\tfor (i = 0; i < insn_cnt; i++) {\n+\t\tif (aux_data[i].seen)\n+\t\t\tcontinue;\n+\t\tmemcpy(insn + i, &nop, sizeof(nop));\n+\t}\n+}\n+\n /* convert load instructions that access fields of 'struct __sk_buff'\n  * into sequence of instructions that access fields of 'struct sk_buff'\n  */\n@@ -2370,6 +2395,9 @@ skip_full_check:\n \twhile (pop_stack(env, NULL) >= 0);\n \tfree_states(env);\n \n+\tif (ret == 0)\n+\t\tsanitize_dead_code(env);\n+\n \tif (ret == 0)\n \t\t/* program is valid, convert *(u32*)(ctx + off) accesses */\n \t\tret = convert_ctx_accesses(env);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

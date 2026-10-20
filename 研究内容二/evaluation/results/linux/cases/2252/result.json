@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2252",
+  "candidate_sha256": "ed2cb169c849138c4df50ec5b5b1d10c59c30bccd23b40b3e3d6ed5fb277e2ab",
+  "oracle_sha256": "bec75be2be35ee0ecaa000493a619e42d9522ccb2000a9a9120905df11b6271c",
+  "candidate_nonempty": true,
+  "target_ref": "36c676e2ed3609dc8d50ba763eee2ba4e4b493c2",
+  "baseline_tree": "53d2b3945991e21af1f150ec0900e95c7e104f05",
+  "candidate_tree": "a7e75ace3a3461f2f64daf7c86624c64d8f5db57",
+  "oracle_tree": "a7e75ace3a3461f2f64daf7c86624c64d8f5db57",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2252",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "ed2cb169c849138c4df50ec5b5b1d10c59c30bccd23b40b3e3d6ed5fb277e2ab",
+    "text": "diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c\nindex 2bd27b77769c..d53587ff9dde 100644\n--- a/net/tls/tls_sw.c\n+++ b/net/tls/tls_sw.c\n@@ -449,7 +449,6 @@ static void tls_encrypt_done(crypto_completion_data_t *data, int err)\n \tstruct scatterlist *sge;\n \tstruct sk_msg *msg_en;\n \tstruct tls_rec *rec;\n-\tbool ready = false;\n \tstruct sock *sk;\n \n \trec = container_of(aead_req, struct tls_rec, aead_req);\n@@ -486,19 +485,16 @@ static void tls_encrypt_done(crypto_completion_data_t *data, int err)\n \t\t/* If received record is at head of tx_list, schedule tx */\n \t\tfirst_rec = list_first_entry(&ctx->tx_list,\n \t\t\t\t\t     struct tls_rec, list);\n-\t\tif (rec == first_rec)\n-\t\t\tready = true;\n+\t\tif (rec == first_rec) {\n+\t\t\t/* Schedule the transmission */\n+\t\t\tif (!test_and_set_bit(BIT_TX_SCHEDULED,\n+\t\t\t\t\t      &ctx->tx_bitmask))\n+\t\t\t\tschedule_delayed_work(&ctx->tx_work.work, 1);\n+\t\t}\n \t}\n \n \tif (atomic_dec_and_test(&ctx->encrypt_pending))\n \t\tcomplete(&ctx->async_wait.completion);\n-\n-\tif (!ready)\n-\t\treturn;\n-\n-\t/* Schedule the transmission */\n-\tif (!test_and_set_bit(BIT_TX_SCHEDULED, &ctx->tx_bitmask))\n-\t\tschedule_delayed_work(&ctx->tx_work.work, 1);\n }\n \n static int tls_encrypt_async_wait(struct tls_sw_context_tx *ctx)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

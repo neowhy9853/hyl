@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-79-rsyslog",
+  "task_input": {
+    "repository": {
+      "name": "rsyslog",
+      "version": "8.2312.0",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "0cff91662a0921e1ae07a9de7cd7357073dc0a19",
+      "target_tree": "e73deff16a1e49d856b58073cde3fb5520d1360e"
+    },
+    "source_commit": "25224fb536488ae63e6addd2c9005bc2b8dc126a",
+    "reference_parent": "4c11c58b519b7da8b36177e506165026c26aaa71",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 25224fb536488ae63e6addd2c9005bc2b8dc126a Mon Sep 17 00:00:00 2001\nFrom: Rainer Gerhards <rgerhards@adiscon.com>\nDate: Wed, 21 Feb 2024 09:31:00 +0100\nSubject: [PATCH] omfile: do not carry out actual action when writing to\n /dev/null\n\nIn some use cases omfile is configured to write to /dev/null. This seems\nprimarily be done because of statistics gathering but maybe some other\nscenarios. We now add conditional logic to not do any actual omfile\naction when the target file is /dev/null.\n\nNote: this check only works on static file names. When /dev/null is\nevaluated as part of dynafile, it will be handled just in the regular\ncase like before this patch.\n---\n tools/omfile.c | 15 ++++++++++++++-\n 1 file changed, 14 insertions(+), 1 deletion(-)\n\ndiff --git a/tools/omfile.c b/tools/omfile.c\nindex 1702a3039..cf464cd1c 100644\n--- a/tools/omfile.c\n+++ b/tools/omfile.c\n@@ -17,7 +17,7 @@\n  * pipes. These have been moved to ompipe, to reduced the entanglement\n  * between the two different functionalities. -- rgerhards\n  *\n- * Copyright 2007-2023 Adiscon GmbH.\n+ * Copyright 2007-2024 Adiscon GmbH.\n  *\n  * This file is part of rsyslog.\n  *\n@@ -139,6 +139,7 @@ typedef struct _instanceData {\n \tstrm_t\t*pStrm;\t\t/* our output stream */\n \tshort nInactive;\t/* number of minutes not writen (STATIC files only) */\n \tchar\tbDynamicName;\t/* 0 - static name, 1 - dynamic name (with properties) */\n+\tint\tisDevNull;\t/* do we \"write\" to /dev/null? - if so, do nothing */\n \tint\tfCreateMode;\t/* file creation mode for open() */\n \tint\tfDirCreateMode;\t/* creation mode for mkdir() */\n \tint\tbCreateDirs;\t/* auto-create directories? */\n@@ -1081,6 +1082,11 @@ BEGINcommitTransaction\n \tinstanceData *__restrict__ const pData = pWrkrData->pData;\n \tunsigned i;\n CODESTARTcommitTransaction\n+\n+\tif(pData->isDevNull) {\n+\t\tgoto terminate;\n+\t}\n+\n \tpthread_mutex_lock(&pData->mutWrite);\n \n \tfor(i = 0 ; i < nParams ; ++i) {\n@@ -1105,6 +1111,8 @@ finalize_it:\n \t\tiRet = (pData->bDynamicName && runModConf->bDynafileDoNotSuspend) ?\n \t\t\tRS_RET_OK : RS_RET_SUSPENDED;\n \t}\n+\n+terminate:\n ENDcommitTransaction\n \n \n@@ -1135,6 +1143,7 @@ setInstParamDefaults(instanceData *__restrict__ const pData)\n \tpData->useCryprov = 0;\n \tpData->iCloseTimeout = -1;\n \tpData->iSizeLimit = 0;\n+\tpData->isDevNull = 0;\n \tpData->pszSizeLimitCmd = NULL;\n }\n \n@@ -1378,6 +1387,10 @@ CODESTARTnewActInst\n \t\tABORT_FINALIZE(RS_RET_MISSING_CNFPARAMS);\n \t}\n \n+\tif(!strcmp((const char*) pData->fname, \"/dev/null\")) {\n+\t\tpData->isDevNull = 1;\n+\t}\n+\n \tif(pData->sigprovName != NULL) {\n \t\tinitSigprov(pData, lst);\n \t}\n-- \n2.25.1\n\n",
+      "sha256": "2c84d4fa940f85f4b5271668c39962408720f9b8abda41c91e4b92c6aad78453"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for rsyslog.\ncase_id: oe-79-rsyslog\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 25224fb536488ae63e6addd2c9005bc2b8dc126a\nreference_parent: 4c11c58b519b7da8b36177e506165026c26aaa71\ntarget_ref: 0cff91662a0921e1ae07a9de7cd7357073dc0a19\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "93de7a7d02be7b06e8933cbeab6624ee6903122edd3d280f39c94440ae8ed130",
+      "text": "From 25224fb536488ae63e6addd2c9005bc2b8dc126a Mon Sep 17 00:00:00 2001\nFrom: Rainer Gerhards <rgerhards@adiscon.com>\nDate: Wed, 21 Feb 2024 09:31:00 +0100\nSubject: [PATCH] omfile: do not carry out actual action when writing to\n /dev/null\n\nIn some use cases omfile is configured to write to /dev/null. This seems\nprimarily be done because of statistics gathering but maybe some other\nscenarios. We now add conditional logic to not do any actual omfile\naction when the target file is /dev/null.\n\nNote: this check only works on static file names. When /dev/null is\nevaluated as part of dynafile, it will be handled just in the regular\ncase like before this patch.\n---\n tools/omfile.c | 15 ++++++++++++++-\n 1 file changed, 14 insertions(+), 1 deletion(-)\n\ndiff --git a/tools/omfile.c b/tools/omfile.c\nindex 1702a30399..cf464cd1c1 100644\n--- a/tools/omfile.c\n+++ b/tools/omfile.c\n@@ -17,7 +17,7 @@\n  * pipes. These have been moved to ompipe, to reduced the entanglement\n  * between the two different functionalities. -- rgerhards\n  *\n- * Copyright 2007-2023 Adiscon GmbH.\n+ * Copyright 2007-2024 Adiscon GmbH.\n  *\n  * This file is part of rsyslog.\n  *\n@@ -139,6 +139,7 @@ typedef struct _instanceData {\n \tstrm_t\t*pStrm;\t\t/* our output stream */\n \tshort nInactive;\t/* number of minutes not writen (STATIC files only) */\n \tchar\tbDynamicName;\t/* 0 - static name, 1 - dynamic name (with properties) */\n+\tint\tisDevNull;\t/* do we \"write\" to /dev/null? - if so, do nothing */\n \tint\tfCreateMode;\t/* file creation mode for open() */\n \tint\tfDirCreateMode;\t/* creation mode for mkdir() */\n \tint\tbCreateDirs;\t/* auto-create directories? */\n@@ -1081,6 +1082,11 @@ BEGINcommitTransaction\n \tinstanceData *__restrict__ const pData = pWrkrData->pData;\n \tunsigned i;\n CODESTARTcommitTransaction\n+\n+\tif(pData->isDevNull) {\n+\t\tgoto terminate;\n+\t}\n+\n \tpthread_mutex_lock(&pData->mutWrite);\n \n \tfor(i = 0 ; i < nParams ; ++i) {\n@@ -1105,6 +1111,8 @@ CODESTARTcommitTransaction\n \t\tiRet = (pData->bDynamicName && runModConf->bDynafileDoNotSuspend) ?\n \t\t\tRS_RET_OK : RS_RET_SUSPENDED;\n \t}\n+\n+terminate:\n ENDcommitTransaction\n \n \n@@ -1135,6 +1143,7 @@ setInstParamDefaults(instanceData *__restrict__ const pData)\n \tpData->useCryprov = 0;\n \tpData->iCloseTimeout = -1;\n \tpData->iSizeLimit = 0;\n+\tpData->isDevNull = 0;\n \tpData->pszSizeLimitCmd = NULL;\n }\n \n@@ -1378,6 +1387,10 @@ CODESTARTnewActInst\n \t\tABORT_FINALIZE(RS_RET_MISSING_CNFPARAMS);\n \t}\n \n+\tif(!strcmp((const char*) pData->fname, \"/dev/null\")) {\n+\t\tpData->isDevNull = 1;\n+\t}\n+\n \tif(pData->sigprovName != NULL) {\n \t\tinitSigprov(pData, lst);\n \t}\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "fa1174dfc8df0d934eede8973abbc8a85f3b6ca29c2108e533600253061a03b9",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-79-rsyslog/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-79-rsyslog",
+      "package": "rsyslog",
+      "version": "8.2312.0",
+      "source_commit": "25224fb536488ae63e6addd2c9005bc2b8dc126a",
+      "target_ref": "0cff91662a0921e1ae07a9de7cd7357073dc0a19",
+      "target_tree": "e73deff16a1e49d856b58073cde3fb5520d1360e",
+      "reference_patch": "patches/oe-79-rsyslog/reference.patch",
+      "reference_sha256": "2c84d4fa940f85f4b5271668c39962408720f9b8abda41c91e4b92c6aad78453",
+      "oracle_patch": "patches/oe-79-rsyslog/oracle.patch",
+      "oracle_sha256": "93de7a7d02be7b06e8933cbeab6624ee6903122edd3d280f39c94440ae8ed130"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

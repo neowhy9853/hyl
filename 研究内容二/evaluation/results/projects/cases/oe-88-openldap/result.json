@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-88-openldap",
+  "candidate_sha256": "892dc188bd7bf756c1d0adc1b2c5660916f4df048792689328b264a3e61cea61",
+  "oracle_sha256": "dda4f7f79682ea8cbd6d9041b036fa320385cadbb238019c4cd5a25248a31774",
+  "candidate_nonempty": true,
+  "target_ref": "2a9831941ae39178e4a71de8cd60b922afa62f77",
+  "baseline_tree": "f508bc14911d43a05ce3cc9f2a8fc0e9ff1ecc0c",
+  "candidate_tree": "3d09afadc55180627265808a51bb06b225ac6cec",
+  "oracle_tree": "3d09afadc55180627265808a51bb06b225ac6cec",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-88-openldap",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "892dc188bd7bf756c1d0adc1b2c5660916f4df048792689328b264a3e61cea61",
+    "text": "diff --git a/servers/slapd/back-asyncmeta/config.c b/servers/slapd/back-asyncmeta/config.c\nindex e4cc5eab7..234de5aa0 100644\n--- a/servers/slapd/back-asyncmeta/config.c\n+++ b/servers/slapd/back-asyncmeta/config.c\n@@ -497,7 +497,8 @@ asyncmeta_cfadd( Operation *op, SlapReply *rs, Entry *p, ConfigArgs *c )\n static int\n asyncmeta_back_new_target(\n \ta_metatarget_t\t**mtp,\n-\ta_metainfo_t     *mi )\n+\ta_metainfo_t     *mi,\n+\tBackendDB        *db )\n {\n \ta_metatarget_t\t\t*mt;\n \n@@ -516,7 +517,9 @@ asyncmeta_back_new_target(\n \tmt->mt_idassert_flags = LDAP_BACK_AUTH_PRESCRIPTIVE;\n \n \t*mtp = mt;\n-\n+\tif ( !SLAP_DBOPEN(db) || !(slapMode & SLAP_SERVER_MODE)) {\n+\t\treturn 0;\n+\t}\n \tfor ( i = 0; i < mi->mi_num_conns; i++ ) {\n \t\ta_metaconn_t *mc = &mi->mi_conns[i];\n \t\tmc->mc_conns = ch_realloc( mc->mc_conns, sizeof( a_metasingleconn_t ) * mi->mi_ntargets);\n@@ -1907,7 +1910,7 @@ asyncmeta_back_cf_gen( ConfigArgs *c )\n \t\t\treturn 1;\n \t\t}\n \n-\t\tif ( asyncmeta_back_new_target( &mi->mi_targets[ i ], mi ) != 0 ) {\n+\t\tif ( asyncmeta_back_new_target( &mi->mi_targets[ i ], mi, c->be ) != 0 ) {\n \t\t\tsnprintf( c->cr_msg, sizeof( c->cr_msg ),\n \t\t\t\t\"unable to init server\"\n \t\t\t\t\" in \\\"%s <protocol>://<server>[:port]/<naming context>\\\"\",\ndiff --git a/servers/slapd/back-asyncmeta/init.c b/servers/slapd/back-asyncmeta/init.c\nindex 2b43958fe..137d9507f 100644\n--- a/servers/slapd/back-asyncmeta/init.c\n+++ b/servers/slapd/back-asyncmeta/init.c\n@@ -275,7 +275,7 @@ asyncmeta_back_db_open(\n \t\n \tber_dupbv ( &mi->mi_suffix, &be->be_suffix[0] );\n \n-\tif ( mi->mi_ntargets > 0 ) {\n+\tif ( ( slapMode & SLAP_SERVER_MODE ) && mi->mi_ntargets > 0 ) {\n \t\tldap_pvt_thread_mutex_lock( &slapd_rq.rq_mutex );\n \t\tmi->mi_task = ldap_pvt_runqueue_insert( &slapd_rq, 1,\n \t\t\t\t\t\t\tasyncmeta_timeout_loop, mi, \"asyncmeta_timeout_loop\", mi->mi_suffix.bv_val );\n"
+  },
+  "trace_file": "trace.jsonl"
+}

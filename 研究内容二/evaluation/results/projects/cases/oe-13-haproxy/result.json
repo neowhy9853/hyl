@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-13-haproxy",
+  "candidate_sha256": "3a74ec607ad6f8eb28617dbf9affc972cf8b9d6fb84ff0454e1a34d14b9b77c9",
+  "oracle_sha256": "a08fe2073be8a041bc89f87d46a4f7fc3fd3918a2cac267e0dc7261d2d2b5370",
+  "candidate_nonempty": true,
+  "target_ref": "9ef21bcb729c6fc82fe73d17324898af211f4484",
+  "baseline_tree": "e1d8b721c9a9e8cab3f04be10da88b14dcd391fd",
+  "candidate_tree": "1eae85223b4a70abec622250cfa8c438fa6ad703",
+  "oracle_tree": "1eae85223b4a70abec622250cfa8c438fa6ad703",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-13-haproxy",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "3a74ec607ad6f8eb28617dbf9affc972cf8b9d6fb84ff0454e1a34d14b9b77c9",
+    "text": "diff --git a/src/h1.c b/src/h1.c\nindex f351af8f7..c91cc621d 100644\n--- a/src/h1.c\n+++ b/src/h1.c\n@@ -399,13 +399,13 @@ int h1_headers_to_hdr_list(char *start, const char *stop,\n \tcase H1_MSG_RQURI:\n \thttp_msg_rquri:\n #ifdef HA_UNALIGNED_LE\n-\t\t/* speedup: skip bytes not between 0x21 and 0x7e inclusive */\n+\t\t/* speedup: skip bytes not between 0x24 and 0x7e inclusive */\n \t\twhile (ptr <= end - sizeof(int)) {\n-\t\t\tint x = *(int *)ptr - 0x21212121;\n+\t\t\tint x = *(int *)ptr - 0x24242424;\n \t\t\tif (x & 0x80808080)\n \t\t\t\tbreak;\n \n-\t\t\tx -= 0x5e5e5e5e;\n+\t\t\tx -= 0x5b5b5b5b;\n \t\t\tif (!(x & 0x80808080))\n \t\t\t\tbreak;\n \n@@ -417,8 +417,15 @@ int h1_headers_to_hdr_list(char *start, const char *stop,\n \t\t\tgoto http_msg_ood;\n \t\t}\n \thttp_msg_rquri2:\n-\t\tif (likely((unsigned char)(*ptr - 33) <= 93)) /* 33 to 126 included */\n+\t\tif (likely((unsigned char)(*ptr - 33) <= 93)) { /* 33 to 126 included */\n+\t\t\tif (*ptr == '#') {\n+\t\t\t\tif (h1m->err_pos < -1) /* PR_O2_REQBUG_OK not set */\n+\t\t\t\t\tgoto invalid_char;\n+\t\t\t\tif (h1m->err_pos == -1) /* PR_O2_REQBUG_OK set: just log */\n+\t\t\t\t\th1m->err_pos = ptr - start + skip;\n+\t\t\t}\n \t\t\tEAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rquri2, http_msg_ood, state, H1_MSG_RQURI);\n+\t\t}\n \n \t\tif (likely(HTTP_IS_SPHT(*ptr))) {\n \t\t\tsl.rq.u.len = ptr - sl.rq.u.ptr;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

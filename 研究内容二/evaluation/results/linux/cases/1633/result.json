@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1633",
+  "candidate_sha256": "2769753b3647806718740556de01671c21b9d86105dedaa588793dd76a40cf18",
+  "oracle_sha256": "9117fee88ef5980c456045a4bf1699298bf0a87bd6ff38770bc41fb49cd16570",
+  "candidate_nonempty": true,
+  "target_ref": "0449f835a6866098d4cfd0fb89e360b35f2ec94d",
+  "baseline_tree": "72caa1665b65c70b5d2979f41e6d9a758f231635",
+  "candidate_tree": "b718c499f23939e9529ca249bc7e64963f94d2a5",
+  "oracle_tree": "b718c499f23939e9529ca249bc7e64963f94d2a5",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1633",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "2769753b3647806718740556de01671c21b9d86105dedaa588793dd76a40cf18",
+    "text": "diff --git a/fs/btrfs/ctree.h b/fs/btrfs/ctree.h\nindex 9ae776ab3967..29ef969035df 100644\n--- a/fs/btrfs/ctree.h\n+++ b/fs/btrfs/ctree.h\n@@ -3110,7 +3110,7 @@ int btrfs_truncate_inode_items(struct btrfs_trans_handle *trans,\n \t\t\t       struct btrfs_inode *inode, u64 new_size,\n \t\t\t       u32 min_type);\n \n-int btrfs_start_delalloc_snapshot(struct btrfs_root *root);\n+int btrfs_start_delalloc_snapshot(struct btrfs_root *root, bool in_reclaim_context);\n int btrfs_start_delalloc_roots(struct btrfs_fs_info *fs_info, long nr,\n \t\t\t       bool in_reclaim_context);\n int btrfs_set_extent_delalloc(struct btrfs_inode *inode, u64 start, u64 end,\ndiff --git a/fs/btrfs/inode.c b/fs/btrfs/inode.c\nindex a922c3bcb65e..8c4d2eaa5d58 100644\n--- a/fs/btrfs/inode.c\n+++ b/fs/btrfs/inode.c\n@@ -9672,7 +9672,7 @@ static int start_delalloc_inodes(struct btrfs_root *root,\n \treturn ret;\n }\n \n-int btrfs_start_delalloc_snapshot(struct btrfs_root *root)\n+int btrfs_start_delalloc_snapshot(struct btrfs_root *root, bool in_reclaim_context)\n {\n \tstruct writeback_control wbc = {\n \t\t.nr_to_write = LONG_MAX,\n@@ -9685,7 +9685,7 @@ int btrfs_start_delalloc_snapshot(struct btrfs_root *root)\n \tif (test_bit(BTRFS_FS_STATE_ERROR, &fs_info->fs_state))\n \t\treturn -EROFS;\n \n-\treturn start_delalloc_inodes(root, &wbc, true, false);\n+\treturn start_delalloc_inodes(root, &wbc, true, in_reclaim_context);\n }\n \n int btrfs_start_delalloc_roots(struct btrfs_fs_info *fs_info, long nr,\ndiff --git a/fs/btrfs/ioctl.c b/fs/btrfs/ioctl.c\nindex 5efd6c7fe620..f9ecb6c0bf15 100644\n--- a/fs/btrfs/ioctl.c\n+++ b/fs/btrfs/ioctl.c\n@@ -1046,7 +1046,7 @@ static noinline int btrfs_mksnapshot(const struct path *parent,\n \t */\n \tbtrfs_drew_read_lock(&root->snapshot_lock);\n \n-\tret = btrfs_start_delalloc_snapshot(root);\n+\tret = btrfs_start_delalloc_snapshot(root, false);\n \tif (ret)\n \t\tgoto out;\n \ndiff --git a/fs/btrfs/qgroup.c b/fs/btrfs/qgroup.c\nindex f0b9ef13153a..2991287a71a8 100644\n--- a/fs/btrfs/qgroup.c\n+++ b/fs/btrfs/qgroup.c\n@@ -3579,7 +3579,7 @@ static int try_flush_qgroup(struct btrfs_root *root)\n \t\treturn 0;\n \t}\n \n-\tret = btrfs_start_delalloc_snapshot(root);\n+\tret = btrfs_start_delalloc_snapshot(root, true);\n \tif (ret < 0)\n \t\tgoto out;\n \tbtrfs_wait_ordered_extents(root, U64_MAX, 0, (u64)-1);\ndiff --git a/fs/btrfs/send.c b/fs/btrfs/send.c\nindex 8f323859156b..8ae8f1732fd2 100644\n--- a/fs/btrfs/send.c\n+++ b/fs/btrfs/send.c\n@@ -7139,7 +7139,7 @@ static int flush_delalloc_roots(struct send_ctx *sctx)\n \tint i;\n \n \tif (root) {\n-\t\tret = btrfs_start_delalloc_snapshot(root);\n+\t\tret = btrfs_start_delalloc_snapshot(root, false);\n \t\tif (ret)\n \t\t\treturn ret;\n \t\tbtrfs_wait_ordered_extents(root, U64_MAX, 0, U64_MAX);\n@@ -7147,7 +7147,7 @@ static int flush_delalloc_roots(struct send_ctx *sctx)\n \n \tfor (i = 0; i < sctx->clone_roots_cnt; i++) {\n \t\troot = sctx->clone_roots[i].root;\n-\t\tret = btrfs_start_delalloc_snapshot(root);\n+\t\tret = btrfs_start_delalloc_snapshot(root, false);\n \t\tif (ret)\n \t\t\treturn ret;\n \t\tbtrfs_wait_ordered_extents(root, U64_MAX, 0, U64_MAX);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -24,7 +24,24 @@
 | `.dockerignore` | Docker 构建过滤规则 | 只将 Dockerfile 和两个 Skill 加入构建上下文 |
 | `patch-intent-analysis/` | 补丁意图分析 Skill | 定义单个 commit 的补丁类型、问题级别、证据规则和 JSON 输出契约，并提供依赖检查与静态分析脚本 |
 | `patch-relation-analysis/` | 补丁关联分析 Skill | 定义 commit 之间的关系类型、分数、依赖方向和 JSON 输出契约，并提供关联证据提取脚本 |
-| `evaluation/` | 补丁分类评测材料 | 包含基础 commit 数据、多轮均衡评测样本、commit message 净化工具、测试及使用说明 |
+| `evaluation/` | 补丁分类评测材料 | 包含基础 commit 数据、多轮均衡评测样本、commit message 净化工具及使用说明 |
+
+## 完整分类测评
+
+本次修改清单、从零运行、续跑与完整验收结果见 [一键测评说明](evaluation/ONE_CLICK_GUIDE.md)。
+
+主机安装 Python 3.10+、Git 和 Docker，并按 [一键测评说明](evaluation/ONE_CLICK_GUIDE.md) 配置模型后，在本目录执行以下一条命令。它会自动构建运行环境、下载并校验评测源码、运行五轮 1,250 个位置并输出成绩与轨迹：
+
+```bash
+python3 evaluation/scripts/run_evaluation.py \
+  --config "${EVAL_CONFIG:-evaluation/config/opencode.example.json}" \
+  --output "${EVAL_OUTPUT:-../research1-runs/full}" \
+  --workers 4
+```
+
+`EVAL_CONFIG` 和 `EVAL_OUTPUT` 分别覆盖配置与输出路径；默认使用仓库模型配置模板，并把结果写到项目之外的 `../research1-runs/full`。模板需提供 `MODEL_BASE_URL` 和 `MODEL_API_KEY`，模型 ID 须与服务匹配。执行器支持 POSIX 主机，不支持原生 Windows Python；平台限制见一键测评说明。
+
+无需预装 OpenCode 或手工安装 Skill/Ctags。调用者仍需提供有效模型服务及其凭据，并具备下载公开源码所需的网络。新测评采用当前 11 类 Skill 与公开兼容映射，和历史五分类成绩分开保存。配置示例、首次准备、续跑、失败处理及核验命令详见 [evaluation/scripts/README.md](evaluation/scripts/README.md)。
 
 ## 安装
 
@@ -200,10 +217,10 @@ Docker 模式在隔离容器中完成一个 commit 分析并直接输出结果�
 - 待分析目录是完整的 Git 仓库，且目标 commit 可以在该仓库中解析。
 - 运行环境能够访问配置的模型服务。
 
-先构建镜像：
+以下命令均从本 README 所在的 `研究内容一/` 目录执行。先构建镜像：
 
 ```bash
-RESEARCH_DIR=/absolute/path/to/研究内容一
+RESEARCH_DIR="$(pwd)"
 IMAGE_NAME=patch-analysis-opencode:1.0
 
 docker build \
@@ -214,8 +231,8 @@ docker build \
 设置待分析仓库、OpenCode 配置文件和 commit ID，然后运行：
 
 ```bash
-HOST_REPO=/absolute/path/to/git-repository
-HOST_OPENCODE_CONFIG=/absolute/path/to/opencode.json
+: "${HOST_REPO:?请设置待分析仓库的本机绝对路径}"
+: "${HOST_OPENCODE_CONFIG:?请设置 OpenCode 配置文件的本机绝对路径}"
 IMAGE_NAME=patch-analysis-opencode:1.0
 COMMIT_ID=replace-with-commit-id
 
@@ -247,8 +264,8 @@ run \
 设置 OpenCode 可执行文件、待分析仓库和 commit ID，然后运行：
 
 ```bash
-OPENCODE_BIN=/absolute/path/to/opencode
-REPO_PATH=/absolute/path/to/git-repository
+OPENCODE_BIN="${OPENCODE_BIN:-opencode}"
+: "${REPO_PATH:?请设置待分析的本机 Git 仓库路径}"
 COMMIT_ID=replace-with-commit-id
 
 "$OPENCODE_BIN" \
@@ -257,4 +274,4 @@ run \
 "使用 \$patch-intent-analysis 分析 ${REPO_PATH} 仓库中的 commit ${COMMIT_ID}。只返回符合 Skill 输出契约的单个 JSON 对象，不要添加 Markdown 代码围栏或说明文字。"
 ```
 
-如果 `opencode` 已经位于 `PATH` 中，可以将 `OPENCODE_BIN` 设置为 `opencode`。Universal Ctags 可以提升源码符号定位精度；缺少时，Skill 会使用内置降级分析能力。
+默认通过 `PATH` 查找 `opencode`；若未加入 `PATH`，将 `OPENCODE_BIN` 设置为本机可执行文件路径。Universal Ctags 可以提升源码符号定位精度；缺少时，Skill 会使用内置降级分析能力。

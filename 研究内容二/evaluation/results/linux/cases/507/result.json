@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "507",
+  "candidate_sha256": "7e035d76b3e232419ae55829c5b35a4d0a7bb104e71a3c546e2c794ea2f626a8",
+  "oracle_sha256": "90a198739c15324a8223f8e3cb77b4bf65066b916138de4a440cc53222294983",
+  "candidate_nonempty": true,
+  "target_ref": "54407d9bc5e32e51d4e8488d2cfbaa976e9127fb",
+  "baseline_tree": "ec73138a61270cd9e3cf1be43936578fff326d95",
+  "candidate_tree": "d5aa5f538827d75ea4f95cbc4b3a8f4f2862c541",
+  "oracle_tree": "d5aa5f538827d75ea4f95cbc4b3a8f4f2862c541",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/507",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "7e035d76b3e232419ae55829c5b35a4d0a7bb104e71a3c546e2c794ea2f626a8",
+    "text": "diff --git a/fs/erofs/decompressor.c b/fs/erofs/decompressor.c\nindex ae3cfd018d99..1eefa4411e06 100644\n--- a/fs/erofs/decompressor.c\n+++ b/fs/erofs/decompressor.c\n@@ -396,7 +396,7 @@ int z_erofs_parse_cfgs(struct super_block *sb, struct erofs_super_block *dsb)\n \tint size, ret = 0;\n \n \tif (!erofs_sb_has_compr_cfgs(sbi)) {\n-\t\tsbi->available_compr_algs = Z_EROFS_COMPRESSION_LZ4;\n+\t\tsbi->available_compr_algs = 1 << Z_EROFS_COMPRESSION_LZ4;\n \t\treturn z_erofs_load_lz4_config(sb, dsb, NULL, 0);\n \t}\n \ndiff --git a/fs/erofs/zmap.c b/fs/erofs/zmap.c\nindex 0337b70b2dac..abcded1acd19 100644\n--- a/fs/erofs/zmap.c\n+++ b/fs/erofs/zmap.c\n@@ -610,7 +610,7 @@ static int z_erofs_do_map_blocks(struct inode *inode,\n \t\t.map = map,\n \t};\n \tint err = 0;\n-\tunsigned int lclusterbits, endoff;\n+\tunsigned int lclusterbits, endoff, afmt;\n \tunsigned long initial_lcn;\n \tunsigned long long ofs, end;\n \n@@ -700,17 +700,20 @@ static int z_erofs_do_map_blocks(struct inode *inode,\n \t\t\terr = -EFSCORRUPTED;\n \t\t\tgoto unmap_out;\n \t\t}\n-\t\tif (vi->z_advise & Z_EROFS_ADVISE_INTERLACED_PCLUSTER)\n-\t\t\tmap->m_algorithmformat =\n-\t\t\t\tZ_EROFS_COMPRESSION_INTERLACED;\n-\t\telse\n-\t\t\tmap->m_algorithmformat =\n-\t\t\t\tZ_EROFS_COMPRESSION_SHIFTED;\n-\t} else if (m.headtype == Z_EROFS_VLE_CLUSTER_TYPE_HEAD2) {\n-\t\tmap->m_algorithmformat = vi->z_algorithmtype[1];\n+\t\tafmt = vi->z_advise & Z_EROFS_ADVISE_INTERLACED_PCLUSTER ?\n+\t\t\tZ_EROFS_COMPRESSION_INTERLACED :\n+\t\t\tZ_EROFS_COMPRESSION_SHIFTED;\n \t} else {\n-\t\tmap->m_algorithmformat = vi->z_algorithmtype[0];\n+\t\tafmt = m.headtype == Z_EROFS_VLE_CLUSTER_TYPE_HEAD2 ?\n+\t\t\tvi->z_algorithmtype[1] : vi->z_algorithmtype[0];\n+\t\tif (!(EROFS_I_SB(inode)->available_compr_algs & (1 << afmt))) {\n+\t\t\terofs_err(inode->i_sb, \"inconsistent algorithmtype %u for nid %llu\",\n+\t\t\t\t  afmt, vi->nid);\n+\t\t\terr = -EFSCORRUPTED;\n+\t\t\tgoto unmap_out;\n+\t\t}\n \t}\n+\tmap->m_algorithmformat = afmt;\n \n \tif ((flags & EROFS_GET_BLOCKS_FIEMAP) ||\n \t    ((flags & EROFS_GET_BLOCKS_READMORE) &&\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1787",
+  "candidate_sha256": "3c224b507cebdc13126548ca9576006d83b9b97e5955a68cf2eba84b7ee2e36d",
+  "oracle_sha256": "efbcde49351ac905d95f29088ddd13fec1ddc1ad566b864f0d22d7b92287206f",
+  "candidate_nonempty": true,
+  "target_ref": "399a4563ca9034340ba04e237d5631c8deda66f4",
+  "baseline_tree": "28f829e3e94eaa150eadd476d99b4da195910aa2",
+  "candidate_tree": "212757d726e98aa6dcc816e20acbef215293ea6d",
+  "oracle_tree": "63f1b7fe13bb791a240062c9bb515204c1f0e87b",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1787",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "3c224b507cebdc13126548ca9576006d83b9b97e5955a68cf2eba84b7ee2e36d",
+    "text": "diff --git a/net/ipv4/tcp_input.c b/net/ipv4/tcp_input.c\nindex 0c96055b2382..47e08a133b14 100644\n--- a/net/ipv4/tcp_input.c\n+++ b/net/ipv4/tcp_input.c\n@@ -88,7 +88,7 @@ int sysctl_tcp_adv_win_scale __read_mostly = 1;\n EXPORT_SYMBOL(sysctl_tcp_adv_win_scale);\n \n /* rfc5961 challenge ack rate limiting */\n-int sysctl_tcp_challenge_ack_limit = 100;\n+int sysctl_tcp_challenge_ack_limit = 1000;\n \n int sysctl_tcp_stdurg __read_mostly;\n int sysctl_tcp_rfc1337 __read_mostly;\n@@ -3324,13 +3324,19 @@ static void tcp_send_challenge_ack(struct sock *sk)\n \t/* unprotected vars, we dont care of overwrites */\n \tstatic u32 challenge_timestamp;\n \tstatic unsigned int challenge_count;\n-\tu32 now = jiffies / HZ;\n+\tu32 count, now = jiffies / HZ;\n \n+\t/* Then check host-wide RFC 5961 rate limit. */\n \tif (now != challenge_timestamp) {\n+\t\tu32 half = (sysctl_tcp_challenge_ack_limit + 1) >> 1;\n+\n \t\tchallenge_timestamp = now;\n-\t\tchallenge_count = 0;\n+\t\tWRITE_ONCE(challenge_count, half +\n+\t\t\t   prandom_u32_max(sysctl_tcp_challenge_ack_limit));\n \t}\n-\tif (++challenge_count <= sysctl_tcp_challenge_ack_limit) {\n+\tcount = READ_ONCE(challenge_count);\n+\tif (count > 0) {\n+\t\tWRITE_ONCE(challenge_count, count - 1);\n \t\tNET_INC_STATS_BH(sock_net(sk), LINUX_MIB_TCPCHALLENGEACK);\n \t\ttcp_send_ack(sk);\n \t}\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1177",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1177-yo2652bc/repo",
+      "target_ref": "ef27e3c531782ec8213108e11e5515f9724303c7",
+      "target_tree": "fbb18abee7a7884b6807ea5179a7b3df47aca191"
+    },
+    "source_commit": "a38c401b4afafd11a127f250cb382c476bdeed9e",
+    "reference_parent": "d907a0770bb23deacd7087263aa6e242d91d3075",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/include/uapi/linux/snmp.h b/include/uapi/linux/snmp.h\nindex 86dc24a96c90ab047d5173d625450facd6c6dd79..fd42c1316d3d112ecd8a00d2b499d6f6901c5e81 100644\n--- a/include/uapi/linux/snmp.h\n+++ b/include/uapi/linux/snmp.h\n@@ -283,6 +283,7 @@ enum\n \tLINUX_MIB_TCPACKCOMPRESSED,\t\t/* TCPAckCompressed */\n \tLINUX_MIB_TCPZEROWINDOWDROP,\t\t/* TCPZeroWindowDrop */\n \tLINUX_MIB_TCPRCVQDROP,\t\t\t/* TCPRcvQDrop */\n+\tLINUX_MIB_TCPWQUEUETOOBIG,\t\t/* TCPWqueueTooBig */\n \t__LINUX_MIB_MAX\n };\n \ndiff --git a/net/ipv4/proc.c b/net/ipv4/proc.c\nindex c3610b37bb4ce665b1976d8cc907b6dd0de42ab9..dff6755dc1a7c74ae4b2292581afc114f657b7b8 100644\n--- a/net/ipv4/proc.c\n+++ b/net/ipv4/proc.c\n@@ -291,6 +291,7 @@ static const struct snmp_mib snmp4_net_list[] = {\n \tSNMP_MIB_ITEM(\"TCPAckCompressed\", LINUX_MIB_TCPACKCOMPRESSED),\n \tSNMP_MIB_ITEM(\"TCPZeroWindowDrop\", LINUX_MIB_TCPZEROWINDOWDROP),\n \tSNMP_MIB_ITEM(\"TCPRcvQDrop\", LINUX_MIB_TCPRCVQDROP),\n+\tSNMP_MIB_ITEM(\"TCPWqueueTooBig\", LINUX_MIB_TCPWQUEUETOOBIG),\n \tSNMP_MIB_SENTINEL\n };\n \ndiff --git a/net/ipv4/tcp_output.c b/net/ipv4/tcp_output.c\nindex d0261761e41b139815e9585ce489431330c2161d..e1364478b9148ee44b585534e7d3a85efca4661e 100644\n--- a/net/ipv4/tcp_output.c\n+++ b/net/ipv4/tcp_output.c\n@@ -1299,6 +1299,11 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,\n \tif (nsize < 0)\n \t\tnsize = 0;\n \n+\tif (unlikely((sk->sk_wmem_queued >> 1) > sk->sk_sndbuf)) {\n+\t\tNET_INC_STATS(sock_net(sk), LINUX_MIB_TCPWQUEUETOOBIG);\n+\t\treturn -ENOMEM;\n+\t}\n+\n \tif (skb_unclone(skb, gfp))\n \t\treturn -ENOMEM;\n \n",
+      "sha256": "e29b412f9da614daf93aa3ae4cceea10a0db1bb9da6f3822ca66d26ad28216ea"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2019-11478\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1177-yo2652bc/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1177-yo2652bc/repo/.patch-port/reference.diff\nreference_fix: a38c401b4afafd11a127f250cb382c476bdeed9e\nreference_parent: d907a0770bb23deacd7087263aa6e242d91d3075\ntarget_ref: ef27e3c531782ec8213108e11e5515f9724303c7\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1177-yo2652bc/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1177-yo2652bc/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2019-11478"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "dc97a907bc76b71c08e7e99a5b1b30ef4d5e4a85",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "a20ae99c52e2207a38416f99f76e8477c6a4ed27262ad08517caed9fce6e28e7",
+      "text": "diff --git a/include/uapi/linux/snmp.h b/include/uapi/linux/snmp.h\nindex df40137f33dd48c0b23dad1f5cd13c357c91c031..baa4995806d3a34602d1a71982cc0a022e7ebd4c 100644\n--- a/include/uapi/linux/snmp.h\n+++ b/include/uapi/linux/snmp.h\n@@ -265,6 +265,7 @@ enum\n \tLINUX_MIB_TCPWANTZEROWINDOWADV,\t\t/* TCPWantZeroWindowAdv */\n \tLINUX_MIB_TCPSYNRETRANS,\t\t/* TCPSynRetrans */\n \tLINUX_MIB_TCPORIGDATASENT,\t\t/* TCPOrigDataSent */\n+\tLINUX_MIB_TCPWQUEUETOOBIG,\t\t/* TCPWqueueTooBig */\n \t__LINUX_MIB_MAX\n };\n \ndiff --git a/net/ipv4/proc.c b/net/ipv4/proc.c\nindex ae0af9386f7ccf4cabafbcc8aff6c37309e820ea..14da5171772d46985170e0f2334cac43616a2fd4 100644\n--- a/net/ipv4/proc.c\n+++ b/net/ipv4/proc.c\n@@ -286,6 +286,7 @@ static const struct snmp_mib snmp4_net_list[] = {\n \tSNMP_MIB_ITEM(\"TCPWantZeroWindowAdv\", LINUX_MIB_TCPWANTZEROWINDOWADV),\n \tSNMP_MIB_ITEM(\"TCPSynRetrans\", LINUX_MIB_TCPSYNRETRANS),\n \tSNMP_MIB_ITEM(\"TCPOrigDataSent\", LINUX_MIB_TCPORIGDATASENT),\n+\tSNMP_MIB_ITEM(\"TCPWqueueTooBig\", LINUX_MIB_TCPWQUEUETOOBIG),\n \tSNMP_MIB_SENTINEL\n };\n \ndiff --git a/net/ipv4/tcp_output.c b/net/ipv4/tcp_output.c\nindex 2a5c993daa7f2408a67d71ce420d95182e83a173..e760a1ad19567b46f22dde3a525cce91dbd1d7af 100644\n--- a/net/ipv4/tcp_output.c\n+++ b/net/ipv4/tcp_output.c\n@@ -1090,6 +1090,11 @@ int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len,\n \tif (nsize < 0)\n \t\tnsize = 0;\n \n+\tif (unlikely((sk->sk_wmem_queued >> 1) > sk->sk_sndbuf)) {\n+\t\tNET_INC_STATS(sock_net(sk), LINUX_MIB_TCPWQUEUETOOBIG);\n+\t\treturn -ENOMEM;\n+\t}\n+\n \tif (skb_unclone(skb, gfp))\n \t\treturn -ENOMEM;\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "d2ac177b2c7c9b404ed7192a2526d82f5d816b42e51f6f37aae7e8cb802a06d2",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01177_CVE-2019-11478/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1177,
+      "cve": "CVE-2019-11478",
+      "source_commit": "a38c401b4afafd11a127f250cb382c476bdeed9e",
+      "oracle_commit": "dc97a907bc76b71c08e7e99a5b1b30ef4d5e4a85"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

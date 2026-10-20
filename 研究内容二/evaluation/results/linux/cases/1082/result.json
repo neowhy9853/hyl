@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1082",
+  "candidate_sha256": "17ce75e242caad5b44c1450b0ca4b5ef9d856500ebb683817819e598b6181cd5",
+  "oracle_sha256": "2d74eb311523d67616678038da9dce18f04be02d0c878bec46e26eaec931c4d1",
+  "candidate_nonempty": true,
+  "target_ref": "8cb9b069fa631b613bbbd6f63887190e55cafa3c",
+  "baseline_tree": "718dc602c1cfab69da4e939bf38a7d8a67131bc0",
+  "candidate_tree": "8c83cfc00f59f2d689a3fa8e5bc942a83e03c6ba",
+  "oracle_tree": "8c83cfc00f59f2d689a3fa8e5bc942a83e03c6ba",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1082",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "17ce75e242caad5b44c1450b0ca4b5ef9d856500ebb683817819e598b6181cd5",
+    "text": "diff --git a/fs/btrfs/disk-io.c b/fs/btrfs/disk-io.c\nindex da7a2a530647..9740f7b5d4fb 100644\n--- a/fs/btrfs/disk-io.c\n+++ b/fs/btrfs/disk-io.c\n@@ -438,6 +438,16 @@ int btrfs_verify_level_key(struct btrfs_fs_info *fs_info,\n \t */\n \tif (btrfs_header_generation(eb) > fs_info->last_trans_committed)\n \t\treturn 0;\n+\n+\t/* We have @first_key, so this @eb must have at least one item */\n+\tif (btrfs_header_nritems(eb) == 0) {\n+\t\tbtrfs_err(fs_info,\n+\t\t\"invalid tree nritems, bytenr=%llu nritems=0 expect >0\",\n+\t\t\t  eb->start);\n+\t\tWARN_ON(IS_ENABLED(CONFIG_BTRFS_DEBUG));\n+\t\treturn -EUCLEAN;\n+\t}\n+\n \tif (found_level)\n \t\tbtrfs_node_key_to_cpu(eb, &found_key, 0);\n \telse\ndiff --git a/fs/btrfs/tree-checker.c b/fs/btrfs/tree-checker.c\nindex 3ec712cba58e..235c2970b944 100644\n--- a/fs/btrfs/tree-checker.c\n+++ b/fs/btrfs/tree-checker.c\n@@ -509,6 +509,12 @@ static int check_leaf(struct btrfs_fs_info *fs_info, struct extent_buffer *leaf,\n \t\t\t\t    owner);\n \t\t\treturn -EUCLEAN;\n \t\t}\n+\t\t/* Unknown tree */\n+\t\tif (owner == 0) {\n+\t\t\tgeneric_err(fs_info, leaf, 0,\n+\t\t\t\t\"invalid owner, root 0 is not defined\");\n+\t\t\treturn -EUCLEAN;\n+\t\t}\n \t\tkey.objectid = owner;\n \t\tkey.type = BTRFS_ROOT_ITEM_KEY;\n \t\tkey.offset = (u64)-1;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

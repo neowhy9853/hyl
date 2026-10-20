@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "576",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-576-09gzpy5f/repo",
+      "target_ref": "e58e542e6eab2734dda4e5006d9ec3226fddd4c1",
+      "target_tree": "bec6768e3c2b5d82580f1d3491f002098a7333f3"
+    },
+    "source_commit": "7caac62ed598a196d6ddf8d9c121e12e082cac3a",
+    "reference_parent": "70702265a04aa0ce5a7bde77d13456209992b32f",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/net/wireless/marvell/mwifiex/ie.c b/drivers/net/wireless/marvell/mwifiex/ie.c\nindex 653d347a9a19d3e77eb3fbd1ad5d7da3278d6d4a..580387f9f12a9af3b2f64e5ea760ea1607dafe29 100644\n--- a/drivers/net/wireless/marvell/mwifiex/ie.c\n+++ b/drivers/net/wireless/marvell/mwifiex/ie.c\n@@ -241,6 +241,9 @@ static int mwifiex_update_vs_ie(const u8 *ies, int ies_len,\n \t\t}\n \n \t\tvs_ie = (struct ieee_types_header *)vendor_ie;\n+\t\tif (le16_to_cpu(ie->ie_length) + vs_ie->len + 2 >\n+\t\t\tIEEE_MAX_IE_SIZE)\n+\t\t\treturn -EINVAL;\n \t\tmemcpy(ie->ie_buffer + le16_to_cpu(ie->ie_length),\n \t\t       vs_ie, vs_ie->len + 2);\n \t\tle16_unaligned_add_cpu(&ie->ie_length, vs_ie->len + 2);\ndiff --git a/drivers/net/wireless/marvell/mwifiex/uap_cmd.c b/drivers/net/wireless/marvell/mwifiex/uap_cmd.c\nindex 18f7d9bf30b28edc19acef376675b15d726bcc00..0939a8c8f3ab5cf74a55ae08c3feadc1c486f3ca 100644\n--- a/drivers/net/wireless/marvell/mwifiex/uap_cmd.c\n+++ b/drivers/net/wireless/marvell/mwifiex/uap_cmd.c\n@@ -265,6 +265,8 @@ mwifiex_set_uap_rates(struct mwifiex_uap_bss_param *bss_cfg,\n \n \trate_ie = (void *)cfg80211_find_ie(WLAN_EID_SUPP_RATES, var_pos, len);\n \tif (rate_ie) {\n+\t\tif (rate_ie->len > MWIFIEX_SUPPORTED_RATES)\n+\t\t\treturn;\n \t\tmemcpy(bss_cfg->rates, rate_ie + 1, rate_ie->len);\n \t\trate_len = rate_ie->len;\n \t}\n@@ -272,8 +274,11 @@ mwifiex_set_uap_rates(struct mwifiex_uap_bss_param *bss_cfg,\n \trate_ie = (void *)cfg80211_find_ie(WLAN_EID_EXT_SUPP_RATES,\n \t\t\t\t\t   params->beacon.tail,\n \t\t\t\t\t   params->beacon.tail_len);\n-\tif (rate_ie)\n+\tif (rate_ie) {\n+\t\tif (rate_ie->len > MWIFIEX_SUPPORTED_RATES - rate_len)\n+\t\t\treturn;\n \t\tmemcpy(bss_cfg->rates + rate_len, rate_ie + 1, rate_ie->len);\n+\t}\n \n \treturn;\n }\n@@ -391,6 +396,8 @@ mwifiex_set_wmm_params(struct mwifiex_private *priv,\n \t\t\t\t\t    params->beacon.tail_len);\n \tif (vendor_ie) {\n \t\twmm_ie = vendor_ie;\n+\t\tif (*(wmm_ie + 1) > sizeof(struct mwifiex_types_wmm_info))\n+\t\t\treturn;\n \t\tmemcpy(&bss_cfg->wmm_info, wmm_ie +\n \t\t       sizeof(struct ieee_types_header), *(wmm_ie + 1));\n \t\tpriv->wmm_enabled = 1;\n",
+      "sha256": "855fe650ab760aae3c1ec57b50f5a83b67b3f49f186b0338b904703400a5c5dc"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2019-14816\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-576-09gzpy5f/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-576-09gzpy5f/repo/.patch-port/reference.diff\nreference_fix: 7caac62ed598a196d6ddf8d9c121e12e082cac3a\nreference_parent: 70702265a04aa0ce5a7bde77d13456209992b32f\ntarget_ref: e58e542e6eab2734dda4e5006d9ec3226fddd4c1\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-576-09gzpy5f/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-576-09gzpy5f/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2019-14816"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "fb8186b15518423646f0e2105c34b3e620623b4e",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "b0b3924b2a4c5c904b94bbdd31e356dd62294c06235b4401a9eada8835125d42",
+      "text": "diff --git a/drivers/net/wireless/mwifiex/ie.c b/drivers/net/wireless/mwifiex/ie.c\nindex 69827b5f96b51a8d26df05a779fff8eab3148a7d..199b9263af977c6b5cf69a86bf6bd750bade4cb9 100644\n--- a/drivers/net/wireless/mwifiex/ie.c\n+++ b/drivers/net/wireless/mwifiex/ie.c\n@@ -240,6 +240,9 @@ static int mwifiex_update_vs_ie(const u8 *ies, int ies_len,\n \t\t}\n \n \t\tvs_ie = (struct ieee_types_header *)vendor_ie;\n+\t\tif (le16_to_cpu(ie->ie_length) + vs_ie->len + 2 >\n+\t\t\tIEEE_MAX_IE_SIZE)\n+\t\t\treturn -EINVAL;\n \t\tmemcpy(ie->ie_buffer + le16_to_cpu(ie->ie_length),\n \t\t       vs_ie, vs_ie->len + 2);\n \t\tle16_add_cpu(&ie->ie_length, vs_ie->len + 2);\ndiff --git a/drivers/net/wireless/mwifiex/uap_cmd.c b/drivers/net/wireless/mwifiex/uap_cmd.c\nindex bd7b7969b2b3b4f920503321c232a4e4fc35a3d7..0aed040271499290d8ff12bcf616f5429c370935 100644\n--- a/drivers/net/wireless/mwifiex/uap_cmd.c\n+++ b/drivers/net/wireless/mwifiex/uap_cmd.c\n@@ -247,6 +247,8 @@ mwifiex_set_uap_rates(struct mwifiex_uap_bss_param *bss_cfg,\n \n \trate_ie = (void *)cfg80211_find_ie(WLAN_EID_SUPP_RATES, var_pos, len);\n \tif (rate_ie) {\n+\t\tif (rate_ie->len > MWIFIEX_SUPPORTED_RATES)\n+\t\t\treturn;\n \t\tmemcpy(bss_cfg->rates, rate_ie + 1, rate_ie->len);\n \t\trate_len = rate_ie->len;\n \t}\n@@ -254,8 +256,11 @@ mwifiex_set_uap_rates(struct mwifiex_uap_bss_param *bss_cfg,\n \trate_ie = (void *)cfg80211_find_ie(WLAN_EID_EXT_SUPP_RATES,\n \t\t\t\t\t   params->beacon.tail,\n \t\t\t\t\t   params->beacon.tail_len);\n-\tif (rate_ie)\n+\tif (rate_ie) {\n+\t\tif (rate_ie->len > MWIFIEX_SUPPORTED_RATES - rate_len)\n+\t\t\treturn;\n \t\tmemcpy(bss_cfg->rates + rate_len, rate_ie + 1, rate_ie->len);\n+\t}\n \n \treturn;\n }\n@@ -373,6 +378,8 @@ mwifiex_set_wmm_params(struct mwifiex_private *priv,\n \t\t\t\t\t    params->beacon.tail_len);\n \tif (vendor_ie) {\n \t\twmm_ie = vendor_ie;\n+\t\tif (*(wmm_ie + 1) > sizeof(struct mwifiex_types_wmm_info))\n+\t\t\treturn;\n \t\tmemcpy(&bss_cfg->wmm_info, wmm_ie +\n \t\t       sizeof(struct ieee_types_header), *(wmm_ie + 1));\n \t\tpriv->wmm_enabled = 1;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "d98f8594346e3d4e4b48fa26a2b24d9a82eaa75ddfd9806b7badd3a0e4ebcf57",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/00576_CVE-2019-14816/reference.diff",
+    "source_dataset_record": {
+      "case_id": 576,
+      "cve": "CVE-2019-14816",
+      "source_commit": "7caac62ed598a196d6ddf8d9c121e12e082cac3a",
+      "oracle_commit": "fb8186b15518423646f0e2105c34b3e620623b4e"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

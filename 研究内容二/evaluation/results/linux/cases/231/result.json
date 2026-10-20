@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "231",
+  "candidate_sha256": "0d02c4010bde7b72e740d0194b0c3dbc938a7f037068465f37dd279b3c7d053b",
+  "oracle_sha256": "df3b427af9b48e0df9c5c06a90e414c053326ee51b040d02d472b1c7ad2dfc3f",
+  "candidate_nonempty": true,
+  "target_ref": "6e5e93fd51fea74844cb741af15fdc359ea8712e",
+  "baseline_tree": "106843688c11b4e975a974a9bfb677e521f25514",
+  "candidate_tree": "ddb665001827363e1bdaf21da41bed21c3024305",
+  "oracle_tree": "ddb665001827363e1bdaf21da41bed21c3024305",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/231",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "0d02c4010bde7b72e740d0194b0c3dbc938a7f037068465f37dd279b3c7d053b",
+    "text": "diff --git a/fs/cifs/smb2ops.c b/fs/cifs/smb2ops.c\nindex f8847546d6ac..cee89406b545 100644\n--- a/fs/cifs/smb2ops.c\n+++ b/fs/cifs/smb2ops.c\n@@ -5153,6 +5153,7 @@ receive_encrypted_standard(struct TCP_Server_Info *server,\n \tstruct smb2_sync_hdr *shdr;\n \tunsigned int pdu_length = server->pdu_size;\n \tunsigned int buf_size;\n+\tunsigned int next_cmd;\n \tstruct mid_q_entry *mid_entry;\n \tint next_is_large;\n \tchar *next_buffer = NULL;\n@@ -5181,14 +5182,15 @@ receive_encrypted_standard(struct TCP_Server_Info *server,\n \tnext_is_large = server->large_buf;\n one_more:\n \tshdr = (struct smb2_sync_hdr *)buf;\n-\tif (shdr->NextCommand) {\n+\tnext_cmd = le32_to_cpu(shdr->NextCommand);\n+\tif (next_cmd) {\n+\t\tif (WARN_ON_ONCE(next_cmd > pdu_length))\n+\t\t\treturn -1;\n \t\tif (next_is_large)\n \t\t\tnext_buffer = (char *)cifs_buf_get();\n \t\telse\n \t\t\tnext_buffer = (char *)cifs_small_buf_get();\n-\t\tmemcpy(next_buffer,\n-\t\t       buf + le32_to_cpu(shdr->NextCommand),\n-\t\t       pdu_length - le32_to_cpu(shdr->NextCommand));\n+\t\tmemcpy(next_buffer, buf + next_cmd, pdu_length - next_cmd);\n \t}\n \n \tmid_entry = smb2_find_mid(server, buf);\n@@ -5212,8 +5214,8 @@ receive_encrypted_standard(struct TCP_Server_Info *server,\n \telse\n \t\tret = cifs_handle_standard(server, mid_entry);\n \n-\tif (ret == 0 && shdr->NextCommand) {\n-\t\tpdu_length -= le32_to_cpu(shdr->NextCommand);\n+\tif (ret == 0 && next_cmd) {\n+\t\tpdu_length -= next_cmd;\n \t\tserver->large_buf = next_is_large;\n \t\tif (next_is_large)\n \t\t\tserver->bigbuf = buf = next_buffer;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

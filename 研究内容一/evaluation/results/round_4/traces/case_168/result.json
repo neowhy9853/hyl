@@ -1,0 +1,49 @@
+{
+  "round": 4,
+  "case_id": "case_168",
+  "source_index": 167,
+  "repo": "kernel",
+  "commit_id": "8d5aaa0e10cac7ca5d2a2d3ff90967991719e2c5",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "bd6e749ce11b",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "提交纠正了快照缓冲区被错误释放的问题，确保通过命令行参数分配的快照在后续启用跟踪器时得以保留。",
+    "intent_items": [
+      {
+        "target": "tracing_set_tracer 函数中的快照缓冲区管理逻辑",
+        "change": "修改了 had_max_tr 的赋值来源，从 tr->allocated_snapshot 改为 tr->current_trace->use_max_tr；并调整了快照分配条件，仅当新跟踪器需要快照且快照尚未分配时才分配。",
+        "effect_or_reason": "防止通过命令行参数（如 ftrace_boot_snapshot）分配的启动快照被后续启用的跟踪器错误地释放，确保启动跟踪数据不丢失。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交修复了快照缓冲区在特定条件下被错误释放的问题。",
+            "修改了 kernel/trace/trace.c 中 tracing_set_tracer 函数的快照管理逻辑。"
+          ],
+          "message_only_details": [
+            "问题表现为：通过 ftrace_boot_snapshot 或 alloc_snapshot 命令行参数分配的快照，在启用跟踪器时会被移除。",
+            "该问题影响启动跟踪数据的保留，导致用户空间接管后丢失启动期间的跟踪信息。"
+          ],
+          "code_only_details": [
+            "将 had_max_tr 的判断依据从 allocated_snapshot 改为 current_trace->use_max_tr，更准确地反映前一个跟踪器是否使用了快照。",
+            "将快照分配条件从 t->use_max_tr && !had_max_tr 改为 t->use_max_tr && !tr->allocated_snapshot，避免重复分配。"
+          ]
+        },
+        "evidence": [
+          "补丁将 had_max_tr = tr->allocated_snapshot; 改为 had_max_tr = tr->current_trace->use_max_tr;，纠正了快照释放的条件判断。",
+          "补丁将 if (t->use_max_tr && !had_max_tr) { 改为 if (t->use_max_tr && !tr->allocated_snapshot) {，确保仅当快照未分配时才分配，防止错误释放命令行分配的快照。"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_168",
+  "trace_status": "available"
+}

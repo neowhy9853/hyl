@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-33-libsoup",
+  "candidate_sha256": "c55f357bba526dfbf4c9aec8b1fa5624a9b7a39cfa6bc93ae4d2061cfbe451be",
+  "oracle_sha256": "b420c86f5969b934aeb9a73f9e792a2cc877fe3f145754a945cf331c4e7af875",
+  "candidate_nonempty": true,
+  "target_ref": "11001de19a1db063a832e5976e325974d444bfb9",
+  "baseline_tree": "1882d92af11e2a6aa6ca74ccb97fcbe93c830b1a",
+  "candidate_tree": "957a72a5edc77e01abe26526d362d6b6d47eead0",
+  "oracle_tree": "957a72a5edc77e01abe26526d362d6b6d47eead0",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-33-libsoup",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "c55f357bba526dfbf4c9aec8b1fa5624a9b7a39cfa6bc93ae4d2061cfbe451be",
+    "text": "diff --git a/libsoup/soup-headers.c b/libsoup/soup-headers.c\nindex e5d3c03b..2d287fc2 100644\n--- a/libsoup/soup-headers.c\n+++ b/libsoup/soup-headers.c\n@@ -643,8 +643,9 @@ soup_header_contains (const char *header, const char *token)\n }\n \n static void\n-decode_quoted_string (char *quoted_string)\n+decode_quoted_string_inplace (GString *quoted_gstring)\n {\n+\tchar *quoted_string = quoted_gstring->str;\n \tchar *src, *dst;\n \n \tsrc = quoted_string + 1;\n@@ -658,10 +659,11 @@ decode_quoted_string (char *quoted_string)\n }\n \n static gboolean\n-decode_rfc5987 (char *encoded_string)\n+decode_rfc5987_inplace (GString *encoded_gstring)\n {\n \tchar *q, *decoded;\n \tgboolean iso_8859_1 = FALSE;\n+\tconst char *encoded_string = encoded_gstring->str;\n \n \tq = strchr (encoded_string, '\\'');\n \tif (!q)\n@@ -690,14 +692,7 @@ decode_rfc5987 (char *encoded_string)\n \t\tdecoded = utf8;\n \t}\n \n-\t/* If encoded_string was UTF-8, then each 3-character %-escape\n-\t * will be converted to a single byte, and so decoded is\n-\t * shorter than encoded_string. If encoded_string was\n-\t * iso-8859-1, then each 3-character %-escape will be\n-\t * converted into at most 2 bytes in UTF-8, and so it's still\n-\t * shorter.\n-\t */\n-\tstrcpy (encoded_string, decoded);\n+\tg_string_assign (encoded_gstring, decoded);\n \tg_free (decoded);\n \treturn TRUE;\n }\n@@ -707,15 +702,17 @@ parse_param_list (const char *header, char delim, gboolean strict)\n {\n \tGHashTable *params;\n \tGSList *list, *iter;\n-\tchar *item, *eq, *name_end, *value;\n-\tgboolean override, duplicated;\n \n \tparams = g_hash_table_new_full (soup_str_case_hash, \n \t\t\t\t\tsoup_str_case_equal,\n-\t\t\t\t\tg_free, NULL);\n+\t\t\t\t\tg_free, g_free);\n \n \tlist = parse_list (header, delim);\n \tfor (iter = list; iter; iter = iter->next) {\n+\t\tchar *item, *eq, *name_end;\n+\t\tgboolean override, duplicated;\n+\t\tGString *parsed_value = NULL;\n+\n \t\titem = iter->data;\n \t\toverride = FALSE;\n \n@@ -730,19 +727,19 @@ parse_param_list (const char *header, char delim, gboolean strict)\n \n \t\t\t*name_end = '\\0';\n \n-\t\t\tvalue = (char *)skip_lws (eq + 1);\n+\t\t\tparsed_value = g_string_new ((char *)skip_lws (eq + 1));\n \n \t\t\tif (name_end[-1] == '*' && name_end > item + 1) {\n \t\t\t\tname_end[-1] = '\\0';\n-\t\t\t\tif (!decode_rfc5987 (value)) {\n+\t\t\t\tif (!decode_rfc5987_inplace (parsed_value)) {\n+\t\t\t\t\tg_string_free (parsed_value, TRUE);\n \t\t\t\t\tg_free (item);\n \t\t\t\t\tcontinue;\n \t\t\t\t}\n \t\t\t\toverride = TRUE;\n-\t\t\t} else if (*value == '\"')\n-\t\t\t\tdecode_quoted_string (value);\n-\t\t} else\n-\t\t\tvalue = NULL;\n+\t\t\t} else if (parsed_value->str[0] == '\"')\n+\t\t\t\tdecode_quoted_string_inplace (parsed_value);\n+\t\t}\n \n \t\tduplicated = g_hash_table_lookup_extended (params, item, NULL, NULL);\n \n@@ -750,11 +747,16 @@ parse_param_list (const char *header, char delim, gboolean strict)\n \t\t\tsoup_header_free_param_list (params);\n \t\t\tparams = NULL;\n \t\t\tg_slist_foreach (iter, (GFunc)g_free, NULL);\n+\t\t\tif (parsed_value)\n+\t\t\t\tg_string_free (parsed_value, TRUE);\n \t\t\tbreak;\n-\t\t} else if (override || !duplicated)\n-\t\t\tg_hash_table_replace (params, item, value);\n-\t\telse\n+\t\t} else if (override || !duplicated) {\n+\t\t\tg_hash_table_replace (params, item, parsed_value ? g_string_free (parsed_value, FALSE) : NULL);\n+\t\t} else {\n+\t\t\tif (parsed_value)\n+\t\t\t\tg_string_free (parsed_value, TRUE);\n \t\t\tg_free (item);\n+\t\t}\n \t}\n \n \tg_slist_free (list);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

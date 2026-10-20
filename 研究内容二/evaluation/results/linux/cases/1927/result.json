@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1927",
+  "candidate_sha256": "517ffa3dd64ba836ca5b619709144418dd32adda1cc00f70f6b703354d277f5f",
+  "oracle_sha256": "8a475c26fa60bc431dd50355f3cd4184350cd397f521e113a5174b6f48bffa99",
+  "candidate_nonempty": true,
+  "target_ref": "efbf300ed821a533c3af71b1b122227febc28142",
+  "baseline_tree": "d1a911a9349403fe1bd7d4c6a673e0683bb6500f",
+  "candidate_tree": "bb5c00d88a9a3ff6c6b49ba7e2443fa4533cd610",
+  "oracle_tree": "bb5c00d88a9a3ff6c6b49ba7e2443fa4533cd610",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1927",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "517ffa3dd64ba836ca5b619709144418dd32adda1cc00f70f6b703354d277f5f",
+    "text": "diff --git a/arch/x86/kvm/emulate.c b/arch/x86/kvm/emulate.c\nindex 09651d4a903..cf1eeeafdfa 100644\n--- a/arch/x86/kvm/emulate.c\n+++ b/arch/x86/kvm/emulate.c\n@@ -2258,7 +2258,7 @@ static int em_sysenter(struct x86_emulate_ctxt *ctxt)\n \t * Not recognized on AMD in compat mode (but is recognized in legacy\n \t * mode).\n \t */\n-\tif ((ctxt->mode == X86EMUL_MODE_PROT32) && (efer & EFER_LMA)\n+\tif ((ctxt->mode != X86EMUL_MODE_PROT64) && (efer & EFER_LMA)\n \t    && !vendor_intel(ctxt))\n \t\treturn emulate_ud(ctxt);\n \n@@ -2271,25 +2271,13 @@ static int em_sysenter(struct x86_emulate_ctxt *ctxt)\n \tsetup_syscalls_segments(ctxt, &cs, &ss);\n \n \tops->get_msr(ctxt, MSR_IA32_SYSENTER_CS, &msr_data);\n-\tswitch (ctxt->mode) {\n-\tcase X86EMUL_MODE_PROT32:\n-\t\tif ((msr_data & 0xfffc) == 0x0)\n-\t\t\treturn emulate_gp(ctxt, 0);\n-\t\tbreak;\n-\tcase X86EMUL_MODE_PROT64:\n-\t\tif (msr_data == 0x0)\n-\t\t\treturn emulate_gp(ctxt, 0);\n-\t\tbreak;\n-\tdefault:\n-\t\tbreak;\n-\t}\n+\tif ((msr_data & 0xfffc) == 0x0)\n+\t\treturn emulate_gp(ctxt, 0);\n \n \tctxt->eflags &= ~(EFLG_VM | EFLG_IF | EFLG_RF);\n-\tcs_sel = (u16)msr_data;\n-\tcs_sel &= ~SELECTOR_RPL_MASK;\n+\tcs_sel = (u16)msr_data & ~SELECTOR_RPL_MASK;\n \tss_sel = cs_sel + 8;\n-\tss_sel &= ~SELECTOR_RPL_MASK;\n-\tif (ctxt->mode == X86EMUL_MODE_PROT64 || (efer & EFER_LMA)) {\n+\tif (efer & EFER_LMA) {\n \t\tcs.d = 0;\n \t\tcs.l = 1;\n \t}\n@@ -2298,10 +2286,11 @@ static int em_sysenter(struct x86_emulate_ctxt *ctxt)\n \tops->set_segment(ctxt, ss_sel, &ss, 0, VCPU_SREG_SS);\n \n \tops->get_msr(ctxt, MSR_IA32_SYSENTER_EIP, &msr_data);\n-\tctxt->_eip = msr_data;\n+\tctxt->_eip = (efer & EFER_LMA) ? msr_data : (u32)msr_data;\n \n \tops->get_msr(ctxt, MSR_IA32_SYSENTER_ESP, &msr_data);\n-\t*reg_write(ctxt, VCPU_REGS_RSP) = msr_data;\n+\t*reg_write(ctxt, VCPU_REGS_RSP) = (efer & EFER_LMA) ? msr_data :\n+\t\t\t\t\t\t\t      (u32)msr_data;\n \n \treturn X86EMUL_CONTINUE;\n }\n"
+  },
+  "trace_file": "trace.jsonl"
+}

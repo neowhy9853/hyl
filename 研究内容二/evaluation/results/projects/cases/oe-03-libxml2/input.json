@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-03-libxml2",
+  "task_input": {
+    "repository": {
+      "name": "libxml2",
+      "version": "2.9.12",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "f851376f4d8f4ce5d3a53eda9ec90a71005b9230",
+      "target_tree": "2796ec911be0274ea14e22303e92cb815fefda7d"
+    },
+    "source_commit": "d39f78069dff496ec865c73aa44d7110e429bce9",
+    "reference_parent": "4e4c89a4bcca7cb4d4045fc8b576e98926ea8f47",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From d39f78069dff496ec865c73aa44d7110e429bce9 Mon Sep 17 00:00:00 2001\nFrom: Nick Wellnhofer <wellnhofer@aevum.de>\nDate: Wed, 23 Aug 2023 20:24:24 +0200\nSubject: [PATCH] tree: Fix copying of DTDs\n\n- Don't create multiple DTD nodes.\n- Fix UAF if malloc fails.\n- Skip DTD nodes if tree module is disabled.\n\nFixes #583.\n---\n tree.c | 31 ++++++++++++++++---------------\n 1 file changed, 16 insertions(+), 15 deletions(-)\n\ndiff --git a/tree.c b/tree.c\nindex 6c8a875b98..02c1b57913 100644\n--- a/tree.c\n+++ b/tree.c\n@@ -4471,29 +4471,28 @@ xmlNodePtr\n xmlStaticCopyNodeList(xmlNodePtr node, xmlDocPtr doc, xmlNodePtr parent) {\n     xmlNodePtr ret = NULL;\n     xmlNodePtr p = NULL,q;\n+    xmlDtdPtr newSubset = NULL;\n \n     while (node != NULL) {\n-#ifdef LIBXML_TREE_ENABLED\n \tif (node->type == XML_DTD_NODE ) {\n-\t    if (doc == NULL) {\n+#ifdef LIBXML_TREE_ENABLED\n+\t    if ((doc == NULL) || (doc->intSubset != NULL)) {\n \t\tnode = node->next;\n \t\tcontinue;\n \t    }\n-\t    if (doc->intSubset == NULL) {\n-\t\tq = (xmlNodePtr) xmlCopyDtd( (xmlDtdPtr) node );\n-\t\tif (q == NULL) goto error;\n-\t\tq->doc = doc;\n-\t\tq->parent = parent;\n-\t\tdoc->intSubset = (xmlDtdPtr) q;\n-\t\txmlAddChild(parent, q);\n-\t    } else {\n-\t\tq = (xmlNodePtr) doc->intSubset;\n-\t\txmlAddChild(parent, q);\n-\t    }\n-\t} else\n+            q = (xmlNodePtr) xmlCopyDtd( (xmlDtdPtr) node );\n+            if (q == NULL) goto error;\n+            q->doc = doc;\n+            q->parent = parent;\n+            newSubset = (xmlDtdPtr) q;\n+#else\n+            node = node->next;\n+            continue;\n #endif /* LIBXML_TREE_ENABLED */\n+\t} else {\n \t    q = xmlStaticCopyNode(node, doc, parent, 1);\n-\tif (q == NULL) goto error;\n+\t    if (q == NULL) goto error;\n+        }\n \tif (ret == NULL) {\n \t    q->prev = NULL;\n \t    ret = p = q;\n@@ -4505,6 +4504,8 @@ xmlStaticCopyNodeList(xmlNodePtr node, xmlDocPtr doc, xmlNodePtr parent) {\n \t}\n \tnode = node->next;\n     }\n+    if (newSubset != NULL)\n+        doc->intSubset = newSubset;\n     return(ret);\n error:\n     xmlFreeNodeList(ret);\n",
+      "sha256": "17b9a3a9c6cfb6a9b30941aea9746f9e3c38549f53aab6a8f167c7db137dac55"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for libxml2.\ncase_id: oe-03-libxml2\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: d39f78069dff496ec865c73aa44d7110e429bce9\nreference_parent: 4e4c89a4bcca7cb4d4045fc8b576e98926ea8f47\ntarget_ref: f851376f4d8f4ce5d3a53eda9ec90a71005b9230\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "b6a59dd52753e0c9a4d78f8aa42a39cef260ae40eb041359daf0604aa9e7bb4c",
+      "text": "From d39f78069dff496ec865c73aa44d7110e429bce9 Mon Sep 17 00:00:00 2001\nFrom: Nick Wellnhofer <wellnhofer@aevum.de>\nDate: Wed, 23 Aug 2023 20:24:24 +0200\nSubject: [PATCH] tree: Fix copying of DTDs\n\n- Don't create multiple DTD nodes.\n- Fix UAF if malloc fails.\n- Skip DTD nodes if tree module is disabled.\n\nFixes #583.\n---\n tree.c | 31 ++++++++++++++++---------------\n 1 file changed, 16 insertions(+), 15 deletions(-)\n\ndiff --git a/tree.c b/tree.c\nindex 6c8a875b..02c1b579 100644\n--- a/tree.c\n+++ b/tree.c\n@@ -4386,29 +4386,28 @@ xmlNodePtr\n xmlStaticCopyNodeList(xmlNodePtr node, xmlDocPtr doc, xmlNodePtr parent) {\n     xmlNodePtr ret = NULL;\n     xmlNodePtr p = NULL,q;\n+    xmlDtdPtr newSubset = NULL;\n \n     while (node != NULL) {\n-#ifdef LIBXML_TREE_ENABLED\n \tif (node->type == XML_DTD_NODE ) {\n-\t    if (doc == NULL) {\n+#ifdef LIBXML_TREE_ENABLED\n+\t    if ((doc == NULL) || (doc->intSubset != NULL)) {\n \t\tnode = node->next;\n \t\tcontinue;\n \t    }\n-\t    if (doc->intSubset == NULL) {\n-\t\tq = (xmlNodePtr) xmlCopyDtd( (xmlDtdPtr) node );\n-\t\tif (q == NULL) goto error;\n-\t\tq->doc = doc;\n-\t\tq->parent = parent;\n-\t\tdoc->intSubset = (xmlDtdPtr) q;\n-\t\txmlAddChild(parent, q);\n-\t    } else {\n-\t\tq = (xmlNodePtr) doc->intSubset;\n-\t\txmlAddChild(parent, q);\n-\t    }\n-\t} else\n+            q = (xmlNodePtr) xmlCopyDtd( (xmlDtdPtr) node );\n+            if (q == NULL) goto error;\n+            q->doc = doc;\n+            q->parent = parent;\n+            newSubset = (xmlDtdPtr) q;\n+#else\n+            node = node->next;\n+            continue;\n #endif /* LIBXML_TREE_ENABLED */\n+\t} else {\n \t    q = xmlStaticCopyNode(node, doc, parent, 1);\n-\tif (q == NULL) goto error;\n+\t    if (q == NULL) goto error;\n+        }\n \tif (ret == NULL) {\n \t    q->prev = NULL;\n \t    ret = p = q;\n@@ -4420,6 +4419,8 @@ xmlStaticCopyNodeList(xmlNodePtr node, xmlDocPtr doc, xmlNodePtr parent) {\n \t}\n \tnode = node->next;\n     }\n+    if (newSubset != NULL)\n+        doc->intSubset = newSubset;\n     return(ret);\n error:\n     xmlFreeNodeList(ret);\n-- \n2.27.0\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "b70e68371bbaf397fa210b09459ed56486e47c068c8b11edbddd478d3a613933",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-03-libxml2/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-03-libxml2",
+      "package": "libxml2",
+      "version": "2.9.12",
+      "source_commit": "d39f78069dff496ec865c73aa44d7110e429bce9",
+      "target_ref": "f851376f4d8f4ce5d3a53eda9ec90a71005b9230",
+      "target_tree": "2796ec911be0274ea14e22303e92cb815fefda7d",
+      "reference_patch": "patches/oe-03-libxml2/reference.patch",
+      "reference_sha256": "17b9a3a9c6cfb6a9b30941aea9746f9e3c38549f53aab6a8f167c7db137dac55",
+      "oracle_patch": "patches/oe-03-libxml2/oracle.patch",
+      "oracle_sha256": "b6a59dd52753e0c9a4d78f8aa42a39cef260ae40eb041359daf0604aa9e7bb4c"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

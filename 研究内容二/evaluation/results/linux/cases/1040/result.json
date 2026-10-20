@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1040",
+  "candidate_sha256": "7cb19fa60b022da9740d34570d29731f8f11eb4410841ed8ddd15e534fff4eae",
+  "oracle_sha256": "61eda1f0ec1e18f79b9fdd2e068404c37528d66b8bb6512bbe8398e38a144589",
+  "candidate_nonempty": true,
+  "target_ref": "1a15c23af256aacd9284194bee4c9327ce657ff9",
+  "baseline_tree": "55d0aa9308d1a5ea0d2e06df50dc74a2ad7fd83c",
+  "candidate_tree": "28040979f47b6ef2245a218a1abf38fbf83154aa",
+  "oracle_tree": "bdc1151f63de6a2490c648b6632b6520f426eb85",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1040",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "7cb19fa60b022da9740d34570d29731f8f11eb4410841ed8ddd15e534fff4eae",
+    "text": "diff --git a/net/sched/cls_u32.c b/net/sched/cls_u32.c\nindex 0c9bc29dcf97..838090d3bf7e 100644\n--- a/net/sched/cls_u32.c\n+++ b/net/sched/cls_u32.c\n@@ -395,15 +395,20 @@ static int u32_init(struct tcf_proto *tp)\n \treturn 0;\n }\n \n-static int u32_destroy_key(struct tcf_proto *tp, struct tc_u_knode *n,\n-\t\t\t   bool free_pf)\n+static void __u32_destroy_key(struct tc_u_knode *n)\n {\n \tstruct tc_u_hnode *ht = rtnl_dereference(n->ht_down);\n \n \ttcf_exts_destroy(&n->exts);\n-\ttcf_exts_put_net(&n->exts);\n \tif (ht && --ht->refcnt == 0)\n \t\tkfree(ht);\n+\tkfree(n);\n+}\n+\n+static void u32_destroy_key(struct tcf_proto *tp, struct tc_u_knode *n,\n+\t\t\t    bool free_pf)\n+{\n+\ttcf_exts_put_net(&n->exts);\n #ifdef CONFIG_CLS_U32_PERF\n \tif (free_pf)\n \t\tfree_percpu(n->pf);\n@@ -412,8 +417,7 @@ static int u32_destroy_key(struct tcf_proto *tp, struct tc_u_knode *n,\n \tif (free_pf)\n \t\tfree_percpu(n->pcpu_success);\n #endif\n-\tkfree(n);\n-\treturn 0;\n+\t__u32_destroy_key(n);\n }\n \n /* u32_delete_key_rcu should be called when free'ing a copied\n@@ -942,13 +946,13 @@ static int u32_change(struct net *net, struct sk_buff *in_skb,\n \t\t\t\t    tca[TCA_RATE], ovr);\n \n \t\tif (err) {\n-\t\t\tu32_destroy_key(tp, new, false);\n+\t\t\t__u32_destroy_key(new);\n \t\t\treturn err;\n \t\t}\n \n \t\terr = u32_replace_hw_knode(tp, new, flags);\n \t\tif (err) {\n-\t\t\tu32_destroy_key(tp, new, false);\n+\t\t\t__u32_destroy_key(new);\n \t\t\treturn err;\n \t\t}\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

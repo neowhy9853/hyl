@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "231",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-231-1ynmk98h/repo",
+      "target_ref": "6e5e93fd51fea74844cb741af15fdc359ea8712e",
+      "target_tree": "106843688c11b4e975a974a9bfb677e521f25514"
+    },
+    "source_commit": "9f528a8e68327117837b5e28b096f52af4c26a05",
+    "reference_parent": "7b0faa541f15af170607e565ceca1ae44e6daa35",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/smb/client/smb2ops.c b/fs/smb/client/smb2ops.c\nindex 6ef3c00de5ca19e616bf731972fbd530569b53f5..20c005bbdcb60ebd948cd6ab5a70a35a60c5430b 100644\n--- a/fs/smb/client/smb2ops.c\n+++ b/fs/smb/client/smb2ops.c\n@@ -5065,6 +5065,7 @@ receive_encrypted_standard(struct TCP_Server_Info *server,\n \tstruct smb2_hdr *shdr;\n \tunsigned int pdu_length = server->pdu_size;\n \tunsigned int buf_size;\n+\tunsigned int next_cmd;\n \tstruct mid_q_entry *mid_entry;\n \tint next_is_large;\n \tchar *next_buffer = NULL;\n@@ -5093,14 +5094,15 @@ receive_encrypted_standard(struct TCP_Server_Info *server,\n \tnext_is_large = server->large_buf;\n one_more:\n \tshdr = (struct smb2_hdr *)buf;\n-\tif (shdr->NextCommand) {\n+\tnext_cmd = le32_to_cpu(shdr->NextCommand);\n+\tif (next_cmd) {\n+\t\tif (WARN_ON_ONCE(next_cmd > pdu_length))\n+\t\t\treturn -1;\n \t\tif (next_is_large)\n \t\t\tnext_buffer = (char *)cifs_buf_get();\n \t\telse\n \t\t\tnext_buffer = (char *)cifs_small_buf_get();\n-\t\tmemcpy(next_buffer,\n-\t\t       buf + le32_to_cpu(shdr->NextCommand),\n-\t\t       pdu_length - le32_to_cpu(shdr->NextCommand));\n+\t\tmemcpy(next_buffer, buf + next_cmd, pdu_length - next_cmd);\n \t}\n \n \tmid_entry = smb2_find_mid(server, buf);\n@@ -5124,8 +5126,8 @@ receive_encrypted_standard(struct TCP_Server_Info *server,\n \telse\n \t\tret = cifs_handle_standard(server, mid_entry);\n \n-\tif (ret == 0 && shdr->NextCommand) {\n-\t\tpdu_length -= le32_to_cpu(shdr->NextCommand);\n+\tif (ret == 0 && next_cmd) {\n+\t\tpdu_length -= next_cmd;\n \t\tserver->large_buf = next_is_large;\n \t\tif (next_is_large)\n \t\t\tserver->bigbuf = buf = next_buffer;\n",
+      "sha256": "a3833dd7a09a85b30873bb75910a47e7ec9b8dc4405372c3fd332bad8862bf53"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2024-0565\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-231-1ynmk98h/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-231-1ynmk98h/repo/.patch-port/reference.diff\nreference_fix: 9f528a8e68327117837b5e28b096f52af4c26a05\nreference_parent: 7b0faa541f15af170607e565ceca1ae44e6daa35\ntarget_ref: 6e5e93fd51fea74844cb741af15fdc359ea8712e\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-231-1ynmk98h/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-231-1ynmk98h/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2024-0565"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "858e73ff25639a0cc1f6f8d2587b62c045867e41",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "df3b427af9b48e0df9c5c06a90e414c053326ee51b040d02d472b1c7ad2dfc3f",
+      "text": "diff --git a/fs/cifs/smb2ops.c b/fs/cifs/smb2ops.c\nindex f8847546d6ac9598dd8db3b8e2b45f6c8980b626..cee89406b545bd006870464957f174dc454ec7ec 100644\n--- a/fs/cifs/smb2ops.c\n+++ b/fs/cifs/smb2ops.c\n@@ -5153,6 +5153,7 @@ receive_encrypted_standard(struct TCP_Server_Info *server,\n \tstruct smb2_sync_hdr *shdr;\n \tunsigned int pdu_length = server->pdu_size;\n \tunsigned int buf_size;\n+\tunsigned int next_cmd;\n \tstruct mid_q_entry *mid_entry;\n \tint next_is_large;\n \tchar *next_buffer = NULL;\n@@ -5181,14 +5182,15 @@ receive_encrypted_standard(struct TCP_Server_Info *server,\n \tnext_is_large = server->large_buf;\n one_more:\n \tshdr = (struct smb2_sync_hdr *)buf;\n-\tif (shdr->NextCommand) {\n+\tnext_cmd = le32_to_cpu(shdr->NextCommand);\n+\tif (next_cmd) {\n+\t\tif (WARN_ON_ONCE(next_cmd > pdu_length))\n+\t\t\treturn -1;\n \t\tif (next_is_large)\n \t\t\tnext_buffer = (char *)cifs_buf_get();\n \t\telse\n \t\t\tnext_buffer = (char *)cifs_small_buf_get();\n-\t\tmemcpy(next_buffer,\n-\t\t       buf + le32_to_cpu(shdr->NextCommand),\n-\t\t       pdu_length - le32_to_cpu(shdr->NextCommand));\n+\t\tmemcpy(next_buffer, buf + next_cmd, pdu_length - next_cmd);\n \t}\n \n \tmid_entry = smb2_find_mid(server, buf);\n@@ -5212,8 +5214,8 @@ receive_encrypted_standard(struct TCP_Server_Info *server,\n \telse\n \t\tret = cifs_handle_standard(server, mid_entry);\n \n-\tif (ret == 0 && shdr->NextCommand) {\n-\t\tpdu_length -= le32_to_cpu(shdr->NextCommand);\n+\tif (ret == 0 && next_cmd) {\n+\t\tpdu_length -= next_cmd;\n \t\tserver->large_buf = next_is_large;\n \t\tif (next_is_large)\n \t\t\tserver->bigbuf = buf = next_buffer;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "6285619264826d4b086b870a0b23d0643546911984f8057df85f23f0065b3bb2",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00231_CVE-2024-0565/reference.diff",
+    "source_dataset_record": {
+      "case_id": 231,
+      "cve": "CVE-2024-0565",
+      "source_commit": "9f528a8e68327117837b5e28b096f52af4c26a05",
+      "oracle_commit": "858e73ff25639a0cc1f6f8d2587b62c045867e41"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

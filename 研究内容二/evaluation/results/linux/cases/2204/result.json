@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2204",
+  "candidate_sha256": "8fd781e7660b2f1be41970413b1cefb6bd6782790c7b14c471bab1e9e5deea93",
+  "oracle_sha256": "b0b3924b2a4c5c904b94bbdd31e356dd62294c06235b4401a9eada8835125d42",
+  "candidate_nonempty": true,
+  "target_ref": "e58e542e6eab2734dda4e5006d9ec3226fddd4c1",
+  "baseline_tree": "bec6768e3c2b5d82580f1d3491f002098a7333f3",
+  "candidate_tree": "10f420377e33ae48799c52e07215f02d367ca605",
+  "oracle_tree": "10f420377e33ae48799c52e07215f02d367ca605",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2204",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "8fd781e7660b2f1be41970413b1cefb6bd6782790c7b14c471bab1e9e5deea93",
+    "text": "diff --git a/drivers/net/wireless/mwifiex/ie.c b/drivers/net/wireless/mwifiex/ie.c\nindex 69827b5f96b5..199b9263af97 100644\n--- a/drivers/net/wireless/mwifiex/ie.c\n+++ b/drivers/net/wireless/mwifiex/ie.c\n@@ -240,6 +240,9 @@ static int mwifiex_update_vs_ie(const u8 *ies, int ies_len,\n \t\t}\n \n \t\tvs_ie = (struct ieee_types_header *)vendor_ie;\n+\t\tif (le16_to_cpu(ie->ie_length) + vs_ie->len + 2 >\n+\t\t\tIEEE_MAX_IE_SIZE)\n+\t\t\treturn -EINVAL;\n \t\tmemcpy(ie->ie_buffer + le16_to_cpu(ie->ie_length),\n \t\t       vs_ie, vs_ie->len + 2);\n \t\tle16_add_cpu(&ie->ie_length, vs_ie->len + 2);\ndiff --git a/drivers/net/wireless/mwifiex/uap_cmd.c b/drivers/net/wireless/mwifiex/uap_cmd.c\nindex bd7b7969b2b3..0aed04027149 100644\n--- a/drivers/net/wireless/mwifiex/uap_cmd.c\n+++ b/drivers/net/wireless/mwifiex/uap_cmd.c\n@@ -247,6 +247,8 @@ mwifiex_set_uap_rates(struct mwifiex_uap_bss_param *bss_cfg,\n \n \trate_ie = (void *)cfg80211_find_ie(WLAN_EID_SUPP_RATES, var_pos, len);\n \tif (rate_ie) {\n+\t\tif (rate_ie->len > MWIFIEX_SUPPORTED_RATES)\n+\t\t\treturn;\n \t\tmemcpy(bss_cfg->rates, rate_ie + 1, rate_ie->len);\n \t\trate_len = rate_ie->len;\n \t}\n@@ -254,8 +256,11 @@ mwifiex_set_uap_rates(struct mwifiex_uap_bss_param *bss_cfg,\n \trate_ie = (void *)cfg80211_find_ie(WLAN_EID_EXT_SUPP_RATES,\n \t\t\t\t\t   params->beacon.tail,\n \t\t\t\t\t   params->beacon.tail_len);\n-\tif (rate_ie)\n+\tif (rate_ie) {\n+\t\tif (rate_ie->len > MWIFIEX_SUPPORTED_RATES - rate_len)\n+\t\t\treturn;\n \t\tmemcpy(bss_cfg->rates + rate_len, rate_ie + 1, rate_ie->len);\n+\t}\n \n \treturn;\n }\n@@ -373,6 +378,8 @@ mwifiex_set_wmm_params(struct mwifiex_private *priv,\n \t\t\t\t\t    params->beacon.tail_len);\n \tif (vendor_ie) {\n \t\twmm_ie = vendor_ie;\n+\t\tif (*(wmm_ie + 1) > sizeof(struct mwifiex_types_wmm_info))\n+\t\t\treturn;\n \t\tmemcpy(&bss_cfg->wmm_info, wmm_ie +\n \t\t       sizeof(struct ieee_types_header), *(wmm_ie + 1));\n \t\tpriv->wmm_enabled = 1;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

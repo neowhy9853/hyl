@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "709",
+  "candidate_sha256": "f80a0f0d6d71d266dea2a70be454a7353a97a815504659580a59a1a03e5f5a2c",
+  "oracle_sha256": "ea8473d348bdc2b0d251e8230a5fc4c150b857d954d096e4e77df2f35e9fffe9",
+  "candidate_nonempty": true,
+  "target_ref": "f287d868569a8aac1207986025061bf5ae6fb1fb",
+  "baseline_tree": "73c87423000711fc40edff27d251479154c0cd35",
+  "candidate_tree": "90d5aa488a0d5a9fa1a9e239b1a55a79b75da37d",
+  "oracle_tree": "a4bc070e6961eb2dfb23af273e3492a51d783953",
+  "candidate_apply_passed": true,
+  "historical_verdict": "incorrect",
+  "case_path": "cases/709",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "f80a0f0d6d71d266dea2a70be454a7353a97a815504659580a59a1a03e5f5a2c",
+    "text": "diff --git a/drivers/net/wireless/mwifiex/ie.c b/drivers/net/wireless/mwifiex/ie.c\nindex 3bf3d58bbc02..2a6cd0df25d5 100644\n--- a/drivers/net/wireless/mwifiex/ie.c\n+++ b/drivers/net/wireless/mwifiex/ie.c\n@@ -324,10 +324,11 @@ done:\n int mwifiex_set_mgmt_ies(struct mwifiex_private *priv,\n \t\t\t struct cfg80211_beacon_data *info)\n {\n-\tstruct mwifiex_ie *gen_ie;\n+\tstruct mwifiex_ie *gen_ie = NULL;\n \tstruct ieee_types_header *rsn_ie, *wpa_ie = NULL;\n \tu16 rsn_idx = MWIFIEX_AUTO_IDX_MASK, ie_len = 0;\n \tconst u8 *vendor_ie;\n+\tint err = 0;\n \n \tif (info->tail && info->tail_len) {\n \t\tgen_ie = kzalloc(sizeof(struct mwifiex_ie), GFP_KERNEL);\n@@ -341,6 +342,10 @@ int mwifiex_set_mgmt_ies(struct mwifiex_private *priv,\n \t\trsn_ie = (void *)cfg80211_find_ie(WLAN_EID_RSN,\n \t\t\t\t\t\t  info->tail, info->tail_len);\n \t\tif (rsn_ie) {\n+\t\t\tif (rsn_ie->len + 2 > IEEE_MAX_IE_SIZE) {\n+\t\t\t\terr = -EINVAL;\n+\t\t\t\tgoto out;\n+\t\t\t}\n \t\t\tmemcpy(gen_ie->ie_buffer, rsn_ie, rsn_ie->len + 2);\n \t\t\tie_len = rsn_ie->len + 2;\n \t\t\tgen_ie->ie_length = cpu_to_le16(ie_len);\n@@ -352,6 +357,10 @@ int mwifiex_set_mgmt_ies(struct mwifiex_private *priv,\n \t\t\t\t\t\t    info->tail_len);\n \t\tif (vendor_ie) {\n \t\t\twpa_ie = (struct ieee_types_header *)vendor_ie;\n+\t\t\tif (ie_len + wpa_ie->len + 2 > IEEE_MAX_IE_SIZE) {\n+\t\t\t\terr = -EINVAL;\n+\t\t\t\tgoto out;\n+\t\t\t}\n \t\t\tmemcpy(gen_ie->ie_buffer + ie_len,\n \t\t\t       wpa_ie, wpa_ie->len + 2);\n \t\t\tie_len += wpa_ie->len + 2;\n@@ -362,8 +371,8 @@ int mwifiex_set_mgmt_ies(struct mwifiex_private *priv,\n \t\t\tif (mwifiex_update_uap_custom_ie(priv, gen_ie, &rsn_idx,\n \t\t\t\t\t\t\t NULL, NULL,\n \t\t\t\t\t\t\t NULL, NULL)) {\n-\t\t\t\tkfree(gen_ie);\n-\t\t\t\treturn -1;\n+\t\t\t\terr = -EINVAL;\n+\t\t\t\tgoto out;\n \t\t\t}\n \t\t\tpriv->rsn_idx = rsn_idx;\n \t\t}\n@@ -372,6 +381,10 @@ int mwifiex_set_mgmt_ies(struct mwifiex_private *priv,\n \t}\n \n \treturn mwifiex_set_mgmt_beacon_data_ies(priv, info);\n+\n+out:\n+\tkfree(gen_ie);\n+\treturn err;\n }\n \n /* This function removes management IE set */\n"
+  },
+  "trace_file": "trace.jsonl"
+}

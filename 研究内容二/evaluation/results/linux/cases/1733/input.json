@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1733",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1733-2fqfui7g/repo",
+      "target_ref": "f5eb337df20a24a9f9c7f96181ace9d61b590def",
+      "target_tree": "40e0c98b7f54e6b8c087433b7e0e755aa6a1af32"
+    },
+    "source_commit": "a2a1be2de7e4d9a3a2c6cf8512d38eb24bbeb059",
+    "reference_parent": "19e119d4b455c3522cb7c4f734201da444509854",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/exec.c b/fs/exec.c\nindex 561ea64829eceaf2d72a6146cb073bcde97fcdc5..3818813d725d124b73f1598adf55f328df4e0fa9 100644\n--- a/fs/exec.c\n+++ b/fs/exec.c\n@@ -1378,7 +1378,7 @@ void setup_new_exec(struct linux_binprm * bprm)\n \n \t/* An exec changes our domain. We are no longer part of the thread\n \t   group */\n-\tcurrent->self_exec_id++;\n+\tWRITE_ONCE(current->self_exec_id, current->self_exec_id + 1);\n \tflush_signal_handlers(current, 0);\n }\n EXPORT_SYMBOL(setup_new_exec);\ndiff --git a/include/linux/sched.h b/include/linux/sched.h\nindex 0530de9a4efcc04db726f1601d2a84a999f1a392..c69f308f3a53c7c4b3e59447d74f64fbce1ed403 100644\n--- a/include/linux/sched.h\n+++ b/include/linux/sched.h\n@@ -887,8 +887,8 @@ struct task_struct {\n \tstruct seccomp\t\t\tseccomp;\n \n \t/* Thread group tracking: */\n-\tu32\t\t\t\tparent_exec_id;\n-\tu32\t\t\t\tself_exec_id;\n+\tu64\t\t\t\tparent_exec_id;\n+\tu64\t\t\t\tself_exec_id;\n \n \t/* Protection against (de-)allocation: mm, files, fs, tty, keyrings, mems_allowed, mempolicy: */\n \tspinlock_t\t\t\talloc_lock;\ndiff --git a/kernel/signal.c b/kernel/signal.c\nindex c42eaf39b57291564379873776cd1704b86e742e..6a569211813931ec2b14efb5c75b7d956643c516 100644\n--- a/kernel/signal.c\n+++ b/kernel/signal.c\n@@ -1837,7 +1837,7 @@ bool do_notify_parent(struct task_struct *tsk, int sig)\n \t\t * This is only possible if parent == real_parent.\n \t\t * Check if it has changed security domain.\n \t\t */\n-\t\tif (tsk->parent_exec_id != tsk->parent->self_exec_id)\n+\t\tif (tsk->parent_exec_id != READ_ONCE(tsk->parent->self_exec_id))\n \t\t\tsig = SIGCHLD;\n \t}\n \n",
+      "sha256": "ba75061d82b3c121a815df8f6032ad8bf914541c765565f01f0a0cde3932587d"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2020-12826\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1733-2fqfui7g/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1733-2fqfui7g/repo/.patch-port/reference.diff\nreference_fix: a2a1be2de7e4d9a3a2c6cf8512d38eb24bbeb059\nreference_parent: 19e119d4b455c3522cb7c4f734201da444509854\ntarget_ref: f5eb337df20a24a9f9c7f96181ace9d61b590def\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1733-2fqfui7g/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1733-2fqfui7g/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2020-12826"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "303c5366d664e0b860041e0647952dafcd71c5a1",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "a06370bb88f8034995817d2ecfa7213022677a27132d83b7524a937f8b6db855",
+      "text": "diff --git a/fs/exec.c b/fs/exec.c\nindex 077f854392645e7c7692255bd533a58a5edfc837..680d1dbcf5648d8b9416ed5022da331642eddc3e 100644\n--- a/fs/exec.c\n+++ b/fs/exec.c\n@@ -1182,7 +1182,7 @@ void setup_new_exec(struct linux_binprm * bprm)\n \n \t/* An exec changes our domain. We are no longer part of the thread\n \t   group */\n-\tcurrent->self_exec_id++;\n+\tACCESS_ONCE(current->self_exec_id) = current->self_exec_id + 1;\n \tflush_signal_handlers(current, 0);\n }\n EXPORT_SYMBOL(setup_new_exec);\ndiff --git a/include/linux/sched.h b/include/linux/sched.h\nindex bcd8b166430112ab127367a5981b0128cd27ae93..182f15430cb078001d8fa0eaf777da034df3b90c 100644\n--- a/include/linux/sched.h\n+++ b/include/linux/sched.h\n@@ -1427,8 +1427,8 @@ struct task_struct {\n \tstruct seccomp seccomp;\n \n /* Thread group tracking */\n-   \tu32 parent_exec_id;\n-   \tu32 self_exec_id;\n+\tu64 parent_exec_id;\n+\tu64 self_exec_id;\n /* Protection of (de-)allocation: mm, files, fs, tty, keyrings, mems_allowed,\n  * mempolicy */\n \tspinlock_t alloc_lock;\ndiff --git a/kernel/signal.c b/kernel/signal.c\nindex 6816d3ae6f466370e2d23e4500290881d9a81854..d7b33730a2a48671306c169825c195cb5c9d57bf 100644\n--- a/kernel/signal.c\n+++ b/kernel/signal.c\n@@ -1679,7 +1679,7 @@ bool do_notify_parent(struct task_struct *tsk, int sig)\n \t\t * This is only possible if parent == real_parent.\n \t\t * Check if it has changed security domain.\n \t\t */\n-\t\tif (tsk->parent_exec_id != tsk->parent->self_exec_id)\n+\t\tif (tsk->parent_exec_id != ACCESS_ONCE(tsk->parent->self_exec_id))\n \t\t\tsig = SIGCHLD;\n \t}\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "2d74a918211efa871877642469270fad956f0d587fc0ac98f20b70c3a708367f",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/01733_CVE-2020-12826/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1733,
+      "cve": "CVE-2020-12826",
+      "source_commit": "a2a1be2de7e4d9a3a2c6cf8512d38eb24bbeb059",
+      "oracle_commit": "303c5366d664e0b860041e0647952dafcd71c5a1"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

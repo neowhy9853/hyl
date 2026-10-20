@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1730",
+  "candidate_sha256": "371d440c032049ff754b29298a6dccd35f3c4a3fc4f63d5ca8c3e607adaa003f",
+  "oracle_sha256": "a65a4f4f26e952e3b6d2c4534376a6714d964112e7b3448d39a4f0143be4c3b1",
+  "candidate_nonempty": true,
+  "target_ref": "fbb662ffa0050fa053938d221d8016641997f017",
+  "baseline_tree": "ef7c02e695475dba103526efd65709a9aaf5a8fb",
+  "candidate_tree": "6c582bc1726991a8fb8edd42689afa0cec66489a",
+  "oracle_tree": "f31b15e7402259e042686d0ca98a2eaa6f906d92",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1730",
+  "generation_trace_available": true,
+  "verdict": "uncertain",
+  "correct": false,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "371d440c032049ff754b29298a6dccd35f3c4a3fc4f63d5ca8c3e607adaa003f",
+    "text": "diff --git a/fs/erofs/decompressor.c b/fs/erofs/decompressor.c\nindex 8193c14bb111..fb37a40124f7 100644\n--- a/fs/erofs/decompressor.c\n+++ b/fs/erofs/decompressor.c\n@@ -124,11 +124,11 @@ static int z_erofs_lz4_prepare_destpages(struct z_erofs_decompress_req *rq,\n }\n \n static void *z_erofs_handle_inplace_io(struct z_erofs_decompress_req *rq,\n-\t\t\tvoid *inpage, unsigned int *inputmargin, int *maptype,\n-\t\t\tbool support_0padding)\n+\t\t\tvoid *inpage, void *out, unsigned int *inputmargin,\n+\t\t\tint *maptype, bool support_0padding)\n {\n \tunsigned int nrpages_in, nrpages_out;\n-\tunsigned int ofull, oend, inputsize, total, i, j;\n+\tunsigned int ofull, oend, inputsize, total, i;\n \tstruct page **in;\n \tvoid *src, *tmp;\n \n@@ -143,12 +143,14 @@ static void *z_erofs_handle_inplace_io(struct z_erofs_decompress_req *rq,\n \t\t    ofull - oend < LZ4_DECOMPRESS_INPLACE_MARGIN(inputsize))\n \t\t\tgoto docopy;\n \n-\t\tfor (i = 0; i < nrpages_in; ++i) {\n-\t\t\tDBG_BUGON(rq->in[i] == NULL);\n-\t\t\tfor (j = 0; j < nrpages_out - nrpages_in + i; ++j)\n-\t\t\t\tif (rq->out[j] == rq->in[i])\n-\t\t\t\t\tgoto docopy;\n-\t\t}\n+\t\tfor (i = 0; i < nrpages_in; ++i)\n+\t\t\tif (rq->out[nrpages_out - nrpages_in + i] !=\n+\t\t\t    rq->in[i])\n+\t\t\t\tgoto docopy;\n+\n+\t\tkunmap_atomic(inpage);\n+\t\t*maptype = 3;\n+\t\treturn out + ((nrpages_out - nrpages_in) << PAGE_SHIFT);\n \t}\n \n \tif (nrpages_in <= 1) {\n@@ -156,7 +158,6 @@ static void *z_erofs_handle_inplace_io(struct z_erofs_decompress_req *rq,\n \t\treturn inpage;\n \t}\n \tkunmap_atomic(inpage);\n-\tmight_sleep();\n \tsrc = erofs_vm_map_ram(rq->in, nrpages_in);\n \tif (!src)\n \t\treturn ERR_PTR(-ENOMEM);\n@@ -220,7 +221,8 @@ static int z_erofs_lz4_decompress(struct z_erofs_decompress_req *rq, u8 *out)\n \t}\n \n \trq->inputsize -= inputmargin;\n-\tsrc = z_erofs_handle_inplace_io(rq, headpage, &inputmargin, &maptype,\n+\tsrc = z_erofs_handle_inplace_io(rq, headpage, out - rq->pageofs_out,\n+\t\t\t\t\t&inputmargin, &maptype,\n \t\t\t\t\tsupport_0padding);\n \tif (IS_ERR(src))\n \t\treturn PTR_ERR(src);\n@@ -253,7 +255,7 @@ static int z_erofs_lz4_decompress(struct z_erofs_decompress_req *rq, u8 *out)\n \t\tvm_unmap_ram(src, PAGE_ALIGN(rq->inputsize) >> PAGE_SHIFT);\n \t} else if (maptype == 2) {\n \t\terofs_put_pcpubuf(src);\n-\t} else {\n+\t} else if (maptype != 3) {\n \t\tDBG_BUGON(1);\n \t\treturn -EFAULT;\n \t}\n"
+  },
+  "trace_file": "trace.jsonl"
+}

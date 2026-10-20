@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "241",
+  "candidate_sha256": "c5889f4c451a77364568ce86ec239866fa935bd29b17385166257e35c0744d71",
+  "oracle_sha256": "13fee76ae593f0a6446aa0b501d75fe75ad5ec1d1c3fb344c27b00e36fc1a537",
+  "candidate_nonempty": true,
+  "target_ref": "017d85c94f02090a87f4a473dbe0d6ee0da72693",
+  "baseline_tree": "7af698d13c1a1a44deecc14424440876aba0f59f",
+  "candidate_tree": "0100f68ad9b190292cbf080afacbb63f46005068",
+  "oracle_tree": "0100f68ad9b190292cbf080afacbb63f46005068",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/241",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "c5889f4c451a77364568ce86ec239866fa935bd29b17385166257e35c0744d71",
+    "text": "diff --git a/fs/ksmbd/server.c b/fs/ksmbd/server.c\nindex 14df83c20557..0c0db2e614ef 100644\n--- a/fs/ksmbd/server.c\n+++ b/fs/ksmbd/server.c\n@@ -286,6 +286,7 @@ static void handle_ksmbd_work(struct work_struct *wk)\n static int queue_ksmbd_work(struct ksmbd_conn *conn)\n {\n \tstruct ksmbd_work *work;\n+\tint err;\n \n \twork = ksmbd_alloc_work_struct();\n \tif (!work) {\n@@ -297,7 +298,11 @@ static int queue_ksmbd_work(struct ksmbd_conn *conn)\n \twork->request_buf = conn->request_buf;\n \tconn->request_buf = NULL;\n \n-\tksmbd_init_smb_server(work);\n+\terr = ksmbd_init_smb_server(work);\n+\tif (err) {\n+\t\tksmbd_free_work_struct(work);\n+\t\treturn 0;\n+\t}\n \n \tksmbd_conn_enqueue_request(work);\n \tatomic_inc(&conn->r_count);\ndiff --git a/fs/ksmbd/smb_common.c b/fs/ksmbd/smb_common.c\nindex f7c907143834..c13616857927 100644\n--- a/fs/ksmbd/smb_common.c\n+++ b/fs/ksmbd/smb_common.c\n@@ -388,26 +388,29 @@ static struct smb_version_cmds smb1_server_cmds[1] = {\n \t[SMB_COM_NEGOTIATE_EX]\t= { .proc = smb1_negotiate, },\n };\n \n-static void init_smb1_server(struct ksmbd_conn *conn)\n+static int init_smb1_server(struct ksmbd_conn *conn)\n {\n \tconn->ops = &smb1_server_ops;\n \tconn->cmds = smb1_server_cmds;\n \tconn->max_cmds = ARRAY_SIZE(smb1_server_cmds);\n+\treturn 0;\n }\n \n-void ksmbd_init_smb_server(struct ksmbd_work *work)\n+int ksmbd_init_smb_server(struct ksmbd_work *work)\n {\n \tstruct ksmbd_conn *conn = work->conn;\n \t__le32 proto;\n \n-\tif (conn->need_neg == false)\n-\t\treturn;\n-\n \tproto = *(__le32 *)((struct smb_hdr *)work->request_buf)->Protocol;\n+\tif (conn->need_neg == false) {\n+\t\tif (proto == SMB1_PROTO_NUMBER)\n+\t\t\treturn -EINVAL;\n+\t\treturn 0;\n+\t}\n+\n \tif (proto == SMB1_PROTO_NUMBER)\n-\t\tinit_smb1_server(conn);\n-\telse\n-\t\tinit_smb3_11_server(conn);\n+\t\treturn init_smb1_server(conn);\n+\treturn init_smb3_11_server(conn);\n }\n \n int ksmbd_populate_dot_dotdot_entries(struct ksmbd_work *work, int info_level,\ndiff --git a/fs/ksmbd/smb_common.h b/fs/ksmbd/smb_common.h\nindex 1db027e730e9..c4978579c541 100644\n--- a/fs/ksmbd/smb_common.h\n+++ b/fs/ksmbd/smb_common.h\n@@ -474,7 +474,7 @@ bool ksmbd_smb_request(struct ksmbd_conn *conn);\n \n int ksmbd_lookup_dialect_by_id(__le16 *cli_dialects, __le16 dialects_count);\n \n-void ksmbd_init_smb_server(struct ksmbd_work *work);\n+int ksmbd_init_smb_server(struct ksmbd_work *work);\n \n struct ksmbd_kstat;\n int ksmbd_populate_dot_dotdot_entries(struct ksmbd_work *work,\n"
+  },
+  "trace_file": "trace.jsonl"
+}

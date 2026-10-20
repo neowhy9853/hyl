@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-44-httpd",
+  "candidate_sha256": "6aeb5824fff7db90eae7879c2e2e18a726e3ef196d4ed38e4c298bebf2278a6a",
+  "oracle_sha256": "ea93ebbd2730e47908611198b41246107ebbd017b1cc8c6837bf73a96da8ea46",
+  "candidate_nonempty": true,
+  "target_ref": "846067e96eec1c857bd3959eb72cab0bf0a35765",
+  "baseline_tree": "6183353c61c4a1f2283f676fbc1331da7699552a",
+  "candidate_tree": "4f2dd2f6a0e007ecb389ed8ec6f8ceacc56e74a5",
+  "oracle_tree": "4f2dd2f6a0e007ecb389ed8ec6f8ceacc56e74a5",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-44-httpd",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "6aeb5824fff7db90eae7879c2e2e18a726e3ef196d4ed38e4c298bebf2278a6a",
+    "text": "diff --git a/modules/http2/h2_session.c b/modules/http2/h2_session.c\nindex 1e560e4779..5724fdadb0 100644\n--- a/modules/http2/h2_session.c\n+++ b/modules/http2/h2_session.c\n@@ -319,9 +319,13 @@ static int on_header_cb(nghttp2_session *ngh2, const nghttp2_frame *frame,\n     \n     status = h2_stream_add_header(stream, (const char *)name, namelen,\n                                   (const char *)value, valuelen);\n-    if (status != APR_SUCCESS\n-        && (!stream->rtmp\n-            || stream->rtmp->http_status == H2_HTTP_STATUS_UNSET)) {\n+    if (status != APR_SUCCESS &&\n+        (!stream->rtmp ||\n+         stream->rtmp->http_status == H2_HTTP_STATUS_UNSET ||\n+         /* We accept a certain amount of failures in order to reply\n+          * with an informative HTTP error response like 413. But if the\n+          * client is too wrong, we fail the request a RESET of the stream */\n+         stream->request_headers_failed > 100)) {\n         return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;\n     }\n     return 0;\ndiff --git a/modules/http2/h2_stream.c b/modules/http2/h2_stream.c\nindex f6c9202451..ee87555f9f 100644\n--- a/modules/http2/h2_stream.c\n+++ b/modules/http2/h2_stream.c\n@@ -813,6 +813,7 @@ apr_status_t h2_stream_add_header(h2_stream *stream,\n     \n cleanup:\n     if (error) {\n+        ++stream->request_headers_failed;\n         set_error_response(stream, error);\n         return APR_EINVAL; \n     }\ndiff --git a/modules/http2/h2_stream.h b/modules/http2/h2_stream.h\nindex d68d426038..405978a44d 100644\n--- a/modules/http2/h2_stream.h\n+++ b/modules/http2/h2_stream.h\n@@ -91,6 +91,7 @@ struct h2_stream {\n     struct h2_request *rtmp;    /* request being assembled */\n     apr_table_t *trailers_in;   /* optional, incoming trailers */\n     int request_headers_added;  /* number of request headers added */\n+    int request_headers_failed; /* number of request headers failed to add */\n \n #if AP_HAS_RESPONSE_BUCKETS\n     ap_bucket_response *response; /* the final, non-interim response or NULL */\n"
+  },
+  "trace_file": "trace.jsonl"
+}

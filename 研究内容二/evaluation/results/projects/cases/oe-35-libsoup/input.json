@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-35-libsoup",
+  "task_input": {
+    "repository": {
+      "name": "libsoup",
+      "version": "2.74.3",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "47854a9a29a42913fa0c7ebee30fbe7a52692434",
+      "target_tree": "7ce01b79e81d31756bac02280895c0ad84b69ab7"
+    },
+    "source_commit": "242a10fbb12dbdc12d254bd8fc8669a0ac055304",
+    "reference_parent": "600fd47b979638cc0200be0905775fd8179577cb",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 242a10fbb12dbdc12d254bd8fc8669a0ac055304 Mon Sep 17 00:00:00 2001\nFrom: Patrick Griffis <pgriffis@igalia.com>\nDate: Wed, 5 Feb 2025 14:39:42 -0600\nSubject: [PATCH] sniffer: Fix potential overflow\n\n---\n libsoup/content-sniffer/soup-content-sniffer.c |   2 +-\n tests/meson.build                              |   4 +++-\n tests/resources/whitespace.html                | Bin 0 -> 512 bytes\n tests/sniffing-test.c                          |   5 +++++\n tests/soup-tests.gresource.xml                 |   1 +\n 5 files changed, 10 insertions(+), 2 deletions(-)\n create mode 100644 tests/resources/whitespace.html\n\ndiff --git a/libsoup/content-sniffer/soup-content-sniffer.c b/libsoup/content-sniffer/soup-content-sniffer.c\nindex aeee2e25..da94e60c 100644\n--- a/libsoup/content-sniffer/soup-content-sniffer.c\n+++ b/libsoup/content-sniffer/soup-content-sniffer.c\n@@ -669,7 +669,7 @@ sniff_feed_or_html (SoupContentSniffer *sniffer, GBytes *buffer)\n \t\tpos = 3;\n \n  look_for_tag:\n-\tif (pos > resource_length)\n+\tif (pos >= resource_length)\n \t\tgoto text_html;\n \n \tif (skip_insignificant_space (resource, &pos, resource_length))\ndiff --git a/tests/meson.build b/tests/meson.build\nindex 5aee70bc..ee118a01 100644\n--- a/tests/meson.build\n+++ b/tests/meson.build\n@@ -103,7 +103,9 @@ tests = [\n   {'name': 'session'},\n   {'name': 'server-auth'},\n   {'name': 'server'},\n-  {'name': 'sniffing'},\n+  {'name': 'sniffing',\n+    'depends': [test_resources],\n+  },\n   {'name': 'ssl',\n    'dependencies': [gnutls_dep],\n    'depends': mock_pkcs11_module,\ndiff --git a/tests/resources/whitespace.html b/tests/resources/whitespace.html\nnew file mode 100644\nindex 0000000000000000000000000000000000000000..7f07a0e639a102284d6f7c0c5d5560170f994553\nGIT binary patch\nliteral 512\nTcmcCf)YWAe1tT*Abam|ja4Z2(\n\nliteral 0\nHcmV?d00001\n\ndiff --git a/tests/sniffing-test.c b/tests/sniffing-test.c\nindex 6116719a..b5428177 100644\n--- a/tests/sniffing-test.c\n+++ b/tests/sniffing-test.c\n@@ -512,6 +512,11 @@ main (int argc, char **argv)\n \t\t\t      \"type/text_html; charset=UTF-8/test.html => text/html; charset=UTF-8\",\n \t\t\t      do_sniffing_test);\n \n+        /* Test hitting skip_insignificant_space() with number of bytes equaling resource_length. */\n+\tg_test_add_data_func (\"/sniffing/whitespace\",\n+\t\t\t      \"type/text_html/whitespace.html => text/html\",\n+\t\t\t      do_sniffing_test);\n+\n \t/* Test that disabling the sniffer works correctly */\n \tg_test_add_data_func (\"/sniffing/disabled\",\n \t\t\t      \"/text_or_binary/home.gif\",\ndiff --git a/tests/soup-tests.gresource.xml b/tests/soup-tests.gresource.xml\nindex 9c08d170..cbef1d40 100644\n--- a/tests/soup-tests.gresource.xml\n+++ b/tests/soup-tests.gresource.xml\n@@ -25,5 +25,6 @@\n     <file>resources/text.txt</file>\n     <file>resources/text_binary.txt</file>\n     <file>resources/tux.webp</file>\n+    <file>resources/whitespace.html</file>\n   </gresource>\n </gresources>\n-- \n2.25.1\n\n",
+      "sha256": "c775a487cb15e30632a240c3acda53242d6561fe52043f2c849c64e6f21158db"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for libsoup.\ncase_id: oe-35-libsoup\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 242a10fbb12dbdc12d254bd8fc8669a0ac055304\nreference_parent: 600fd47b979638cc0200be0905775fd8179577cb\ntarget_ref: 47854a9a29a42913fa0c7ebee30fbe7a52692434\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "13a149a32460788a9d26c96baffc265bc22dfb3a71966b578f79ede83363850f",
+      "text": "From 242a10fbb12dbdc12d254bd8fc8669a0ac055304 Mon Sep 17 00:00:00 2001\nFrom: Patrick Griffis <pgriffis@igalia.com>\nDate: Wed, 5 Feb 2025 14:39:42 -0600\nSubject: [PATCH] sniffer: Fix potential overflow\n\r\nConflict: Modify file path adaptation: libsoup/content-sniffer/soup-content-sniffer.c->libsoup/soup-content-sniffer.c\r\nReference: https://gitlab.gnome.org/GNOME/libsoup/-/commit/242a10fbb12dbdc12d254bd8fc8669a0ac055304\r\n\n---\n libsoup/soup-content-sniffer.c                 |   2 +-\n tests/resources/whitespace.html                | Bin 0 -> 512 bytes\n tests/sniffing-test.c                          |   5 +++++\n tests/soup-tests.gresource.xml                 |   1 +\n 4 files changed, 7 insertions(+), 1 deletions(-)\n create mode 100644 tests/resources/whitespace.html\n\ndiff --git a/libsoup/soup-content-sniffer.c b/libsoup/soup-content-sniffer.c\nindex aeee2e25c..da94e60c3 100644\n--- a/libsoup/soup-content-sniffer.c\n+++ b/libsoup/soup-content-sniffer.c\n@@ -669,7 +669,7 @@ sniff_feed_or_html (SoupContentSniffer *sniffer, GBytes *buffer)\n \t\tpos = 3;\n \n  look_for_tag:\n-\tif (pos > resource_length)\n+\tif (pos >= resource_length)\n \t\tgoto text_html;\n \n \tif (skip_insignificant_space (resource, &pos, resource_length))\ndiff --git a/tests/resources/whitespace.html b/tests/resources/whitespace.html\nnew file mode 100644\nindex 0000000000000000000000000000000000000000..7f07a0e639a102284d6f7c0c5d5560170f994553\nGIT binary patch\nliteral 512\nTcmcCf)YWAe1tT*Abam|ja4Z2(\n\nliteral 0\nHcmV?d00001\n\ndiff --git a/tests/sniffing-test.c b/tests/sniffing-test.c\nindex 6116719ae..b5428177f 100644\n--- a/tests/sniffing-test.c\n+++ b/tests/sniffing-test.c\n@@ -512,6 +512,11 @@ main (int argc, char **argv)\n \t\t\t      \"type/text_html; charset=UTF-8/test.html => text/html; charset=UTF-8\",\n \t\t\t      do_sniffing_test);\n \n+        /* Test hitting skip_insignificant_space() with number of bytes equaling resource_length. */\n+\tg_test_add_data_func (\"/sniffing/whitespace\",\n+\t\t\t      \"type/text_html/whitespace.html => text/html\",\n+\t\t\t      do_sniffing_test);\n+\n \t/* Test that disabling the sniffer works correctly */\n \tg_test_add_data_func (\"/sniffing/disabled\",\n \t\t\t      \"/text_or_binary/home.gif\",\ndiff --git a/tests/soup-tests.gresource.xml b/tests/soup-tests.gresource.xml\nindex 9c08d170e..cbef1d402 100644\n--- a/tests/soup-tests.gresource.xml\n+++ b/tests/soup-tests.gresource.xml\n@@ -25,5 +25,6 @@\n     <file>resources/text.txt</file>\n     <file>resources/text_binary.txt</file>\n     <file>resources/tux.webp</file>\n+    <file>resources/whitespace.html</file>\n   </gresource>\n </gresources>\n-- \nGitLab\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "b2e7bd69d1a1e198754847356e13b3ed27cf06d24e918510456be4ec577b1983",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-35-libsoup/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-35-libsoup",
+      "package": "libsoup",
+      "version": "2.74.3",
+      "source_commit": "242a10fbb12dbdc12d254bd8fc8669a0ac055304",
+      "target_ref": "47854a9a29a42913fa0c7ebee30fbe7a52692434",
+      "target_tree": "7ce01b79e81d31756bac02280895c0ad84b69ab7",
+      "reference_patch": "patches/oe-35-libsoup/reference.patch",
+      "reference_sha256": "c775a487cb15e30632a240c3acda53242d6561fe52043f2c849c64e6f21158db",
+      "oracle_patch": "patches/oe-35-libsoup/oracle.patch",
+      "oracle_sha256": "13a149a32460788a9d26c96baffc265bc22dfb3a71966b578f79ede83363850f"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

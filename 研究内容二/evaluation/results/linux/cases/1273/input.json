@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1273",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1273-2vf1vdfl/repo",
+      "target_ref": "e90210bb658d391aeeab597e647e130062b675dd",
+      "target_tree": "fa6a30e0a2f15f2fffc38ac1ea0d3850acb26901"
+    },
+    "source_commit": "3978c5bb004312fd267aed7279fe64b119e126b0",
+    "reference_parent": "2f092422e1ce1f155c6a9da147a78759f0e04f40",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/xfs/xfs_aops.c b/fs/xfs/xfs_aops.c\nindex 3e57a56cf8294770475e5edd04d03ee5565516fa..2693ba84ec2541072396d138fbf970bca90a597c 100644\n--- a/fs/xfs/xfs_aops.c\n+++ b/fs/xfs/xfs_aops.c\n@@ -1361,6 +1361,26 @@ __xfs_get_blocks(\n \tif (error)\n \t\tgoto out_unlock;\n \n+\t/*\n+\t * The only time we can ever safely find delalloc blocks on direct I/O\n+\t * is a dio write to post-eof speculative preallocation. All other\n+\t * scenarios are indicative of a problem or misuse (such as mixing\n+\t * direct and mapped I/O).\n+\t *\n+\t * The file may be unmapped by the time we get here so we cannot\n+\t * reliably fail the I/O based on mapping. Instead, fail the I/O if this\n+\t * is a read or a write within eof. Otherwise, carry on but warn as a\n+\t * precuation if the file happens to be mapped.\n+\t */\n+\tif (direct && imap.br_startblock == DELAYSTARTBLOCK) {\n+\t\tif (!create || offset < i_size_read(VFS_I(ip))) {\n+\t\t\tWARN_ON_ONCE(1);\n+\t\t\terror = -EIO;\n+\t\t\tgoto out_unlock;\n+\t\t}\n+\t\tWARN_ON_ONCE(mapping_mapped(VFS_I(ip)->i_mapping));\n+\t}\n+\n \t/* for DAX, we convert unwritten extents directly */\n \tif (create &&\n \t    (!nimaps ||\n@@ -1450,8 +1470,6 @@ __xfs_get_blocks(\n \t     (new || ISUNWRITTEN(&imap))))\n \t\tset_buffer_new(bh_result);\n \n-\tBUG_ON(direct && imap.br_startblock == DELAYSTARTBLOCK);\n-\n \treturn 0;\n \n out_unlock:\n",
+      "sha256": "5a07ee90bd76ac51d67f85b56b674bd0bf9f39f028c22486a2c6cc805b670ad0"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2016-10741\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1273-2vf1vdfl/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1273-2vf1vdfl/repo/.patch-port/reference.diff\nreference_fix: 3978c5bb004312fd267aed7279fe64b119e126b0\nreference_parent: 2f092422e1ce1f155c6a9da147a78759f0e04f40\ntarget_ref: e90210bb658d391aeeab597e647e130062b675dd\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1273-2vf1vdfl/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1273-2vf1vdfl/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2016-10741"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "96cbb7e99d66cef46c62dc691664d38d5ae2cd8d",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "00d1a3ceb90bed0ee8a9cc72033054db0656a65e2cb4cb4c0bb514b79228d7c0",
+      "text": "diff --git a/fs/xfs/xfs_aops.c b/fs/xfs/xfs_aops.c\nindex 3fc699ea7ba0f1b705a48c30d14eb37186020884..91b3106fda9bcbb4b33041104ac87e7b9f166f17 100644\n--- a/fs/xfs/xfs_aops.c\n+++ b/fs/xfs/xfs_aops.c\n@@ -1300,6 +1300,26 @@ __xfs_get_blocks(\n \tif (error)\n \t\tgoto out_unlock;\n \n+\t/*\n+\t * The only time we can ever safely find delalloc blocks on direct I/O\n+\t * is a dio write to post-eof speculative preallocation. All other\n+\t * scenarios are indicative of a problem or misuse (such as mixing\n+\t * direct and mapped I/O).\n+\t *\n+\t * The file may be unmapped by the time we get here so we cannot\n+\t * reliably fail the I/O based on mapping. Instead, fail the I/O if this\n+\t * is a read or a write within eof. Otherwise, carry on but warn as a\n+\t * precuation if the file happens to be mapped.\n+\t */\n+\tif (direct && imap.br_startblock == DELAYSTARTBLOCK) {\n+\t\tif (!create || offset < i_size_read(VFS_I(ip))) {\n+\t\t\tWARN_ON_ONCE(1);\n+\t\t\terror = EIO;\n+\t\t\tgoto out_unlock;\n+\t\t}\n+\t\tWARN_ON_ONCE(mapping_mapped(VFS_I(ip)->i_mapping));\n+\t}\n+\n \tif (create &&\n \t    (!nimaps ||\n \t     (imap.br_startblock == HOLESTARTBLOCK ||\n@@ -1383,7 +1403,6 @@ __xfs_get_blocks(\n \t\tset_buffer_new(bh_result);\n \n \tif (imap.br_startblock == DELAYSTARTBLOCK) {\n-\t\tBUG_ON(direct);\n \t\tif (create) {\n \t\t\tset_buffer_uptodate(bh_result);\n \t\t\tset_buffer_mapped(bh_result);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "fec428c9afb9c0723129f9e25130ecdc02db6149796a37a42e51e1f777f6055a",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01273_CVE-2016-10741/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1273,
+      "cve": "CVE-2016-10741",
+      "source_commit": "3978c5bb004312fd267aed7279fe64b119e126b0",
+      "oracle_commit": "96cbb7e99d66cef46c62dc691664d38d5ae2cd8d"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2116",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2116-f41xnxvb/repo",
+      "target_ref": "725e0dd2d3d036a6bfb170e307ca231228ddddd0",
+      "target_tree": "ad3cd042637698c323ee84e6d17c651ce7b26923"
+    },
+    "source_commit": "a1c2f3229734a4bb8d5ac008c0a67e025aa11547",
+    "reference_parent": "53a1906859a2ec1d2b5c33102086ce3e03ec0b37",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/include/net/net_namespace.h b/include/net/net_namespace.h\nindex 9b5fdc50519acfbc6ab9219579e742fe79193194..3f7b166262d72c1d95c7df3bdbaa2c80b5bca78d 100644\n--- a/include/net/net_namespace.h\n+++ b/include/net/net_namespace.h\n@@ -57,6 +57,7 @@ struct net {\n \t\t\t\t\t\t */\n \tspinlock_t\t\trules_mod_lock;\n \n+\tu32\t\t\thash_mix;\n \tatomic64_t\t\tcookie_gen;\n \n \tstruct list_head\tlist;\t\t/* list of network namespaces */\ndiff --git a/include/net/netns/hash.h b/include/net/netns/hash.h\nindex 16a842456189f2fc1a3363685b5dd4310a32b2b8..d9b665151f3d9e916f35620141542a5a145e6123 100644\n--- a/include/net/netns/hash.h\n+++ b/include/net/netns/hash.h\n@@ -2,16 +2,10 @@\n #ifndef __NET_NS_HASH_H__\n #define __NET_NS_HASH_H__\n \n-#include <asm/cache.h>\n-\n-struct net;\n+#include <net/net_namespace.h>\n \n static inline u32 net_hash_mix(const struct net *net)\n {\n-#ifdef CONFIG_NET_NS\n-\treturn (u32)(((unsigned long)net) >> ilog2(sizeof(*net)));\n-#else\n-\treturn 0;\n-#endif\n+\treturn net->hash_mix;\n }\n #endif\ndiff --git a/net/core/net_namespace.c b/net/core/net_namespace.c\nindex 670c84b1bfc23bbb9dde13b4df21a503350d390e..7320f0844a50da9c25067b8c7da1bafa0439d420 100644\n--- a/net/core/net_namespace.c\n+++ b/net/core/net_namespace.c\n@@ -304,6 +304,7 @@ static __net_init int setup_net(struct net *net, struct user_namespace *user_ns)\n \n \trefcount_set(&net->count, 1);\n \trefcount_set(&net->passive, 1);\n+\tget_random_bytes(&net->hash_mix, sizeof(u32));\n \tnet->dev_base_seq = 1;\n \tnet->user_ns = user_ns;\n \tidr_init(&net->netns_ids);\n",
+      "sha256": "7e98252686768b42cc990efa2d318c732045b30b80d0c57e91629b9d329780b9"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2019-10639\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2116-f41xnxvb/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2116-f41xnxvb/repo/.patch-port/reference.diff\nreference_fix: a1c2f3229734a4bb8d5ac008c0a67e025aa11547\nreference_parent: 53a1906859a2ec1d2b5c33102086ce3e03ec0b37\ntarget_ref: 725e0dd2d3d036a6bfb170e307ca231228ddddd0\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2116-f41xnxvb/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2116-f41xnxvb/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2019-10639"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "8b197d3ce585d6777197e0633d71e5af7d98cb35",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "aede072a84aa93e29bbef747cf5222bfdee1c4b4db0e17d411bd10fe4e3e1e2c",
+      "text": "diff --git a/net/ipv4/route.c b/net/ipv4/route.c\nindex 4f7c378c841d7175eaa561988d30394bc4bd9154..13816361fc0401bf5abe9dd0c96fa5ce58bd3d50 100644\n--- a/net/ipv4/route.c\n+++ b/net/ipv4/route.c\n@@ -487,13 +487,15 @@ EXPORT_SYMBOL(ip_idents_reserve);\n void __ip_select_ident(struct iphdr *iph, int segs)\n {\n \tstatic u32 ip_idents_hashrnd __read_mostly;\n+\tstatic u32 ip_idents_hashrnd_extra __read_mostly;\n \tu32 hash, id;\n \n \tnet_get_random_once(&ip_idents_hashrnd, sizeof(ip_idents_hashrnd));\n+\tnet_get_random_once(&ip_idents_hashrnd_extra, sizeof(ip_idents_hashrnd_extra));\n \n \thash = jhash_3words((__force u32)iph->daddr,\n \t\t\t    (__force u32)iph->saddr,\n-\t\t\t    iph->protocol,\n+\t\t\t    iph->protocol ^ ip_idents_hashrnd_extra,\n \t\t\t    ip_idents_hashrnd);\n \tid = ip_idents_reserve(hash, segs);\n \tiph->id = htons(id);\ndiff --git a/net/ipv6/ip6_output.c b/net/ipv6/ip6_output.c\nindex e59b30054b0f9937c5bfc0c36ef709d9c76586fb..bb98cde51476a42ac2c75f26754e502257b785d7 100644\n--- a/net/ipv6/ip6_output.c\n+++ b/net/ipv6/ip6_output.c\n@@ -541,12 +541,15 @@ static void ip6_copy_metadata(struct sk_buff *to, struct sk_buff *from)\n static void ipv6_select_ident(struct frag_hdr *fhdr, struct rt6_info *rt)\n {\n \tstatic u32 ip6_idents_hashrnd __read_mostly;\n+\tstatic u32 ip6_idents_hashrnd_extra __read_mostly;\n \tu32 hash, id;\n \n \tnet_get_random_once(&ip6_idents_hashrnd, sizeof(ip6_idents_hashrnd));\n+\tnet_get_random_once(&ip6_idents_hashrnd_extra, sizeof(ip6_idents_hashrnd_extra));\n \n \thash = __ipv6_addr_jhash(&rt->rt6i_dst.addr, ip6_idents_hashrnd);\n \thash = __ipv6_addr_jhash(&rt->rt6i_src.addr, hash);\n+\thash = jhash_1word(hash, ip6_idents_hashrnd_extra);\n \n \tid = ip_idents_reserve(hash, 1);\n \tfhdr->identification = htonl(id);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "fb59faa30a712555e1b3cae7405cafbe909241d6a6de3d6e3fc47afb3b593b4b",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/02116_CVE-2019-10639/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2116,
+      "cve": "CVE-2019-10639",
+      "source_commit": "a1c2f3229734a4bb8d5ac008c0a67e025aa11547",
+      "oracle_commit": "8b197d3ce585d6777197e0633d71e5af7d98cb35"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-40-grub2",
+  "task_input": {
+    "repository": {
+      "name": "grub2",
+      "version": "2.12",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "1191ecd1232069edb7c1aaf2f2b2c5529da4d69a",
+      "target_tree": "f0e59c3a201a1a2c135ad946654f41a236cc2132"
+    },
+    "source_commit": "ea703528a8581a2ea7e0bad424a70fdf0aec7d8f",
+    "reference_parent": "6811f6f09d61996a3acbc4fc0414e45964f0e2d9",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From ea703528a8581a2ea7e0bad424a70fdf0aec7d8f Mon Sep 17 00:00:00 2001\nFrom: B Horn <b@horn.uk>\nDate: Sat, 15 Jun 2024 02:33:08 +0100\nSubject: [PATCH] misc: Implement grub_strlcpy()\n\ngrub_strlcpy() acts the same way as strlcpy() does on most *NIX,\nreturning the length of src and ensuring dest is always NUL\nterminated except when size is 0.\n\nSigned-off-by: B Horn <b@horn.uk>\nReviewed-by: Daniel Kiper <daniel.kiper@oracle.com>\n---\n include/grub/misc.h | 39 +++++++++++++++++++++++++++++++++++++++\n 1 file changed, 39 insertions(+)\n\ndiff --git a/include/grub/misc.h b/include/grub/misc.h\nindex 1578f36c3c..14d8f37acd 100644\n--- a/include/grub/misc.h\n+++ b/include/grub/misc.h\n@@ -64,6 +64,45 @@ grub_stpcpy (char *dest, const char *src)\n   return d - 1;\n }\n \n+static inline grub_size_t\n+grub_strlcpy (char *dest, const char *src, grub_size_t size)\n+{\n+  char *d = dest;\n+  grub_size_t res = 0;\n+  /*\n+   * We do not subtract one from size here to avoid dealing with underflowing\n+   * the value, which is why to_copy is always checked to be greater than one\n+   * throughout this function.\n+   */\n+  grub_size_t to_copy = size;\n+\n+  /* Copy size - 1 bytes to dest. */\n+  if (to_copy > 1)\n+    while ((*d++ = *src++) != '\\0' && ++res && --to_copy > 1)\n+      ;\n+\n+  /*\n+   * NUL terminate if size != 0. The previous step may have copied a NUL byte\n+   * if it reached the end of the string, but we know dest[size - 1] must always\n+   * be a NUL byte.\n+   */\n+  if (size != 0)\n+    dest[size - 1] = '\\0';\n+\n+  /* If there is still space in dest, but are here, we reached the end of src. */\n+  if (to_copy > 1)\n+    return res;\n+\n+  /*\n+   * If we haven't reached the end of the string, iterate through to determine\n+   * the strings total length.\n+   */\n+  while (*src++ != '\\0' && ++res)\n+   ;\n+\n+  return res;\n+}\n+\n /* XXX: If grub_memmove is too slow, we must implement grub_memcpy.  */\n static inline void *\n grub_memcpy (void *dest, const void *src, grub_size_t n)\n-- \n2.25.1\n\n",
+      "sha256": "52e6cfcbac6a7c3ebec3fbfcd7343b87105f05b96dfac59217cfc41cf6b77d8c"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for grub2.\ncase_id: oe-40-grub2\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: ea703528a8581a2ea7e0bad424a70fdf0aec7d8f\nreference_parent: 6811f6f09d61996a3acbc4fc0414e45964f0e2d9\ntarget_ref: 1191ecd1232069edb7c1aaf2f2b2c5529da4d69a\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "eb25309ef59e0afcd72ce3d8c388105036a197386c7bc48da6a0a3d5e7c934fb",
+      "text": "From ea703528a8581a2ea7e0bad424a70fdf0aec7d8f Mon Sep 17 00:00:00 2001\nFrom: B Horn <b@horn.uk>\nDate: Sat, 15 Jun 2024 02:33:08 +0100\nSubject: [PATCH 01/73] misc: Implement grub_strlcpy()\n\ngrub_strlcpy() acts the same way as strlcpy() does on most *NIX,\nreturning the length of src and ensuring dest is always NUL\nterminated except when size is 0.\n\nSigned-off-by: B Horn <b@horn.uk>\nReviewed-by: Daniel Kiper <daniel.kiper@oracle.com>\n---\n include/grub/misc.h | 39 +++++++++++++++++++++++++++++++++++++++\n 1 file changed, 39 insertions(+)\n\ndiff --git a/include/grub/misc.h b/include/grub/misc.h\nindex 1578f36c3..14d8f37ac 100644\n--- a/include/grub/misc.h\n+++ b/include/grub/misc.h\n@@ -64,6 +64,45 @@ grub_stpcpy (char *dest, const char *src)\n   return d - 1;\n }\n \n+static inline grub_size_t\n+grub_strlcpy (char *dest, const char *src, grub_size_t size)\n+{\n+  char *d = dest;\n+  grub_size_t res = 0;\n+  /*\n+   * We do not subtract one from size here to avoid dealing with underflowing\n+   * the value, which is why to_copy is always checked to be greater than one\n+   * throughout this function.\n+   */\n+  grub_size_t to_copy = size;\n+\n+  /* Copy size - 1 bytes to dest. */\n+  if (to_copy > 1)\n+    while ((*d++ = *src++) != '\\0' && ++res && --to_copy > 1)\n+      ;\n+\n+  /*\n+   * NUL terminate if size != 0. The previous step may have copied a NUL byte\n+   * if it reached the end of the string, but we know dest[size - 1] must always\n+   * be a NUL byte.\n+   */\n+  if (size != 0)\n+    dest[size - 1] = '\\0';\n+\n+  /* If there is still space in dest, but are here, we reached the end of src. */\n+  if (to_copy > 1)\n+    return res;\n+\n+  /*\n+   * If we haven't reached the end of the string, iterate through to determine\n+   * the strings total length.\n+   */\n+  while (*src++ != '\\0' && ++res)\n+   ;\n+\n+  return res;\n+}\n+\n /* XXX: If grub_memmove is too slow, we must implement grub_memcpy.  */\n static inline void *\n grub_memcpy (void *dest, const void *src, grub_size_t n)\n-- \n2.33.0\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "69c620a29a44f2457d968c328499e7e8fd105a9a26fbde82ffb302da529f5972",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-40-grub2/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-40-grub2",
+      "package": "grub2",
+      "version": "2.12",
+      "source_commit": "ea703528a8581a2ea7e0bad424a70fdf0aec7d8f",
+      "target_ref": "1191ecd1232069edb7c1aaf2f2b2c5529da4d69a",
+      "target_tree": "f0e59c3a201a1a2c135ad946654f41a236cc2132",
+      "reference_patch": "patches/oe-40-grub2/reference.patch",
+      "reference_sha256": "52e6cfcbac6a7c3ebec3fbfcd7343b87105f05b96dfac59217cfc41cf6b77d8c",
+      "oracle_patch": "patches/oe-40-grub2/oracle.patch",
+      "oracle_sha256": "eb25309ef59e0afcd72ce3d8c388105036a197386c7bc48da6a0a3d5e7c934fb"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

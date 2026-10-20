@@ -1,0 +1,44 @@
+{
+  "round": 4,
+  "case_id": "case_221",
+  "source_index": 220,
+  "repo": "kernel",
+  "commit_id": "cd78a81663fdc5c6463f50ea6b6c118e4c4718ac",
+  "oracle_label": "feat",
+  "predicted_label": "fix",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "7e53a9fd00b1",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "提交纠正了错误路径：在 crypto_shash_final 失败时，错误地跳过了资源释放，导致内存泄漏。补丁将资源释放移到错误路径之前，确保失败时也能正确清理。",
+    "intent_items": [
+      {
+        "target": "fs/cifsd/auth.c 中的 NTLMv2 哈希计算错误处理路径",
+        "change": "将 kfree(uniname)、kfree(domain) 和 ksmbd_release_crypto_ctx(ctx) 从 out 标签后移到 crypto_shash_final 调用之前",
+        "effect_or_reason": "修复了 crypto_shash_final 失败时资源泄漏的 bug，确保在错误路径上也能释放分配的内存和加密上下文",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "补丁移动了 kfree 和 ksmbd_release_crypto_ctx 的调用位置"
+          ],
+          "message_only_details": [],
+          "code_only_details": [
+            "提交前，crypto_shash_final 失败后直接跳转到 out 标签，但 out 标签后的释放代码仅在 ret 为真时执行，导致资源泄漏"
+          ]
+        },
+        "evidence": [
+          "提交前：crypto_shash_final 失败后跳转到 out，但 out 标签后的释放代码在 if (ret) 块内，失败时 ret 为真，但释放代码在 if 块外，实际上未执行释放",
+          "提交后：释放代码被移到 crypto_shash_final 调用之前，确保无论成功或失败，资源都会被正确释放"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_221",
+  "trace_status": "available"
+}

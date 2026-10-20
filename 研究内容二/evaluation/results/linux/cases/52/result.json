@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "52",
+  "candidate_sha256": "910a3af7dcebc3be6a8c38cb48235d481a9fdb7c1d80ea746edeff3ba05253d5",
+  "oracle_sha256": "74f03dd70b2d268a381425844516d7d725823d73cac250d97328400b3008f244",
+  "candidate_nonempty": true,
+  "target_ref": "93b75cce2e47ae15f223cd3593f281cbb7676d7f",
+  "baseline_tree": "67a1c1e4fc51433aaf2967c9cbf691b1d70dad87",
+  "candidate_tree": "8cff2dd12b84349796b41ccf9d1b740b02138b4f",
+  "oracle_tree": "8cff2dd12b84349796b41ccf9d1b740b02138b4f",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/52",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "910a3af7dcebc3be6a8c38cb48235d481a9fdb7c1d80ea746edeff3ba05253d5",
+    "text": "diff --git a/mm/huge_memory.c b/mm/huge_memory.c\nindex 11fe0b4dbe67..dddc863b3cbc 100644\n--- a/mm/huge_memory.c\n+++ b/mm/huge_memory.c\n@@ -2385,6 +2385,8 @@ void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,\n {\n \tspinlock_t *ptl;\n \tstruct mmu_notifier_range range;\n+\tbool was_locked = false;\n+\tpmd_t _pmd;\n \n \tmmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, vma, vma->vm_mm,\n \t\t\t\taddress & HPAGE_PMD_MASK,\n@@ -2397,11 +2399,32 @@ void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,\n \t * pmd against. Otherwise we can end up replacing wrong page.\n \t */\n \tVM_BUG_ON(freeze && !page);\n-\tif (page && page != pmd_page(*pmd))\n-\t        goto out;\n+\tif (page) {\n+\t\tVM_WARN_ON_ONCE(!PageLocked(page));\n+\t\twas_locked = true;\n+\t\tif (page != pmd_page(*pmd))\n+\t\t\tgoto out;\n+\t}\n \n+repeat:\n \tif (pmd_trans_huge(*pmd)) {\n-\t\tpage = pmd_page(*pmd);\n+\t\tif (!page) {\n+\t\t\tpage = pmd_page(*pmd);\n+\t\t\tif (unlikely(!trylock_page(page))) {\n+\t\t\t\tget_page(page);\n+\t\t\t\t_pmd = *pmd;\n+\t\t\t\tspin_unlock(ptl);\n+\t\t\t\tlock_page(page);\n+\t\t\t\tspin_lock(ptl);\n+\t\t\t\tif (unlikely(!pmd_same(*pmd, _pmd))) {\n+\t\t\t\t\tunlock_page(page);\n+\t\t\t\t\tput_page(page);\n+\t\t\t\t\tpage = NULL;\n+\t\t\t\t\tgoto repeat;\n+\t\t\t\t}\n+\t\t\t\tput_page(page);\n+\t\t\t}\n+\t\t}\n \t\tif (PageMlocked(page))\n \t\t\tclear_page_mlock(page);\n \t} else if (!(pmd_devmap(*pmd) || is_pmd_migration_entry(*pmd)))\n@@ -2409,6 +2432,8 @@ void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,\n \t__split_huge_pmd_locked(vma, pmd, range.start, freeze);\n out:\n \tspin_unlock(ptl);\n+\tif (!was_locked && page)\n+\t\tunlock_page(page);\n \t/*\n \t * No need to double call mmu_notifier->invalidate_range() callback.\n \t * They are 3 cases to consider inside __split_huge_pmd_locked():\n"
+  },
+  "trace_file": "trace.jsonl"
+}

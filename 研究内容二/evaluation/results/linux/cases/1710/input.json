@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1710",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-1710-94pvp5vx/repo",
+      "target_ref": "67f386f75637f25df714d57a48f6c94b83573631",
+      "target_tree": "a49e5d4567062341f9ecf0c7afb2eb5f80bca71a"
+    },
+    "source_commit": "b8b514b2a6cdfac24911e4910461bcb9db15ca8d",
+    "reference_parent": "25da0f582119eee67334c942c61a5570618d0701",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/include/net/netfilter/nf_tables.h b/include/net/netfilter/nf_tables.h\nindex df91b9f42255..8e9c5bc1a9e6 100644\n--- a/include/net/netfilter/nf_tables.h\n+++ b/include/net/netfilter/nf_tables.h\n@@ -164,9 +164,9 @@ static inline __be32 nft_reg_load_be32(const u32 *sreg)\n \treturn *(__force __be32 *)sreg;\n }\n \n-static inline void nft_reg_store64(u32 *dreg, u64 val)\n+static inline void nft_reg_store64(u64 *dreg, u64 val)\n {\n-\tput_unaligned(val, (u64 *)dreg);\n+\tput_unaligned(val, dreg);\n }\n \n static inline u64 nft_reg_load64(const u32 *sreg)\ndiff --git a/net/netfilter/nft_byteorder.c b/net/netfilter/nft_byteorder.c\nindex d3e1467e576f..adf208b7929f 100644\n--- a/net/netfilter/nft_byteorder.c\n+++ b/net/netfilter/nft_byteorder.c\n@@ -38,13 +38,14 @@ void nft_byteorder_eval(const struct nft_expr *expr,\n \n \tswitch (priv->size) {\n \tcase 8: {\n+\t\tu64 *dst64 = (void *)dst;\n \t\tu64 src64;\n \n \t\tswitch (priv->op) {\n \t\tcase NFT_BYTEORDER_NTOH:\n \t\t\tfor (i = 0; i < priv->len / 8; i++) {\n \t\t\t\tsrc64 = nft_reg_load64(&src[i]);\n-\t\t\t\tnft_reg_store64(&dst[i],\n+\t\t\t\tnft_reg_store64(&dst64[i],\n \t\t\t\t\t\tbe64_to_cpu((__force __be64)src64));\n \t\t\t}\n \t\t\tbreak;\n@@ -52,7 +53,7 @@ void nft_byteorder_eval(const struct nft_expr *expr,\n \t\t\tfor (i = 0; i < priv->len / 8; i++) {\n \t\t\t\tsrc64 = (__force __u64)\n \t\t\t\t\tcpu_to_be64(nft_reg_load64(&src[i]));\n-\t\t\t\tnft_reg_store64(&dst[i], src64);\n+\t\t\t\tnft_reg_store64(&dst64[i], src64);\n \t\t\t}\n \t\t\tbreak;\n \t\t}\ndiff --git a/net/netfilter/nft_meta.c b/net/netfilter/nft_meta.c\nindex 14412f69a34e..35aba304a25b 100644\n--- a/net/netfilter/nft_meta.c\n+++ b/net/netfilter/nft_meta.c\n@@ -63,7 +63,7 @@ nft_meta_get_eval_time(enum nft_meta_keys key,\n {\n \tswitch (key) {\n \tcase NFT_META_TIME_NS:\n-\t\tnft_reg_store64(dest, ktime_get_real_ns());\n+\t\tnft_reg_store64((u64 *)dest, ktime_get_real_ns());\n \t\tbreak;\n \tcase NFT_META_TIME_DAY:\n \t\tnft_reg_store8(dest, nft_meta_weekday());\n",
+      "sha256": "30016200222630afadd9b7c482ca0b1d7a017a3e9a7d38171f3d56724cdfb38a"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2024-0607\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-1710-94pvp5vx/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-1710-94pvp5vx/repo/.patch-port/reference.diff\nreference_fix: b8b514b2a6cdfac24911e4910461bcb9db15ca8d\nreference_parent: 25da0f582119eee67334c942c61a5570618d0701\ntarget_ref: 67f386f75637f25df714d57a48f6c94b83573631\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-1710-94pvp5vx/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-1710-94pvp5vx/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history"
+    },
+    "cve": "CVE-2024-0607"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "9a865a11d6890d4a789db1eaafebdc8bd092b12c",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "385257b8bee934ebe571d2f5b26df0b46f188980ffbcec1aea89a0d5bab0df86",
+      "text": "diff --git a/include/net/netfilter/nf_tables.h b/include/net/netfilter/nf_tables.h\nindex 2237657514e1..2da11d8c0f45 100644\n--- a/include/net/netfilter/nf_tables.h\n+++ b/include/net/netfilter/nf_tables.h\n@@ -142,9 +142,9 @@ static inline u16 nft_reg_load16(const u32 *sreg)\n \treturn *(u16 *)sreg;\n }\n \n-static inline void nft_reg_store64(u32 *dreg, u64 val)\n+static inline void nft_reg_store64(u64 *dreg, u64 val)\n {\n-\tput_unaligned(val, (u64 *)dreg);\n+\tput_unaligned(val, dreg);\n }\n \n static inline u64 nft_reg_load64(const u32 *sreg)\ndiff --git a/net/netfilter/nft_byteorder.c b/net/netfilter/nft_byteorder.c\nindex 7b0b8fecb220..9d250bd60bb8 100644\n--- a/net/netfilter/nft_byteorder.c\n+++ b/net/netfilter/nft_byteorder.c\n@@ -38,20 +38,21 @@ void nft_byteorder_eval(const struct nft_expr *expr,\n \n \tswitch (priv->size) {\n \tcase 8: {\n+\t\tu64 *dst64 = (void *)dst;\n \t\tu64 src64;\n \n \t\tswitch (priv->op) {\n \t\tcase NFT_BYTEORDER_NTOH:\n \t\t\tfor (i = 0; i < priv->len / 8; i++) {\n \t\t\t\tsrc64 = nft_reg_load64(&src[i]);\n-\t\t\t\tnft_reg_store64(&dst[i], be64_to_cpu(src64));\n+\t\t\t\tnft_reg_store64(&dst64[i], be64_to_cpu(src64));\n \t\t\t}\n \t\t\tbreak;\n \t\tcase NFT_BYTEORDER_HTON:\n \t\t\tfor (i = 0; i < priv->len / 8; i++) {\n \t\t\t\tsrc64 = (__force __u64)\n \t\t\t\t\tcpu_to_be64(nft_reg_load64(&src[i]));\n-\t\t\t\tnft_reg_store64(&dst[i], src64);\n+\t\t\t\tnft_reg_store64(&dst64[i], src64);\n \t\t\t}\n \t\t\tbreak;\n \t\t}\ndiff --git a/net/netfilter/nft_meta.c b/net/netfilter/nft_meta.c\nindex 44d9b38e5f90..cb5bb0e21b66 100644\n--- a/net/netfilter/nft_meta.c\n+++ b/net/netfilter/nft_meta.c\n@@ -63,7 +63,7 @@ nft_meta_get_eval_time(enum nft_meta_keys key,\n {\n \tswitch (key) {\n \tcase NFT_META_TIME_NS:\n-\t\tnft_reg_store64(dest, ktime_get_real_ns());\n+\t\tnft_reg_store64((u64 *)dest, ktime_get_real_ns());\n \t\tbreak;\n \tcase NFT_META_TIME_DAY:\n \t\tnft_reg_store8(dest, nft_meta_weekday());\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "aad4c37c9268533bc6c548e99480914c56706b464233bb12e72a2e78d19fc399",
+    "reference_patch_source": "/data/SCA-repair/src/core-c/result/opencode_agent_robust_failed404_random40_more_work/01710_CVE-2024-0607/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1710,
+      "cve": "CVE-2024-0607",
+      "source_commit": "b8b514b2a6cdfac24911e4910461bcb9db15ca8d",
+      "oracle_commit": "9a865a11d6890d4a789db1eaafebdc8bd092b12c"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

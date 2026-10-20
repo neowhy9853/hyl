@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "390",
+  "candidate_sha256": "addca8c6deadff92211681d1856535067940a37398a6e1e46e808e8c86096754",
+  "oracle_sha256": "addca8c6deadff92211681d1856535067940a37398a6e1e46e808e8c86096754",
+  "candidate_nonempty": true,
+  "target_ref": "626daab3811b772086aef1bf8eed3ffe6f523eff",
+  "baseline_tree": "d7ecae9d106b5904a0255e96709e80a021c48864",
+  "candidate_tree": "383b543e073835c12a9e1d9c337c96a93b57a5b8",
+  "oracle_tree": "383b543e073835c12a9e1d9c337c96a93b57a5b8",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/390",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "addca8c6deadff92211681d1856535067940a37398a6e1e46e808e8c86096754",
+    "text": "diff --git a/drivers/md/dm-core.h b/drivers/md/dm-core.h\nindex 095b9b49aa82..e6757a30dcca 100644\n--- a/drivers/md/dm-core.h\n+++ b/drivers/md/dm-core.h\n@@ -22,6 +22,8 @@\n #include \"dm-ima.h\"\n \n #define DM_RESERVED_MAX_IOS\t\t1024\n+#define DM_MAX_TARGETS\t\t\t1048576\n+#define DM_MAX_TARGET_PARAMS\t\t1024\n \n struct dm_io;\n \ndiff --git a/drivers/md/dm-ioctl.c b/drivers/md/dm-ioctl.c\nindex e65058e0ed06..3b1ad7127cb8 100644\n--- a/drivers/md/dm-ioctl.c\n+++ b/drivers/md/dm-ioctl.c\n@@ -1941,7 +1941,8 @@ static int copy_params(struct dm_ioctl __user *user, struct dm_ioctl *param_kern\n \t\t\t   minimum_data_size - sizeof(param_kernel->version)))\n \t\treturn -EFAULT;\n \n-\tif (param_kernel->data_size < minimum_data_size) {\n+\tif (unlikely(param_kernel->data_size < minimum_data_size) ||\n+\t    unlikely(param_kernel->data_size > DM_MAX_TARGETS * DM_MAX_TARGET_PARAMS)) {\n \t\tDMERR(\"Invalid data size in the ioctl structure: %u\",\n \t\t      param_kernel->data_size);\n \t\treturn -EINVAL;\ndiff --git a/drivers/md/dm-table.c b/drivers/md/dm-table.c\nindex 198d38b53322..08c9c20f9c66 100644\n--- a/drivers/md/dm-table.c\n+++ b/drivers/md/dm-table.c\n@@ -129,7 +129,12 @@ static int alloc_targets(struct dm_table *t, unsigned int num)\n int dm_table_create(struct dm_table **result, blk_mode_t mode,\n \t\t    unsigned int num_targets, struct mapped_device *md)\n {\n-\tstruct dm_table *t = kzalloc(sizeof(*t), GFP_KERNEL);\n+\tstruct dm_table *t;\n+\n+\tif (num_targets > DM_MAX_TARGETS)\n+\t\treturn -EOVERFLOW;\n+\n+\tt = kzalloc(sizeof(*t), GFP_KERNEL);\n \n \tif (!t)\n \t\treturn -ENOMEM;\n@@ -144,7 +149,7 @@ int dm_table_create(struct dm_table **result, blk_mode_t mode,\n \n \tif (!num_targets) {\n \t\tkfree(t);\n-\t\treturn -ENOMEM;\n+\t\treturn -EOVERFLOW;\n \t}\n \n \tif (alloc_targets(t, num_targets)) {\n"
+  },
+  "trace_file": "trace.jsonl"
+}

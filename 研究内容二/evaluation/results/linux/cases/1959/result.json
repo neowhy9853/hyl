@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1959",
+  "candidate_sha256": "a794b5e8ff066f766316ce1d18f44d525e531fff6c27fa13ec4d436ef7009a9e",
+  "oracle_sha256": "a673b9bb9f5d0a5ed48b28a768b6806ba33f8f1511ecc92b6d4270eaebbca401",
+  "candidate_nonempty": true,
+  "target_ref": "f06f7a923d1de2542cdcc5a9a157df5eb072913b",
+  "baseline_tree": "78a61fa241d8df92a2c64cafd0bf7473923530a5",
+  "candidate_tree": "8c868f3f6cc222562e1cc9d71c14094f09a80227",
+  "oracle_tree": "7ad94a912691df9f4f4f4c359a24a57a3f636c56",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1959",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "a794b5e8ff066f766316ce1d18f44d525e531fff6c27fa13ec4d436ef7009a9e",
+    "text": "diff --git a/block/blk-mq-tag.c b/block/blk-mq-tag.c\nindex a07ca3488d96..a8c197b14c85 100644\n--- a/block/blk-mq-tag.c\n+++ b/block/blk-mq-tag.c\n@@ -481,6 +481,18 @@ void blk_mq_queue_tag_busy_iter(struct request_queue *q, busy_iter_fn *fn,\n \tstruct blk_mq_hw_ctx *hctx;\n \tint i;\n \n+\t/*\n+\t * __blk_mq_update_nr_hw_queues will update the nr_hw_queues and\n+\t * queue_hw_ctx after freeze the queue. So we could use q_usage_counter\n+\t * to avoid race with it. __blk_mq_update_nr_hw_queues will users\n+\t * synchronize_rcu to ensure all of the users go out of the critical\n+\t * section below and see zeroed q_usage_counter.\n+\t */\n+\trcu_read_lock();\n+\tif (percpu_ref_is_zero(&q->q_usage_counter)) {\n+\t\trcu_read_unlock();\n+\t\treturn;\n+\t}\n \n \tqueue_for_each_hw_ctx(q, hctx, i) {\n \t\tstruct blk_mq_tags *tags = hctx->tags;\n@@ -497,7 +509,7 @@ void blk_mq_queue_tag_busy_iter(struct request_queue *q, busy_iter_fn *fn,\n \t\tbt_for_each(hctx, &tags->bitmap_tags, tags->nr_reserved_tags, fn, priv,\n \t\t      false);\n \t}\n-\n+\trcu_read_unlock();\n }\n \n static unsigned int bt_unused_tags(struct blk_mq_bitmap_tags *bt)\ndiff --git a/block/blk-mq.c b/block/blk-mq.c\nindex e027b8ed6030..6c12ed53b182 100644\n--- a/block/blk-mq.c\n+++ b/block/blk-mq.c\n@@ -2207,6 +2207,10 @@ static int blk_mq_queue_reinit_notify(struct notifier_block *nb,\n \n \tlist_for_each_entry(q, &all_q_list, all_q_node)\n \t\tblk_mq_unfreeze_queue(q);\n+\t/*\n+\t * Sync with blk_mq_queue_tag_busy_iter.\n+\t */\n+\tsynchronize_rcu();\n \n \tmutex_unlock(&all_q_mutex);\n \treturn NOTIFY_OK;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

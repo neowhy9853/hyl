@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "471",
+  "candidate_sha256": "1a1b5d8a4b1a920368123df6de998b3a3b4050dc99f6f616ab32b93a8012ec88",
+  "oracle_sha256": "3f1625da3a0aa1cb2532600639855666697f65c982fcfcb82d8dfc64e5ee80d2",
+  "candidate_nonempty": true,
+  "target_ref": "93c37f1c63b453d24f0101fb58e7f4bb8bab9d83",
+  "baseline_tree": "9b85dc6d139fbfe1c1dcc3f3b29a805f5b88cbf7",
+  "candidate_tree": "cbb017f49625aa8dd553b78b1f26e5d32afb4a55",
+  "oracle_tree": "0ef4eb3c565b80370d2b30928f78bcd7f9b0b5aa",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/471",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "1a1b5d8a4b1a920368123df6de998b3a3b4050dc99f6f616ab32b93a8012ec88",
+    "text": "diff --git a/include/linux/bpf.h b/include/linux/bpf.h\nindex bfdf40be5360..5933c2cb7ca7 100644\n--- a/include/linux/bpf.h\n+++ b/include/linux/bpf.h\n@@ -168,6 +168,7 @@ struct bpf_map {\n \tu32 btf_vmlinux_value_type_id;\n \tbool bypass_spec_v1;\n \tbool frozen; /* write-once; write-protected by freeze_mutex */\n+\tbool free_after_mult_rcu_gp;\n \t/* 22 bytes hole */\n \n \t/* The 3rd and 4th cacheline with misc members to avoid false sharing\n@@ -175,7 +176,11 @@ struct bpf_map {\n \t */\n \tatomic64_t refcnt ____cacheline_aligned;\n \tatomic64_t usercnt;\n-\tstruct work_struct work;\n+\t/* rcu is used before freeing and work is only used during freeing */\n+\tunion {\n+\t\tstruct work_struct work;\n+\t\tstruct rcu_head rcu;\n+\t};\n \tstruct mutex freeze_mutex;\n \tatomic64_t writecnt;\n };\ndiff --git a/kernel/bpf/map_in_map.c b/kernel/bpf/map_in_map.c\nindex 0cf4cb685810..caa1a17cbae1 100644\n--- a/kernel/bpf/map_in_map.c\n+++ b/kernel/bpf/map_in_map.c\n@@ -102,10 +102,15 @@ void *bpf_map_fd_get_ptr(struct bpf_map *map,\n \n void bpf_map_fd_put_ptr(struct bpf_map *map, void *ptr, bool need_defer)\n {\n-\t/* ptr->ops->map_free() has to go through one\n-\t * rcu grace period by itself.\n+\tstruct bpf_map *inner_map = ptr;\n+\n+\t/* The inner map may still be used by both non-sleepable and sleepable\n+\t * bpf program, so free it after one RCU grace period and one tasks\n+\t * trace RCU grace period.\n \t */\n-\tbpf_map_put(ptr);\n+\tif (need_defer)\n+\t\tWRITE_ONCE(inner_map->free_after_mult_rcu_gp, true);\n+\tbpf_map_put(inner_map);\n }\n \n u32 bpf_map_fd_sys_lookup_elem(void *ptr)\ndiff --git a/kernel/bpf/syscall.c b/kernel/bpf/syscall.c\nindex 16affa09db5c..e1bee8cd3404 100644\n--- a/kernel/bpf/syscall.c\n+++ b/kernel/bpf/syscall.c\n@@ -493,6 +493,25 @@ static void bpf_map_put_uref(struct bpf_map *map)\n \t}\n }\n \n+static void bpf_map_free_in_work(struct bpf_map *map)\n+{\n+\tINIT_WORK(&map->work, bpf_map_free_deferred);\n+\tschedule_work(&map->work);\n+}\n+\n+static void bpf_map_free_rcu_gp(struct rcu_head *rcu)\n+{\n+\tbpf_map_free_in_work(container_of(rcu, struct bpf_map, rcu));\n+}\n+\n+static void bpf_map_free_mult_rcu_gp(struct rcu_head *rcu)\n+{\n+\tif (rcu_trace_implies_rcu_gp())\n+\t\tbpf_map_free_rcu_gp(rcu);\n+\telse\n+\t\tcall_rcu(rcu, bpf_map_free_rcu_gp);\n+}\n+\n /* decrement map refcnt and schedule it for freeing via workqueue\n  * (unrelying map implementation ops->map_free() might sleep)\n  */\n@@ -502,8 +521,11 @@ static void __bpf_map_put(struct bpf_map *map, bool do_idr_lock)\n \t\t/* bpf_map_free_id() must be called first */\n \t\tbpf_map_free_id(map, do_idr_lock);\n \t\tbtf_put(map->btf);\n-\t\tINIT_WORK(&map->work, bpf_map_free_deferred);\n-\t\tschedule_work(&map->work);\n+\n+\t\tif (READ_ONCE(map->free_after_mult_rcu_gp))\n+\t\t\tcall_rcu_tasks_trace(&map->rcu, bpf_map_free_mult_rcu_gp);\n+\t\telse\n+\t\t\tbpf_map_free_in_work(map);\n \t}\n }\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1750",
+  "candidate_sha256": "88516f5e55adf5ae260fde49b3b26f23860027aaa6aee66809baef12437f0022",
+  "oracle_sha256": "2ab192cef86bf280d8e9200f8972969bafb788e3a8147b665a6abfbc734a2c85",
+  "candidate_nonempty": true,
+  "target_ref": "9f4487f15f15fff337e0fdc230fcea2da876742f",
+  "baseline_tree": "79e3b3201c7444080480166f49ea5e5e3d20758c",
+  "candidate_tree": "aa8510de1725cef15d5d5c70bff5604cf913d049",
+  "oracle_tree": "f1a115b9218503dce2c556d485780c43746e7e74",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1750",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "88516f5e55adf5ae260fde49b3b26f23860027aaa6aee66809baef12437f0022",
+    "text": "diff --git a/net/netlink/af_netlink.c b/net/netlink/af_netlink.c\nindex 50096e0edd8e..b1afe095b8d0 100644\n--- a/net/netlink/af_netlink.c\n+++ b/net/netlink/af_netlink.c\n@@ -1977,6 +1977,7 @@ static int netlink_dump(struct sock *sk)\n \tstruct nlmsghdr *nlh;\n \tstruct module *module;\n \tint err = -ENOBUFS;\n+\tint alloc_min_size;\n \tint alloc_size;\n \n \tmutex_lock(nlk->cb_mutex);\n@@ -1985,9 +1986,6 @@ static int netlink_dump(struct sock *sk)\n \t\tgoto errout_skb;\n \t}\n \n-\tcb = &nlk->cb;\n-\talloc_size = max_t(int, cb->min_dump_alloc, NLMSG_GOODSIZE);\n-\n \tif (atomic_read(&sk->sk_rmem_alloc) >= sk->sk_rcvbuf)\n \t\tgoto errout_skb;\n \n@@ -1996,22 +1994,34 @@ static int netlink_dump(struct sock *sk)\n \t * to reduce number of system calls on dump operations, if user\n \t * ever provided a big enough buffer.\n \t */\n-\tif (alloc_size < nlk->max_recvmsg_len) {\n-\t\tskb = netlink_alloc_skb(sk,\n-\t\t\t\t\tnlk->max_recvmsg_len,\n-\t\t\t\t\tnlk->portid,\n+\tcb = &nlk->cb;\n+\talloc_min_size = max_t(int, cb->min_dump_alloc, NLMSG_GOODSIZE);\n+\n+\tif (alloc_min_size < nlk->max_recvmsg_len) {\n+\t\talloc_size = nlk->max_recvmsg_len;\n+\t\tskb = netlink_alloc_skb(sk, alloc_size, nlk->portid,\n \t\t\t\t\t(GFP_KERNEL & ~__GFP_WAIT) |\n \t\t\t\t\t__GFP_NOWARN | __GFP_NORETRY);\n-\t\t/* available room should be exact amount to avoid MSG_TRUNC */\n-\t\tif (skb)\n-\t\t\tskb_reserve(skb, skb_tailroom(skb) -\n-\t\t\t\t\t nlk->max_recvmsg_len);\n \t}\n-\tif (!skb)\n+\tif (!skb) {\n+\t\talloc_size = alloc_min_size;\n \t\tskb = netlink_alloc_skb(sk, alloc_size, nlk->portid,\n \t\t\t\t\t(GFP_KERNEL & ~__GFP_WAIT));\n+\t}\n \tif (!skb)\n \t\tgoto errout_skb;\n+\n+\t/* Trim skb to allocated size. User is expected to provide buffer as\n+\t * large as max(min_dump_alloc, max_recvmsg_len capped at\n+\t * netlink_recvmsg()). dump will pack as many smaller messages as\n+\t * could fit within the allocated skb. skb is typically allocated\n+\t * with larger space than required (could be as much as near 2x the\n+\t * requested size with align to next power of 2 approach). Allowing\n+\t * dump to use the excess space makes it difficult for a user to have a\n+\t * reasonable static buffer based on the expected largest dump of a\n+\t * single netdev. The outcome is MSG_TRUNC error.\n+\t */\n+\tskb_reserve(skb, skb_tailroom(skb) - alloc_size);\n \tnetlink_skb_set_owner_r(skb, sk);\n \n \tif (nlk->dump_done_errno > 0)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

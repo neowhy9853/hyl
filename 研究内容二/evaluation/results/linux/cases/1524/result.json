@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1524",
+  "candidate_sha256": "5f5c4f89b1091a2c6899de68166f55b025968f17ea45a05b2f5fcf56df08f6b0",
+  "oracle_sha256": "298a4ede1487b52623f7d956cc7661a684fd6332e2231b1006d47e82cf50d45e",
+  "candidate_nonempty": true,
+  "target_ref": "890aba5078026543e08eb226f074e4f157111799",
+  "baseline_tree": "e850815d8cecc7e194cfb60a469c09579b0b57c7",
+  "candidate_tree": "7f888515895f5ab1f0b2a1c21a83fbb6891dfc6d",
+  "oracle_tree": "7f888515895f5ab1f0b2a1c21a83fbb6891dfc6d",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1524",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "5f5c4f89b1091a2c6899de68166f55b025968f17ea45a05b2f5fcf56df08f6b0",
+    "text": "diff --git a/net/can/j1939/transport.c b/net/can/j1939/transport.c\nindex 307ee1174a6e..d7d86c944d76 100644\n--- a/net/can/j1939/transport.c\n+++ b/net/can/j1939/transport.c\n@@ -260,6 +260,8 @@ static void __j1939_session_drop(struct j1939_session *session)\n \n static void j1939_session_destroy(struct j1939_session *session)\n {\n+\tstruct sk_buff *skb;\n+\n \tif (session->transmission) {\n \t\tif (session->err)\n \t\t\tj1939_sk_errqueue(session, J1939_ERRQUEUE_TX_ABORT);\n@@ -274,7 +276,11 @@ static void j1939_session_destroy(struct j1939_session *session)\n \tWARN_ON_ONCE(!list_empty(&session->sk_session_queue_entry));\n \tWARN_ON_ONCE(!list_empty(&session->active_session_list_entry));\n \n-\tskb_queue_purge(&session->skb_queue);\n+\twhile ((skb = skb_dequeue(&session->skb_queue)) != NULL) {\n+\t\t/* drop ref taken in j1939_session_skb_queue() */\n+\t\tskb_unref(skb);\n+\t\tkfree_skb(skb);\n+\t}\n \t__j1939_session_drop(session);\n \tj1939_priv_put(session->priv);\n \tkfree(session);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

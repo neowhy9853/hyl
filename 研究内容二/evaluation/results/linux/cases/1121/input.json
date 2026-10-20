@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1121",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1121-9x7gckrx/repo",
+      "target_ref": "1de7644eac41981817fb66b74e0f82ca4477dc9d",
+      "target_tree": "293aa945172f6b61b3621c2cd354c6f9553bdb36"
+    },
+    "source_commit": "0928efb09178e01d3dc8e8849aa1c807436c3c37",
+    "reference_parent": "c7eaa5082bccfc00dfdb500ac6cc86d6f24ca027",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c\nindex 15c73ebe5efcacd24daa7df842bdd35d331e3e0d..044478c9adad6baaa8b865b11231a3eaca19f357 100644\n--- a/drivers/net/xen-netback/netback.c\n+++ b/drivers/net/xen-netback/netback.c\n@@ -189,11 +189,15 @@ void xenvif_rx_queue_tail(struct xenvif_queue *queue, struct sk_buff *skb)\n \n \tspin_lock_irqsave(&queue->rx_queue.lock, flags);\n \n-\t__skb_queue_tail(&queue->rx_queue, skb);\n-\n-\tqueue->rx_queue_len += skb->len;\n-\tif (queue->rx_queue_len > queue->rx_queue_max)\n+\tif (queue->rx_queue_len >= queue->rx_queue_max) {\n \t\tnetif_tx_stop_queue(netdev_get_tx_queue(queue->vif->dev, queue->id));\n+\t\tkfree_skb(skb);\n+\t\tqueue->vif->dev->stats.rx_dropped++;\n+\t} else {\n+\t\t__skb_queue_tail(&queue->rx_queue, skb);\n+\n+\t\tqueue->rx_queue_len += skb->len;\n+\t}\n \n \tspin_unlock_irqrestore(&queue->rx_queue.lock, flags);\n }\n@@ -243,6 +247,7 @@ static void xenvif_rx_queue_drop_expired(struct xenvif_queue *queue)\n \t\t\tbreak;\n \t\txenvif_rx_dequeue(queue);\n \t\tkfree_skb(skb);\n+\t\tqueue->vif->dev->stats.rx_dropped++;\n \t}\n }\n \n",
+      "sha256": "a24e8d7aec2ea675ffc1942233455a2d13de4e676a63624a83270f262c6959ba"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2021-28715\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1121-9x7gckrx/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1121-9x7gckrx/repo/.patch-port/reference.diff\nreference_fix: 0928efb09178e01d3dc8e8849aa1c807436c3c37\nreference_parent: c7eaa5082bccfc00dfdb500ac6cc86d6f24ca027\ntarget_ref: 1de7644eac41981817fb66b74e0f82ca4477dc9d\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1121-9x7gckrx/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1121-9x7gckrx/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2021-28715"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "c9f17e92917fd5786be872626a3928979ecc4c39",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "bcee08fe7b78d1ab66586caac6ced6c5fe7c3cf760bbd175b60ee8e11be5d9c8",
+      "text": "diff --git a/drivers/net/xen-netback/rx.c b/drivers/net/xen-netback/rx.c\nindex 04353df147266239f0e8b8c57f9744917eefd5a0..7f68067c017456159c973cd399c67c64433ed9ff 100644\n--- a/drivers/net/xen-netback/rx.c\n+++ b/drivers/net/xen-netback/rx.c\n@@ -88,16 +88,19 @@ void xenvif_rx_queue_tail(struct xenvif_queue *queue, struct sk_buff *skb)\n \n \tspin_lock_irqsave(&queue->rx_queue.lock, flags);\n \n-\tif (skb_queue_empty(&queue->rx_queue))\n-\t\txenvif_update_needed_slots(queue, skb);\n-\n-\t__skb_queue_tail(&queue->rx_queue, skb);\n-\n-\tqueue->rx_queue_len += skb->len;\n-\tif (queue->rx_queue_len > queue->rx_queue_max) {\n+\tif (queue->rx_queue_len >= queue->rx_queue_max) {\n \t\tstruct net_device *dev = queue->vif->dev;\n \n \t\tnetif_tx_stop_queue(netdev_get_tx_queue(dev, queue->id));\n+\t\tkfree_skb(skb);\n+\t\tqueue->vif->dev->stats.rx_dropped++;\n+\t} else {\n+\t\tif (skb_queue_empty(&queue->rx_queue))\n+\t\t\txenvif_update_needed_slots(queue, skb);\n+\n+\t\t__skb_queue_tail(&queue->rx_queue, skb);\n+\n+\t\tqueue->rx_queue_len += skb->len;\n \t}\n \n \tspin_unlock_irqrestore(&queue->rx_queue.lock, flags);\n@@ -147,6 +150,7 @@ static void xenvif_rx_queue_drop_expired(struct xenvif_queue *queue)\n \t\t\tbreak;\n \t\txenvif_rx_dequeue(queue);\n \t\tkfree_skb(skb);\n+\t\tqueue->vif->dev->stats.rx_dropped++;\n \t}\n }\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "3d92924aeb78ee012447b377d2c8a08edbe4a46e1b4b78b74c68900c7aeb9520",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01121_CVE-2021-28715/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1121,
+      "cve": "CVE-2021-28715",
+      "source_commit": "0928efb09178e01d3dc8e8849aa1c807436c3c37",
+      "oracle_commit": "c9f17e92917fd5786be872626a3928979ecc4c39"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

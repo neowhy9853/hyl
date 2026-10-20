@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-54-git",
+  "candidate_sha256": "b0321e3d9f9051891fb886d429b42cd1604883d224ce11838720f2ba5f7b80a1",
+  "oracle_sha256": "04ebc579936471c403a5b62077fa6c40adc7f70d76ff8ff8c2c1903dacbfe3b6",
+  "candidate_nonempty": true,
+  "target_ref": "ae04989496715d4466af8ffb41f7b368d4ce6f0c",
+  "baseline_tree": "b1f0116cea62bc91546bd718fdb49183f1585046",
+  "candidate_tree": "b69b5d099e713b6b07a4af231f970b33075da737",
+  "oracle_tree": "f08b3fe6512cfbbd71f09498710096b423f95817",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-54-git",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "b0321e3d9f9051891fb886d429b42cd1604883d224ce11838720f2ba5f7b80a1",
+    "text": "diff --git a/builtin/upload-pack.c b/builtin/upload-pack.c\nindex 9b021ef026..272cddaafd 100644\n--- a/builtin/upload-pack.c\n+++ b/builtin/upload-pack.c\n@@ -37,6 +37,8 @@ int cmd_upload_pack(int argc, const char **argv, const char *prefix)\n \n \tpacket_trace_identity(\"upload-pack\");\n \tdisable_replace_refs();\n+\t/* TODO: This should use NO_LAZY_FETCH_ENVIRONMENT */\n+\txsetenv(\"GIT_NO_LAZY_FETCH\", \"1\", 0);\n \n \targc = parse_options(argc, argv, prefix, options, upload_pack_usage, 0);\n \ndiff --git a/promisor-remote.c b/promisor-remote.c\nindex ac3aa1e365..7faf33b4d7 100644\n--- a/promisor-remote.c\n+++ b/promisor-remote.c\n@@ -23,6 +23,16 @@ static int fetch_objects(struct repository *repo,\n \tint i;\n \tFILE *child_in;\n \n+\t/* TODO: This should use NO_LAZY_FETCH_ENVIRONMENT */\n+\tif (git_env_bool(\"GIT_NO_LAZY_FETCH\", 0)) {\n+\t\tstatic int warning_shown;\n+\t\tif (!warning_shown) {\n+\t\t\twarning_shown = 1;\n+\t\t\twarning(_(\"lazy fetching disabled; some objects may not be available\"));\n+\t\t}\n+\t\treturn -1;\n+\t}\n+\n \tchild.git_cmd = 1;\n \tchild.in = -1;\n \tif (repo != the_repository)\ndiff --git a/t/t0411-clone-from-partial.sh b/t/t0411-clone-from-partial.sh\nindex eb3360dbca..b3d6ddc4bc 100755\n--- a/t/t0411-clone-from-partial.sh\n+++ b/t/t0411-clone-from-partial.sh\n@@ -28,6 +28,7 @@ test_expect_success 'local clone must not fetch from promisor remote and execute\n \ttest_must_fail git clone \\\n \t\t--upload-pack=\"GIT_TEST_ASSUME_DIFFERENT_OWNER=true git-upload-pack\" \\\n \t\tevil clone1 2>err &&\n+\tgrep \"detected dubious ownership\" err &&\n \t! grep \"fake-upload-pack running\" err &&\n \ttest_path_is_missing script-executed\n '\n@@ -37,6 +38,7 @@ test_expect_success 'clone from file://... must not fetch from promisor remote a\n \ttest_must_fail git clone \\\n \t\t--upload-pack=\"GIT_TEST_ASSUME_DIFFERENT_OWNER=true git-upload-pack\" \\\n \t\t\"file://$(pwd)/evil\" clone2 2>err &&\n+\tgrep \"detected dubious ownership\" err &&\n \t! grep \"fake-upload-pack running\" err &&\n \ttest_path_is_missing script-executed\n '\n@@ -46,6 +48,7 @@ test_expect_success 'fetch from file://... must not fetch from promisor remote a\n \ttest_must_fail git fetch \\\n \t\t--upload-pack=\"GIT_TEST_ASSUME_DIFFERENT_OWNER=true git-upload-pack\" \\\n \t\t\"file://$(pwd)/evil\" 2>err &&\n+\tgrep \"detected dubious ownership\" err &&\n \t! grep \"fake-upload-pack running\" err &&\n \ttest_path_is_missing script-executed\n '\n@@ -57,4 +60,19 @@ test_expect_success 'pack-objects should fetch from promisor remote and execute\n \ttest_path_is_file script-executed\n '\n \n+test_expect_success 'clone from promisor remote does not lazy-fetch by default' '\n+\trm -f script-executed &&\n+\ttest_must_fail git clone evil no-lazy 2>err &&\n+\tgrep \"lazy fetching disabled\" err &&\n+\ttest_path_is_missing script-executed\n+'\n+\n+test_expect_success 'promisor lazy-fetching can be re-enabled' '\n+\trm -f script-executed &&\n+\ttest_must_fail env GIT_NO_LAZY_FETCH=0 \\\n+\t\tgit clone evil lazy-ok 2>err &&\n+\tgrep \"fake-upload-pack running\" err &&\n+\ttest_path_is_file script-executed\n+'\n+\n test_done\n"
+  },
+  "trace_file": "trace.jsonl"
+}

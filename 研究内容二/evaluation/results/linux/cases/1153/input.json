@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1153",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1153-nch4w0vu/repo",
+      "target_ref": "5875860d7a751bfb295915a2a51e6f104ab6159f",
+      "target_tree": "723d7e9d81ac59abba3f80c4b886693ff1fc18df"
+    },
+    "source_commit": "d1f76dfadaf8f47ed1753f97dbcbd41c16215ffa",
+    "reference_parent": "bdd37028a026a3cb93a0ff8486cbaad553109d8e",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/tipc/core.c b/net/tipc/core.c\nindex e3d79f8b69d81f4202666c708b5467fb7ac49ceb..90cf7e0bbaf0f20e49bae8fe7ae4d6cebe893c4e 100644\n--- a/net/tipc/core.c\n+++ b/net/tipc/core.c\n@@ -107,6 +107,9 @@ static void __net_exit tipc_exit_net(struct net *net)\n \ttipc_bcast_stop(net);\n \ttipc_nametbl_stop(net);\n \ttipc_sk_rht_destroy(net);\n+\n+\twhile (atomic_read(&tn->wq_count))\n+\t\tcond_resched();\n }\n \n static struct pernet_operations tipc_net_ops = {\ndiff --git a/net/tipc/core.h b/net/tipc/core.h\nindex e119c4a88d63ecb8805598549150d05fc6d45940..c6bda91f8581069c0cd18eb3dcf73a85500ca0d3 100644\n--- a/net/tipc/core.h\n+++ b/net/tipc/core.h\n@@ -143,6 +143,8 @@ struct tipc_net {\n \n \t/* Work item for net finalize */\n \tstruct tipc_net_work final_work;\n+\t/* The numbers of work queues in schedule */\n+\tatomic_t wq_count;\n };\n \n static inline struct tipc_net *tipc_net(struct net *net)\ndiff --git a/net/tipc/udp_media.c b/net/tipc/udp_media.c\nindex 8f0977a9d423cb034e2525c6f4f892c445e015bf..1fb0535e2eb4781d5e761216c014ea7ecac99612 100644\n--- a/net/tipc/udp_media.c\n+++ b/net/tipc/udp_media.c\n@@ -802,6 +802,7 @@ static void cleanup_bearer(struct work_struct *work)\n \t\tkfree_rcu(rcast, rcu);\n \t}\n \n+\tatomic_dec(&tipc_net(sock_net(ub->ubsock->sk))->wq_count);\n \tdst_cache_destroy(&ub->rcast.dst_cache);\n \tudp_tunnel_sock_release(ub->ubsock);\n \tsynchronize_net();\n@@ -822,6 +823,7 @@ static void tipc_udp_disable(struct tipc_bearer *b)\n \tRCU_INIT_POINTER(ub->bearer, NULL);\n \n \t/* sock_release need to be done outside of rtnl lock */\n+\tatomic_inc(&tipc_net(sock_net(ub->ubsock->sk))->wq_count);\n \tINIT_WORK(&ub->work, cleanup_bearer);\n \tschedule_work(&ub->work);\n }\n",
+      "sha256": "c9597e4153cd6b09b369a517dee9c41ebe0297571ea22f564773832f3c5932aa"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2021-47163\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1153-nch4w0vu/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1153-nch4w0vu/repo/.patch-port/reference.diff\nreference_fix: d1f76dfadaf8f47ed1753f97dbcbd41c16215ffa\nreference_parent: bdd37028a026a3cb93a0ff8486cbaad553109d8e\ntarget_ref: 5875860d7a751bfb295915a2a51e6f104ab6159f\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1153-nch4w0vu/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1153-nch4w0vu/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2021-47163"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "b9f5b7ad4ac3af006443f535b1ce7bff1d130d7d",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "84b9b707d063b4c88505e159f4e8d7baad0dd56b971e90b22c6c9850b8cd0501",
+      "text": "diff --git a/net/tipc/core.c b/net/tipc/core.c\nindex 5cc1f03072150f31b05b7f5117e11c9f85d75b63..72f3ac73779bfcdd6860cde8bc46aa3a73e1a82e 100644\n--- a/net/tipc/core.c\n+++ b/net/tipc/core.c\n@@ -119,6 +119,8 @@ static void __net_exit tipc_exit_net(struct net *net)\n #ifdef CONFIG_TIPC_CRYPTO\n \ttipc_crypto_stop(&tipc_net(net)->crypto_tx);\n #endif\n+\twhile (atomic_read(&tn->wq_count))\n+\t\tcond_resched();\n }\n \n static void __net_exit tipc_pernet_pre_exit(struct net *net)\ndiff --git a/net/tipc/core.h b/net/tipc/core.h\nindex 03de7b213f55346409f1f472713c80d8cec80d16..5741ae488bb563b1af763b2f6c8da38ed69510d6 100644\n--- a/net/tipc/core.h\n+++ b/net/tipc/core.h\n@@ -149,6 +149,8 @@ struct tipc_net {\n #endif\n \t/* Work item for net finalize */\n \tstruct tipc_net_work final_work;\n+\t/* The numbers of work queues in schedule */\n+\tatomic_t wq_count;\n };\n \n static inline struct tipc_net *tipc_net(struct net *net)\ndiff --git a/net/tipc/udp_media.c b/net/tipc/udp_media.c\nindex 21e75e28e86ad8124e1c2aa936962df3982aa666..4c66e22b52f77204b60c606d8d8fe8b610a7aead 100644\n--- a/net/tipc/udp_media.c\n+++ b/net/tipc/udp_media.c\n@@ -812,6 +812,7 @@ static void cleanup_bearer(struct work_struct *work)\n \t\tkfree_rcu(rcast, rcu);\n \t}\n \n+\tatomic_dec(&tipc_net(sock_net(ub->ubsock->sk))->wq_count);\n \tdst_cache_destroy(&ub->rcast.dst_cache);\n \tudp_tunnel_sock_release(ub->ubsock);\n \tsynchronize_net();\n@@ -832,6 +833,7 @@ static void tipc_udp_disable(struct tipc_bearer *b)\n \tRCU_INIT_POINTER(ub->bearer, NULL);\n \n \t/* sock_release need to be done outside of rtnl lock */\n+\tatomic_inc(&tipc_net(sock_net(ub->ubsock->sk))->wq_count);\n \tINIT_WORK(&ub->work, cleanup_bearer);\n \tschedule_work(&ub->work);\n }\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "a576607057c06d566dd515f46e3e97a593db55e692f32fc9f15b04b3192c7121",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01153_CVE-2021-47163/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1153,
+      "cve": "CVE-2021-47163",
+      "source_commit": "d1f76dfadaf8f47ed1753f97dbcbd41c16215ffa",
+      "oracle_commit": "b9f5b7ad4ac3af006443f535b1ce7bff1d130d7d"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

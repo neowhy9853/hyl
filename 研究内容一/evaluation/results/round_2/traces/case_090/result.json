@@ -1,0 +1,51 @@
+{
+  "round": 2,
+  "case_id": "case_090",
+  "source_index": 89,
+  "repo": "dnf",
+  "commit_id": "d82c5bbebe912aabe60287265f06f0a4829c29e7",
+  "oracle_label": "refactor",
+  "predicted_label": "fix",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "ea1615594dda",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.72,
+    "reason": "该提交修正 UpgradeCommand 对不存在的 base.updatePkgs 的调用，改用 base.upgrade_all/update_local/upgrade，修复了执行 upgrade 即抛 AttributeError 的错误路径；新增 RPM 文件拆分只是实现该纠正的配套处理，主导意图是修复破碎调用。",
+    "intent_items": [
+      {
+        "target": "dnf/cli/commands.py 中的 UpgradeCommand.parse_extcmds 与 run",
+        "change": "parse_extcmds 由直接返回参数改为拆分为 pkg_specs 与 rpm filenames；run 改用 upgrade_all()/update_local()/upgrade()，并在无标记时抛 'No packages marked for upgrade.'",
+        "effect_or_reason": "原实现调用 base 上不存在的 updatePkgs，upgrade 命令会直接失败；改后走已存在的 base API，命令恢复正常执行并可处理本地 rpm 文件。",
+        "context_used": [
+          "git show d82c5bb:dnf/base.py 确认 base 中只有 upgrade/upgrade_all/update_local，无 updatePkgs",
+          "git show d82c5bb:dnf/cli/commands.py 头部导入（functools、operator、dnf.exceptions）"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "提交消息说明移除了 UpgradeCommand 对 updatePkgs 的引用",
+            "补丁确实删除了 self.base.updatePkgs(patterns) 调用"
+          ],
+          "message_only_details": [
+            "未说明为何要移除该引用（提交正文为空）"
+          ],
+          "code_only_details": [
+            "base.py 目标版本不存在 updatePkgs，旧调用必然抛 AttributeError",
+            "新增按 .rpm 后缀拆分文件名并调用 update_local 的处理"
+          ]
+        },
+        "evidence": [
+          "目标 commit 的 base.py 只有 upgrade(1527)/upgrade_all(1541)/update_local(1639)，无 updatePkgs，说明修改前 upgrade 路径必崩溃",
+          "补丁将 run() 改为调用 upgrade_all/update_local/upgrade 并在无匹配时抛 Error，纠正了原先的错误调用路径"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_090",
+  "trace_status": "available"
+}

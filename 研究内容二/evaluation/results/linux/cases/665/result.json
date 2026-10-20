@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "665",
+  "candidate_sha256": "81ac1aac7a4731c64ef3ca82c5a854e671542cb9c55dbb556bff26734e8f5ed6",
+  "oracle_sha256": "5dc3788626b55e6cc4037439bd390c2fc1fd13a44004e69e0597d9f362481bf0",
+  "candidate_nonempty": true,
+  "target_ref": "9540baadb61ba5ed08832bb2a4cbfd876db37ff4",
+  "baseline_tree": "1743fcc12f06beafcc945dc3c80b6440ee803ed4",
+  "candidate_tree": "2291f7cb2726778a8648f413662156478a73a73d",
+  "oracle_tree": "2291f7cb2726778a8648f413662156478a73a73d",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/665",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "81ac1aac7a4731c64ef3ca82c5a854e671542cb9c55dbb556bff26734e8f5ed6",
+    "text": "diff --git a/net/tipc/bearer.c b/net/tipc/bearer.c\nindex 648f2a67f314..cb1381513c82 100644\n--- a/net/tipc/bearer.c\n+++ b/net/tipc/bearer.c\n@@ -381,6 +381,10 @@ int tipc_enable_l2_media(struct net *net, struct tipc_bearer *b,\n \tdev = dev_get_by_name(net, driver_name);\n \tif (!dev)\n \t\treturn -ENODEV;\n+\tif (tipc_mtu_bad(dev, 0)) {\n+\t\tdev_put(dev);\n+\t\treturn -EINVAL;\n+\t}\n \n \t/* Associate TIPC bearer with L2 bearer */\n \trcu_assign_pointer(b->media_ptr, dev);\n@@ -570,14 +574,19 @@ static int tipc_l2_device_event(struct notifier_block *nb, unsigned long evt,\n \tif (!b_ptr)\n \t\treturn NOTIFY_DONE;\n \n-\tb_ptr->mtu = dev->mtu;\n-\n \tswitch (evt) {\n \tcase NETDEV_CHANGE:\n \t\tif (netif_carrier_ok(dev))\n \t\t\tbreak;\n \tcase NETDEV_GOING_DOWN:\n+\t\ttipc_reset_bearer(net, b_ptr);\n+\t\tbreak;\n \tcase NETDEV_CHANGEMTU:\n+\t\tif (tipc_mtu_bad(dev, 0)) {\n+\t\t\tbearer_disable(net, b_ptr);\n+\t\t\tbreak;\n+\t\t}\n+\t\tb_ptr->mtu = dev->mtu;\n \t\ttipc_reset_bearer(net, b_ptr);\n \t\tbreak;\n \tcase NETDEV_CHANGEADDR:\ndiff --git a/net/tipc/bearer.h b/net/tipc/bearer.h\nindex 552185bc4773..5f11e18b1fa1 100644\n--- a/net/tipc/bearer.h\n+++ b/net/tipc/bearer.h\n@@ -39,6 +39,7 @@\n \n #include \"netlink.h\"\n #include \"core.h\"\n+#include \"msg.h\"\n #include <net/genetlink.h>\n \n #define MAX_MEDIA\t3\n@@ -61,6 +62,9 @@\n #define TIPC_MEDIA_TYPE_IB\t2\n #define TIPC_MEDIA_TYPE_UDP\t3\n \n+/* minimum bearer MTU */\n+#define TIPC_MIN_BEARER_MTU\t(MAX_H_SIZE + INT_H_SIZE)\n+\n /**\n  * struct tipc_node_map - set of node identifiers\n  * @count: # of nodes in set\n@@ -226,4 +230,13 @@ void tipc_bearer_xmit(struct net *net, u32 bearer_id,\n void tipc_bearer_bc_xmit(struct net *net, u32 bearer_id,\n \t\t\t struct sk_buff_head *xmitq);\n \n+/* check if device MTU is too low for tipc headers */\n+static inline bool tipc_mtu_bad(struct net_device *dev, unsigned int reserve)\n+{\n+\tif (dev->mtu >= TIPC_MIN_BEARER_MTU + reserve)\n+\t\treturn false;\n+\tnetdev_warn(dev, \"MTU too low for tipc bearer\\n\");\n+\treturn true;\n+}\n+\n #endif\t/* _TIPC_BEARER_H */\ndiff --git a/net/tipc/udp_media.c b/net/tipc/udp_media.c\nindex 4056798c54a5..78d6b78de29d 100644\n--- a/net/tipc/udp_media.c\n+++ b/net/tipc/udp_media.c\n@@ -376,6 +376,11 @@ static int tipc_udp_enable(struct net *net, struct tipc_bearer *b,\n \t\tudp_conf.local_ip.s_addr = htonl(INADDR_ANY);\n \t\tudp_conf.use_udp_checksums = false;\n \t\tub->ifindex = dev->ifindex;\n+\t\tif (tipc_mtu_bad(dev, sizeof(struct iphdr) +\n+\t\t\t\t      sizeof(struct udphdr))) {\n+\t\t\terr = -EINVAL;\n+\t\t\tgoto err;\n+\t\t}\n \t\tb->mtu = dev->mtu - sizeof(struct iphdr)\n \t\t\t- sizeof(struct udphdr);\n #if IS_ENABLED(CONFIG_IPV6)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

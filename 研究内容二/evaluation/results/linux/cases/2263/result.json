@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2263",
+  "candidate_sha256": "6ba26095a771e40caf337bca192f28b408b867ae04fc9e06083c1c24657651d4",
+  "oracle_sha256": "62f95486b5d353f1477e06a74d5afde6d2a3fcc8a66be01f02abd0bfa2aa67a8",
+  "candidate_nonempty": true,
+  "target_ref": "749af556011acce91beb72e0f6d74539f57ce219",
+  "baseline_tree": "07ce9feb2abb602c2c83c2d26f438f127d121b79",
+  "candidate_tree": "19b3c37950076dc12f675e1765c4ebf5e7aae68b",
+  "oracle_tree": "106f6d035df66b1827c1b4e6a83205e65dc0cfe4",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2263",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "6ba26095a771e40caf337bca192f28b408b867ae04fc9e06083c1c24657651d4",
+    "text": "diff --git a/net/ipv4/route.c b/net/ipv4/route.c\nindex ea1c319100a5..6a88fa1278c2 100644\n--- a/net/ipv4/route.c\n+++ b/net/ipv4/route.c\n@@ -70,6 +70,7 @@\n #include <linux/types.h>\n #include <linux/kernel.h>\n #include <linux/mm.h>\n+#include <linux/bootmem.h>\n #include <linux/string.h>\n #include <linux/socket.h>\n #include <linux/sockios.h>\n@@ -463,8 +464,10 @@ static struct neighbour *ipv4_neigh_lookup(const struct dst_entry *dst,\n \treturn neigh_create(&arp_tbl, pkey, dev);\n }\n \n-#define IP_IDENTS_SZ 2048u\n-\n+/* Hash tables of size 2048..262144 depending on RAM size.\n+ * Each bucket uses 8 bytes.\n+ */\n+static u32 ip_idents_mask __read_mostly;\n static atomic_t *ip_idents __read_mostly;\n static u32 *ip_tstamps __read_mostly;\n \n@@ -474,12 +477,16 @@ static u32 *ip_tstamps __read_mostly;\n  */\n u32 ip_idents_reserve(u32 hash, int segs)\n {\n-\tu32 *p_tstamp = ip_tstamps + hash % IP_IDENTS_SZ;\n-\tatomic_t *p_id = ip_idents + hash % IP_IDENTS_SZ;\n-\tu32 old = ACCESS_ONCE(*p_tstamp);\n-\tu32 now = (u32)jiffies;\n+\tu32 bucket, old, now = (u32)jiffies;\n+\tatomic_t *p_id;\n+\tu32 *p_tstamp;\n \tu32 delta = 0;\n \n+\tbucket = hash & ip_idents_mask;\n+\tp_tstamp = ip_tstamps + bucket;\n+\tp_id = ip_idents + bucket;\n+\told = READ_ONCE(*p_tstamp);\n+\n \tif (old != now && cmpxchg(p_tstamp, old, now) == old)\n \t\tdelta = prandom_u32_max(now - old);\n \n@@ -2936,18 +2943,27 @@ struct ip_rt_acct __percpu *ip_rt_acct __read_mostly;\n \n int __init ip_rt_init(void)\n {\n+\tvoid *idents_hash;\n \tint rc = 0;\n \tint cpu;\n \n-\tip_idents = kmalloc(IP_IDENTS_SZ * sizeof(*ip_idents), GFP_KERNEL);\n-\tif (!ip_idents)\n-\t\tpanic(\"IP: failed to allocate ip_idents\\n\");\n+\t/* For modern hosts, this will use 2 MB of memory */\n+\tidents_hash = alloc_large_system_hash(\"IP idents\",\n+\t\t\t\t\t      sizeof(*ip_idents) + sizeof(*ip_tstamps),\n+\t\t\t\t\t      0,\n+\t\t\t\t\t      16, /* one bucket per 64 KB */\n+\t\t\t\t\t      0,\n+\t\t\t\t\t      NULL,\n+\t\t\t\t\t      &ip_idents_mask,\n+\t\t\t\t\t      2048,\n+\t\t\t\t\t      256*1024);\n+\n+\tip_idents = idents_hash;\n \n-\tprandom_bytes(ip_idents, IP_IDENTS_SZ * sizeof(*ip_idents));\n+\tprandom_bytes(ip_idents, (ip_idents_mask + 1) * sizeof(*ip_idents));\n \n-\tip_tstamps = kcalloc(IP_IDENTS_SZ, sizeof(*ip_tstamps), GFP_KERNEL);\n-\tif (!ip_tstamps)\n-\t\tpanic(\"IP: failed to allocate ip_tstamps\\n\");\n+\tip_tstamps = idents_hash + (ip_idents_mask + 1) * sizeof(*ip_idents);\n+\tmemset(ip_tstamps, 0, (ip_idents_mask + 1) * sizeof(*ip_tstamps));\n \n \tfor_each_possible_cpu(cpu) {\n \t\tstruct uncached_list *ul = &per_cpu(rt_uncached_list, cpu);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

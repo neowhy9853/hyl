@@ -1,0 +1,49 @@
+{
+  "round": 1,
+  "case_id": "case_184",
+  "source_index": 183,
+  "repo": "kernel",
+  "commit_id": "cec85eb352df0bb2657491b070915da5fde6422d",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "343bbd22567d",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "提交纠正了 EROFS LZ4 原地解压中因缓冲区相对顺序不确定导致的数据损坏问题，属于错误行为修正。",
+    "intent_items": [
+      {
+        "target": "EROFS LZ4 原地解压处理函数 z_erofs_lz4_handle_overlap 和 z_erofs_lz4_decompress_mem",
+        "change": "修改了重叠缓冲区检查逻辑，确保在满足条件时严格使用解压缓冲区（maptype=3）而非映射另一个压缩缓冲区，并调整了函数签名和调用。",
+        "effect_or_reason": "修复了在某些处理器（如带 FSRM 的新 Intel x86）上因缓冲区相对顺序不确定导致 LZ4 memmove 操作错误，从而引起数据损坏的问题。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交修复了 LZ4 原地解压中的数据损坏问题",
+            "问题在特定处理器配置下暴露，导致数据损坏"
+          ],
+          "message_only_details": [
+            "问题由 Juhyung Park 报告，在带 FSRM 的新 Intel x86 处理器上观察到",
+            "长期计划是未来将两个缓冲区按正确顺序绑定"
+          ],
+          "code_only_details": [
+            "新增 maptype=3 路径，直接返回 out + ((ctx->outpages - ctx->inpages) << PAGE_SHIFT)",
+            "移除 might_sleep() 调用，调整了错误处理分支"
+          ]
+        },
+        "evidence": [
+          "提交前错误路径：当 rq->inplace_io 为真且满足条件时，代码可能映射另一个压缩缓冲区，导致两个虚拟缓冲区的相对顺序不确定，LZ4 的 memmove 可能操作错误数据。",
+          "提交后纠正动作：在相同条件下，通过检查输出页与输入页一一对应，若全部匹配则直接使用解压缓冲区（设置 maptype=3 并返回正确偏移），避免了顺序不确定性问题。"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_184",
+  "trace_status": "available"
+}

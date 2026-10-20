@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1078",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1078-rcu2ha6w/repo",
+      "target_ref": "5976aed862c07c698554edb89955f3f554a0921e",
+      "target_tree": "997777d6dc5695e90e56d0261ac9c3f6eab1aecf"
+    },
+    "source_commit": "95c3a5624ae783081cc9d9b0e3d24ea19b36590e",
+    "reference_parent": "95846d96fc3739c515e6c20b0fcea97ab290f09c",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/ipv4/ping.c b/net/ipv4/ping.c\nindex c482f7c7dd327479b8f3e6d436a66c0b62552be3..c211607b79b3bb838a2289a8e73dac57c38e4bea 100644\n--- a/net/ipv4/ping.c\n+++ b/net/ipv4/ping.c\n@@ -249,26 +249,33 @@ int ping_init_sock(struct sock *sk)\n {\n \tstruct net *net = sock_net(sk);\n \tkgid_t group = current_egid();\n-\tstruct group_info *group_info = get_current_groups();\n-\tint i, j, count = group_info->ngroups;\n+\tstruct group_info *group_info;\n+\tint i, j, count;\n \tkgid_t low, high;\n+\tint ret = 0;\n \n \tinet_get_ping_group_range_net(net, &low, &high);\n \tif (gid_lte(low, group) && gid_lte(group, high))\n \t\treturn 0;\n \n+\tgroup_info = get_current_groups();\n+\tcount = group_info->ngroups;\n \tfor (i = 0; i < group_info->nblocks; i++) {\n \t\tint cp_count = min_t(int, NGROUPS_PER_BLOCK, count);\n \t\tfor (j = 0; j < cp_count; j++) {\n \t\t\tkgid_t gid = group_info->blocks[i][j];\n \t\t\tif (gid_lte(low, gid) && gid_lte(gid, high))\n-\t\t\t\treturn 0;\n+\t\t\t\tgoto out_release_group;\n \t\t}\n \n \t\tcount -= cp_count;\n \t}\n \n-\treturn -EACCES;\n+\tret = -EACCES;\n+\n+out_release_group:\n+\tput_group_info(group_info);\n+\treturn ret;\n }\n EXPORT_SYMBOL_GPL(ping_init_sock);\n \n",
+      "sha256": "31e42be24874b76017cb050d0480b3f436dc80ce7866ba59524489b90f7dd718"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2014-2851\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1078-rcu2ha6w/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1078-rcu2ha6w/repo/.patch-port/reference.diff\nreference_fix: 95c3a5624ae783081cc9d9b0e3d24ea19b36590e\nreference_parent: 95846d96fc3739c515e6c20b0fcea97ab290f09c\ntarget_ref: 5976aed862c07c698554edb89955f3f554a0921e\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1078-rcu2ha6w/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1078-rcu2ha6w/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2014-2851"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "a8a695a43272a19b08004a3632da23d03170bd87",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "ab75fae51b80a75000fb63271e99d9f5415ced9dd051284fa62785d310f78c35",
+      "text": "diff --git a/net/ipv4/ping.c b/net/ipv4/ping.c\nindex 00975b6db7e92f396c17ee0d4cefb38c3d3a6011..d495d4bcd745becbe0d6bda8cebd2eaad0019f34 100644\n--- a/net/ipv4/ping.c\n+++ b/net/ipv4/ping.c\n@@ -203,26 +203,33 @@ static int ping_init_sock(struct sock *sk)\n \tstruct net *net = sock_net(sk);\n \tgid_t group = current_egid();\n \tgid_t range[2];\n-\tstruct group_info *group_info = get_current_groups();\n-\tint i, j, count = group_info->ngroups;\n+\tstruct group_info *group_info;\n+\tint i, j, count;\n+\tint ret = 0;\n \n \tinet_get_ping_group_range_net(net, range, range+1);\n \tif (range[0] <= group && group <= range[1])\n \t\treturn 0;\n \n+\tgroup_info = get_current_groups();\n+\tcount = group_info->ngroups;\n \tfor (i = 0; i < group_info->nblocks; i++) {\n \t\tint cp_count = min_t(int, NGROUPS_PER_BLOCK, count);\n \n \t\tfor (j = 0; j < cp_count; j++) {\n \t\t\tgroup = group_info->blocks[i][j];\n \t\t\tif (range[0] <= group && group <= range[1])\n-\t\t\t\treturn 0;\n+\t\t\t\tgoto out_release_group;\n \t\t}\n \n \t\tcount -= cp_count;\n \t}\n \n-\treturn -EACCES;\n+\tret = -EACCES;\n+\n+out_release_group:\n+\tput_group_info(group_info);\n+\treturn ret;\n }\n \n static void ping_close(struct sock *sk, long timeout)\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "e020d10f63bca87c084ca6ee8ed3f3245baa01351f2f6b6ccc259f089dd70327",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01078_CVE-2014-2851/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1078,
+      "cve": "CVE-2014-2851",
+      "source_commit": "95c3a5624ae783081cc9d9b0e3d24ea19b36590e",
+      "oracle_commit": "a8a695a43272a19b08004a3632da23d03170bd87"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

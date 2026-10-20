@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2348",
+  "candidate_sha256": "e85e2d1e114fee0b0f607daf1f9e01da07e4c302dd5087d1827773acbb149dfc",
+  "oracle_sha256": "4db82d88e7e950f2a5b7ea5fd5003cba3008ffda8d72c8d11bcf37ce0486fdeb",
+  "candidate_nonempty": true,
+  "target_ref": "84da97713b9112c9529a941b230219b759e6f206",
+  "baseline_tree": "bd3f08540d76f93cefddd99468925b518388ce13",
+  "candidate_tree": "6f9f29e71a21dced54eaef7733a1e62bc531ab20",
+  "oracle_tree": "0fec4223219bbd52e37f3776018f2464b0e07139",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2348",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "e85e2d1e114fee0b0f607daf1f9e01da07e4c302dd5087d1827773acbb149dfc",
+    "text": "diff --git a/net/sunrpc/sunrpc.h b/net/sunrpc/sunrpc.h\nindex c9bacb3c930f..82035fa65b8f 100644\n--- a/net/sunrpc/sunrpc.h\n+++ b/net/sunrpc/sunrpc.h\n@@ -56,4 +56,5 @@ int svc_send_common(struct socket *sock, struct xdr_buf *xdr,\n \n int rpc_clients_notifier_register(void);\n void rpc_clients_notifier_unregister(void);\n+void auth_domain_cleanup(void);\n #endif /* _NET_SUNRPC_SUNRPC_H */\ndiff --git a/net/sunrpc/sunrpc_syms.c b/net/sunrpc/sunrpc_syms.c\nindex f9edaa9174a4..236fadc4a439 100644\n--- a/net/sunrpc/sunrpc_syms.c\n+++ b/net/sunrpc/sunrpc_syms.c\n@@ -23,6 +23,7 @@\n #include <linux/sunrpc/rpc_pipe_fs.h>\n #include <linux/sunrpc/xprtsock.h>\n \n+#include \"sunrpc.h\"\n #include \"netns.h\"\n \n unsigned int sunrpc_net_id;\n@@ -131,6 +132,7 @@ cleanup_sunrpc(void)\n \tunregister_rpc_pipefs();\n \trpc_destroy_mempool();\n \tunregister_pernet_subsys(&sunrpc_net_ops);\n+\tauth_domain_cleanup();\n #if IS_ENABLED(CONFIG_SUNRPC_DEBUG)\n \trpc_unregister_sysctl();\n #endif\ndiff --git a/net/sunrpc/svcauth.c b/net/sunrpc/svcauth.c\nindex 550b214cb001..bfbbeb2acb80 100644\n--- a/net/sunrpc/svcauth.c\n+++ b/net/sunrpc/svcauth.c\n@@ -19,6 +19,8 @@\n #include <linux/err.h>\n #include <linux/hash.h>\n \n+#include \"sunrpc.h\"\n+\n #define RPCDBG_FACILITY\tRPCDBG_AUTH\n \n \n@@ -203,3 +205,26 @@ struct auth_domain *auth_domain_find(char *name)\n \treturn NULL;\n }\n EXPORT_SYMBOL_GPL(auth_domain_find);\n+\n+/**\n+ * auth_domain_cleanup - check that the auth_domain table is empty\n+ *\n+ * On module unload the auth_domain_table must be empty.  To make it\n+ * easier to catch bugs which don't clean up domains properly, we\n+ * warn if anything remains in the table at cleanup time.\n+ *\n+ * Note that we cannot proactively remove the domains at this stage.\n+ * The ->release() function might be in a module that has already been\n+ * unloaded.\n+ */\n+\n+void auth_domain_cleanup(void)\n+{\n+\tint h;\n+\tstruct auth_domain *hp;\n+\n+\tfor (h = 0; h < DN_HASHMAX; h++)\n+\t\thlist_for_each_entry(hp, &auth_domain_table[h], hash)\n+\t\t\tpr_warn(\"svc: domain %s still present at module unload.\\n\",\n+\t\t\t\thp->name);\n+}\n"
+  },
+  "trace_file": "trace.jsonl"
+}

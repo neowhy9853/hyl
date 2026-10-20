@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1989",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1989-lzzbikgl/repo",
+      "target_ref": "8a930044f0b100d6b28a94525e9cf62787b3ec3a",
+      "target_tree": "446e479b4747f5164b77a95a8ee77c1cec6ee27e"
+    },
+    "source_commit": "0502bf54bd01e8dbf4a057fe76f974074b5fb7e6",
+    "reference_parent": "8c7124a5295a10043daf2154bc01a437ece9d0f9",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/usb/core/config.c b/drivers/usb/core/config.c\nindex 69dfaea4dedec00ab4d2ef71423c45cdf2138b8e..49e66fb1ce87c16cc777939968144c46e9723fa7 100644\n--- a/drivers/usb/core/config.c\n+++ b/drivers/usb/core/config.c\n@@ -538,15 +538,23 @@ static int usb_parse_configuration(struct usb_device *dev, int cfgidx,\n \n \t\t} else if (header->bDescriptorType ==\n \t\t\t\tUSB_DT_INTERFACE_ASSOCIATION) {\n+\t\t\tstruct usb_interface_assoc_descriptor *d;\n+\n+\t\t\td = (struct usb_interface_assoc_descriptor *)header;\n+\t\t\tif (d->bLength < USB_DT_INTERFACE_ASSOCIATION_SIZE) {\n+\t\t\t\tdev_warn(ddev,\n+\t\t\t\t\t \"config %d has an invalid interface association descriptor of length %d, skipping\\n\",\n+\t\t\t\t\t cfgno, d->bLength);\n+\t\t\t\tcontinue;\n+\t\t\t}\n+\n \t\t\tif (iad_num == USB_MAXIADS) {\n \t\t\t\tdev_warn(ddev, \"found more Interface \"\n \t\t\t\t\t       \"Association Descriptors \"\n \t\t\t\t\t       \"than allocated for in \"\n \t\t\t\t\t       \"configuration %d\\n\", cfgno);\n \t\t\t} else {\n-\t\t\t\tconfig->intf_assoc[iad_num] =\n-\t\t\t\t\t(struct usb_interface_assoc_descriptor\n-\t\t\t\t\t*)header;\n+\t\t\t\tconfig->intf_assoc[iad_num] = d;\n \t\t\t\tiad_num++;\n \t\t\t}\n \ndiff --git a/include/uapi/linux/usb/ch9.h b/include/uapi/linux/usb/ch9.h\nindex aa33fd1b2d4f3a7575dc160d906907133119f1d5..400196c45b3c146d99e245e3519dfe93aa1c13ef 100644\n--- a/include/uapi/linux/usb/ch9.h\n+++ b/include/uapi/linux/usb/ch9.h\n@@ -705,6 +705,7 @@ struct usb_interface_assoc_descriptor {\n \t__u8  iFunction;\n } __attribute__ ((packed));\n \n+#define USB_DT_INTERFACE_ASSOCIATION_SIZE\t8\n \n /*-------------------------------------------------------------------------*/\n \n",
+      "sha256": "b94f6ddc04f3824c7278723e5b35919f2e46e36258d75c98e24e83e4c150677e"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2017-16531\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1989-lzzbikgl/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1989-lzzbikgl/repo/.patch-port/reference.diff\nreference_fix: 0502bf54bd01e8dbf4a057fe76f974074b5fb7e6\nreference_parent: 8c7124a5295a10043daf2154bc01a437ece9d0f9\ntarget_ref: 8a930044f0b100d6b28a94525e9cf62787b3ec3a\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1989-lzzbikgl/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1989-lzzbikgl/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2017-16531"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "a0e0a5850211dd09725c819a8915c2cbe9067317",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "e0455bc1d96b9626452d64ef0c0f6cf717b2891835c09f5c336b3058b1674602",
+      "text": "diff --git a/drivers/usb/core/config.c b/drivers/usb/core/config.c\nindex 989256e8a1055e29ed9f38ac0b147cdfd1c3f057..ac5b2efcb9d02f59cc7df3cdc2b72ea73c123a63 100644\n--- a/drivers/usb/core/config.c\n+++ b/drivers/usb/core/config.c\n@@ -609,15 +609,23 @@ static int usb_parse_configuration(struct usb_device *dev, int cfgidx,\n \n \t\t} else if (header->bDescriptorType ==\n \t\t\t\tUSB_DT_INTERFACE_ASSOCIATION) {\n+\t\t\tstruct usb_interface_assoc_descriptor *d;\n+\n+\t\t\td = (struct usb_interface_assoc_descriptor *)header;\n+\t\t\tif (d->bLength < USB_DT_INTERFACE_ASSOCIATION_SIZE) {\n+\t\t\t\tdev_warn(ddev,\n+\t\t\t\t\t \"config %d has an invalid interface association descriptor of length %d, skipping\\n\",\n+\t\t\t\t\t cfgno, d->bLength);\n+\t\t\t\tcontinue;\n+\t\t\t}\n+\n \t\t\tif (iad_num == USB_MAXIADS) {\n \t\t\t\tdev_warn(ddev, \"found more Interface \"\n \t\t\t\t\t       \"Association Descriptors \"\n \t\t\t\t\t       \"than allocated for in \"\n \t\t\t\t\t       \"configuration %d\\n\", cfgno);\n \t\t\t} else {\n-\t\t\t\tconfig->intf_assoc[iad_num] =\n-\t\t\t\t\t(struct usb_interface_assoc_descriptor\n-\t\t\t\t\t*)header;\n+\t\t\t\tconfig->intf_assoc[iad_num] = d;\n \t\t\t\tiad_num++;\n \t\t\t}\n \ndiff --git a/include/linux/usb/ch9.h b/include/linux/usb/ch9.h\nindex 3b6f628880f83b0f05b3c3363a7202665a5ce9ca..046b1f4382df45aca876ecbce621224631b41817 100644\n--- a/include/linux/usb/ch9.h\n+++ b/include/linux/usb/ch9.h\n@@ -686,6 +686,7 @@ struct usb_interface_assoc_descriptor {\n \t__u8  iFunction;\n } __attribute__ ((packed));\n \n+#define USB_DT_INTERFACE_ASSOCIATION_SIZE\t8\n \n /*-------------------------------------------------------------------------*/\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "c077bcecbae68287e3308bfaf3ffd93cc5bceef568aa66cf72802c65d9823b67",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01989_CVE-2017-16531/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1989,
+      "cve": "CVE-2017-16531",
+      "source_commit": "0502bf54bd01e8dbf4a057fe76f974074b5fb7e6",
+      "oracle_commit": "a0e0a5850211dd09725c819a8915c2cbe9067317"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

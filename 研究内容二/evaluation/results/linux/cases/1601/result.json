@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1601",
+  "candidate_sha256": "ae019efc4f58b3fd19c171945df780b136d890d6d0d1c62d43671c1b0f89ed00",
+  "oracle_sha256": "17960c9d220fd9eeebaefc49dc24321c1a795af3d48482f7c4180d229f1bb6e2",
+  "candidate_nonempty": true,
+  "target_ref": "ebc57091e4e853aa8b198b9276010fd8d147c0f2",
+  "baseline_tree": "585b8c846dc88b402a8aca22941b2d33e3f286e8",
+  "candidate_tree": "494e08b3c11686704e74ad24f35a19664bf93811",
+  "oracle_tree": "494e08b3c11686704e74ad24f35a19664bf93811",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1601",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "ae019efc4f58b3fd19c171945df780b136d890d6d0d1c62d43671c1b0f89ed00",
+    "text": "diff --git a/virt/kvm/kvm_main.c b/virt/kvm/kvm_main.c\nindex 71f77ae6c2a6..1e30f8706349 100644\n--- a/virt/kvm/kvm_main.c\n+++ b/virt/kvm/kvm_main.c\n@@ -3688,7 +3688,7 @@ int kvm_io_bus_register_dev(struct kvm *kvm, enum kvm_bus bus_idx, gpa_t addr,\n void kvm_io_bus_unregister_dev(struct kvm *kvm, enum kvm_bus bus_idx,\n \t\t\t       struct kvm_io_device *dev)\n {\n-\tint i;\n+\tint i, j;\n \tstruct kvm_io_bus *new_bus, *bus;\n \n \tbus = kvm_get_bus(kvm, bus_idx);\n@@ -3705,17 +3705,20 @@ void kvm_io_bus_unregister_dev(struct kvm *kvm, enum kvm_bus bus_idx,\n \n \tnew_bus = kmalloc(sizeof(*bus) + ((bus->dev_count - 1) *\n \t\t\t  sizeof(struct kvm_io_range)), GFP_KERNEL);\n-\tif (!new_bus)  {\n+\tif (new_bus) {\n+\t\tmemcpy(new_bus, bus, sizeof(*bus) + i * sizeof(struct kvm_io_range));\n+\t\tnew_bus->dev_count--;\n+\t\tmemcpy(new_bus->range + i, bus->range + i + 1,\n+\t\t       (new_bus->dev_count - i) * sizeof(struct kvm_io_range));\n+\t} else {\n \t\tpr_err(\"kvm: failed to shrink bus, removing it completely\\n\");\n-\t\tgoto broken;\n+\t\tfor (j = 0; j < bus->dev_count; j++) {\n+\t\t\tif (j == i)\n+\t\t\t\tcontinue;\n+\t\t\tkvm_iodevice_destructor(bus->range[j].dev);\n+\t\t}\n \t}\n \n-\tmemcpy(new_bus, bus, sizeof(*bus) + i * sizeof(struct kvm_io_range));\n-\tnew_bus->dev_count--;\n-\tmemcpy(new_bus->range + i, bus->range + i + 1,\n-\t       (new_bus->dev_count - i) * sizeof(struct kvm_io_range));\n-\n-broken:\n \trcu_assign_pointer(kvm->buses[bus_idx], new_bus);\n \tsynchronize_srcu_expedited(&kvm->srcu);\n \tkfree(bus);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -14,7 +14,7 @@ description: 分析两个或多个 Git 补丁是否因相同 issue/CVE、backpor
 当输入包含仓库路径和补丁 ID（Git commit ID）时，先运行附带的证据提取脚本：
 
 ```bash
-python <skill目录>/scripts/analyze_relation.py \
+python3 <skill目录>/scripts/analyze_relation.py \
   --repo <仓库路径> \
   --mode pairwise \
   --commit-a <commit-a> \
@@ -24,7 +24,7 @@ python <skill目录>/scripts/analyze_relation.py \
 聚类模式：
 
 ```bash
-python <skill目录>/scripts/analyze_relation.py \
+python3 <skill目录>/scripts/analyze_relation.py \
   --repo <仓库路径> \
   --mode cluster \
   --commits <commit-a> <commit-b> <commit-c>

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "52",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-52-tq5p6thd/repo",
+      "target_ref": "93b75cce2e47ae15f223cd3593f281cbb7676d7f",
+      "target_tree": "67a1c1e4fc51433aaf2967c9cbf691b1d70dad87"
+    },
+    "source_commit": "d93d7bd61072a03dde173d36ae5815488a585fc0",
+    "reference_parent": "9e36fae9ac971377e9c640d684192e816a953bb8",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/mm/huge_memory.c b/mm/huge_memory.c\nindex 5fbd77d52602a1a9dd05540033259ec668708b55..cf4c0a61b37081c5e36f7930d8764893e97c38f7 100644\n--- a/mm/huge_memory.c\n+++ b/mm/huge_memory.c\n@@ -1755,6 +1755,8 @@ void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,\n \tspinlock_t *ptl;\n \tstruct mm_struct *mm = vma->vm_mm;\n \tunsigned long haddr = address & HPAGE_PMD_MASK;\n+\tbool was_locked = false;\n+\tpmd_t _pmd;\n \n \tmmu_notifier_invalidate_range_start(mm, haddr, haddr + HPAGE_PMD_SIZE);\n \tptl = pmd_lock(mm, pmd);\n@@ -1764,11 +1766,32 @@ void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,\n \t * pmd against. Otherwise we can end up replacing wrong page.\n \t */\n \tVM_BUG_ON(freeze && !page);\n-\tif (page && page != pmd_page(*pmd))\n-\t        goto out;\n+\tif (page) {\n+\t\tVM_WARN_ON_ONCE(!PageLocked(page));\n+\t\twas_locked = true;\n+\t\tif (page != pmd_page(*pmd))\n+\t\t\tgoto out;\n+\t}\n \n+repeat:\n \tif (pmd_trans_huge(*pmd)) {\n-\t\tpage = pmd_page(*pmd);\n+\t\tif (!page) {\n+\t\t\tpage = pmd_page(*pmd);\n+\t\t\tif (unlikely(!trylock_page(page))) {\n+\t\t\t\tget_page(page);\n+\t\t\t\t_pmd = *pmd;\n+\t\t\t\tspin_unlock(ptl);\n+\t\t\t\tlock_page(page);\n+\t\t\t\tspin_lock(ptl);\n+\t\t\t\tif (unlikely(!pmd_same(*pmd, _pmd))) {\n+\t\t\t\t\tunlock_page(page);\n+\t\t\t\t\tput_page(page);\n+\t\t\t\t\tpage = NULL;\n+\t\t\t\t\tgoto repeat;\n+\t\t\t\t}\n+\t\t\t\tput_page(page);\n+\t\t\t}\n+\t\t}\n \t\tif (PageMlocked(page))\n \t\t\tclear_page_mlock(page);\n \t} else if (!pmd_devmap(*pmd))\n@@ -1776,6 +1799,8 @@ void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,\n \t__split_huge_pmd_locked(vma, pmd, haddr, freeze);\n out:\n \tspin_unlock(ptl);\n+\tif (!was_locked && page)\n+\t\tunlock_page(page);\n \tmmu_notifier_invalidate_range_end(mm, haddr, haddr + HPAGE_PMD_SIZE);\n }\n \n",
+      "sha256": "ba3b8404d2d1aebfc4c258dcda23dd116f000b256fca5d44dfa4eda300d1f122"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2020-29368\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-52-tq5p6thd/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-52-tq5p6thd/repo/.patch-port/reference.diff\nreference_fix: d93d7bd61072a03dde173d36ae5815488a585fc0\nreference_parent: 9e36fae9ac971377e9c640d684192e816a953bb8\ntarget_ref: 93b75cce2e47ae15f223cd3593f281cbb7676d7f\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-52-tq5p6thd/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-52-tq5p6thd/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2020-29368"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "114b91ff0861de531e412aebe8c4dfda21291c7b",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "74f03dd70b2d268a381425844516d7d725823d73cac250d97328400b3008f244",
+      "text": "diff --git a/mm/huge_memory.c b/mm/huge_memory.c\nindex 11fe0b4dbe6730e0bdd9c5cb987c4d93feb45df7..dddc863b3cbcf92d4d1c2f0e15052bf4bec15eda 100644\n--- a/mm/huge_memory.c\n+++ b/mm/huge_memory.c\n@@ -2385,6 +2385,8 @@ void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,\n {\n \tspinlock_t *ptl;\n \tstruct mmu_notifier_range range;\n+\tbool was_locked = false;\n+\tpmd_t _pmd;\n \n \tmmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, vma, vma->vm_mm,\n \t\t\t\taddress & HPAGE_PMD_MASK,\n@@ -2397,11 +2399,32 @@ void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,\n \t * pmd against. Otherwise we can end up replacing wrong page.\n \t */\n \tVM_BUG_ON(freeze && !page);\n-\tif (page && page != pmd_page(*pmd))\n-\t        goto out;\n+\tif (page) {\n+\t\tVM_WARN_ON_ONCE(!PageLocked(page));\n+\t\twas_locked = true;\n+\t\tif (page != pmd_page(*pmd))\n+\t\t\tgoto out;\n+\t}\n \n+repeat:\n \tif (pmd_trans_huge(*pmd)) {\n-\t\tpage = pmd_page(*pmd);\n+\t\tif (!page) {\n+\t\t\tpage = pmd_page(*pmd);\n+\t\t\tif (unlikely(!trylock_page(page))) {\n+\t\t\t\tget_page(page);\n+\t\t\t\t_pmd = *pmd;\n+\t\t\t\tspin_unlock(ptl);\n+\t\t\t\tlock_page(page);\n+\t\t\t\tspin_lock(ptl);\n+\t\t\t\tif (unlikely(!pmd_same(*pmd, _pmd))) {\n+\t\t\t\t\tunlock_page(page);\n+\t\t\t\t\tput_page(page);\n+\t\t\t\t\tpage = NULL;\n+\t\t\t\t\tgoto repeat;\n+\t\t\t\t}\n+\t\t\t\tput_page(page);\n+\t\t\t}\n+\t\t}\n \t\tif (PageMlocked(page))\n \t\t\tclear_page_mlock(page);\n \t} else if (!(pmd_devmap(*pmd) || is_pmd_migration_entry(*pmd)))\n@@ -2409,6 +2432,8 @@ void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,\n \t__split_huge_pmd_locked(vma, pmd, range.start, freeze);\n out:\n \tspin_unlock(ptl);\n+\tif (!was_locked && page)\n+\t\tunlock_page(page);\n \t/*\n \t * No need to double call mmu_notifier->invalidate_range() callback.\n \t * They are 3 cases to consider inside __split_huge_pmd_locked():\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "386201bf3f1c697e22d48effdf0b47a2b29acea09ea10753a2e19ca52fc62fb8",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00052_CVE-2020-29368/reference.diff",
+    "source_dataset_record": {
+      "case_id": 52,
+      "cve": "CVE-2020-29368",
+      "source_commit": "d93d7bd61072a03dde173d36ae5815488a585fc0",
+      "oracle_commit": "114b91ff0861de531e412aebe8c4dfda21291c7b"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

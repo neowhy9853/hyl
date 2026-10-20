@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1235",
+  "candidate_sha256": "00a157a71da310d1497cf40adf5d79c3865538744a4762e45ac7564826bb77e0",
+  "oracle_sha256": "933b4bcd3ffd85c91768a1c76b3f26db309c6819cec848e09b2c4aae77e1a7eb",
+  "candidate_nonempty": true,
+  "target_ref": "5dc88c0bd578c05e4b764bdb2606017995ff9724",
+  "baseline_tree": "0a223995b9aaf5ac957bba5cefd5dfaaa47fc993",
+  "candidate_tree": "3aec9f70404c347763c7d4980c315a580cee570d",
+  "oracle_tree": "182b95ab7c62fe9f047635090dcbde5bc687b769",
+  "candidate_apply_passed": true,
+  "historical_verdict": "incorrect",
+  "case_path": "cases/1235",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "00a157a71da310d1497cf40adf5d79c3865538744a4762e45ac7564826bb77e0",
+    "text": "diff --git a/drivers/usb/class/cdc-acm.c b/drivers/usb/class/cdc-acm.c\nindex d49c24bff722..a7b128f90c30 100644\n--- a/drivers/usb/class/cdc-acm.c\n+++ b/drivers/usb/class/cdc-acm.c\n@@ -1371,13 +1371,6 @@ made_compressed_probe:\n \t\tgoto alloc_fail;\n \t}\n \n-\tminor = acm_alloc_minor(acm);\n-\tif (minor == ACM_TTY_MINORS) {\n-\t\tdev_err(&intf->dev, \"no more free acm devices\\n\");\n-\t\tkfree(acm);\n-\t\treturn -ENODEV;\n-\t}\n-\n \tctrlsize = usb_endpoint_maxp(epctrl);\n \treadsize = usb_endpoint_maxp(epread) *\n \t\t\t\t(quirks == SINGLE_RX_URB ? 1 : 2);\n@@ -1385,6 +1378,17 @@ made_compressed_probe:\n \tacm->writesize = usb_endpoint_maxp(epwrite) * 20;\n \tacm->control = control_interface;\n \tacm->data = data_interface;\n+\n+\tusb_get_intf(acm->control); /* undone in destruct() */\n+\n+\tminor = acm_alloc_minor(acm);\n+\tif (minor == ACM_TTY_MINORS) {\n+\t\tdev_err(&intf->dev, \"no more free acm devices\\n\");\n+\t\tusb_put_intf(acm->control);\n+\t\tkfree(acm);\n+\t\treturn -ENODEV;\n+\t}\n+\n \tacm->minor = minor;\n \tacm->dev = usb_dev;\n \tacm->ctrl_caps = ac_management_function;\n@@ -1540,7 +1544,6 @@ skip_countries:\n \tusb_driver_claim_interface(&acm_driver, data_interface, acm);\n \tusb_set_intfdata(data_interface, acm);\n \n-\tusb_get_intf(control_interface);\n \ttty_dev = tty_port_register_device(&acm->port, acm_tty_driver, minor,\n \t\t\t&control_interface->dev);\n \tif (IS_ERR(tty_dev)) {\n@@ -1578,6 +1581,7 @@ alloc_fail4:\n \tusb_free_coherent(usb_dev, ctrlsize, acm->ctrl_buffer, acm->ctrl_dma);\n alloc_fail2:\n \tacm_release_minor(acm);\n+\tusb_put_intf(acm->control);\n \tkfree(acm);\n alloc_fail:\n \treturn rv;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

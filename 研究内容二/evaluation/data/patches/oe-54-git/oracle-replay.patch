@@ -1,0 +1,109 @@
+diff --git a/Documentation/git-upload-pack.txt b/Documentation/git-upload-pack.txt
+index 7ad60bc3485bc80606fbf38bb13a4ba0e8f0902e..94bfcb416de1fd4b8379437c64c11bf165697234 100644
+--- a/Documentation/git-upload-pack.txt
++++ b/Documentation/git-upload-pack.txt
+@@ -55,6 +55,22 @@ ENVIRONMENT
+ 	admins may need to configure some transports to allow this
+ 	variable to be passed. See the discussion in linkgit:git[1].
+ 
++`GIT_NO_LAZY_FETCH`::
++	When cloning or fetching from a partial repository (i.e., one
++	itself cloned with `--filter`), the server-side `upload-pack`
++	may need to fetch extra objects from its upstream in order to
++	complete the request. By default, `upload-pack` will refuse to
++	perform such a lazy fetch, because `git fetch` may run arbitrary
++	commands specified in configuration and hooks of the source
++	repository (and `upload-pack` tries to be safe to run even in
++	untrusted `.git` directories).
+++
++This is implemented by having `upload-pack` internally set the
++`GIT_NO_LAZY_FETCH` variable to `1`. If you want to override it
++(because you are fetching from a partial clone, and you are sure
++you trust it), you can explicitly set `GIT_NO_LAZY_FETCH` to
++`0`.
++
+ SEE ALSO
+ --------
+ linkgit:gitnamespaces[7]
+diff --git a/builtin/upload-pack.c b/builtin/upload-pack.c
+index 9b021ef026c28c97ece12b924833dff87c15a103..272cddaafdd633f120acf3c6f8a87bf0a3fede38 100644
+--- a/builtin/upload-pack.c
++++ b/builtin/upload-pack.c
+@@ -37,6 +37,8 @@ int cmd_upload_pack(int argc, const char **argv, const char *prefix)
+ 
+ 	packet_trace_identity("upload-pack");
+ 	disable_replace_refs();
++	/* TODO: This should use NO_LAZY_FETCH_ENVIRONMENT */
++	xsetenv("GIT_NO_LAZY_FETCH", "1", 0);
+ 
+ 	argc = parse_options(argc, argv, prefix, options, upload_pack_usage, 0);
+ 
+diff --git a/promisor-remote.c b/promisor-remote.c
+index ac3aa1e365760596990188548410a16900e005d7..7faf33b4d7cd27f62c2b115955395876e628e3a3 100644
+--- a/promisor-remote.c
++++ b/promisor-remote.c
+@@ -23,6 +23,16 @@ static int fetch_objects(struct repository *repo,
+ 	int i;
+ 	FILE *child_in;
+ 
++	/* TODO: This should use NO_LAZY_FETCH_ENVIRONMENT */
++	if (git_env_bool("GIT_NO_LAZY_FETCH", 0)) {
++		static int warning_shown;
++		if (!warning_shown) {
++			warning_shown = 1;
++			warning(_("lazy fetching disabled; some objects may not be available"));
++		}
++		return -1;
++	}
++
+ 	child.git_cmd = 1;
+ 	child.in = -1;
+ 	if (repo != the_repository)
+diff --git a/t/t0411-clone-from-partial.sh b/t/t0411-clone-from-partial.sh
+index eb3360dbca035bb2ec4b147936c67eeec9b62404..b3d6ddc4bc2d99993dc1ba37edd55c5beff3fd2b 100755
+--- a/t/t0411-clone-from-partial.sh
++++ b/t/t0411-clone-from-partial.sh
+@@ -28,6 +28,7 @@ test_expect_success 'local clone must not fetch from promisor remote and execute
+ 	test_must_fail git clone \
+ 		--upload-pack="GIT_TEST_ASSUME_DIFFERENT_OWNER=true git-upload-pack" \
+ 		evil clone1 2>err &&
++	grep "detected dubious ownership" err &&
+ 	! grep "fake-upload-pack running" err &&
+ 	test_path_is_missing script-executed
+ '
+@@ -37,6 +38,7 @@ test_expect_success 'clone from file://... must not fetch from promisor remote a
+ 	test_must_fail git clone \
+ 		--upload-pack="GIT_TEST_ASSUME_DIFFERENT_OWNER=true git-upload-pack" \
+ 		"file://$(pwd)/evil" clone2 2>err &&
++	grep "detected dubious ownership" err &&
+ 	! grep "fake-upload-pack running" err &&
+ 	test_path_is_missing script-executed
+ '
+@@ -46,6 +48,7 @@ test_expect_success 'fetch from file://... must not fetch from promisor remote a
+ 	test_must_fail git fetch \
+ 		--upload-pack="GIT_TEST_ASSUME_DIFFERENT_OWNER=true git-upload-pack" \
+ 		"file://$(pwd)/evil" 2>err &&
++	grep "detected dubious ownership" err &&
+ 	! grep "fake-upload-pack running" err &&
+ 	test_path_is_missing script-executed
+ '
+@@ -57,4 +60,19 @@ test_expect_success 'pack-objects should fetch from promisor remote and execute
+ 	test_path_is_file script-executed
+ '
+ 
++test_expect_success 'clone from promisor remote does not lazy-fetch by default' '
++	rm -f script-executed &&
++	test_must_fail git clone evil no-lazy 2>err &&
++	grep "lazy fetching disabled" err &&
++	test_path_is_missing script-executed
++'
++
++test_expect_success 'promisor lazy-fetching can be re-enabled' '
++	rm -f script-executed &&
++	test_must_fail env GIT_NO_LAZY_FETCH=0 \
++		git clone evil lazy-ok 2>err &&
++	grep "fake-upload-pack running" err &&
++	test_path_is_file script-executed
++'
++
+ test_done

@@ -1,0 +1,58 @@
+diff --git a/builtin/clone.c b/builtin/clone.c
+index 7f888717e7b181d34b591ebecca6520d291a4403..ea4b09fd7a611929f299aae1ee545a0fbd5fc27f 100644
+--- a/builtin/clone.c
++++ b/builtin/clone.c
+@@ -328,6 +328,20 @@ static void copy_or_link_directory(struct strbuf *src, struct strbuf *dest,
+ 	struct dir_iterator *iter;
+ 	int iter_status;
+ 
++	/*
++	 * Refuse copying directories by default which aren't owned by us. The
++	 * code that performs either the copying or hardlinking is not prepared
++	 * to handle various edge cases where an adversary may for example
++	 * racily swap out files for symlinks. This can cause us to
++	 * inadvertently use the wrong source file.
++	 *
++	 * Furthermore, even if we were prepared to handle such races safely,
++	 * creating hardlinks across user boundaries is an inherently unsafe
++	 * operation as the hardlinked files can be rewritten at will by the
++	 * potentially-untrusted user. We thus refuse to do so by default.
++	 */
++	die_upon_dubious_ownership(NULL, NULL, src_repo);
++
+ 	mkdir_if_missing(dest->buf, 0777);
+ 
+ 	iter = dir_iterator_begin(src->buf, DIR_ITERATOR_PEDANTIC);
+diff --git a/t/t0033-safe-directory.sh b/t/t0033-safe-directory.sh
+index dc3496897abc96f488b43bfcbd1dd54258e75876..11c3e8f28e0df933d590693c9e963d07cb859c64 100755
+--- a/t/t0033-safe-directory.sh
++++ b/t/t0033-safe-directory.sh
+@@ -80,4 +80,28 @@ test_expect_success 'safe.directory in included file' '
+ 	git status
+ '
+ 
++test_expect_success 'local clone of unowned repo refused in unsafe directory' '
++	test_when_finished "rm -rf source" &&
++	git init source &&
++	(
++		sane_unset GIT_TEST_ASSUME_DIFFERENT_OWNER &&
++		test_commit -C source initial
++	) &&
++	test_must_fail git clone --local source target &&
++	test_path_is_missing target
++'
++
++test_expect_success 'local clone of unowned repo accepted in safe directory' '
++	test_when_finished "rm -rf source" &&
++	git init source &&
++	(
++		sane_unset GIT_TEST_ASSUME_DIFFERENT_OWNER &&
++		test_commit -C source initial
++	) &&
++	test_must_fail git clone --local source target &&
++	git config --global --add safe.directory "$(pwd)/source/.git" &&
++	git clone --local source target &&
++	test_path_is_dir target
++'
++
+ test_done

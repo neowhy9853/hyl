@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "811",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-811-c2epcqkf/repo",
+      "target_ref": "f9497d51259faf7f6ecfed393a2a75879926b77a",
+      "target_tree": "02459210f3a082628d397c5e5016f3624f7541f5"
+    },
+    "source_commit": "a9a659c916c81b3385479ee00d4547912f08abf6",
+    "reference_parent": "125a66961a14d740fe1a0a5398c2aaf7f715d17e",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/mm/migrate.c b/mm/migrate.c\nindex 0f2736b319de85cce6d44bdd63e1ea4794fd484e..3f95bab563cbc0436fc003f831f3c3afb2b24dd7 100644\n--- a/mm/migrate.c\n+++ b/mm/migrate.c\n@@ -34,6 +34,7 @@\n #include <linux/syscalls.h>\n #include <linux/hugetlb.h>\n #include <linux/gfp.h>\n+#include <linux/ptrace.h>\n \n #include <asm/tlbflush.h>\n \n@@ -1366,7 +1367,6 @@ SYSCALL_DEFINE6(move_pages, pid_t, pid, unsigned long, nr_pages,\n \t\tconst int __user *, nodes,\n \t\tint __user *, status, int, flags)\n {\n-\tconst struct cred *cred = current_cred(), *tcred;\n \tstruct task_struct *task;\n \tstruct mm_struct *mm;\n \tint err;\n@@ -1390,14 +1390,9 @@ SYSCALL_DEFINE6(move_pages, pid_t, pid, unsigned long, nr_pages,\n \n \t/*\n \t * Check if this process has the right to modify the specified\n-\t * process. The right exists if the process has administrative\n-\t * capabilities, superuser privileges or the same\n-\t * userid as the target process.\n+\t * process. Use the regular \"ptrace_may_access()\" checks.\n \t */\n-\ttcred = __task_cred(task);\n-\tif (cred->euid != tcred->suid && cred->euid != tcred->uid &&\n-\t    cred->uid  != tcred->suid && cred->uid  != tcred->uid &&\n-\t    !capable(CAP_SYS_NICE)) {\n+\tif (!ptrace_may_access(task, PTRACE_MODE_READ_REALCREDS)) {\n \t\trcu_read_unlock();\n \t\terr = -EPERM;\n \t\tgoto out;\n",
+      "sha256": "946f7e9517a70d6382adffac333b8da22a3d5ecc5587aa2a046d0fe6c7f97df5"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2017-14140\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-811-c2epcqkf/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-811-c2epcqkf/repo/.patch-port/reference.diff\nreference_fix: a9a659c916c81b3385479ee00d4547912f08abf6\nreference_parent: 125a66961a14d740fe1a0a5398c2aaf7f715d17e\ntarget_ref: f9497d51259faf7f6ecfed393a2a75879926b77a\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-811-c2epcqkf/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-811-c2epcqkf/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2017-14140"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "61332dc598c3f223678b2d7192ccf3472c544799",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "c8a0108e7e5e2fc3e6b6136a1bd1f8f5b777883e7977110905e80e585aaaff0e",
+      "text": "diff --git a/mm/migrate.c b/mm/migrate.c\nindex 6850f62998cd6b05fc52cb6e409ef23db654b29c..821623fc7091d8ec50c81e0b75574345746298c4 100644\n--- a/mm/migrate.c\n+++ b/mm/migrate.c\n@@ -40,6 +40,7 @@\n #include <linux/mmu_notifier.h>\n #include <linux/page_idle.h>\n #include <linux/page_owner.h>\n+#include <linux/ptrace.h>\n \n #include <asm/tlbflush.h>\n \n@@ -1663,7 +1664,6 @@ SYSCALL_DEFINE6(move_pages, pid_t, pid, unsigned long, nr_pages,\n \t\tconst int __user *, nodes,\n \t\tint __user *, status, int, flags)\n {\n-\tconst struct cred *cred = current_cred(), *tcred;\n \tstruct task_struct *task;\n \tstruct mm_struct *mm;\n \tint err;\n@@ -1687,14 +1687,9 @@ SYSCALL_DEFINE6(move_pages, pid_t, pid, unsigned long, nr_pages,\n \n \t/*\n \t * Check if this process has the right to modify the specified\n-\t * process. The right exists if the process has administrative\n-\t * capabilities, superuser privileges or the same\n-\t * userid as the target process.\n+\t * process. Use the regular \"ptrace_may_access()\" checks.\n \t */\n-\ttcred = __task_cred(task);\n-\tif (!uid_eq(cred->euid, tcred->suid) && !uid_eq(cred->euid, tcred->uid) &&\n-\t    !uid_eq(cred->uid,  tcred->suid) && !uid_eq(cred->uid,  tcred->uid) &&\n-\t    !capable(CAP_SYS_NICE)) {\n+\tif (!ptrace_may_access(task, PTRACE_MODE_READ_REALCREDS)) {\n \t\trcu_read_unlock();\n \t\terr = -EPERM;\n \t\tgoto out;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "31dc4eee3400a40ab4dde411c42e598d06eba3de20433c430ff1ea3f4bc7a2e4",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00811_CVE-2017-14140/reference.diff",
+    "source_dataset_record": {
+      "case_id": 811,
+      "cve": "CVE-2017-14140",
+      "source_commit": "a9a659c916c81b3385479ee00d4547912f08abf6",
+      "oracle_commit": "61332dc598c3f223678b2d7192ccf3472c544799"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

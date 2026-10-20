@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "574",
+  "candidate_sha256": "18ff65793ebae7f49288d4649cec44eebde651c87828a5b2e4b81baf83ffd47e",
+  "oracle_sha256": "28c4bfd6e0d22a4de9a8b439c1542806a5d4df1c21a97d49c54f65a5af372568",
+  "candidate_nonempty": true,
+  "target_ref": "ca37ab969cce230dce0d478d46c4dc7db8d3a267",
+  "baseline_tree": "c87fcf1ee352a731981f031678fd3e798a0e50c3",
+  "candidate_tree": "3c833a2de38dfab52c5c180c74ae79f7b5e8e948",
+  "oracle_tree": "4a642f0a5c9f06ecd122a437e0db68f003a5c094",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/574",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "18ff65793ebae7f49288d4649cec44eebde651c87828a5b2e4b81baf83ffd47e",
+    "text": "diff --git a/arch/x86/include/asm/svm.h b/arch/x86/include/asm/svm.h\nindex 14824fc78f7e..509b9f3307e4 100644\n--- a/arch/x86/include/asm/svm.h\n+++ b/arch/x86/include/asm/svm.h\n@@ -113,6 +113,8 @@ struct __attribute__ ((__packed__)) vmcb_control_area {\n #define V_IGN_TPR_SHIFT 20\n #define V_IGN_TPR_MASK (1 << V_IGN_TPR_SHIFT)\n \n+#define V_IRQ_INJECTION_BITS_MASK (V_IRQ_MASK | V_INTR_PRIO_MASK | V_IGN_TPR_MASK)\n+\n #define V_INTR_MASKING_SHIFT 24\n #define V_INTR_MASKING_MASK (1 << V_INTR_MASKING_SHIFT)\n \ndiff --git a/arch/x86/kvm/svm.c b/arch/x86/kvm/svm.c\nindex cbc7f177bbd8..21472be92ca3 100644\n--- a/arch/x86/kvm/svm.c\n+++ b/arch/x86/kvm/svm.c\n@@ -2937,6 +2937,8 @@ static bool nested_svm_vmrun(struct vcpu_svm *svm)\n \tstruct vmcb *vmcb = svm->vmcb;\n \tstruct page *page;\n \tu64 vmcb_gpa;\n+\tconst u32 int_ctl_vmcb01_bits = V_INTR_MASKING_MASK;\n+\tconst u32 int_ctl_vmcb12_bits = V_TPR_MASK | V_IRQ_INJECTION_BITS_MASK;\n \n \tvmcb_gpa = svm->vmcb->save.rax;\n \n@@ -3048,7 +3050,9 @@ static bool nested_svm_vmrun(struct vcpu_svm *svm)\n \tsvm->nested.intercept            = nested_vmcb->control.intercept;\n \n \tsvm_flush_tlb(&svm->vcpu);\n-\tsvm->vmcb->control.int_ctl = nested_vmcb->control.int_ctl | V_INTR_MASKING_MASK;\n+\tsvm->vmcb->control.int_ctl =\n+\t\t(nested_vmcb->control.int_ctl & int_ctl_vmcb12_bits) |\n+\t\t(hsave->control.int_ctl & int_ctl_vmcb01_bits);\n \tif (nested_vmcb->control.int_ctl & V_INTR_MASKING_MASK)\n \t\tsvm->vcpu.arch.hflags |= HF_VINTR_MASK;\n \telse\n"
+  },
+  "trace_file": "trace.jsonl"
+}

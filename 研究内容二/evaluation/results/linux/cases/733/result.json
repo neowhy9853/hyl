@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "733",
+  "candidate_sha256": "8ab81ae7824423f9b8d905a8b8b0029eb308fc9f50e5011b0867fb3561f40697",
+  "oracle_sha256": "0b05e042dfb4fa8076fa7dac3ad81911d2ba661560a1a31399a57125f7c99335",
+  "candidate_nonempty": true,
+  "target_ref": "644604e6f0143297172c0429ee6c85f3b3e805ea",
+  "baseline_tree": "3a3e78198412f833e58b7ed0da8dbbbe693e0974",
+  "candidate_tree": "8cd78d49b830e0d4836d7593a81cc7cf1ad01d1c",
+  "oracle_tree": "8cd78d49b830e0d4836d7593a81cc7cf1ad01d1c",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/733",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "8ab81ae7824423f9b8d905a8b8b0029eb308fc9f50e5011b0867fb3561f40697",
+    "text": "diff --git a/drivers/md/raid5.c b/drivers/md/raid5.c\nindex 68d86dbecb4a..212bf85edad0 100644\n--- a/drivers/md/raid5.c\n+++ b/drivers/md/raid5.c\n@@ -2420,7 +2420,7 @@ static int grow_one_stripe(struct r5conf *conf, gfp_t gfp)\n \tatomic_inc(&conf->active_stripes);\n \n \traid5_release_stripe(sh);\n-\tconf->max_nr_stripes++;\n+\tWRITE_ONCE(conf->max_nr_stripes, conf->max_nr_stripes + 1);\n \treturn 1;\n }\n \n@@ -2717,7 +2717,7 @@ static int drop_one_stripe(struct r5conf *conf)\n \tshrink_buffers(sh);\n \tfree_stripe(conf->slab_cache, sh);\n \tatomic_dec(&conf->active_stripes);\n-\tconf->max_nr_stripes--;\n+\tWRITE_ONCE(conf->max_nr_stripes, conf->max_nr_stripes - 1);\n \treturn 1;\n }\n \n@@ -6901,7 +6901,7 @@ raid5_set_cache_size(struct mddev *mddev, int size)\n \tif (size <= 16 || size > 32768)\n \t\treturn -EINVAL;\n \n-\tconf->min_nr_stripes = size;\n+\tWRITE_ONCE(conf->min_nr_stripes, size);\n \tmutex_lock(&conf->cache_size_mutex);\n \twhile (size < conf->max_nr_stripes &&\n \t       drop_one_stripe(conf))\n@@ -6913,7 +6913,7 @@ raid5_set_cache_size(struct mddev *mddev, int size)\n \tmutex_lock(&conf->cache_size_mutex);\n \twhile (size > conf->max_nr_stripes)\n \t\tif (!grow_one_stripe(conf, GFP_KERNEL)) {\n-\t\t\tconf->min_nr_stripes = conf->max_nr_stripes;\n+\t\t\tWRITE_ONCE(conf->min_nr_stripes, conf->max_nr_stripes);\n \t\t\tresult = -ENOMEM;\n \t\t\tbreak;\n \t\t}\n@@ -7478,11 +7478,13 @@ static unsigned long raid5_cache_count(struct shrinker *shrink,\n \t\t\t\t       struct shrink_control *sc)\n {\n \tstruct r5conf *conf = container_of(shrink, struct r5conf, shrinker);\n+\tint max_stripes = READ_ONCE(conf->max_nr_stripes);\n+\tint min_stripes = READ_ONCE(conf->min_nr_stripes);\n \n-\tif (conf->max_nr_stripes < conf->min_nr_stripes)\n+\tif (max_stripes < min_stripes)\n \t\t/* unlikely, but not impossible */\n \t\treturn 0;\n-\treturn conf->max_nr_stripes - conf->min_nr_stripes;\n+\treturn max_stripes - min_stripes;\n }\n \n static struct r5conf *setup_conf(struct mddev *mddev)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

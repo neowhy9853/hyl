@@ -16,6 +16,11 @@ RUN apt-get update \
         python3 \
         ripgrep \
         xz-utils \
+        build-essential pkg-config autoconf automake libtool bison flex patch \
+        cmake ninja-build gettext perl zip unzip rsync gperf texinfo \
+        libssl-dev zlib1g-dev libncurses-dev libelf-dev python3-dev \
+        libxml2-dev libxslt1-dev libpcre2-dev libcurl4-openssl-dev libexpat1-dev \
+        libreadline-dev libsqlite3-dev libffi-dev golang-go \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
@@ -78,4 +83,11 @@ RUN python3 -c "import sys; assert sys.version_info >= (3, 10), 'Python 3.10+ re
     && python3 /home/node/.opencode/skills/patch-port-apply/scripts/candidate_workspace.py --help > /dev/null \
     && python3 /home/node/.opencode/skills/patch-port-validation/scripts/validate_candidate.py --help > /dev/null
 
+USER root
+RUN mkdir -p /opt/patch-port \
+    && cp -r /home/node/.opencode/skills /opt/patch-port/skills \
+    && chmod -R a+rX /opt/patch-port
+COPY evaluation/scripts/container-entrypoint.sh /usr/local/bin/port-eval-opencode
+RUN chmod 755 /usr/local/bin/port-eval-opencode
+USER node
 CMD ["opencode"]

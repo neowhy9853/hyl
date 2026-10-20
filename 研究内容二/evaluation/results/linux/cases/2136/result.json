@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2136",
+  "candidate_sha256": "51f8c363fe2a6704a95cb5edcec9bb8d45d75dce00285fb0470ead5ba2cbbf8c",
+  "oracle_sha256": "feb6db0e0134f6a73160f7e0128ffd7935b0023f9003b89d9ebf692669c01322",
+  "candidate_nonempty": true,
+  "target_ref": "df4b177b48516da64b988722a22d93d257dcda9a",
+  "baseline_tree": "e834f4ed6924603aa14c7e1cc6dfd7537e3cb34e",
+  "candidate_tree": "7968549a26fe15ba15b91dfe959ec296228e4ea8",
+  "oracle_tree": "f07959ed6769c3d35b436e6922595af9970e7679",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2136",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "51f8c363fe2a6704a95cb5edcec9bb8d45d75dce00285fb0470ead5ba2cbbf8c",
+    "text": "diff --git a/arch/x86/kvm/mmu/mmu.c b/arch/x86/kvm/mmu/mmu.c\nindex ba1749a770eb..64a38763e3ef 100644\n--- a/arch/x86/kvm/mmu/mmu.c\n+++ b/arch/x86/kvm/mmu/mmu.c\n@@ -2357,6 +2357,7 @@ static bool __kvm_mmu_prepare_zap_page(struct kvm *kvm,\n {\n \tbool list_unstable;\n \n+\tlockdep_assert_held_write(&kvm->mmu_lock);\n \ttrace_kvm_mmu_prepare_zap_page(sp);\n \t++kvm->stat.mmu_shadow_zapped;\n \t*nr_zapped = mmu_zap_unsync_children(kvm, sp, invalid_list);\n@@ -4007,16 +4008,18 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, gpa_t gpa, u32 error_code,\n \n \tif (!is_noslot_pfn(pfn) && mmu_notifier_retry_hva(vcpu->kvm, mmu_seq, hva))\n \t\tgoto out_unlock;\n-\tr = make_mmu_pages_available(vcpu);\n-\tif (r)\n-\t\tgoto out_unlock;\n \n-\tif (is_tdp_mmu_fault)\n+\tif (is_tdp_mmu_fault) {\n \t\tr = kvm_tdp_mmu_map(vcpu, gpa, error_code, map_writable, max_level,\n \t\t\t\t    pfn, prefault);\n-\telse\n+\t} else {\n+\t\tr = make_mmu_pages_available(vcpu);\n+\t\tif (r)\n+\t\t\tgoto out_unlock;\n+\n \t\tr = __direct_map(vcpu, gpa, error_code, map_writable, max_level, pfn,\n \t\t\t\t prefault, is_tdp);\n+\t}\n \n out_unlock:\n \tif (is_tdp_mmu_fault)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

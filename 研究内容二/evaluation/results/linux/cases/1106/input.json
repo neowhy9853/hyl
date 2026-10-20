@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1106",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1106-5ckko1xx/repo",
+      "target_ref": "34ef9cd887d573babd5b7f689fc188eff14aa8ed",
+      "target_tree": "a5a9cc71a008c5dd4199f803a0a112b1ec614b80"
+    },
+    "source_commit": "650b69b17cfd79f51476d93c2c63bfb73280a77a",
+    "reference_parent": "ba50fee6b41bcbafaeed3c51f90d37d1480ff9a0",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/nfsd/nfs4proc.c b/fs/nfsd/nfs4proc.c\nindex 32fe7cbfb28b36a9aad80f8f1f5b391dbff1a19d..34d1cd5883fbb11dcdbbd9287387969fa0743dc6 100644\n--- a/fs/nfsd/nfs4proc.c\n+++ b/fs/nfsd/nfs4proc.c\n@@ -1465,13 +1465,6 @@ nfsd4_interssc_connect(struct nl4_server *nss, struct svc_rqst *rqstp,\n \treturn status;\n }\n \n-static void\n-nfsd4_interssc_disconnect(struct vfsmount *ss_mnt)\n-{\n-\tnfs_do_sb_deactive(ss_mnt->mnt_sb);\n-\tmntput(ss_mnt);\n-}\n-\n /*\n  * Verify COPY destination stateid.\n  *\n@@ -1574,11 +1567,6 @@ nfsd4_cleanup_inter_ssc(struct vfsmount *ss_mnt, struct file *filp,\n {\n }\n \n-static void\n-nfsd4_interssc_disconnect(struct vfsmount *ss_mnt)\n-{\n-}\n-\n static struct file *nfs42_ssc_open(struct vfsmount *ss_mnt,\n \t\t\t\t   struct nfs_fh *src_fh,\n \t\t\t\t   nfs4_stateid *stateid)\n@@ -1774,7 +1762,7 @@ static int nfsd4_do_async_copy(void *data)\n \t\t\tdefault:\n \t\t\t\tnfserr = nfserr_offload_denied;\n \t\t\t}\n-\t\t\tnfsd4_interssc_disconnect(copy->ss_mnt);\n+\t\t\t/* ss_mnt will be unmounted by the laundromat */\n \t\t\tgoto do_callback;\n \t\t}\n \t\tnfserr = nfsd4_do_copy(copy, filp, copy->nf_dst->nf_file,\n@@ -1855,8 +1843,10 @@ nfsd4_copy(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,\n \tif (async_copy)\n \t\tcleanup_async_copy(async_copy);\n \tstatus = nfserrno(-ENOMEM);\n-\tif (nfsd4_ssc_is_inter(copy))\n-\t\tnfsd4_interssc_disconnect(copy->ss_mnt);\n+\t/*\n+\t * source's vfsmount of inter-copy will be unmounted\n+\t * by the laundromat\n+\t */\n \tgoto out;\n }\n \n",
+      "sha256": "4d1e41918e6279987c26f35bea05766e20d7c76b751541f90a5f06156cea3573"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2022-4379\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1106-5ckko1xx/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1106-5ckko1xx/repo/.patch-port/reference.diff\nreference_fix: 650b69b17cfd79f51476d93c2c63bfb73280a77a\nreference_parent: ba50fee6b41bcbafaeed3c51f90d37d1480ff9a0\ntarget_ref: 34ef9cd887d573babd5b7f689fc188eff14aa8ed\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1106-5ckko1xx/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1106-5ckko1xx/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2022-4379"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "01e4c9c03de8a9f8839cb7342bc4bccf9104efe5",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "4cd383c1336647cf3f79cec98732b56407a28197d6e7435b1af52539b4e3ef0c",
+      "text": "diff --git a/fs/nfsd/nfs4proc.c b/fs/nfsd/nfs4proc.c\nindex f82cfe843b99bca0a2a919e41b278b7958fb2b40..3c651cbcf89713b740a1e27f8fcf060e0f132e24 100644\n--- a/fs/nfsd/nfs4proc.c\n+++ b/fs/nfsd/nfs4proc.c\n@@ -1248,13 +1248,6 @@ nfsd4_interssc_connect(struct nl4_server *nss, struct svc_rqst *rqstp,\n \treturn status;\n }\n \n-static void\n-nfsd4_interssc_disconnect(struct vfsmount *ss_mnt)\n-{\n-\tnfs_do_sb_deactive(ss_mnt->mnt_sb);\n-\tmntput(ss_mnt);\n-}\n-\n /*\n  * Verify COPY destination stateid.\n  *\n@@ -1325,11 +1318,6 @@ nfsd4_cleanup_inter_ssc(struct vfsmount *ss_mnt, struct nfsd_file *src,\n {\n }\n \n-static void\n-nfsd4_interssc_disconnect(struct vfsmount *ss_mnt)\n-{\n-}\n-\n static struct file *nfs42_ssc_open(struct vfsmount *ss_mnt,\n \t\t\t\t   struct nfs_fh *src_fh,\n \t\t\t\t   nfs4_stateid *stateid)\n@@ -1471,14 +1459,14 @@ static int nfsd4_do_async_copy(void *data)\n \t\tcopy->nf_src = kzalloc(sizeof(struct nfsd_file), GFP_KERNEL);\n \t\tif (!copy->nf_src) {\n \t\t\tcopy->nfserr = nfserr_serverfault;\n-\t\t\tnfsd4_interssc_disconnect(copy->ss_mnt);\n+\t\t\t/* ss_mnt will be unmounted by the laundromat */\n \t\t\tgoto do_callback;\n \t\t}\n \t\tcopy->nf_src->nf_file = nfs42_ssc_open(copy->ss_mnt, &copy->c_fh,\n \t\t\t\t\t      &copy->stateid);\n \t\tif (IS_ERR(copy->nf_src->nf_file)) {\n \t\t\tcopy->nfserr = nfserr_offload_denied;\n-\t\t\tnfsd4_interssc_disconnect(copy->ss_mnt);\n+\t\t\t/* ss_mnt will be unmounted by the laundromat */\n \t\t\tgoto do_callback;\n \t\t}\n \t}\n@@ -1561,8 +1549,10 @@ nfsd4_copy(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,\n \tif (async_copy)\n \t\tcleanup_async_copy(async_copy);\n \tstatus = nfserrno(-ENOMEM);\n-\tif (!copy->cp_intra)\n-\t\tnfsd4_interssc_disconnect(copy->ss_mnt);\n+\t/*\n+\t * source's vfsmount of inter-copy will be unmounted\n+\t * by the laundromat\n+\t */\n \tgoto out;\n }\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "b2887e69f9ca7e27521d367f2a35dc1b9287e4f5ad18f39efa076202e54ecc83",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/01106_CVE-2022-4379/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1106,
+      "cve": "CVE-2022-4379",
+      "source_commit": "650b69b17cfd79f51476d93c2c63bfb73280a77a",
+      "oracle_commit": "01e4c9c03de8a9f8839cb7342bc4bccf9104efe5"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

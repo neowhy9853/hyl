@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1997",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1997-krthpxua/repo",
+      "target_ref": "245939276ea26a21b78826f19e295eea30f75383",
+      "target_tree": "8868a399c6b30239156f2e31d2d7ef68d4775da4"
+    },
+    "source_commit": "8aee8e6c2f0e8a9531a98a227e112fd4835a1881",
+    "reference_parent": "d93cf67053e241539a1ef7c30ee8583022bc0e89",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/sctp/socket.c b/net/sctp/socket.c\nindex 8e7cc3e2b08b4a795c59d49bd8079332ddbcc0b4..0059ce3fb74769e09c6753c98995bba04ff02828 100644\n--- a/net/sctp/socket.c\n+++ b/net/sctp/socket.c\n@@ -4298,6 +4298,12 @@ int sctp_do_peeloff(struct sock *sk, sctp_assoc_t id, struct socket **sockp)\n \tif (!asoc)\n \t\treturn -EINVAL;\n \n+\t/* If there is a thread waiting on more sndbuf space for\n+\t * sending on this asoc, it cannot be peeled.\n+\t */\n+\tif (waitqueue_active(&asoc->wait))\n+\t\treturn -EBUSY;\n+\n \t/* An association cannot be branched off from an already peeled-off\n \t * socket, nor is this supported for tcp style sockets.\n \t */\n@@ -6712,8 +6718,6 @@ static int sctp_wait_for_sndbuf(struct sctp_association *asoc, long *timeo_p,\n \t\t */\n \t\tsctp_release_sock(sk);\n \t\tcurrent_timeo = schedule_timeout(current_timeo);\n-\t\tif (sk != asoc->base.sk)\n-\t\t\tgoto do_error;\n \t\tsctp_lock_sock(sk);\n \n \t\t*timeo_p = current_timeo;\n",
+      "sha256": "d263610bf4469fcfe374294c5a041772644774c8dde2b17bf697b9cf55c37cba"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2017-6353\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1997-krthpxua/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1997-krthpxua/repo/.patch-port/reference.diff\nreference_fix: 8aee8e6c2f0e8a9531a98a227e112fd4835a1881\nreference_parent: d93cf67053e241539a1ef7c30ee8583022bc0e89\ntarget_ref: 245939276ea26a21b78826f19e295eea30f75383\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1997-krthpxua/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1997-krthpxua/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2017-6353"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "02415182a92ccd72b60c22e723a56a74a566d2e7",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "8da77913eb83812366516fdc9ec6ea6a1e12aa7c46788f9c04a5a2f59aaa191d",
+      "text": "diff --git a/net/sctp/socket.c b/net/sctp/socket.c\nindex 1e557ee4cd657eb3be15383e1f3b08417faae6cf..4a737666dbcad4ccb6b1c0074668a28026414d79 100644\n--- a/net/sctp/socket.c\n+++ b/net/sctp/socket.c\n@@ -4433,6 +4433,12 @@ int sctp_do_peeloff(struct sock *sk, sctp_assoc_t id, struct socket **sockp)\n \tif (!asoc)\n \t\treturn -EINVAL;\n \n+\t/* If there is a thread waiting on more sndbuf space for\n+\t * sending on this asoc, it cannot be peeled.\n+\t */\n+\tif (waitqueue_active(&asoc->wait))\n+\t\treturn -EBUSY;\n+\n \t/* An association cannot be branched off from an already peeled-off\n \t * socket, nor is this supported for tcp style sockets.\n \t */\n@@ -6965,8 +6971,6 @@ static int sctp_wait_for_sndbuf(struct sctp_association *asoc, long *timeo_p,\n \t\t */\n \t\trelease_sock(sk);\n \t\tcurrent_timeo = schedule_timeout(current_timeo);\n-\t\tif (sk != asoc->base.sk)\n-\t\t\tgoto do_error;\n \t\tlock_sock(sk);\n \n \t\t*timeo_p = current_timeo;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "cb5b610fce096b8e0683fc690a5b794a12bf1213257951349020c2d661600628",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/01997_CVE-2017-6353/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1997,
+      "cve": "CVE-2017-6353",
+      "source_commit": "8aee8e6c2f0e8a9531a98a227e112fd4835a1881",
+      "oracle_commit": "02415182a92ccd72b60c22e723a56a74a566d2e7"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

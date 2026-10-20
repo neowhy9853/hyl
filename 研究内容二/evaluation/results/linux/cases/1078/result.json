@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1078",
+  "candidate_sha256": "560b0491901f5b9b44df7ddc1c8dd4854af2df9bc3e9afa2a5ac4caf1079e038",
+  "oracle_sha256": "ab75fae51b80a75000fb63271e99d9f5415ced9dd051284fa62785d310f78c35",
+  "candidate_nonempty": true,
+  "target_ref": "5976aed862c07c698554edb89955f3f554a0921e",
+  "baseline_tree": "997777d6dc5695e90e56d0261ac9c3f6eab1aecf",
+  "candidate_tree": "15ebb8ed7e17398b11fb492a641055b3694152e4",
+  "oracle_tree": "15ebb8ed7e17398b11fb492a641055b3694152e4",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1078",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "560b0491901f5b9b44df7ddc1c8dd4854af2df9bc3e9afa2a5ac4caf1079e038",
+    "text": "diff --git a/net/ipv4/ping.c b/net/ipv4/ping.c\nindex 00975b6db7e..d495d4bcd74 100644\n--- a/net/ipv4/ping.c\n+++ b/net/ipv4/ping.c\n@@ -203,26 +203,33 @@ static int ping_init_sock(struct sock *sk)\n \tstruct net *net = sock_net(sk);\n \tgid_t group = current_egid();\n \tgid_t range[2];\n-\tstruct group_info *group_info = get_current_groups();\n-\tint i, j, count = group_info->ngroups;\n+\tstruct group_info *group_info;\n+\tint i, j, count;\n+\tint ret = 0;\n \n \tinet_get_ping_group_range_net(net, range, range+1);\n \tif (range[0] <= group && group <= range[1])\n \t\treturn 0;\n \n+\tgroup_info = get_current_groups();\n+\tcount = group_info->ngroups;\n \tfor (i = 0; i < group_info->nblocks; i++) {\n \t\tint cp_count = min_t(int, NGROUPS_PER_BLOCK, count);\n \n \t\tfor (j = 0; j < cp_count; j++) {\n \t\t\tgroup = group_info->blocks[i][j];\n \t\t\tif (range[0] <= group && group <= range[1])\n-\t\t\t\treturn 0;\n+\t\t\t\tgoto out_release_group;\n \t\t}\n \n \t\tcount -= cp_count;\n \t}\n \n-\treturn -EACCES;\n+\tret = -EACCES;\n+\n+out_release_group:\n+\tput_group_info(group_info);\n+\treturn ret;\n }\n \n static void ping_close(struct sock *sk, long timeout)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "452",
+  "candidate_sha256": "85c620cbca404ef5e665986ff5ea2ec4acf01701c27cbfdbbded5d4884ed8188",
+  "oracle_sha256": "cba9b4ab2f6b5fd6f243936f576e23116088635681c784dfe2f1a72c1ecb989f",
+  "candidate_nonempty": true,
+  "target_ref": "5430db94434f9100cbf2284903652c5fb26a5ce1",
+  "baseline_tree": "31d52df3c396a217711b22199b541bc85843c1b1",
+  "candidate_tree": "0c04b5b1f8b35e450d3a646e95e1db831dea7e18",
+  "oracle_tree": "50c77af07dfc2ac85680027dadcc997144f88bea",
+  "candidate_apply_passed": true,
+  "historical_verdict": "incorrect",
+  "case_path": "cases/452",
+  "generation_trace_available": true,
+  "verdict": "incorrect",
+  "correct": false,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "85c620cbca404ef5e665986ff5ea2ec4acf01701c27cbfdbbded5d4884ed8188",
+    "text": "diff --git a/fs/ksmbd/smb2misc.c b/fs/ksmbd/smb2misc.c\nindex 66b24b480ebf..865c5259cd27 100644\n--- a/fs/ksmbd/smb2misc.c\n+++ b/fs/ksmbd/smb2misc.c\n@@ -132,8 +132,11 @@ static int smb2_get_data_area_len(unsigned int *off, unsigned int *len,\n \t\t*len = le16_to_cpu(((struct smb2_read_req *)hdr)->ReadChannelInfoLength);\n \t\tbreak;\n \tcase SMB2_WRITE:\n-\t\tif (((struct smb2_write_req *)hdr)->DataOffset) {\n-\t\t\t*off = le16_to_cpu(((struct smb2_write_req *)hdr)->DataOffset);\n+\t\tif (((struct smb2_write_req *)hdr)->DataOffset ||\n+\t\t    ((struct smb2_write_req *)hdr)->Length) {\n+\t\t\t*off = max_t(unsigned int,\n+\t\t\t\t     le16_to_cpu(((struct smb2_write_req *)hdr)->DataOffset),\n+\t\t\t\t     offsetof(struct smb2_write_req, Buffer));\n \t\t\t*len = le32_to_cpu(((struct smb2_write_req *)hdr)->Length);\n \t\t\tbreak;\n \t\t}\ndiff --git a/fs/ksmbd/smb2pdu.c b/fs/ksmbd/smb2pdu.c\nindex 53f5db40b96e..06552a67a810 100644\n--- a/fs/ksmbd/smb2pdu.c\n+++ b/fs/ksmbd/smb2pdu.c\n@@ -6471,10 +6471,8 @@ int smb2_write(struct ksmbd_work *work)\n \t\t    (offsetof(struct smb2_write_req, Buffer) - 4)) {\n \t\t\tdata_buf = (char *)&req->Buffer[0];\n \t\t} else {\n-\t\t\tif ((u64)le16_to_cpu(req->DataOffset) + length > get_rfc1002_len(req)) {\n-\t\t\t\tpr_err(\"invalid write data offset %u, smb_len %u\\n\",\n-\t\t\t\t       le16_to_cpu(req->DataOffset),\n-\t\t\t\t       get_rfc1002_len(req));\n+\t\t\tif (le16_to_cpu(req->DataOffset) <\n+\t\t\t    offsetof(struct smb2_write_req, Buffer)) {\n \t\t\t\terr = -EINVAL;\n \t\t\t\tgoto out;\n \t\t\t}\n"
+  },
+  "trace_file": "trace.jsonl"
+}

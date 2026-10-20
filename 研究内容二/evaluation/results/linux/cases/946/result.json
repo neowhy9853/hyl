@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "946",
+  "candidate_sha256": "60b7d2d4c93ca46432687b071d261d96d1ac5623ce44a0277c7e302a9c3f3590",
+  "oracle_sha256": "42d02049c07fd3bce607f9b35720fb0b34558666913648116550801d01b8bdb8",
+  "candidate_nonempty": true,
+  "target_ref": "6c2eb44188330f72c9e7efad8a64043e08f0ccef",
+  "baseline_tree": "f9d27052107e7ef193fe03e4732ccbf8366f0277",
+  "candidate_tree": "5230ff369fc841400c765421110ca96315136dcc",
+  "oracle_tree": "1d5c007fa1e6e3eec0b5969506588b84fab3a9ca",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/946",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "60b7d2d4c93ca46432687b071d261d96d1ac5623ce44a0277c7e302a9c3f3590",
+    "text": "diff --git a/Documentation/admin-guide/kernel-parameters.txt b/Documentation/admin-guide/kernel-parameters.txt\nindex 204161cee674..6fa7895885c9 100644\n--- a/Documentation/admin-guide/kernel-parameters.txt\n+++ b/Documentation/admin-guide/kernel-parameters.txt\n@@ -2389,7 +2389,7 @@\n \t\t\thttp://repo.or.cz/w/linux-2.6/mini2440.git\n \n \tmitigations=\n-\t\t\t[X86,PPC] Control optional mitigations for CPU\n+\t\t\t[X86,PPC,S390] Control optional mitigations for CPU\n \t\t\tvulnerabilities.  This is a set of curated,\n \t\t\tarch-independent options, each of which is an\n \t\t\taggregation of existing arch-specific options.\n@@ -2400,7 +2400,8 @@\n \t\t\t\texpose users to several CPU vulnerabilities.\n \t\t\t\tEquivalent to: nopti [X86,PPC]\n \t\t\t\t\t       nospectre_v1 [PPC]\n-\t\t\t\t\t       nospectre_v2 [X86,PPC]\n+\t\t\t\t\t       nobp=0 [S390]\n+\t\t\t\t\t       nospectre_v2 [X86,PPC,S390]\n \t\t\t\t\t       spectre_v2_user=off [X86]\n \t\t\t\t\t       spec_store_bypass_disable=off [X86,PPC]\n \t\t\t\t\t       l1tf=off [X86]\ndiff --git a/arch/s390/kernel/nospec-branch.c b/arch/s390/kernel/nospec-branch.c\nindex d5eed651b5ab..2b476d6db610 100644\n--- a/arch/s390/kernel/nospec-branch.c\n+++ b/arch/s390/kernel/nospec-branch.c\n@@ -1,6 +1,7 @@\n // SPDX-License-Identifier: GPL-2.0\n #include <linux/module.h>\n #include <linux/device.h>\n+#include <linux/cpu.h>\n #include <asm/facility.h>\n #include <asm/nospec-branch.h>\n \n@@ -57,7 +58,14 @@ early_param(\"nospectre_v2\", nospectre_v2_setup_early);\n \n void __init nospec_auto_detect(void)\n {\n-\tif (IS_ENABLED(CC_USING_EXPOLINE)) {\n+\tif (cpu_mitigations_off()) {\n+\t\t/*\n+\t\t * Disable expolines and disable nobp.\n+\t\t */\n+\t\tif (IS_ENABLED(CC_USING_EXPOLINE))\n+\t\t\tnospec_disable = 1;\n+\t\t__clear_facility(82, S390_lowcore.alt_stfle_fac_list);\n+\t} else if (IS_ENABLED(CC_USING_EXPOLINE)) {\n \t\t/*\n \t\t * The kernel has been compiled with expolines.\n \t\t * Keep expolines enabled and disable nobp.\n"
+  },
+  "trace_file": "trace.jsonl"
+}

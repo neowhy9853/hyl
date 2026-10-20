@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1691",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1691-6l5oseby/repo",
+      "target_ref": "fa2bdff31cbf5a6e9beb67fba5e8cd59cc9ecfae",
+      "target_tree": "de59f5782a6c17938c00797e9a198f6f4a0d8506"
+    },
+    "source_commit": "3b2f9bd867e1a288b470da440992a908c5972644",
+    "reference_parent": "3b946bf8348fd6d5be6da08938d93e76fb7a0fdf",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/net/wireless/mwifiex/sta_ioctl.c b/drivers/net/wireless/mwifiex/sta_ioctl.c\nindex 1f0f4bb263c32b70db1b5ae4d08474c29161eea7..5326a0095601f8315efc680a9375c846b28fe7e7 100644\n--- a/drivers/net/wireless/mwifiex/sta_ioctl.c\n+++ b/drivers/net/wireless/mwifiex/sta_ioctl.c\n@@ -223,6 +223,14 @@ static int mwifiex_process_country_ie(struct mwifiex_private *priv,\n \t\t\t  \"11D: skip setting domain info in FW\\n\");\n \t\treturn 0;\n \t}\n+\n+\tif (country_ie_len >\n+\t    (IEEE80211_COUNTRY_STRING_LEN + MWIFIEX_MAX_TRIPLET_802_11D)) {\n+\t\twiphy_dbg(priv->wdev->wiphy,\n+\t\t\t  \"11D: country_ie_len overflow!, deauth AP\\n\");\n+\t\treturn -EINVAL;\n+\t}\n+\n \tmemcpy(priv->adapter->country_code, &country_ie[2], 2);\n \n \tdomain_info->country_code[0] = country_ie[2];\n@@ -266,8 +274,9 @@ int mwifiex_bss_start(struct mwifiex_private *priv, struct cfg80211_bss *bss,\n \tpriv->scan_block = false;\n \n \tif (bss) {\n-\t\tif (adapter->region_code == 0x00)\n-\t\t\tmwifiex_process_country_ie(priv, bss);\n+\t\tif (adapter->region_code == 0x00 &&\n+\t\t    mwifiex_process_country_ie(priv, bss))\n+\t\t\treturn -EINVAL;\n \n \t\t/* Allocate and fill new bss descriptor */\n \t\tbss_desc = kzalloc(sizeof(struct mwifiex_bssdescriptor),\n",
+      "sha256": "92b021406905fd1581dc7c1f6faebdf797de80717f887e2ba754bab933134422"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2019-14895\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1691-6l5oseby/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1691-6l5oseby/repo/.patch-port/reference.diff\nreference_fix: 3b2f9bd867e1a288b470da440992a908c5972644\nreference_parent: 3b946bf8348fd6d5be6da08938d93e76fb7a0fdf\ntarget_ref: fa2bdff31cbf5a6e9beb67fba5e8cd59cc9ecfae\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1691-6l5oseby/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1691-6l5oseby/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2019-14895"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "cbd6a85021a38ce3071fc50f2e11b709b0add8c7",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "bf4fce61e9a65770f545b098c48fef46eaa958000ffbffade299f4affee076e5",
+      "text": "diff --git a/drivers/net/wireless/marvell/mwifiex/sta_ioctl.c b/drivers/net/wireless/marvell/mwifiex/sta_ioctl.c\nindex 74e50566db1f2711d3c35a3bc31c0f9bdb767b2c..6dd835f1efc21ae0d5145056a67244be4e0e6de9 100644\n--- a/drivers/net/wireless/marvell/mwifiex/sta_ioctl.c\n+++ b/drivers/net/wireless/marvell/mwifiex/sta_ioctl.c\n@@ -229,6 +229,14 @@ static int mwifiex_process_country_ie(struct mwifiex_private *priv,\n \t\t\t    \"11D: skip setting domain info in FW\\n\");\n \t\treturn 0;\n \t}\n+\n+\tif (country_ie_len >\n+\t    (IEEE80211_COUNTRY_STRING_LEN + MWIFIEX_MAX_TRIPLET_802_11D)) {\n+\t\tmwifiex_dbg(priv->adapter, ERROR,\n+\t\t\t    \"11D: country_ie_len overflow!, deauth AP\\n\");\n+\t\treturn -EINVAL;\n+\t}\n+\n \tmemcpy(priv->adapter->country_code, &country_ie[2], 2);\n \n \tdomain_info->country_code[0] = country_ie[2];\n@@ -272,8 +280,9 @@ int mwifiex_bss_start(struct mwifiex_private *priv, struct cfg80211_bss *bss,\n \tpriv->scan_block = false;\n \n \tif (bss) {\n-\t\tif (adapter->region_code == 0x00)\n-\t\t\tmwifiex_process_country_ie(priv, bss);\n+\t\tif (adapter->region_code == 0x00 &&\n+\t\t    mwifiex_process_country_ie(priv, bss))\n+\t\t\treturn -EINVAL;\n \n \t\t/* Allocate and fill new bss descriptor */\n \t\tbss_desc = kzalloc(sizeof(struct mwifiex_bssdescriptor),\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "231425bdec81c4c98badc9f416cb52a09960448081aa8e4a03f7adfe3bbfc6a5",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01691_CVE-2019-14895/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1691,
+      "cve": "CVE-2019-14895",
+      "source_commit": "3b2f9bd867e1a288b470da440992a908c5972644",
+      "oracle_commit": "cbd6a85021a38ce3071fc50f2e11b709b0add8c7"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

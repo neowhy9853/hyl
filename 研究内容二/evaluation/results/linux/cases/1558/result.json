@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1558",
+  "candidate_sha256": "fa8f35fc824b8b70ddd509051ad3ccadcfee801fefc0b2439a6cc54037ddedbd",
+  "oracle_sha256": "ffa84fafa32d554d3a567ba073ef9facdca2add7cbc16b181d7d85c33e010aa5",
+  "candidate_nonempty": true,
+  "target_ref": "5bc2cd75720b00ab1f02b3783cb608c5345c39a5",
+  "baseline_tree": "dbd1af3ed7853c675e0f71d52adc857198dfd8e4",
+  "candidate_tree": "b98ade2e53def5044d6b92802f66861f1eb5d08b",
+  "oracle_tree": "142056caf17e59beaed9ef9093969ff51dab7512",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1558",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "fa8f35fc824b8b70ddd509051ad3ccadcfee801fefc0b2439a6cc54037ddedbd",
+    "text": "diff --git a/net/mac80211/key.c b/net/mac80211/key.c\nindex 81e9785f38bc..0399c56a8ebc 100644\n--- a/net/mac80211/key.c\n+++ b/net/mac80211/key.c\n@@ -614,9 +614,6 @@ int ieee80211_key_link(struct ieee80211_key *key,\n \n \tpairwise = key->conf.flags & IEEE80211_KEY_FLAG_PAIRWISE;\n \tidx = key->conf.keyidx;\n-\tkey->local = sdata->local;\n-\tkey->sdata = sdata;\n-\tkey->sta = sta;\n \n \tmutex_lock(&sdata->local->key_mtx);\n \n@@ -627,6 +624,21 @@ int ieee80211_key_link(struct ieee80211_key *key,\n \telse\n \t\told_key = key_mtx_dereference(sdata->local, sdata->keys[idx]);\n \n+\t/*\n+\t * Silently accept key re-installation without really installing the\n+\t * new version of the key to avoid nonce reuse or replay issues.\n+\t */\n+\tif (old_key && key->conf.keylen == old_key->conf.keylen &&\n+\t    !memcmp(key->conf.key, old_key->conf.key, key->conf.keylen)) {\n+\t\tieee80211_key_free_unused(key);\n+\t\tret = 0;\n+\t\tgoto out;\n+\t}\n+\n+\tkey->local = sdata->local;\n+\tkey->sdata = sdata;\n+\tkey->sta = sta;\n+\n \tincrement_tailroom_need_count(sdata);\n \n \tieee80211_key_replace(sdata, sta, pairwise, old_key, key);\n@@ -642,6 +654,7 @@ int ieee80211_key_link(struct ieee80211_key *key,\n \t\tret = 0;\n \t}\n \n+ out:\n \tmutex_unlock(&sdata->local->key_mtx);\n \n \treturn ret;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

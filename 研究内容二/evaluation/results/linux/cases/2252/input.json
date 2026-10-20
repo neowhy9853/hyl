@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2252",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2252-tc774wcc/repo",
+      "target_ref": "36c676e2ed3609dc8d50ba763eee2ba4e4b493c2",
+      "target_tree": "53d2b3945991e21af1f150ec0900e95c7e104f05"
+    },
+    "source_commit": "6db22d6c7a6dc914b12c0469b94eb639b6a8a146",
+    "reference_parent": "86dc27ee36f558fe223dbdfbfcb6856247356f4a",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c\nindex 650080d5fd7276a2a634d22e981af7263342bcc4..0b47acfd6a7fcb92312fc9b1be92fb63c8d4b557 100644\n--- a/net/tls/tls_sw.c\n+++ b/net/tls/tls_sw.c\n@@ -447,7 +447,6 @@ static void tls_encrypt_done(void *data, int err)\n \tstruct tls_rec *rec = data;\n \tstruct scatterlist *sge;\n \tstruct sk_msg *msg_en;\n-\tbool ready = false;\n \tstruct sock *sk;\n \n \tmsg_en = &rec->msg_encrypted;\n@@ -483,19 +482,16 @@ static void tls_encrypt_done(void *data, int err)\n \t\t/* If received record is at head of tx_list, schedule tx */\n \t\tfirst_rec = list_first_entry(&ctx->tx_list,\n \t\t\t\t\t     struct tls_rec, list);\n-\t\tif (rec == first_rec)\n-\t\t\tready = true;\n+\t\tif (rec == first_rec) {\n+\t\t\t/* Schedule the transmission */\n+\t\t\tif (!test_and_set_bit(BIT_TX_SCHEDULED,\n+\t\t\t\t\t      &ctx->tx_bitmask))\n+\t\t\t\tschedule_delayed_work(&ctx->tx_work.work, 1);\n+\t\t}\n \t}\n \n \tif (atomic_dec_and_test(&ctx->encrypt_pending))\n \t\tcomplete(&ctx->async_wait.completion);\n-\n-\tif (!ready)\n-\t\treturn;\n-\n-\t/* Schedule the transmission */\n-\tif (!test_and_set_bit(BIT_TX_SCHEDULED, &ctx->tx_bitmask))\n-\t\tschedule_delayed_work(&ctx->tx_work.work, 1);\n }\n \n static int tls_encrypt_async_wait(struct tls_sw_context_tx *ctx)\n",
+      "sha256": "9ce9fb1818e8b30e4fe2e5c852d3913597253ba1b49770b4bfe018f7bc5156d8"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2024-26585\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2252-tc774wcc/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2252-tc774wcc/repo/.patch-port/reference.diff\nreference_fix: 6db22d6c7a6dc914b12c0469b94eb639b6a8a146\nreference_parent: 86dc27ee36f558fe223dbdfbfcb6856247356f4a\ntarget_ref: 36c676e2ed3609dc8d50ba763eee2ba4e4b493c2\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2252-tc774wcc/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2252-tc774wcc/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2024-26585"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "196f198ca6fce04ba6ce262f5a0e4d567d7d219d",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "bec75be2be35ee0ecaa000493a619e42d9522ccb2000a9a9120905df11b6271c",
+      "text": "diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c\nindex 2bd27b77769cba8ade84ce05734d35f9b37aeac5..d53587ff9ddea560a9de17c905d6570543997ff3 100644\n--- a/net/tls/tls_sw.c\n+++ b/net/tls/tls_sw.c\n@@ -449,7 +449,6 @@ static void tls_encrypt_done(crypto_completion_data_t *data, int err)\n \tstruct scatterlist *sge;\n \tstruct sk_msg *msg_en;\n \tstruct tls_rec *rec;\n-\tbool ready = false;\n \tstruct sock *sk;\n \n \trec = container_of(aead_req, struct tls_rec, aead_req);\n@@ -486,19 +485,16 @@ static void tls_encrypt_done(crypto_completion_data_t *data, int err)\n \t\t/* If received record is at head of tx_list, schedule tx */\n \t\tfirst_rec = list_first_entry(&ctx->tx_list,\n \t\t\t\t\t     struct tls_rec, list);\n-\t\tif (rec == first_rec)\n-\t\t\tready = true;\n+\t\tif (rec == first_rec) {\n+\t\t\t/* Schedule the transmission */\n+\t\t\tif (!test_and_set_bit(BIT_TX_SCHEDULED,\n+\t\t\t\t\t      &ctx->tx_bitmask))\n+\t\t\t\tschedule_delayed_work(&ctx->tx_work.work, 1);\n+\t\t}\n \t}\n \n \tif (atomic_dec_and_test(&ctx->encrypt_pending))\n \t\tcomplete(&ctx->async_wait.completion);\n-\n-\tif (!ready)\n-\t\treturn;\n-\n-\t/* Schedule the transmission */\n-\tif (!test_and_set_bit(BIT_TX_SCHEDULED, &ctx->tx_bitmask))\n-\t\tschedule_delayed_work(&ctx->tx_work.work, 1);\n }\n \n static int tls_encrypt_async_wait(struct tls_sw_context_tx *ctx)\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "d5e2bebdc3f4e4dd3934e12b9021de81c11b14a63f38eaeff736ef77a1755f44",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/02252_CVE-2024-26585/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2252,
+      "cve": "CVE-2024-26585",
+      "source_commit": "6db22d6c7a6dc914b12c0469b94eb639b6a8a146",
+      "oracle_commit": "196f198ca6fce04ba6ce262f5a0e4d567d7d219d"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

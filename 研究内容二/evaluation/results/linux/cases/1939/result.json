@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1939",
+  "candidate_sha256": "2a147f3564a4696ad78602ead3524aeae9390df9d2f7b1ac14de37b5a4830c4c",
+  "oracle_sha256": "c6799295b08eef0e6d9162ff88139a7d78c32ebc83d8375f6488afd615c02bb7",
+  "candidate_nonempty": true,
+  "target_ref": "56941bb6400ca6ed0fdcaaa1f8c8183234bf199c",
+  "baseline_tree": "2e513a05c0605533e0daf36e25b570d73fcc261a",
+  "candidate_tree": "68f85d4925fbd6f75cc7adf124482da5afb52007",
+  "oracle_tree": "68f85d4925fbd6f75cc7adf124482da5afb52007",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1939",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "2a147f3564a4696ad78602ead3524aeae9390df9d2f7b1ac14de37b5a4830c4c",
+    "text": "diff --git a/fs/proc/base.c b/fs/proc/base.c\nindex 5b8d840cf2b4..bd8c26a409a7 100644\n--- a/fs/proc/base.c\n+++ b/fs/proc/base.c\n@@ -254,7 +254,7 @@ static ssize_t proc_pid_cmdline_read(struct file *file, char __user *buf,\n \t * Inherently racy -- command line shares address space\n \t * with code and data.\n \t */\n-\trv = access_remote_vm(mm, arg_end - 1, &c, 1, 0);\n+\trv = access_remote_vm(mm, arg_end - 1, &c, 1, FOLL_ANON);\n \tif (rv <= 0)\n \t\tgoto out_free_page;\n \n@@ -272,7 +272,7 @@ static ssize_t proc_pid_cmdline_read(struct file *file, char __user *buf,\n \t\t\tint nr_read;\n \n \t\t\t_count = min3(count, len, PAGE_SIZE);\n-\t\t\tnr_read = access_remote_vm(mm, p, page, _count, 0);\n+\t\t\tnr_read = access_remote_vm(mm, p, page, _count, FOLL_ANON);\n \t\t\tif (nr_read < 0)\n \t\t\t\trv = nr_read;\n \t\t\tif (nr_read <= 0)\n@@ -307,7 +307,7 @@ static ssize_t proc_pid_cmdline_read(struct file *file, char __user *buf,\n \t\t\tbool final;\n \n \t\t\t_count = min3(count, len, PAGE_SIZE);\n-\t\t\tnr_read = access_remote_vm(mm, p, page, _count, 0);\n+\t\t\tnr_read = access_remote_vm(mm, p, page, _count, FOLL_ANON);\n \t\t\tif (nr_read < 0)\n \t\t\t\trv = nr_read;\n \t\t\tif (nr_read <= 0)\n@@ -356,7 +356,7 @@ skip_argv:\n \t\t\tbool final;\n \n \t\t\t_count = min3(count, len, PAGE_SIZE);\n-\t\t\tnr_read = access_remote_vm(mm, p, page, _count, 0);\n+\t\t\tnr_read = access_remote_vm(mm, p, page, _count, FOLL_ANON);\n \t\t\tif (nr_read < 0)\n \t\t\t\trv = nr_read;\n \t\t\tif (nr_read <= 0)\n@@ -1006,7 +1006,7 @@ static ssize_t environ_read(struct file *file, char __user *buf,\n \t\tmax_len = min_t(size_t, PAGE_SIZE, count);\n \t\tthis_len = min(max_len, this_len);\n \n-\t\tretval = access_remote_vm(mm, (env_start + src), page, this_len, 0);\n+\t\tretval = access_remote_vm(mm, (env_start + src), page, this_len, FOLL_ANON);\n \n \t\tif (retval <= 0) {\n \t\t\tret = retval;\ndiff --git a/include/linux/mm.h b/include/linux/mm.h\nindex 9a0716e900b5..251adf4d8a71 100644\n--- a/include/linux/mm.h\n+++ b/include/linux/mm.h\n@@ -2120,6 +2120,7 @@ static inline struct page *follow_page(struct vm_area_struct *vma,\n #define FOLL_TRIED\t0x800\t/* a retry, previous pass started an IO */\n #define FOLL_MLOCK\t0x1000\t/* lock present pages */\n #define FOLL_COW\t0x4000\t/* internal GUP flag */\n+#define FOLL_ANON\t0x8000\t/* don't do file mappings */\n \n typedef int (*pte_fn_t)(pte_t *pte, pgtable_t token, unsigned long addr,\n \t\t\tvoid *data);\ndiff --git a/mm/gup.c b/mm/gup.c\nindex 2370e2417d61..2cd3b31e3666 100644\n--- a/mm/gup.c\n+++ b/mm/gup.c\n@@ -368,6 +368,9 @@ static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)\n \tif (vm_flags & (VM_IO | VM_PFNMAP))\n \t\treturn -EFAULT;\n \n+\tif (gup_flags & FOLL_ANON && !vma_is_anonymous(vma))\n+\t\treturn -EFAULT;\n+\n \tif (gup_flags & FOLL_WRITE) {\n \t\tif (!(vm_flags & VM_WRITE)) {\n \t\t\tif (!(gup_flags & FOLL_FORCE))\n"
+  },
+  "trace_file": "trace.jsonl"
+}

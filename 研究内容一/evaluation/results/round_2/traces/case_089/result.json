@@ -1,0 +1,44 @@
+{
+  "round": 2,
+  "case_id": "case_089",
+  "source_index": 88,
+  "repo": "kernel",
+  "commit_id": "dae5900dbb636693319a661d365ca95d6e45d281",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "d5dc4c145492",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.95,
+    "reason": "修正了 max3100 驱动在移除最后一个设备后未更新全局状态变量，导致后续重新加载时内核空指针解引用的问题。",
+    "intent_items": [
+      {
+        "target": "max3100 驱动的 probe 和 remove 函数中的全局变量 uart_driver_registered",
+        "change": "将 uart_driver_registered = 1 的赋值移到 uart_register_driver() 成功之后，并在 remove 函数中将其清零",
+        "effect_or_reason": "防止在 insmod-rmmod-insmod 循环中，由于状态变量未及时更新，导致内核在 serial_core_register_port 中发生空指针解引用",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交前，最后一个设备移除后 uart_driver_registered 仍为 1，导致后续 probe 时认为驱动已注册，从而引发空指针解引用",
+            "提交后，在 remove 路径中将其清零，并在 probe 中仅在注册成功后赋值，纠正了错误状态"
+          ],
+          "message_only_details": [
+            "错误表现为内核 oops，RIP 指向 serial_core_register_port+0xa0/0x840"
+          ],
+          "code_only_details": []
+        },
+        "evidence": [
+          "patch 显示在 max3100_remove 中添加了 uart_driver_registered = 0;，并在 max3100_probe 中将赋值移到 uart_register_driver 成功之后"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_089",
+  "trace_status": "available"
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "207",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-207-91qaxcn2/repo",
+      "target_ref": "28a8060a0bd2c636788d248d722a67a306dd0189",
+      "target_tree": "0b3b4bcb8a81dcc15b73245da6962962b9d3606a"
+    },
+    "source_commit": "f692bcffd1f2ce5488d24fbcb8eab5f351abf79d",
+    "reference_parent": "f55c75cf73c0854c8b24bbc97a45d78e786cd8dc",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c\nindex 2feb88ffcd81fcc791becaba947b96ad2f445902..91865dc2bcbb89809000d4151e02a273b01be3ba 100644\n--- a/net/netfilter/nf_tables_api.c\n+++ b/net/netfilter/nf_tables_api.c\n@@ -2778,27 +2778,31 @@ static struct nft_expr *nft_expr_init(const struct nft_ctx *ctx,\n \n \terr = nf_tables_expr_parse(ctx, nla, &expr_info);\n \tif (err < 0)\n-\t\tgoto err1;\n+\t\tgoto err_expr_parse;\n+\n+\terr = -EOPNOTSUPP;\n+\tif (!(expr_info.ops->type->flags & NFT_EXPR_STATEFUL))\n+\t\tgoto err_expr_stateful;\n \n \terr = -ENOMEM;\n \texpr = kzalloc(expr_info.ops->size, GFP_KERNEL);\n \tif (expr == NULL)\n-\t\tgoto err2;\n+\t\tgoto err_expr_stateful;\n \n \terr = nf_tables_newexpr(ctx, &expr_info, expr);\n \tif (err < 0)\n-\t\tgoto err3;\n+\t\tgoto err_expr_new;\n \n \treturn expr;\n-err3:\n+err_expr_new:\n \tkfree(expr);\n-err2:\n+err_expr_stateful:\n \towner = expr_info.ops->type->owner;\n \tif (expr_info.ops->type->release_ops)\n \t\texpr_info.ops->type->release_ops(expr_info.ops);\n \n \tmodule_put(owner);\n-err1:\n+err_expr_parse:\n \treturn ERR_PTR(err);\n }\n \n@@ -5318,9 +5322,6 @@ struct nft_expr *nft_set_elem_expr_alloc(const struct nft_ctx *ctx,\n \t\treturn expr;\n \n \terr = -EOPNOTSUPP;\n-\tif (!(expr->ops->type->flags & NFT_EXPR_STATEFUL))\n-\t\tgoto err_set_elem_expr;\n-\n \tif (expr->ops->type->flags & NFT_EXPR_GC) {\n \t\tif (set->flags & NFT_SET_TIMEOUT)\n \t\t\tgoto err_set_elem_expr;\n",
+      "sha256": "ab7ccd15a4116bf3ef27e7a08b4fa4a9e9cfeb6b592b4b327577aba4d0f39584"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2022-1966\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-207-91qaxcn2/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-207-91qaxcn2/repo/.patch-port/reference.diff\nreference_fix: f692bcffd1f2ce5488d24fbcb8eab5f351abf79d\nreference_parent: f55c75cf73c0854c8b24bbc97a45d78e786cd8dc\ntarget_ref: 28a8060a0bd2c636788d248d722a67a306dd0189\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-207-91qaxcn2/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-207-91qaxcn2/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2022-1966"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "f36736fbd48491a8d85cd22f4740d542c5a1546e",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "b978182342cc79909e92e3cf159c5c8e21bd18627e6908d12a6e3afc30c6af21",
+      "text": "diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c\nindex 545da270e802061873845ee850a21f5ba4aba44d..b51c192105fc3be6577a0cf7837daffab2885753 100644\n--- a/net/netfilter/nf_tables_api.c\n+++ b/net/netfilter/nf_tables_api.c\n@@ -2267,27 +2267,31 @@ struct nft_expr *nft_expr_init(const struct nft_ctx *ctx,\n \n \terr = nf_tables_expr_parse(ctx, nla, &info);\n \tif (err < 0)\n-\t\tgoto err1;\n+\t\tgoto err_expr_parse;\n+\n+\terr = -EOPNOTSUPP;\n+\tif (!(info.ops->type->flags & NFT_EXPR_STATEFUL))\n+\t\tgoto err_expr_stateful;\n \n \terr = -ENOMEM;\n \texpr = kzalloc(info.ops->size, GFP_KERNEL);\n \tif (expr == NULL)\n-\t\tgoto err2;\n+\t\tgoto err_expr_stateful;\n \n \terr = nf_tables_newexpr(ctx, &info, expr);\n \tif (err < 0)\n-\t\tgoto err3;\n+\t\tgoto err_expr_new;\n \n \treturn expr;\n-err3:\n+err_expr_new:\n \tkfree(expr);\n-err2:\n+err_expr_stateful:\n \towner = info.ops->type->owner;\n \tif (info.ops->type->release_ops)\n \t\tinfo.ops->type->release_ops(info.ops);\n \n \tmodule_put(owner);\n-err1:\n+err_expr_parse:\n \treturn ERR_PTR(err);\n }\n \ndiff --git a/net/netfilter/nft_dynset.c b/net/netfilter/nft_dynset.c\nindex 6fdea0e57db8a61bd3cab14ebda0dd4dd0bb10c6..6bcc18124e5bd1896a395715314b7f6a1636d706 100644\n--- a/net/netfilter/nft_dynset.c\n+++ b/net/netfilter/nft_dynset.c\n@@ -204,9 +204,6 @@ static int nft_dynset_init(const struct nft_ctx *ctx,\n \t\t\treturn PTR_ERR(priv->expr);\n \n \t\terr = -EOPNOTSUPP;\n-\t\tif (!(priv->expr->ops->type->flags & NFT_EXPR_STATEFUL))\n-\t\t\tgoto err1;\n-\n \t\tif (priv->expr->ops->type->flags & NFT_EXPR_GC) {\n \t\t\tif (set->flags & NFT_SET_TIMEOUT)\n \t\t\t\tgoto err1;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "1a6baa15aac735966e531315ab76d21b249c61f3beb0757ad64a2f29c3a49191",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/00207_CVE-2022-1966/reference.diff",
+    "source_dataset_record": {
+      "case_id": 207,
+      "cve": "CVE-2022-1966",
+      "source_commit": "f692bcffd1f2ce5488d24fbcb8eab5f351abf79d",
+      "oracle_commit": "f36736fbd48491a8d85cd22f4740d542c5a1546e"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

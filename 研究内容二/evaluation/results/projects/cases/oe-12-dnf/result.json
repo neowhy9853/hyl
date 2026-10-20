@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-12-dnf",
+  "candidate_sha256": "2b0e51553e5e0aa49fddd72b6a5e91d6f3b3b669cc4ae5ac3dc2a0017508d06e",
+  "oracle_sha256": "73349ac048fc9cdd8a04e42d1bb48ab8463c4a862495844fd06444c1e90d58e0",
+  "candidate_nonempty": true,
+  "target_ref": "4ef5cb4a910f7be0321fb20fbe13148f966e5165",
+  "baseline_tree": "0022cdea5e4ef2086d02de8836f39f3a5a2a37ad",
+  "candidate_tree": "912e3faa3a4cfc1154a83dbf6c0f6f577bbb72c6",
+  "oracle_tree": "829f2b1f564b71188e99a7151d7e3e7b5e0ab806",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-12-dnf",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "2b0e51553e5e0aa49fddd72b6a5e91d6f3b3b669cc4ae5ac3dc2a0017508d06e",
+    "text": "diff --git a/dnf/base.py b/dnf/base.py\nindex 114beb9a..c08ff22c 100644\n--- a/dnf/base.py\n+++ b/dnf/base.py\n@@ -2046,9 +2046,14 @@ class Base(object):\n     def install(self, pkg_spec, reponame=None, strict=True, forms=None):\n         # :api\n         \"\"\"Mark package(s) given by pkg_spec and reponame for installation.\"\"\"\n+        kwargs = {'forms': forms, 'with_src': False}\n+        if forms:\n+            kwargs['with_nevra'] = True\n+            kwargs['with_provides'] = False\n+            kwargs['with_filenames'] = False\n \n         subj = dnf.subject.Subject(pkg_spec)\n-        solution = subj.get_best_solution(self.sack, forms=forms, with_src=False)\n+        solution = subj.get_best_solution(self.sack, **kwargs)\n \n         if self.conf.multilib_policy == \"all\" or subj._is_arch_specified(solution):\n             q = solution['query']\n@@ -2288,8 +2293,13 @@ class Base(object):\n     def remove(self, pkg_spec, reponame=None, forms=None):\n         # :api\n         \"\"\"Mark the specified package for removal.\"\"\"\n+        kwargs = {'forms': forms}\n+        if forms:\n+            kwargs['with_nevra'] = True\n+            kwargs['with_provides'] = False\n+            kwargs['with_filenames'] = False\n \n-        matches = dnf.subject.Subject(pkg_spec).get_best_query(self.sack, forms=forms)\n+        matches = dnf.subject.Subject(pkg_spec).get_best_query(self.sack, **kwargs)\n         installed = [\n             pkg for pkg in matches.installed()\n             if reponame is None or\ndiff --git a/dnf/cli/commands/repoquery.py b/dnf/cli/commands/repoquery.py\nindex 4a5bda3f..a6af13a2 100644\n--- a/dnf/cli/commands/repoquery.py\n+++ b/dnf/cli/commands/repoquery.py\n@@ -458,9 +458,10 @@ class RepoQueryCommand(commands.Command):\n         if self.opts.key:\n             remote_packages = self._add_add_remote_packages()\n \n-            kwark = {}\n+            kwark = {'with_provides': False}\n             if self.opts.command in self.nevra_forms:\n                 kwark[\"forms\"] = [self.nevra_forms[self.opts.command]]\n+                kwark['with_filenames'] = False\n             pkgs = []\n             query_results = q.filter(empty=True)\n \n@@ -471,7 +472,7 @@ class RepoQueryCommand(commands.Command):\n             for key in self.opts.key:\n                 query_results = query_results.union(\n                     dnf.subject.Subject(key, ignore_case=True).get_best_query(\n-                        self.base.sack, with_provides=False, query=q, **kwark))\n+                        self.base.sack, query=q, **kwark))\n             q = query_results\n \n         if self.opts.recent:\n"
+  },
+  "trace_file": "trace.jsonl"
+}

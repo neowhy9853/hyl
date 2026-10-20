@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "226",
+  "candidate_sha256": "903a529aa27189e6a29043c4c9e059e2a0f9db092c4f2a93af8f061159237649",
+  "oracle_sha256": "175dee4fc1699c179604f9557361765d1bc5bc223181579be1289bc765101df8",
+  "candidate_nonempty": true,
+  "target_ref": "a7fd3ecd250f76407d0ff3a1454d02994909c7fc",
+  "baseline_tree": "b0ec00b632cf8b23a124de86aeacce3b5f2d7f09",
+  "candidate_tree": "905af6a30ab36ac47cc768bef7c9c6e680f40c21",
+  "oracle_tree": "75fc75a124af1c09b3884835e4ff5fe5e51ee87b",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/226",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "903a529aa27189e6a29043c4c9e059e2a0f9db092c4f2a93af8f061159237649",
+    "text": "diff --git a/drivers/staging/android/binder.c b/drivers/staging/android/binder.c\nindex 06fbf0b0a3cb..93870339e7df 100644\n--- a/drivers/staging/android/binder.c\n+++ b/drivers/staging/android/binder.c\n@@ -329,7 +329,8 @@ enum {\n \tBINDER_LOOPER_STATE_EXITED      = 0x04,\n \tBINDER_LOOPER_STATE_INVALID     = 0x08,\n \tBINDER_LOOPER_STATE_WAITING     = 0x10,\n-\tBINDER_LOOPER_STATE_NEED_RETURN = 0x20\n+\tBINDER_LOOPER_STATE_NEED_RETURN = 0x20,\n+\tBINDER_LOOPER_STATE_POLL        = 0x40\n };\n \n struct binder_thread {\n@@ -2554,6 +2555,18 @@ static int binder_free_thread(struct binder_proc *proc,\n \t\t} else\n \t\t\tBUG();\n \t}\n+\n+\t/*\n+\t * If this thread used poll, make sure we remove the waitqueue\n+\t * from any epoll data structures holding it with POLLFREE.\n+\t * waitqueue_active() is safe to use here because we're holding\n+\t * the binder lock.\n+\t */\n+\tif ((thread->looper & BINDER_LOOPER_STATE_POLL) &&\n+\t    waitqueue_active(&thread->wait)) {\n+\t\twake_up_poll(&thread->wait, POLLHUP | POLLFREE);\n+\t}\n+\n \tif (send_reply)\n \t\tbinder_send_failed_reply(send_reply, BR_DEAD_REPLY);\n \tbinder_release_work(&thread->todo);\n@@ -2577,6 +2590,8 @@ static unsigned int binder_poll(struct file *filp,\n \t\treturn POLLERR;\n \t}\n \n+\tthread->looper |= BINDER_LOOPER_STATE_POLL;\n+\n \twait_for_proc_work = thread->transaction_stack == NULL &&\n \t\tlist_empty(&thread->todo) && thread->return_error == BR_OK;\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

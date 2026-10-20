@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1248",
+  "candidate_sha256": "d5dc5a2dc4d463ebb6886d8a143b4e8b6530fe60c3651768d0cb88fed9a28be1",
+  "oracle_sha256": "e40b7706d1b303f42bf7f4ddcc7148cc878e33971e21d29ef81eaf2cc3a2978d",
+  "candidate_nonempty": true,
+  "target_ref": "f4ff3798123585c9c7dd48ab7ef169fb505e0774",
+  "baseline_tree": "35c9abbf6a3793140fcdb510a70e99af39a8c84f",
+  "candidate_tree": "bc8963ad05c4c7e2018244b31059bd602720689e",
+  "oracle_tree": "65b753c2e5868d1e356a85120e681cbd0a29ca98",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1248",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "d5dc5a2dc4d463ebb6886d8a143b4e8b6530fe60c3651768d0cb88fed9a28be1",
+    "text": "diff --git a/fs/f2fs/f2fs.h b/fs/f2fs/f2fs.h\nindex 62b7848f1f71..83ebc860508b 100644\n--- a/fs/f2fs/f2fs.h\n+++ b/fs/f2fs/f2fs.h\n@@ -3483,7 +3483,7 @@ block_t f2fs_start_bidx_of_node(unsigned int node_ofs, struct inode *inode);\n int f2fs_gc(struct f2fs_sb_info *sbi, bool sync, bool background, bool force,\n \t\t\tunsigned int segno);\n void f2fs_build_gc_manager(struct f2fs_sb_info *sbi);\n-int f2fs_resize_fs(struct f2fs_sb_info *sbi, __u64 block_count);\n+int f2fs_resize_fs(struct file *filp, __u64 block_count);\n int __init f2fs_create_garbage_collection_cache(void);\n void f2fs_destroy_garbage_collection_cache(void);\n \ndiff --git a/fs/f2fs/file.c b/fs/f2fs/file.c\nindex a0d8aa52b696..6e91be5b8c30 100644\n--- a/fs/f2fs/file.c\n+++ b/fs/f2fs/file.c\n@@ -3356,7 +3356,7 @@ static int f2fs_ioc_resize_fs(struct file *filp, unsigned long arg)\n \t\t\t   sizeof(block_count)))\n \t\treturn -EFAULT;\n \n-\treturn f2fs_resize_fs(sbi, block_count);\n+\treturn f2fs_resize_fs(filp, block_count);\n }\n \n static int f2fs_ioc_enable_verity(struct file *filp, unsigned long arg)\ndiff --git a/fs/f2fs/gc.c b/fs/f2fs/gc.c\nindex 66ac048cc899..342a735ff05f 100644\n--- a/fs/f2fs/gc.c\n+++ b/fs/f2fs/gc.c\n@@ -6,6 +6,7 @@\n  *             http://www.samsung.com/\n  */\n #include <linux/fs.h>\n+#include <linux/mount.h>\n #include <linux/module.h>\n #include <linux/backing-dev.h>\n #include <linux/init.h>\n@@ -1976,8 +1977,9 @@ static void update_fs_metadata(struct f2fs_sb_info *sbi, int secs)\n \t}\n }\n \n-int f2fs_resize_fs(struct f2fs_sb_info *sbi, __u64 block_count)\n+int f2fs_resize_fs(struct file *filp, __u64 block_count)\n {\n+\tstruct f2fs_sb_info *sbi = F2FS_I_SB(file_inode(filp));\n \t__u64 old_block_count, shrunk_blocks;\n \tstruct cp_control cpc = { CP_RESIZE, 0, 0, 0 };\n \tunsigned int secs;\n@@ -2015,12 +2017,18 @@ int f2fs_resize_fs(struct f2fs_sb_info *sbi, __u64 block_count)\n \t\treturn -EINVAL;\n \t}\n \n+\terr = mnt_want_write_file(filp);\n+\tif (err)\n+\t\treturn err;\n+\n \tshrunk_blocks = old_block_count - block_count;\n \tsecs = div_u64(shrunk_blocks, BLKS_PER_SEC(sbi));\n \n \t/* stop other GC */\n-\tif (!down_write_trylock(&sbi->gc_lock))\n-\t\treturn -EAGAIN;\n+\tif (!down_write_trylock(&sbi->gc_lock)) {\n+\t\terr = -EAGAIN;\n+\t\tgoto out_drop_write;\n+\t}\n \n \t/* stop CP to protect MAIN_SEC in free_segment_range */\n \tf2fs_lock_op(sbi);\n@@ -2040,10 +2048,18 @@ int f2fs_resize_fs(struct f2fs_sb_info *sbi, __u64 block_count)\n out_unlock:\n \tf2fs_unlock_op(sbi);\n \tup_write(&sbi->gc_lock);\n+out_drop_write:\n+\tmnt_drop_write_file(filp);\n \tif (err)\n \t\treturn err;\n \n \tfreeze_super(sbi->sb);\n+\n+\tif (f2fs_readonly(sbi->sb)) {\n+\t\tthaw_super(sbi->sb);\n+\t\treturn -EROFS;\n+\t}\n+\n \tdown_write(&sbi->gc_lock);\n \tmutex_lock(&sbi->cp_mutex);\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

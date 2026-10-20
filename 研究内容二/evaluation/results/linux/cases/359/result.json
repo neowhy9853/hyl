@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "359",
+  "candidate_sha256": "23c2702362b42eb8af66af882e5a2c7ff8ff9ebafbd0ccd312cd581be7828e46",
+  "oracle_sha256": "01121b0db3f2cd77806e180f3bdb856f4b4cd2a8a560209e6d97924976dcb5de",
+  "candidate_nonempty": true,
+  "target_ref": "e48f3c144e9ea1133fb5747deeb76ef4c3582322",
+  "baseline_tree": "32c90cc7709b0f01b63737422ab68f10ed3fd341",
+  "candidate_tree": "fd309665405cdfa441ae65ec385dbfa6f8ff0708",
+  "oracle_tree": "fd309665405cdfa441ae65ec385dbfa6f8ff0708",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/359",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "23c2702362b42eb8af66af882e5a2c7ff8ff9ebafbd0ccd312cd581be7828e46",
+    "text": "diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c\nindex 4baab231292f..7e6094b0308b 100644\n--- a/arch/x86/kvm/x86.c\n+++ b/arch/x86/kvm/x86.c\n@@ -3920,7 +3920,7 @@ static int vcpu_mmio_read(struct kvm_vcpu *vcpu, gpa_t addr, int len, void *v)\n \t\t      !kvm_iodevice_read(&vcpu->arch.apic->dev, addr, n, v))\n \t\t    && kvm_io_bus_read(vcpu->kvm, KVM_MMIO_BUS, addr, n, v))\n \t\t\tbreak;\n-\t\ttrace_kvm_mmio(KVM_TRACE_MMIO_READ, n, addr, *(u64 *)v);\n+\t\ttrace_kvm_mmio(KVM_TRACE_MMIO_READ, n, addr, v);\n \t\thandled += n;\n \t\taddr += n;\n \t\tlen -= n;\n@@ -4152,7 +4152,7 @@ static int read_prepare(struct kvm_vcpu *vcpu, void *val, int bytes)\n \tif (vcpu->mmio_read_completed) {\n \t\tmemcpy(val, vcpu->mmio_data, bytes);\n \t\ttrace_kvm_mmio(KVM_TRACE_MMIO_READ, bytes,\n-\t\t\t       vcpu->mmio_phys_addr, *(u64 *)val);\n+\t\t\t       vcpu->mmio_phys_addr, val);\n \t\tvcpu->mmio_read_completed = 0;\n \t\treturn 1;\n \t}\n@@ -4174,14 +4174,14 @@ static int write_emulate(struct kvm_vcpu *vcpu, gpa_t gpa,\n \n static int write_mmio(struct kvm_vcpu *vcpu, gpa_t gpa, int bytes, void *val)\n {\n-\ttrace_kvm_mmio(KVM_TRACE_MMIO_WRITE, bytes, gpa, *(u64 *)val);\n+\ttrace_kvm_mmio(KVM_TRACE_MMIO_WRITE, bytes, gpa, val);\n \treturn vcpu_mmio_write(vcpu, gpa, bytes, val);\n }\n \n static int read_exit_mmio(struct kvm_vcpu *vcpu, gpa_t gpa,\n \t\t\t  void *val, int bytes)\n {\n-\ttrace_kvm_mmio(KVM_TRACE_MMIO_READ_UNSATISFIED, bytes, gpa, 0);\n+\ttrace_kvm_mmio(KVM_TRACE_MMIO_READ_UNSATISFIED, bytes, gpa, NULL);\n \treturn X86EMUL_IO_NEEDED;\n }\n \ndiff --git a/include/trace/events/kvm.h b/include/trace/events/kvm.h\nindex 46e3cd8e197a..215a904f5e41 100644\n--- a/include/trace/events/kvm.h\n+++ b/include/trace/events/kvm.h\n@@ -152,7 +152,7 @@ TRACE_EVENT(kvm_ack_irq,\n \t{ KVM_TRACE_MMIO_WRITE, \"write\" }\n \n TRACE_EVENT(kvm_mmio,\n-\tTP_PROTO(int type, int len, u64 gpa, u64 val),\n+\tTP_PROTO(int type, int len, u64 gpa, void *val),\n \tTP_ARGS(type, len, gpa, val),\n \n \tTP_STRUCT__entry(\n@@ -166,7 +166,10 @@ TRACE_EVENT(kvm_mmio,\n \t\t__entry->type\t\t= type;\n \t\t__entry->len\t\t= len;\n \t\t__entry->gpa\t\t= gpa;\n-\t\t__entry->val\t\t= val;\n+\t\t__entry->val\t\t= 0;\n+\t\tif (val)\n+\t\t\tmemcpy(&__entry->val, val,\n+\t\t\t       min_t(u32, sizeof(__entry->val), len));\n \t),\n \n \tTP_printk(\"mmio %s len %u gpa 0x%llx val 0x%llx\",\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-56-ruby",
+  "task_input": {
+    "repository": {
+      "name": "ruby",
+      "version": "3.2.2",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "1a8931fcfbd13b6fc8aa6331e7a00b1a999c2273",
+      "target_tree": "47538bbd1aaf4cf8fe9d7503378674acf98899b1"
+    },
+    "source_commit": "d5dbada8a2127d9b6b670dd891eabbb63c48268f",
+    "reference_parent": "0a2238d509c158fb5539c0d7dd42d8e3faec6ead",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From d5dbada8a2127d9b6b670dd891eabbb63c48268f Mon Sep 17 00:00:00 2001\nFrom: Hiroshi SHIBATA <hsbt@ruby-lang.org>\nDate: Thu, 21 Mar 2024 15:39:09 +0900\nSubject: [PATCH] Merge RDoc-6.5.1.1\n\n---\n lib/rdoc/store.rb   | 45 ++++++++++++++++++++++++++-------------------\n lib/rdoc/version.rb |  2 +-\n 2 files changed, 27 insertions(+), 20 deletions(-)\n\ndiff --git a/lib/rdoc/store.rb b/lib/rdoc/store.rb\nindex 9fc540d317..c793e49ed8 100644\n--- a/lib/rdoc/store.rb\n+++ b/lib/rdoc/store.rb\n@@ -556,9 +556,7 @@ class RDoc::Store\n   def load_cache\n     #orig_enc = @encoding\n \n-    File.open cache_path, 'rb' do |io|\n-      @cache = Marshal.load io\n-    end\n+    @cache = marshal_load(cache_path)\n \n     load_enc = @cache[:encoding]\n \n@@ -615,9 +613,7 @@ class RDoc::Store\n   def load_class_data klass_name\n     file = class_file klass_name\n \n-    File.open file, 'rb' do |io|\n-      Marshal.load io\n-    end\n+    marshal_load(file)\n   rescue Errno::ENOENT => e\n     error = MissingFileError.new(self, file, klass_name)\n     error.set_backtrace e.backtrace\n@@ -630,14 +626,10 @@ class RDoc::Store\n   def load_method klass_name, method_name\n     file = method_file klass_name, method_name\n \n-    File.open file, 'rb' do |io|\n-      obj = Marshal.load io\n-      obj.store = self\n-      obj.parent =\n-        find_class_or_module(klass_name) || load_class(klass_name) unless\n-          obj.parent\n-      obj\n-    end\n+    obj = marshal_load(file)\n+    obj.store = self\n+    obj.parent ||= find_class_or_module(klass_name) || load_class(klass_name)\n+    obj\n   rescue Errno::ENOENT => e\n     error = MissingFileError.new(self, file, klass_name + method_name)\n     error.set_backtrace e.backtrace\n@@ -650,11 +642,9 @@ class RDoc::Store\n   def load_page page_name\n     file = page_file page_name\n \n-    File.open file, 'rb' do |io|\n-      obj = Marshal.load io\n-      obj.store = self\n-      obj\n-    end\n+    obj = marshal_load(file)\n+    obj.store = self\n+    obj\n   rescue Errno::ENOENT => e\n     error = MissingFileError.new(self, file, page_name)\n     error.set_backtrace e.backtrace\n@@ -976,4 +966,21 @@ class RDoc::Store\n     @unique_modules\n   end\n \n+  private\n+  def marshal_load(file)\n+    File.open(file, 'rb') {|io| Marshal.load(io, MarshalFilter)}\n+  end\n+\n+  MarshalFilter = proc do |obj|\n+    case obj\n+    when true, false, nil, Array, Class, Encoding, Hash, Integer, String, Symbol, RDoc::Text\n+    else\n+      unless obj.class.name.start_with?(\"RDoc::\")\n+        raise TypeError, \"not permitted class: #{obj.class.name}\"\n+      end\n+    end\n+    obj\n+  end\n+  private_constant :MarshalFilter\n+\n end\ndiff --git a/lib/rdoc/version.rb b/lib/rdoc/version.rb\nindex 04322a1970..31c1aa0276 100644\n--- a/lib/rdoc/version.rb\n+++ b/lib/rdoc/version.rb\n@@ -5,6 +5,6 @@ module RDoc\n   ##\n   # RDoc version you are using\n \n-  VERSION = '6.5.0'\n+  VERSION = '6.5.1.1'\n \n end\n-- \n2.25.1\n\n",
+      "sha256": "18f11f85233a7274dd31b92a8bcd825d9fb494eda0ca354f36c4e56636300ae5"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for ruby.\ncase_id: oe-56-ruby\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: d5dbada8a2127d9b6b670dd891eabbb63c48268f\nreference_parent: 0a2238d509c158fb5539c0d7dd42d8e3faec6ead\ntarget_ref: 1a8931fcfbd13b6fc8aa6331e7a00b1a999c2273\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "4e18208b3540a88a411bdc2b4958ec614f0347e0c8acf5685ce16c24a12fa750",
+      "text": "From d5dbada8a2127d9b6b670dd891eabbb63c48268f Mon Sep 17 00:00:00 2001\nFrom: Hiroshi SHIBATA <hsbt@ruby-lang.org>\nDate: Thu, 21 Mar 2024 15:39:09 +0900\nSubject: [PATCH] Merge RDoc-6.5.1.1\n\n---\n lib/rdoc/store.rb   | 45 ++++++++++++++++++++++++++-------------------\n 1 files changed, 26 insertions(+), 19 deletions(-)\n\ndiff --git a/lib/rdoc/store.rb b/lib/rdoc/store.rb\nindex 9fc540d3172bd2..c793e49ed845ed 100644\n--- a/lib/rdoc/store.rb\n+++ b/lib/rdoc/store.rb\n@@ -556,9 +556,7 @@ def load_all\n   def load_cache\n     #orig_enc = @encoding\n \n-    File.open cache_path, 'rb' do |io|\n-      @cache = Marshal.load io\n-    end\n+    @cache = marshal_load(cache_path)\n \n     load_enc = @cache[:encoding]\n \n@@ -615,9 +613,7 @@ def load_class klass_name\n   def load_class_data klass_name\n     file = class_file klass_name\n \n-    File.open file, 'rb' do |io|\n-      Marshal.load io\n-    end\n+    marshal_load(file)\n   rescue Errno::ENOENT => e\n     error = MissingFileError.new(self, file, klass_name)\n     error.set_backtrace e.backtrace\n@@ -630,14 +626,10 @@ def load_class_data klass_name\n   def load_method klass_name, method_name\n     file = method_file klass_name, method_name\n \n-    File.open file, 'rb' do |io|\n-      obj = Marshal.load io\n-      obj.store = self\n-      obj.parent =\n-        find_class_or_module(klass_name) || load_class(klass_name) unless\n-          obj.parent\n-      obj\n-    end\n+    obj = marshal_load(file)\n+    obj.store = self\n+    obj.parent ||= find_class_or_module(klass_name) || load_class(klass_name)\n+    obj\n   rescue Errno::ENOENT => e\n     error = MissingFileError.new(self, file, klass_name + method_name)\n     error.set_backtrace e.backtrace\n@@ -650,11 +642,9 @@ def load_method klass_name, method_name\n   def load_page page_name\n     file = page_file page_name\n \n-    File.open file, 'rb' do |io|\n-      obj = Marshal.load io\n-      obj.store = self\n-      obj\n-    end\n+    obj = marshal_load(file)\n+    obj.store = self\n+    obj\n   rescue Errno::ENOENT => e\n     error = MissingFileError.new(self, file, page_name)\n     error.set_backtrace e.backtrace\n@@ -976,4 +966,21 @@ def unique_modules\n     @unique_modules\n   end\n \n+  private\n+  def marshal_load(file)\n+    File.open(file, 'rb') {|io| Marshal.load(io, MarshalFilter)}\n+  end\n+\n+  MarshalFilter = proc do |obj|\n+    case obj\n+    when true, false, nil, Array, Class, Encoding, Hash, Integer, String, Symbol, RDoc::Text\n+    else\n+      unless obj.class.name.start_with?(\"RDoc::\")\n+        raise TypeError, \"not permitted class: #{obj.class.name}\"\n+      end\n+    end\n+    obj\n+  end\n+  private_constant :MarshalFilter\n+\n end\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "a5ee4793732b392439d92a36436fa5b3a93d32edfa263f0d8b6d1ac9ebb6ddcd",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-56-ruby/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-56-ruby",
+      "package": "ruby",
+      "version": "3.2.2",
+      "source_commit": "d5dbada8a2127d9b6b670dd891eabbb63c48268f",
+      "target_ref": "1a8931fcfbd13b6fc8aa6331e7a00b1a999c2273",
+      "target_tree": "47538bbd1aaf4cf8fe9d7503378674acf98899b1",
+      "reference_patch": "patches/oe-56-ruby/reference.patch",
+      "reference_sha256": "18f11f85233a7274dd31b92a8bcd825d9fb494eda0ca354f36c4e56636300ae5",
+      "oracle_patch": "patches/oe-56-ruby/oracle.patch",
+      "oracle_sha256": "4e18208b3540a88a411bdc2b4958ec614f0347e0c8acf5685ce16c24a12fa750"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

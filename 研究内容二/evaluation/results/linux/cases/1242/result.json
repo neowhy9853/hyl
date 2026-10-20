@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1242",
+  "candidate_sha256": "fff1814f885e37ab1726fc6e7cf4f9b82b353f257b2b8e6bf49a4b698e7d2ad7",
+  "oracle_sha256": "fff1814f885e37ab1726fc6e7cf4f9b82b353f257b2b8e6bf49a4b698e7d2ad7",
+  "candidate_nonempty": true,
+  "target_ref": "b71f455440fd7ed03f088580b3a117352fc815dd",
+  "baseline_tree": "0b6cf6f8a6f47487d517c22466ab0a36c345a16d",
+  "candidate_tree": "ec085facb1249bfe5778b4e8d86a84d9cf0e17da",
+  "oracle_tree": "ec085facb1249bfe5778b4e8d86a84d9cf0e17da",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1242",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "fff1814f885e37ab1726fc6e7cf4f9b82b353f257b2b8e6bf49a4b698e7d2ad7",
+    "text": "diff --git a/arch/x86/kvm/vmx.c b/arch/x86/kvm/vmx.c\nindex 413fbb087718..7b16666d6ed4 100644\n--- a/arch/x86/kvm/vmx.c\n+++ b/arch/x86/kvm/vmx.c\n@@ -1073,10 +1073,10 @@ static inline int nested_cpu_has_ept(struct vmcs12 *vmcs12)\n \treturn nested_cpu_has2(vmcs12, SECONDARY_EXEC_ENABLE_EPT);\n }\n \n-static inline bool is_exception(u32 intr_info)\n+static inline bool is_nmi(u32 intr_info)\n {\n \treturn (intr_info & (INTR_INFO_INTR_TYPE_MASK | INTR_INFO_VALID_MASK))\n-\t\t== (INTR_TYPE_HARD_EXCEPTION | INTR_INFO_VALID_MASK);\n+\t\t== (INTR_TYPE_NMI_INTR | INTR_INFO_VALID_MASK);\n }\n \n static void nested_vmx_vmexit(struct kvm_vcpu *vcpu, u32 exit_reason,\n@@ -4838,7 +4838,7 @@ static int handle_exception(struct kvm_vcpu *vcpu)\n \tif (is_machine_check(intr_info))\n \t\treturn handle_machine_check(vcpu);\n \n-\tif ((intr_info & INTR_INFO_INTR_TYPE_MASK) == INTR_TYPE_NMI_INTR)\n+\tif (is_nmi(intr_info))\n \t\treturn 1;  /* already handled by vmx_vcpu_run() */\n \n \tif (is_no_device(intr_info)) {\n@@ -6888,7 +6888,7 @@ static bool nested_vmx_exit_handled(struct kvm_vcpu *vcpu)\n \n \tswitch (exit_reason) {\n \tcase EXIT_REASON_EXCEPTION_NMI:\n-\t\tif (!is_exception(intr_info))\n+\t\tif (is_nmi(intr_info))\n \t\t\treturn 0;\n \t\telse if (is_page_fault(intr_info))\n \t\t\treturn enable_ept;\n@@ -7185,8 +7185,7 @@ static void vmx_complete_atomic_exit(struct vcpu_vmx *vmx)\n \t\tkvm_machine_check();\n \n \t/* We need to handle NMIs before interrupts are enabled */\n-\tif ((exit_intr_info & INTR_INFO_INTR_TYPE_MASK) == INTR_TYPE_NMI_INTR &&\n-\t    (exit_intr_info & INTR_INFO_VALID_MASK)) {\n+\tif (is_nmi(exit_intr_info)) {\n \t\tkvm_before_handle_nmi(&vmx->vcpu);\n \t\tasm(\"int $2\");\n \t\tkvm_after_handle_nmi(&vmx->vcpu);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

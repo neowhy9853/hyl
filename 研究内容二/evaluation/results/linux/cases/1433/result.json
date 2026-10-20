@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1433",
+  "candidate_sha256": "a10a7b7f45ade9ba21b18151d2fc92e2e07d38be60b1e79fc7373fa9ccae4ec4",
+  "oracle_sha256": "e3032d1f288be05432df666e303bdb19d5b3986dde90fbe03d648c481a4312bc",
+  "candidate_nonempty": true,
+  "target_ref": "4c16afac1875db0ad251b1df0e12203302528fcb",
+  "baseline_tree": "d6384e63d8c82ca7275f0014958488421dcb1634",
+  "candidate_tree": "7b43ecd77a326ec958a6d25089035f7c48bb404c",
+  "oracle_tree": "c5758c2db20c03fa304d2da86ffe495b9227a4ec",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1433",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "a10a7b7f45ade9ba21b18151d2fc92e2e07d38be60b1e79fc7373fa9ccae4ec4",
+    "text": "diff --git a/arch/x86/kernel/fpu/regset.c b/arch/x86/kernel/fpu/regset.c\nindex 0bc3490420c5..c51ce5ddf69f 100644\n--- a/arch/x86/kernel/fpu/regset.c\n+++ b/arch/x86/kernel/fpu/regset.c\n@@ -116,6 +116,19 @@ int xstateregs_set(struct task_struct *target, const struct user_regset *regset,\n \txsave = &fpu->state.xsave;\n \n \tret = user_regset_copyin(&pos, &count, &kbuf, &ubuf, xsave, 0, -1);\n+\n+\t/*\n+\t * xcomp_bv must be 0 when using uncompacted format\n+\t */\n+\tif (!ret && xsave->header.xcomp_bv)\n+\t\tret = -EINVAL;\n+\n+\t/*\n+\t * In case of failure, mark all states as init:\n+\t */\n+\tif (ret)\n+\t\tfpstate_init(&fpu->state);\n+\n \t/*\n \t * mxcsr reserved bits must be masked to zero for security reasons.\n \t */\ndiff --git a/arch/x86/kernel/fpu/signal.c b/arch/x86/kernel/fpu/signal.c\nindex 31c6a60505e6..23fe3eee138e 100644\n--- a/arch/x86/kernel/fpu/signal.c\n+++ b/arch/x86/kernel/fpu/signal.c\n@@ -308,8 +308,14 @@ static int __fpu__restore_sig(void __user *buf, void __user *buf_fx, int size)\n \t\t */\n \t\tfpu__drop(fpu);\n \n-\t\tif (__copy_from_user(&fpu->state.xsave, buf_fx, state_size) ||\n-\t\t    __copy_from_user(&env, buf, sizeof(env))) {\n+\t\terr = __copy_from_user(&fpu->state.xsave, buf_fx, state_size);\n+\n+\t\t/* xcomp_bv must be 0 when using uncompacted format */\n+\t\tif (!err && state_size > offsetof(struct xregs_state, header) &&\n+\t\t    fpu->state.xsave.header.xcomp_bv)\n+\t\t\terr = -EINVAL;\n+\n+\t\tif (err || __copy_from_user(&env, buf, sizeof(env))) {\n \t\t\tfpstate_init(&fpu->state);\n \t\t\terr = -1;\n \t\t} else {\n"
+  },
+  "trace_file": "trace.jsonl"
+}

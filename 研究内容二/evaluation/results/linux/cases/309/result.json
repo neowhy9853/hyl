@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "309",
+  "candidate_sha256": "00876d63f271e76397b31ce021436493e8fcdab7db8b6352805b35a7bdff0c67",
+  "oracle_sha256": "0c3cdbfbbbf150b5ccc052200f803cfb684912fac73b68f1d6795ef3e1ee0bbe",
+  "candidate_nonempty": true,
+  "target_ref": "08871ede8318e6ca82886542f7708cadf1c8a090",
+  "baseline_tree": "d249715ba3e52bf832c6b549a3a221342dfa30e1",
+  "candidate_tree": "8ef891b5ee4605735d9ed36f50fd4c00ed39c0cb",
+  "oracle_tree": "8ef891b5ee4605735d9ed36f50fd4c00ed39c0cb",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/309",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "00876d63f271e76397b31ce021436493e8fcdab7db8b6352805b35a7bdff0c67",
+    "text": "diff --git a/fs/ksmbd/smb2misc.c b/fs/ksmbd/smb2misc.c\nindex abc18af14f04..ad805b37b81d 100644\n--- a/fs/ksmbd/smb2misc.c\n+++ b/fs/ksmbd/smb2misc.c\n@@ -352,6 +352,7 @@ int ksmbd_smb2_check_message(struct ksmbd_work *work)\n \tint command;\n \t__u32 clc_len;  /* calculated length */\n \t__u32 len = get_rfc1002_len(work->request_buf);\n+\t__u32 req_struct_size;\n \n \tif (le32_to_cpu(hdr->NextCommand) > 0)\n \t\tlen = le32_to_cpu(hdr->NextCommand);\n@@ -374,17 +375,9 @@ int ksmbd_smb2_check_message(struct ksmbd_work *work)\n \t}\n \n \tif (smb2_req_struct_sizes[command] != pdu->StructureSize2) {\n-\t\tif (command != SMB2_OPLOCK_BREAK_HE &&\n-\t\t    (hdr->Status == 0 || pdu->StructureSize2 != SMB2_ERROR_STRUCTURE_SIZE2_LE)) {\n-\t\t\t/* error packets have 9 byte structure size */\n-\t\t\tksmbd_debug(SMB,\n-\t\t\t\t    \"Illegal request size %u for command %d\\n\",\n-\t\t\t\t    le16_to_cpu(pdu->StructureSize2), command);\n-\t\t\treturn 1;\n-\t\t} else if (command == SMB2_OPLOCK_BREAK_HE &&\n-\t\t\t   hdr->Status == 0 &&\n-\t\t\t   le16_to_cpu(pdu->StructureSize2) != OP_BREAK_STRUCT_SIZE_20 &&\n-\t\t\t   le16_to_cpu(pdu->StructureSize2) != OP_BREAK_STRUCT_SIZE_21) {\n+\t\tif (command == SMB2_OPLOCK_BREAK_HE &&\n+\t\t    le16_to_cpu(pdu->StructureSize2) != OP_BREAK_STRUCT_SIZE_20 &&\n+\t\t    le16_to_cpu(pdu->StructureSize2) != OP_BREAK_STRUCT_SIZE_21) {\n \t\t\t/* special case for SMB2.1 lease break message */\n \t\t\tksmbd_debug(SMB,\n \t\t\t\t    \"Illegal request size %d for oplock break\\n\",\n@@ -393,6 +386,14 @@ int ksmbd_smb2_check_message(struct ksmbd_work *work)\n \t\t}\n \t}\n \n+\treq_struct_size = le16_to_cpu(pdu->StructureSize2) +\n+\t\t__SMB2_HEADER_STRUCTURE_SIZE;\n+\tif (command == SMB2_LOCK_HE)\n+\t\treq_struct_size -= sizeof(struct smb2_lock_element);\n+\n+\tif (req_struct_size > len + 1)\n+\t\treturn 1;\n+\n \tif (smb2_calc_size(hdr, &clc_len))\n \t\treturn 1;\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

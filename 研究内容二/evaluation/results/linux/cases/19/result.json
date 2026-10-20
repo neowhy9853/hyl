@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "19",
+  "candidate_sha256": "5bbfe2a546277a5b3528a2e450832ba11bed7c5685b460a5737d1bf4ec95b0f1",
+  "oracle_sha256": "186a5225e3ac6a1a72b46522a4497af939b420323de03c597d12694847d32423",
+  "candidate_nonempty": true,
+  "target_ref": "d59964607842725de662d112c125ec8223a82a20",
+  "baseline_tree": "d8d2d6b4b39e9211fb7cd1da03a12050bc6b2d53",
+  "candidate_tree": "68109fa7bf837c6eed42540a125f1753be05ac35",
+  "oracle_tree": "68109fa7bf837c6eed42540a125f1753be05ac35",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/19",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "5bbfe2a546277a5b3528a2e450832ba11bed7c5685b460a5737d1bf4ec95b0f1",
+    "text": "diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c\nindex 7240bb4a4090..6e108af21481 100644\n--- a/kernel/sched/fair.c\n+++ b/kernel/sched/fair.c\n@@ -369,10 +369,9 @@ static inline void list_del_leaf_cfs_rq(struct cfs_rq *cfs_rq)\n \t}\n }\n \n-/* Iterate thr' all leaf cfs_rq's on a runqueue */\n-#define for_each_leaf_cfs_rq_safe(rq, cfs_rq, pos)\t\t\t\\\n-\tlist_for_each_entry_safe(cfs_rq, pos, &rq->leaf_cfs_rq_list,\t\\\n-\t\t\t\t leaf_cfs_rq_list)\n+/* Iterate through all leaf cfs_rq's on a runqueue: */\n+#define for_each_leaf_cfs_rq(rq, cfs_rq) \\\n+\tlist_for_each_entry_rcu(cfs_rq, &rq->leaf_cfs_rq_list, leaf_cfs_rq_list)\n \n /* Do the two (enqueued) entities belong to the same group ? */\n static inline struct cfs_rq *\n@@ -465,8 +464,8 @@ static inline void list_del_leaf_cfs_rq(struct cfs_rq *cfs_rq)\n {\n }\n \n-#define for_each_leaf_cfs_rq_safe(rq, cfs_rq, pos)\t\\\n-\t\tfor (cfs_rq = &rq->cfs, pos = NULL; cfs_rq; cfs_rq = pos)\n+#define for_each_leaf_cfs_rq(rq, cfs_rq)\t\\\n+\t\tfor (cfs_rq = &rq->cfs; cfs_rq; cfs_rq = NULL)\n \n static inline struct sched_entity *parent_entity(struct sched_entity *se)\n {\n@@ -6970,27 +6969,10 @@ static void attach_tasks(struct lb_env *env)\n \n #ifdef CONFIG_FAIR_GROUP_SCHED\n \n-static inline bool cfs_rq_is_decayed(struct cfs_rq *cfs_rq)\n-{\n-\tif (cfs_rq->load.weight)\n-\t\treturn false;\n-\n-\tif (cfs_rq->avg.load_sum)\n-\t\treturn false;\n-\n-\tif (cfs_rq->avg.util_sum)\n-\t\treturn false;\n-\n-\tif (cfs_rq->runnable_load_sum)\n-\t\treturn false;\n-\n-\treturn true;\n-}\n-\n static void update_blocked_averages(int cpu)\n {\n \tstruct rq *rq = cpu_rq(cpu);\n-\tstruct cfs_rq *cfs_rq, *pos;\n+\tstruct cfs_rq *cfs_rq;\n \tstruct rq_flags rf;\n \n \trq_lock_irqsave(rq, &rf);\n@@ -7000,7 +6982,7 @@ static void update_blocked_averages(int cpu)\n \t * Iterates the task_group tree in a bottom up fashion, see\n \t * list_add_leaf_cfs_rq() for details.\n \t */\n-\tfor_each_leaf_cfs_rq_safe(rq, cfs_rq, pos) {\n+\tfor_each_leaf_cfs_rq(rq, cfs_rq) {\n \t\tstruct sched_entity *se;\n \n \t\t/* throttled entities do not contribute to load */\n@@ -7014,13 +6996,6 @@ static void update_blocked_averages(int cpu)\n \t\tse = cfs_rq->tg->se[cpu];\n \t\tif (se && !skip_blocked_update(se))\n \t\t\tupdate_load_avg(se, 0);\n-\n-\t\t/*\n-\t\t * There can be a lot of idle CPU cgroups.  Don't let fully\n-\t\t * decayed cfs_rqs linger on the list.\n-\t\t */\n-\t\tif (cfs_rq_is_decayed(cfs_rq))\n-\t\t\tlist_del_leaf_cfs_rq(cfs_rq);\n \t}\n \trq_unlock_irqrestore(rq, &rf);\n }\n@@ -9580,10 +9555,10 @@ const struct sched_class fair_sched_class = {\n #ifdef CONFIG_SCHED_DEBUG\n void print_cfs_stats(struct seq_file *m, int cpu)\n {\n-\tstruct cfs_rq *cfs_rq, *pos;\n+\tstruct cfs_rq *cfs_rq;\n \n \trcu_read_lock();\n-\tfor_each_leaf_cfs_rq_safe(cpu_rq(cpu), cfs_rq, pos)\n+\tfor_each_leaf_cfs_rq(cpu_rq(cpu), cfs_rq)\n \t\tprint_cfs_rq(m, cpu, cfs_rq);\n \trcu_read_unlock();\n }\n"
+  },
+  "trace_file": "trace.jsonl"
+}

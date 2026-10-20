@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1628",
+  "candidate_sha256": "c4039616064caf818cbdd57bd9edb1ab8506b639a9b746b4a7e225e6faada5e0",
+  "oracle_sha256": "4283e0ea5d73786b647bb10958f298cd4051c43058f9f873ba55fcd6210b5628",
+  "candidate_nonempty": true,
+  "target_ref": "d3869bf097b28afd96b3d054cc975e3684db8782",
+  "baseline_tree": "257ab119f384369ac4fe073492a0b1a8f92facc9",
+  "candidate_tree": "a1d4aa4a90734df37a2f73cebbddf5f64f06be5e",
+  "oracle_tree": "a1d4aa4a90734df37a2f73cebbddf5f64f06be5e",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1628",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "c4039616064caf818cbdd57bd9edb1ab8506b639a9b746b4a7e225e6faada5e0",
+    "text": "diff --git a/drivers/usb/roles/class.c b/drivers/usb/roles/class.c\nindex ae41578bd014..2bad038fb9ad 100644\n--- a/drivers/usb/roles/class.c\n+++ b/drivers/usb/roles/class.c\n@@ -21,6 +21,7 @@ static const struct class role_class = {\n struct usb_role_switch {\n \tstruct device dev;\n \tstruct mutex lock; /* device lock*/\n+\tstruct module *module; /* the module this device depends on */\n \tenum usb_role role;\n \n \t/* From descriptor */\n@@ -135,7 +136,7 @@ struct usb_role_switch *usb_role_switch_get(struct device *dev)\n \t\t\t\t\t\t  usb_role_switch_match);\n \n \tif (!IS_ERR_OR_NULL(sw))\n-\t\tWARN_ON(!try_module_get(sw->dev.parent->driver->owner));\n+\t\tWARN_ON(!try_module_get(sw->module));\n \n \treturn sw;\n }\n@@ -157,7 +158,7 @@ struct usb_role_switch *fwnode_usb_role_switch_get(struct fwnode_handle *fwnode)\n \t\tsw = fwnode_connection_find_match(fwnode, \"usb-role-switch\",\n \t\t\t\t\t\t  NULL, usb_role_switch_match);\n \tif (!IS_ERR_OR_NULL(sw))\n-\t\tWARN_ON(!try_module_get(sw->dev.parent->driver->owner));\n+\t\tWARN_ON(!try_module_get(sw->module));\n \n \treturn sw;\n }\n@@ -172,7 +173,7 @@ EXPORT_SYMBOL_GPL(fwnode_usb_role_switch_get);\n void usb_role_switch_put(struct usb_role_switch *sw)\n {\n \tif (!IS_ERR_OR_NULL(sw)) {\n-\t\tmodule_put(sw->dev.parent->driver->owner);\n+\t\tmodule_put(sw->module);\n \t\tput_device(&sw->dev);\n \t}\n }\n@@ -189,15 +190,18 @@ struct usb_role_switch *\n usb_role_switch_find_by_fwnode(const struct fwnode_handle *fwnode)\n {\n \tstruct device *dev;\n+\tstruct usb_role_switch *sw = NULL;\n \n \tif (!fwnode)\n \t\treturn NULL;\n \n \tdev = class_find_device_by_fwnode(&role_class, fwnode);\n-\tif (dev)\n-\t\tWARN_ON(!try_module_get(dev->parent->driver->owner));\n+\tif (dev) {\n+\t\tsw = to_role_switch(dev);\n+\t\tWARN_ON(!try_module_get(sw->module));\n+\t}\n \n-\treturn dev ? to_role_switch(dev) : NULL;\n+\treturn sw;\n }\n EXPORT_SYMBOL_GPL(usb_role_switch_find_by_fwnode);\n \n@@ -338,6 +342,7 @@ usb_role_switch_register(struct device *parent,\n \tsw->set = desc->set;\n \tsw->get = desc->get;\n \n+\tsw->module = parent->driver->owner;\n \tsw->dev.parent = parent;\n \tsw->dev.fwnode = desc->fwnode;\n \tsw->dev.class = &role_class;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

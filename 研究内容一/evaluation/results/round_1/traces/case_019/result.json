@@ -1,0 +1,50 @@
+{
+  "round": 1,
+  "case_id": "case_019",
+  "source_index": 18,
+  "repo": "kernel",
+  "commit_id": "ba72b18f1a6ed121bd9bd4d2de70a1bf9abe64de",
+  "oracle_label": "feat",
+  "predicted_label": "fix",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "cf2ca8150036",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.75,
+    "reason": "补丁为 hibmc PCI 驱动补上缺失的 shutdown 回调并调用 drm_atomic_helper_shutdown()，纠正系统关机/重启时未按文档要求做原子关停、面板未被干净断电的既有错误路径，属行为纠正而非能力扩展。",
+    "intent_items": [
+      {
+        "target": "drivers/gpu/drm/hisilicon/hibmc/hibmc_drm_drv.c 的 hibmc PCI 驱动",
+        "change": "新增 hibmc_pci_shutdown() 并在 pci_driver 中注册 .shutdown，回调中以 pci_get_drvdata() 取得 drm_device 后调用 drm_atomic_helper_shutdown()",
+        "effect_or_reason": "使系统 shutdown/restart 时执行原子关停，与 remove/unbind 路径保持一致，避免使用中的面板在关机时未被干净断电",
+        "context_used": [
+          "drivers/gpu/drm/hisilicon/hibmc/hibmc_drm_drv.c（目标 commit 版本中的 hibmc_pci_probe/remove 与 pci_driver 结构）"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "该驱动已有 remove/unbind 时的 shutdown 调用，仅缺系统 shutdown 回调",
+            "补丁新增 .shutdown 回调并调用 drm_atomic_helper_shutdown()"
+          ],
+          "message_only_details": [
+            "依据 drm_drv.c 内核文档要求应在关机时调用该函数",
+            "某些驱动改用 drvdata 是否为 NULL 判断是否 bound，需要 helper 支持 NULL 为 noop"
+          ],
+          "code_only_details": [
+            "回调直接以 pci_get_drvdata(pdev) 作为参数，不额外判断绑定状态"
+          ]
+        },
+        "evidence": [
+          "提交前 pci_driver 仅有 probe/remove 与 pm_ops，无 .shutdown，关机时不会调用 drm_atomic_helper_shutdown()",
+          "提交后新增 hibmc_pci_shutdown() 并注册为 .shutdown，直接纠正缺失的关机关停路径"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_019",
+  "trace_status": "available"
+}

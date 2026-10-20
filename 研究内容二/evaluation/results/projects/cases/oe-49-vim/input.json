@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-49-vim",
+  "task_input": {
+    "repository": {
+      "name": "vim",
+      "version": "9.0.2092",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "af61e453d40e28645dacedec77c0242da18b3d0d",
+      "target_tree": "7b7b6634fc295c1346700a3c6ba85c7c9f7a3cdc"
+    },
+    "source_commit": "58f9befca1fa172068effad7f2ea5a9d6a7b0cca",
+    "reference_parent": "ac63787734fda2e294e477af52b3bd601517fa78",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 58f9befca1fa172068effad7f2ea5a9d6a7b0cca Mon Sep 17 00:00:00 2001\nFrom: Christian Brabandt <cb@256bit.org>\nDate: Tue, 14 Nov 2023 21:02:30 +0100\nSubject: [PATCH] patch 9.0.2109: [security]: overflow in nv_z_get_count\n\nProblem:  [security]: overflow in nv_z_get_count\nSolution: break out, if count is too large\n\nWhen getting the count for a normal z command, it may overflow for large\ncounts given. So verify, that we can safely store the result in a long.\n\nSigned-off-by: Christian Brabandt <cb@256bit.org>\n---\n src/normal.c                | 7 +++++++\n src/testdir/test_normal.vim | 5 +++++\n src/version.c               | 2 ++\n 3 files changed, 14 insertions(+)\n\ndiff --git a/src/normal.c b/src/normal.c\nindex a06d61e6f..16b4b4506 100644\n--- a/src/normal.c\n+++ b/src/normal.c\n@@ -2562,7 +2562,14 @@ nv_z_get_count(cmdarg_T *cap, int *nchar_arg)\n \tif (nchar == K_DEL || nchar == K_KDEL)\n \t    n /= 10;\n \telse if (VIM_ISDIGIT(nchar))\n+\t{\n+\t    if (n > LONG_MAX / 10)\n+\t    {\n+\t\tclearopbeep(cap->oap);\n+\t\tbreak;\n+\t    }\n \t    n = n * 10 + (nchar - '0');\n+\t}\n \telse if (nchar == CAR)\n \t{\n #ifdef FEAT_GUI\ndiff --git a/src/testdir/test_normal.vim b/src/testdir/test_normal.vim\nindex c7d37f066..6b889f46b 100644\n--- a/src/testdir/test_normal.vim\n+++ b/src/testdir/test_normal.vim\n@@ -4159,4 +4159,9 @@ func Test_normal33_g_cmd_nonblank()\n   bw!\n endfunc\n \n+func Test_normal34_zet_large()\n+  \" shouldn't cause overflow\n+  norm! z9765405999999999999\n+endfunc\n+\n \" vim: shiftwidth=2 sts=2 expandtab\ndiff --git a/src/version.c b/src/version.c\nindex 16db8f231..2f82473f5 100644\n--- a/src/version.c\n+++ b/src/version.c\n@@ -704,6 +704,8 @@ static char *(features[]) =\n \n static int included_patches[] =\n {   /* Add new patch number below this line */\n+/**/\n+    2109,\n /**/\n     2108,\n /**/\n-- \n2.25.1\n\n",
+      "sha256": "3d60b6effcadeb71f28e6b0d5b0c207b046c9a000c9d7552cdc4d225f9b838e6"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for vim.\ncase_id: oe-49-vim\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 58f9befca1fa172068effad7f2ea5a9d6a7b0cca\nreference_parent: ac63787734fda2e294e477af52b3bd601517fa78\ntarget_ref: af61e453d40e28645dacedec77c0242da18b3d0d\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "611d227a3c6c5ef5409709c42ceb8d0e7a590c13f4331e2011ed4ddef4d0a972",
+      "text": "From 58f9befca1fa172068effad7f2ea5a9d6a7b0cca Mon Sep 17 00:00:00 2001\nFrom: Christian Brabandt <cb@256bit.org>\nDate: Tue, 14 Nov 2023 21:02:30 +0100\nSubject: [PATCH] patch 9.0.2109: [security]: overflow in nv_z_get_count\n\nProblem:  [security]: overflow in nv_z_get_count\nSolution: break out, if count is too large\n\nWhen getting the count for a normal z command, it may overflow for large\ncounts given. So verify, that we can safely store the result in a long.\n\nSigned-off-by: Christian Brabandt <cb@256bit.org>\n---\n src/normal.c                | 7 +++++++\n src/testdir/test_normal.vim | 5 +++++\n 2 files changed, 12 insertions(+)\n\ndiff --git a/src/normal.c b/src/normal.c\nindex a06d61e6fce7d..16b4b45069329 100644\n--- a/src/normal.c\n+++ b/src/normal.c\n@@ -2562,7 +2562,14 @@ nv_z_get_count(cmdarg_T *cap, int *nchar_arg)\n \tif (nchar == K_DEL || nchar == K_KDEL)\n \t    n /= 10;\n \telse if (VIM_ISDIGIT(nchar))\n+\t{\n+\t    if (n > LONG_MAX / 10)\n+\t    {\n+\t\tclearopbeep(cap->oap);\n+\t\tbreak;\n+\t    }\n \t    n = n * 10 + (nchar - '0');\n+\t}\n \telse if (nchar == CAR)\n \t{\n #ifdef FEAT_GUI\ndiff --git a/src/testdir/test_normal.vim b/src/testdir/test_normal.vim\nindex c7d37f066f208..6b889f46b3dd7 100644\n--- a/src/testdir/test_normal.vim\n+++ b/src/testdir/test_normal.vim\n@@ -4159,4 +4159,9 @@ func Test_normal33_g_cmd_nonblank()\n   bw!\n endfunc\n \n+func Test_normal34_zet_large()\n+  \" shouldn't cause overflow\n+  norm! z9765405999999999999\n+endfunc\n+\n \" vim: shiftwidth=2 sts=2 expandtab\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "8411694b4dab9070203d3c626386a9ecc1eb24ba4bd7e9202371f0204b47432b",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-49-vim/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-49-vim",
+      "package": "vim",
+      "version": "9.0.2092",
+      "source_commit": "58f9befca1fa172068effad7f2ea5a9d6a7b0cca",
+      "target_ref": "af61e453d40e28645dacedec77c0242da18b3d0d",
+      "target_tree": "7b7b6634fc295c1346700a3c6ba85c7c9f7a3cdc",
+      "reference_patch": "patches/oe-49-vim/reference.patch",
+      "reference_sha256": "3d60b6effcadeb71f28e6b0d5b0c207b046c9a000c9d7552cdc4d225f9b838e6",
+      "oracle_patch": "patches/oe-49-vim/oracle.patch",
+      "oracle_sha256": "611d227a3c6c5ef5409709c42ceb8d0e7a590c13f4331e2011ed4ddef4d0a972"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1101",
+  "candidate_sha256": "eca4a17e15c3002dc714248132db9ea01a7259dea097136c3f0a39d24b80da47",
+  "oracle_sha256": "b979ddcdd36e9048518f217ed8843776a92674d99ba8efddd1ee1e833ed1b448",
+  "candidate_nonempty": true,
+  "target_ref": "69cf72b2879167364d2a97211fbb26ca0e374bcf",
+  "baseline_tree": "585e33d7a3b8449d18ccfbd5f6462f6540728f34",
+  "candidate_tree": "5cebc22961651f27ee645f0ac34c4355d1ee12cc",
+  "oracle_tree": "a67c019c8f446ac26ddd81ee14a45a7c1201247a",
+  "candidate_apply_passed": true,
+  "historical_verdict": "incorrect",
+  "case_path": "cases/1101",
+  "generation_trace_available": true,
+  "verdict": "incorrect",
+  "correct": false,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "eca4a17e15c3002dc714248132db9ea01a7259dea097136c3f0a39d24b80da47",
+    "text": "diff --git a/include/linux/bpf_verifier.h b/include/linux/bpf_verifier.h\nindex 4c4e9358c146..0c622474efbc 100644\n--- a/include/linux/bpf_verifier.h\n+++ b/include/linux/bpf_verifier.h\n@@ -16,6 +16,13 @@\n #define BPF_REGISTER_MAX_RANGE (1024 * 1024 * 1024)\n #define BPF_REGISTER_MIN_RANGE -1\n \n+/* Maximum variable offset/size permitted when resolving memory accesses.\n+ * This ensures that the 32-bit arithmetic used by the access checks cannot\n+ * overflow when the offset and the access size are added.\n+ */\n+#define BPF_MAX_VAR_OFF\t(1 << 29)\n+#define BPF_MAX_VAR_SIZ\t(1 << 29)\n+\n struct bpf_reg_state {\n \tenum bpf_reg_type type;\n \tunion {\ndiff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c\nindex 8b1ebe4c6aba..8e90a0a670c5 100644\n--- a/kernel/bpf/verifier.c\n+++ b/kernel/bpf/verifier.c\n@@ -1072,6 +1072,11 @@ static int check_func_arg(struct bpf_verifier_env *env, u32 regno,\n \t\t\tverbose(\"ARG_CONST_STACK_SIZE cannot be first argument\\n\");\n \t\t\treturn -EACCES;\n \t\t}\n+\t\tif (reg->imm < 0 || reg->imm >= BPF_MAX_VAR_SIZ) {\n+\t\t\tverbose(\"R%d unbounded memory access, use 'var &= const' or 'if (var < const)'\\n\",\n+\t\t\t\tregno);\n+\t\t\treturn -EACCES;\n+\t\t}\n \t\tif (regs[regno - 1].type == PTR_TO_PACKET)\n \t\t\terr = check_packet_access(env, regno - 1, 0, reg->imm);\n \t\telse\n@@ -1565,6 +1570,20 @@ static void check_reg_overflow(struct bpf_reg_state *reg)\n \t\treg->min_value = BPF_REGISTER_MIN_RANGE;\n }\n \n+static bool check_reg_sane_offset(struct bpf_verifier_env *env,\n+\t\t\t\t  const struct bpf_reg_state *reg,\n+\t\t\t\t  enum bpf_reg_type type)\n+{\n+\tif (reg->type == CONST_IMM &&\n+\t    (reg->imm >= BPF_MAX_VAR_OFF || reg->imm <= -BPF_MAX_VAR_OFF)) {\n+\t\tverbose(\"math between %s pointer and %lld is not allowed\\n\",\n+\t\t\treg_type_str[type], reg->imm);\n+\t\treturn false;\n+\t}\n+\n+\treturn true;\n+}\n+\n static void adjust_reg_min_max_vals(struct bpf_verifier_env *env,\n \t\t\t\t    struct bpf_insn *insn)\n {\n@@ -1597,6 +1616,17 @@ static void adjust_reg_min_max_vals(struct bpf_verifier_env *env,\n \t\tmin_set = max_set = true;\n \t}\n \n+\t/* Reduce the scope of scalar op scalar tracking: when the source is\n+\t * not a known constant only ADD, SUB and AND can derive sound bounds.\n+\t * For everything else the destination must be treated as unknown.\n+\t */\n+\tif (BPF_SRC(insn->code) == BPF_X &&\n+\t    regs[insn->src_reg].type != CONST_IMM &&\n+\t    opcode != BPF_ADD && opcode != BPF_SUB && opcode != BPF_AND) {\n+\t\treset_reg_range_values(regs, insn->dst_reg);\n+\t\treturn;\n+\t}\n+\n \t/* We don't know anything about what was done to this register, mark it\n \t * as unknown. Also, if both derived bounds came from signed/unsigned\n \t * mixed compares and one side is unbounded, we cannot really do anything\n@@ -1853,6 +1883,27 @@ static int check_alu_op(struct bpf_verifier_env *env, struct bpf_insn *insn)\n \n \t\tdst_reg = &regs[insn->dst_reg];\n \n+\t\t/* Pointer arithmetic must not combine a pointer with a scalar\n+\t\t * whose known value is out of range; otherwise the 32-bit\n+\t\t * arithmetic used by the memory access checks can overflow or\n+\t\t * truncate the resulting offset.\n+\t\t */\n+\t\tif (BPF_CLASS(insn->code) == BPF_ALU64 &&\n+\t\t    (opcode == BPF_ADD || opcode == BPF_SUB) &&\n+\t\t    is_pointer_value(env, insn->dst_reg)) {\n+\t\t\tif (BPF_SRC(insn->code) == BPF_X) {\n+\t\t\t\tif (!check_reg_sane_offset(env,\n+\t\t\t\t\t\t\t   &regs[insn->src_reg],\n+\t\t\t\t\t\t\t   dst_reg->type))\n+\t\t\t\t\treturn -EINVAL;\n+\t\t\t} else if (insn->imm >= BPF_MAX_VAR_OFF ||\n+\t\t\t\t   insn->imm <= -BPF_MAX_VAR_OFF) {\n+\t\t\t\tverbose(\"math between %s pointer and %d is not allowed\\n\",\n+\t\t\t\t\treg_type_str[dst_reg->type], insn->imm);\n+\t\t\t\treturn -EINVAL;\n+\t\t\t}\n+\t\t}\n+\n \t\t/* first we want to adjust our ranges. */\n \t\tadjust_reg_min_max_vals(env, insn);\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

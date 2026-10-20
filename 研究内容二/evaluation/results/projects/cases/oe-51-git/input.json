@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-51-git",
+  "task_input": {
+    "repository": {
+      "name": "git",
+      "version": "2.43.0",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "b206d6ee3ba539b4e1275238eeafbb37a57c163b",
+      "target_tree": "47757a310310e7b12bbac6549f9e9b1c09b5f1bf"
+    },
+    "source_commit": "d1bb66a546b4bb46005d17ba711caaad26f26c1e",
+    "reference_parent": "150e6b0aedf57d224c3c49038c306477fa159886",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From d1bb66a546b4bb46005d17ba711caaad26f26c1e Mon Sep 17 00:00:00 2001\nFrom: Patrick Steinhardt <ps@pks.im>\nDate: Mon, 15 Apr 2024 13:30:31 +0200\nSubject: [PATCH] builtin/clone: abort when hardlinked source and target file\n differ\n\nWhen performing local clones with hardlinks we refuse to copy source\nfiles which are symlinks as a mitigation for CVE-2022-39253. This check\ncan be raced by an adversary though by changing the file to a symlink\nafter we have checked it.\n\nFix the issue by checking whether the hardlinked destination file\nmatches the source file and abort in case it doesn't.\n\nThis addresses CVE-2024-32021.\n\nReported-by: Apple Product Security <product-security@apple.com>\nSuggested-by: Linus Torvalds <torvalds@linuxfoundation.org>\nSigned-off-by: Patrick Steinhardt <ps@pks.im>\nSigned-off-by: Johannes Schindelin <johannes.schindelin@gmx.de>\n---\n builtin/clone.c | 21 ++++++++++++++++++++-\n 1 file changed, 20 insertions(+), 1 deletion(-)\n\ndiff --git a/builtin/clone.c b/builtin/clone.c\nindex 073e6323d7..4b80fa0870 100644\n--- a/builtin/clone.c\n+++ b/builtin/clone.c\n@@ -357,8 +357,27 @@ static void copy_or_link_directory(struct strbuf *src, struct strbuf *dest,\n \t\tif (unlink(dest->buf) && errno != ENOENT)\n \t\t\tdie_errno(_(\"failed to unlink '%s'\"), dest->buf);\n \t\tif (!option_no_hardlinks) {\n-\t\t\tif (!link(src->buf, dest->buf))\n+\t\t\tif (!link(src->buf, dest->buf)) {\n+\t\t\t\tstruct stat st;\n+\n+\t\t\t\t/*\n+\t\t\t\t * Sanity-check whether the created hardlink\n+\t\t\t\t * actually links to the expected file now. This\n+\t\t\t\t * catches time-of-check-time-of-use bugs in\n+\t\t\t\t * case the source file was meanwhile swapped.\n+\t\t\t\t */\n+\t\t\t\tif (lstat(dest->buf, &st))\n+\t\t\t\t\tdie(_(\"hardlink cannot be checked at '%s'\"), dest->buf);\n+\t\t\t\tif (st.st_mode != iter->st.st_mode ||\n+\t\t\t\t    st.st_ino != iter->st.st_ino ||\n+\t\t\t\t    st.st_dev != iter->st.st_dev ||\n+\t\t\t\t    st.st_size != iter->st.st_size ||\n+\t\t\t\t    st.st_uid != iter->st.st_uid ||\n+\t\t\t\t    st.st_gid != iter->st.st_gid)\n+\t\t\t\t\tdie(_(\"hardlink different from source at '%s'\"), dest->buf);\n+\n \t\t\t\tcontinue;\n+\t\t\t}\n \t\t\tif (option_local > 0)\n \t\t\t\tdie_errno(_(\"failed to create link '%s'\"), dest->buf);\n \t\t\toption_no_hardlinks = 1;\n-- \n2.25.1\n\n",
+      "sha256": "3743bdf8505c5a401958a68d9d5516f79f8cbe662f3276b8e3b372208a2ab7f0"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for git.\ncase_id: oe-51-git\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: d1bb66a546b4bb46005d17ba711caaad26f26c1e\nreference_parent: 150e6b0aedf57d224c3c49038c306477fa159886\ntarget_ref: b206d6ee3ba539b4e1275238eeafbb37a57c163b\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "ef26377b9c41d327b485c3b57386c76f5935b49278bbd029cdce35d95e5af40d",
+      "text": "From d1bb66a546b4bb46005d17ba711caaad26f26c1e Mon Sep 17 00:00:00 2001\r\nFrom: Patrick Steinhardt <ps@pks.im>\r\nDate: Mon, 15 Apr 2024 13:30:31 +0200\r\nSubject: [PATCH] builtin/clone: abort when hardlinked source and target file\r\n differ\r\n\r\nWhen performing local clones with hardlinks we refuse to copy source\r\nfiles which are symlinks as a mitigation for CVE-2022-39253. This check\r\ncan be raced by an adversary though by changing the file to a symlink\r\nafter we have checked it.\r\n\r\nFix the issue by checking whether the hardlinked destination file\r\nmatches the source file and abort in case it doesn't.\r\n\r\nThis addresses CVE-2024-32021.\r\n\r\nReported-by: Apple Product Security <product-security@apple.com>\r\nSuggested-by: Linus Torvalds <torvalds@linuxfoundation.org>\r\nSigned-off-by: Patrick Steinhardt <ps@pks.im>\r\nSigned-off-by: Johannes Schindelin <johannes.schindelin@gmx.de>\r\n---\r\n builtin/clone.c | 21 ++++++++++++++++++++-\r\n 1 file changed, 20 insertions(+), 1 deletion(-)\r\n\r\ndiff --git a/builtin/clone.c b/builtin/clone.c\r\nindex 073e6323d..4b80fa087 100644\r\n--- a/builtin/clone.c\r\n+++ b/builtin/clone.c\r\n@@ -357,8 +357,27 @@ static void copy_or_link_directory(struct strbuf *src, struct strbuf *dest,\r\n \t\tif (unlink(dest->buf) && errno != ENOENT)\r\n \t\t\tdie_errno(_(\"failed to unlink '%s'\"), dest->buf);\r\n \t\tif (!option_no_hardlinks) {\r\n-\t\t\tif (!link(src->buf, dest->buf))\r\n+\t\t\tif (!link(src->buf, dest->buf)) {\r\n+\t\t\t\tstruct stat st;\r\n+\r\n+\t\t\t\t/*\r\n+\t\t\t\t * Sanity-check whether the created hardlink\r\n+\t\t\t\t * actually links to the expected file now. This\r\n+\t\t\t\t * catches time-of-check-time-of-use bugs in\r\n+\t\t\t\t * case the source file was meanwhile swapped.\r\n+\t\t\t\t */\r\n+\t\t\t\tif (lstat(dest->buf, &st))\r\n+\t\t\t\t\tdie(_(\"hardlink cannot be checked at '%s'\"), dest->buf);\r\n+\t\t\t\tif (st.st_mode != iter->st.st_mode ||\r\n+\t\t\t\t    st.st_ino != iter->st.st_ino ||\r\n+\t\t\t\t    st.st_dev != iter->st.st_dev ||\r\n+\t\t\t\t    st.st_size != iter->st.st_size ||\r\n+\t\t\t\t    st.st_uid != iter->st.st_uid ||\r\n+\t\t\t\t    st.st_gid != iter->st.st_gid)\r\n+\t\t\t\t\tdie(_(\"hardlink different from source at '%s'\"), dest->buf);\r\n+\r\n \t\t\t\tcontinue;\r\n+\t\t\t}\r\n \t\t\tif (option_local > 0)\r\n \t\t\t\tdie_errno(_(\"failed to create link '%s'\"), dest->buf);\r\n \t\t\toption_no_hardlinks = 1;\r\n-- \r\n2.33.0\r\n\r\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "38efff07f7cbf4f87f31774d13caa99d005325502ec8fa051f2aa82a1195e744",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-51-git/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-51-git",
+      "package": "git",
+      "version": "2.43.0",
+      "source_commit": "d1bb66a546b4bb46005d17ba711caaad26f26c1e",
+      "target_ref": "b206d6ee3ba539b4e1275238eeafbb37a57c163b",
+      "target_tree": "47757a310310e7b12bbac6549f9e9b1c09b5f1bf",
+      "reference_patch": "patches/oe-51-git/reference.patch",
+      "reference_sha256": "3743bdf8505c5a401958a68d9d5516f79f8cbe662f3276b8e3b372208a2ab7f0",
+      "oracle_patch": "patches/oe-51-git/oracle.patch",
+      "oracle_sha256": "ef26377b9c41d327b485c3b57386c76f5935b49278bbd029cdce35d95e5af40d"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

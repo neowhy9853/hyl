@@ -1,0 +1,46 @@
+{
+  "round": 4,
+  "case_id": "case_176",
+  "source_index": 175,
+  "repo": "kernel",
+  "commit_id": "d47b2f0c06b4351090afefeeedb48312e0aefca6",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "7f7a82f42be9",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.95,
+    "reason": "提交修复了 sk_stream_kill_queues() 中因未加锁清空错误队列导致的 skb 泄漏和队列损坏问题。主导意图是纠正错误行为，而非新增能力或重构结构。",
+    "intent_items": [
+      {
+        "target": "sk_stream_kill_queues() 函数",
+        "change": "删除了对 sk_error_queue 的 __skb_queue_purge 调用",
+        "effect_or_reason": "防止在关闭时仍有待传输的 skb 尝试向错误队列添加通知（如时间戳）时，因未加锁清空队列导致队列损坏和 skb 泄漏。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交移除了 sk_error_queue 的清除操作以避免竞争条件"
+          ],
+          "message_only_details": [
+            "泄漏表现为 rmem 泄漏警告，大小为 0x300 字节（空 skb 的 truesize）",
+            "泄漏的 skb 是时间戳通知，由 __skb_complete_tx_timestamp() 生成"
+          ],
+          "code_only_details": [
+            "补丁显示从 sk_stream_kill_queues() 中删除了三行代码"
+          ]
+        },
+        "evidence": [
+          "提交前，sk_stream_kill_queues() 在未加锁情况下清空 sk_error_queue，可能导致队列损坏和 skb 泄漏；提交后，该清除操作被移除，由 inet_sock_destruct() 在 socket 引用全部释放后再次清理。"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_176",
+  "trace_status": "available"
+}

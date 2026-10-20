@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1658",
+  "candidate_sha256": "ec0e10053509556146760c22658431179adb76241c0bb4e380423c2d960379de",
+  "oracle_sha256": "024da948a986feb7179d3c782a704072d7f87d5bb99fac835d27d9a535896253",
+  "candidate_nonempty": true,
+  "target_ref": "aba97ce870f92835fa3385861f850e3e992dc42a",
+  "baseline_tree": "5cea7e502eab36c47d1a76c0fe6c9397df369f5f",
+  "candidate_tree": "4e896af6cd19507376f9ca9be6d9280f9f398d04",
+  "oracle_tree": "4e896af6cd19507376f9ca9be6d9280f9f398d04",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1658",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "ec0e10053509556146760c22658431179adb76241c0bb4e380423c2d960379de",
+    "text": "diff --git a/fs/exec.c b/fs/exec.c\nindex 70c31796a314..2acff9b648c0 100644\n--- a/fs/exec.c\n+++ b/fs/exec.c\n@@ -206,8 +206,7 @@ static struct page *get_arg_page(struct linux_binprm *bprm, unsigned long pos,\n \n \tif (write) {\n \t\tunsigned long size = bprm->vma->vm_end - bprm->vma->vm_start;\n-\t\tunsigned long ptr_size;\n-\t\tstruct rlimit *rlim;\n+\t\tunsigned long ptr_size, limit;\n \n \t\t/*\n \t\t * Since the stack will hold pointers to the strings, we\n@@ -236,14 +235,16 @@ static struct page *get_arg_page(struct linux_binprm *bprm, unsigned long pos,\n \t\t\treturn page;\n \n \t\t/*\n-\t\t * Limit to 1/4-th the stack size for the argv+env strings.\n+\t\t * Limit to 1/4 of the max stack size or 3/4 of _STK_LIM\n+\t\t * (whichever is smaller) for the argv+env strings.\n \t\t * This ensures that:\n \t\t *  - the remaining binfmt code will not run out of stack space,\n \t\t *  - the program will have a reasonable amount of stack left\n \t\t *    to work from.\n \t\t */\n-\t\trlim = current->signal->rlim;\n-\t\tif (size > ACCESS_ONCE(rlim[RLIMIT_STACK].rlim_cur) / 4)\n+\t\tlimit = _STK_LIM / 4 * 3;\n+\t\tlimit = min(limit, rlimit(RLIMIT_STACK) / 4);\n+\t\tif (size > limit)\n \t\t\tgoto fail;\n \t}\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

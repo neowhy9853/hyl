@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1601",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1601-y976qg06/repo",
+      "target_ref": "ebc57091e4e853aa8b198b9276010fd8d147c0f2",
+      "target_tree": "585b8c846dc88b402a8aca22941b2d33e3f286e8"
+    },
+    "source_commit": "41b2ea7a6a11e2b1a7f2c29e1675a709a6b2b98d",
+    "reference_parent": "d334a67d3ed06cb40f69fbd93efac2e565bebbe9",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/virt/kvm/kvm_main.c b/virt/kvm/kvm_main.c\nindex 278bdc53047e8b152225a49717c6f314ac1fce43..4eed7fd8db93937561c4c2557a909eb6aedaaf9c 100644\n--- a/virt/kvm/kvm_main.c\n+++ b/virt/kvm/kvm_main.c\n@@ -4010,7 +4010,7 @@ int kvm_io_bus_register_dev(struct kvm *kvm, enum kvm_bus bus_idx, gpa_t addr,\n void kvm_io_bus_unregister_dev(struct kvm *kvm, enum kvm_bus bus_idx,\n \t\t\t       struct kvm_io_device *dev)\n {\n-\tint i;\n+\tint i, j;\n \tstruct kvm_io_bus *new_bus, *bus;\n \n \tbus = kvm_get_bus(kvm, bus_idx);\n@@ -4027,17 +4027,20 @@ void kvm_io_bus_unregister_dev(struct kvm *kvm, enum kvm_bus bus_idx,\n \n \tnew_bus = kmalloc(struct_size(bus, range, bus->dev_count - 1),\n \t\t\t  GFP_KERNEL_ACCOUNT);\n-\tif (!new_bus)  {\n+\tif (new_bus) {\n+\t\tmemcpy(new_bus, bus, sizeof(*bus) + i * sizeof(struct kvm_io_range));\n+\t\tnew_bus->dev_count--;\n+\t\tmemcpy(new_bus->range + i, bus->range + i + 1,\n+\t\t       (new_bus->dev_count - i) * sizeof(struct kvm_io_range));\n+\t} else {\n \t\tpr_err(\"kvm: failed to shrink bus, removing it completely\\n\");\n-\t\tgoto broken;\n+\t\tfor (j = 0; j < bus->dev_count; j++) {\n+\t\t\tif (j == i)\n+\t\t\t\tcontinue;\n+\t\t\tkvm_iodevice_destructor(bus->range[j].dev);\n+\t\t}\n \t}\n \n-\tmemcpy(new_bus, bus, sizeof(*bus) + i * sizeof(struct kvm_io_range));\n-\tnew_bus->dev_count--;\n-\tmemcpy(new_bus->range + i, bus->range + i + 1,\n-\t       (new_bus->dev_count - i) * sizeof(struct kvm_io_range));\n-\n-broken:\n \trcu_assign_pointer(kvm->buses[bus_idx], new_bus);\n \tsynchronize_srcu_expedited(&kvm->srcu);\n \tkfree(bus);\n",
+      "sha256": "c4101a3d1bd9a491452e6a4037bd986c5252c56b7d29cc2f80449d3929026e70"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2020-36312\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1601-y976qg06/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1601-y976qg06/repo/.patch-port/reference.diff\nreference_fix: 41b2ea7a6a11e2b1a7f2c29e1675a709a6b2b98d\nreference_parent: d334a67d3ed06cb40f69fbd93efac2e565bebbe9\ntarget_ref: ebc57091e4e853aa8b198b9276010fd8d147c0f2\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1601-y976qg06/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1601-y976qg06/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2020-36312"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "40a023f681befd9b2862a3c16fb306a38b359ae5",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "17960c9d220fd9eeebaefc49dc24321c1a795af3d48482f7c4180d229f1bb6e2",
+      "text": "diff --git a/virt/kvm/kvm_main.c b/virt/kvm/kvm_main.c\nindex 71f77ae6c2a6618b498264376f4207b2ce5dc868..1e30f8706349e65ee8b66a0b8a9ce39a26df13fb 100644\n--- a/virt/kvm/kvm_main.c\n+++ b/virt/kvm/kvm_main.c\n@@ -3688,7 +3688,7 @@ int kvm_io_bus_register_dev(struct kvm *kvm, enum kvm_bus bus_idx, gpa_t addr,\n void kvm_io_bus_unregister_dev(struct kvm *kvm, enum kvm_bus bus_idx,\n \t\t\t       struct kvm_io_device *dev)\n {\n-\tint i;\n+\tint i, j;\n \tstruct kvm_io_bus *new_bus, *bus;\n \n \tbus = kvm_get_bus(kvm, bus_idx);\n@@ -3705,17 +3705,20 @@ void kvm_io_bus_unregister_dev(struct kvm *kvm, enum kvm_bus bus_idx,\n \n \tnew_bus = kmalloc(sizeof(*bus) + ((bus->dev_count - 1) *\n \t\t\t  sizeof(struct kvm_io_range)), GFP_KERNEL);\n-\tif (!new_bus)  {\n+\tif (new_bus) {\n+\t\tmemcpy(new_bus, bus, sizeof(*bus) + i * sizeof(struct kvm_io_range));\n+\t\tnew_bus->dev_count--;\n+\t\tmemcpy(new_bus->range + i, bus->range + i + 1,\n+\t\t       (new_bus->dev_count - i) * sizeof(struct kvm_io_range));\n+\t} else {\n \t\tpr_err(\"kvm: failed to shrink bus, removing it completely\\n\");\n-\t\tgoto broken;\n+\t\tfor (j = 0; j < bus->dev_count; j++) {\n+\t\t\tif (j == i)\n+\t\t\t\tcontinue;\n+\t\t\tkvm_iodevice_destructor(bus->range[j].dev);\n+\t\t}\n \t}\n \n-\tmemcpy(new_bus, bus, sizeof(*bus) + i * sizeof(struct kvm_io_range));\n-\tnew_bus->dev_count--;\n-\tmemcpy(new_bus->range + i, bus->range + i + 1,\n-\t       (new_bus->dev_count - i) * sizeof(struct kvm_io_range));\n-\n-broken:\n \trcu_assign_pointer(kvm->buses[bus_idx], new_bus);\n \tsynchronize_srcu_expedited(&kvm->srcu);\n \tkfree(bus);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "7c35b9f6e27dab5fad66f8ff39c1acb1ef4fb3fc971ff089ffe7f00bc3be67e7",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01601_CVE-2020-36312/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1601,
+      "cve": "CVE-2020-36312",
+      "source_commit": "41b2ea7a6a11e2b1a7f2c29e1675a709a6b2b98d",
+      "oracle_commit": "40a023f681befd9b2862a3c16fb306a38b359ae5"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

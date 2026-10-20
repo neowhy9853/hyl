@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1029",
+  "candidate_sha256": "c5d7beb7cc1d9ee468dba290c6fefdeda27b8c096017af668f24987b4cfd013e",
+  "oracle_sha256": "42530ede4a21707386088cf4bdd2dc73a21b6057bd95e7690de975331721d6c2",
+  "candidate_nonempty": true,
+  "target_ref": "fe2292f42aa20799497099a88771b4bbf6afdc4e",
+  "baseline_tree": "e020582c48b1768300424f35d3c60bc260ab61ca",
+  "candidate_tree": "27dcc60e75866049f549103af38ae489775eb034",
+  "oracle_tree": "27dcc60e75866049f549103af38ae489775eb034",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1029",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "c5d7beb7cc1d9ee468dba290c6fefdeda27b8c096017af668f24987b4cfd013e",
+    "text": "diff --git a/fs/xfs/xfs_super.c b/fs/xfs/xfs_super.c\nindex 2616ddea6756..e5a9b5b9dc67 100644\n--- a/fs/xfs/xfs_super.c\n+++ b/fs/xfs/xfs_super.c\n@@ -1038,6 +1038,10 @@ xfs_fs_put_super(\n {\n \tstruct xfs_mount\t*mp = XFS_M(sb);\n \n+\t/* if ->fill_super failed, we have no mount to tear down */\n+\tif (!sb->s_fs_info)\n+\t\treturn;\n+\n \txfs_filestream_unmount(mp);\n \txfs_unmountfs(mp);\n \n@@ -1045,6 +1049,8 @@ xfs_fs_put_super(\n \txfs_icsb_destroy_counters(mp);\n \txfs_destroy_mount_workqueues(mp);\n \txfs_close_devices(mp);\n+\n+\tsb->s_fs_info = NULL;\n \txfs_free_fsname(mp);\n \tkfree(mp);\n }\n@@ -1514,6 +1520,7 @@ out_destroy_workqueues:\n  out_close_devices:\n \txfs_close_devices(mp);\n  out_free_fsname:\n+\tsb->s_fs_info = NULL;\n \txfs_free_fsname(mp);\n \tkfree(mp);\n  out:\n@@ -1540,6 +1547,9 @@ xfs_fs_nr_cached_objects(\n \tstruct super_block\t*sb,\n \tint\t\t\tnid)\n {\n+\t/* Paranoia: catch incorrect calls during mount setup or teardown */\n+\tif (WARN_ON_ONCE(!sb->s_fs_info))\n+\t\treturn 0;\n \treturn xfs_reclaim_inodes_count(XFS_M(sb));\n }\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

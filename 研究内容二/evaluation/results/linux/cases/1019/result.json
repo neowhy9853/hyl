@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1019",
+  "candidate_sha256": "4f5f173ad464fbce0ae17c157f11eb9125feec9af9d1197fb4a02ccb090c29dc",
+  "oracle_sha256": "7fcd2220d5be689d4b77d9db753bf5fd7a6241da2848096b998ea2258b641a85",
+  "candidate_nonempty": true,
+  "target_ref": "2149f8a56e2ed345c7a4d022a79f6b8fc53ae926",
+  "baseline_tree": "f2dcc20e616ed1acada1c780435a1fbd910c2464",
+  "candidate_tree": "5a12fe763a01dc36b814c22c8ab22380bf2b8749",
+  "oracle_tree": "5a12fe763a01dc36b814c22c8ab22380bf2b8749",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1019",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "4f5f173ad464fbce0ae17c157f11eb9125feec9af9d1197fb4a02ccb090c29dc",
+    "text": "diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c\nindex d53587ff9dde..e723584fc644 100644\n--- a/net/tls/tls_sw.c\n+++ b/net/tls/tls_sw.c\n@@ -195,6 +195,17 @@ static void tls_decrypt_done(crypto_completion_data_t *data, int err)\n \tstruct sock *sk;\n \tint aead_size;\n \n+\t/* If requests get too backlogged crypto API returns -EBUSY and calls\n+\t * ->complete(-EINPROGRESS) immediately followed by ->complete(0)\n+\t * to make waiting for backlog to flush with crypto_wait_req() easier.\n+\t * First wait converts -EBUSY -> -EINPROGRESS, and the second one\n+\t * -EINPROGRESS -> 0.\n+\t * We have a single struct crypto_async_request per direction, this\n+\t * scheme doesn't help us, so just ignore the first ->complete().\n+\t */\n+\tif (err == -EINPROGRESS)\n+\t\treturn;\n+\n \taead_size = sizeof(*aead_req) + crypto_aead_reqsize(aead);\n \taead_size = ALIGN(aead_size, __alignof__(*dctx));\n \tdctx = (void *)((u8 *)aead_req + aead_size);\n@@ -268,6 +279,10 @@ static int tls_do_decryption(struct sock *sk,\n \t}\n \n \tret = crypto_aead_decrypt(aead_req);\n+\tif (ret == -EBUSY) {\n+\t\tret = tls_decrypt_async_wait(ctx);\n+\t\tret = ret ?: -EINPROGRESS;\n+\t}\n \tif (ret == -EINPROGRESS) {\n \t\tif (darg->async)\n \t\t\treturn 0;\n@@ -451,6 +466,9 @@ static void tls_encrypt_done(crypto_completion_data_t *data, int err)\n \tstruct tls_rec *rec;\n \tstruct sock *sk;\n \n+\tif (err == -EINPROGRESS) /* see the comment in tls_decrypt_done() */\n+\t\treturn;\n+\n \trec = container_of(aead_req, struct tls_rec, aead_req);\n \tmsg_en = &rec->msg_encrypted;\n \n@@ -556,6 +574,10 @@ static int tls_do_encryption(struct sock *sk,\n \tatomic_inc(&ctx->encrypt_pending);\n \n \trc = crypto_aead_encrypt(aead_req);\n+\tif (rc == -EBUSY) {\n+\t\trc = tls_encrypt_async_wait(ctx);\n+\t\trc = rc ?: -EINPROGRESS;\n+\t}\n \tif (!rc || rc != -EINPROGRESS) {\n \t\tatomic_dec(&ctx->encrypt_pending);\n \t\tsge->offset -= prot->prepend_size;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

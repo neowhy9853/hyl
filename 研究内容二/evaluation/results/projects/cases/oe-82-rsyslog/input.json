@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-82-rsyslog",
+  "task_input": {
+    "repository": {
+      "name": "rsyslog",
+      "version": "8.2312.0",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "7d9aec94ad741703824bef6abc387ffb929a2309",
+      "target_tree": "3d4b71c7aec2a1d6310fe53624546b71f95f0d95"
+    },
+    "source_commit": "7d8519c92d55f073b4a6cc57e27ea34b5c4dc5d1",
+    "reference_parent": "981a764d64a5f1601b0843cbcd2d982579ee180b",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 7d8519c92d55f073b4a6cc57e27ea34b5c4dc5d1 Mon Sep 17 00:00:00 2001\nFrom: Flos Lonicerae <lonicerae@gmail.com>\nDate: Fri, 19 Apr 2024 16:55:55 +0800\nSubject: [PATCH] Do not free the uninitialized cstring.\n\n  * Better deal with corrupted queue messages\n---\n runtime/obj.c       | 6 +++++-\n runtime/stringbuf.c | 2 +-\n 2 files changed, 6 insertions(+), 2 deletions(-)\n\ndiff --git a/runtime/obj.c b/runtime/obj.c\nindex c78b1d27a..03a56f7a3 100644\n--- a/runtime/obj.c\n+++ b/runtime/obj.c\n@@ -518,7 +518,11 @@ static rsRetVal objDeserializeStr(cstr_t **ppCStr, int iLen, strm_t *pStrm)\n \tcstrFinalize(pCStr);\n \n \t/* check terminator */\n-\tif(c != ':') ABORT_FINALIZE(RS_RET_INVALID_DELIMITER);\n+\tif(c != ':') {\n+\t\t/* Initialized to NULL */\n+\t\t*ppCStr = NULL;\n+\t\tABORT_FINALIZE(RS_RET_INVALID_DELIMITER);\n+\t}\n \n \t*ppCStr = pCStr;\n \ndiff --git a/runtime/stringbuf.c b/runtime/stringbuf.c\nindex ea39b7c82..9c639a04e 100644\n--- a/runtime/stringbuf.c\n+++ b/runtime/stringbuf.c\n@@ -219,7 +219,7 @@ finalize_it:\n \n void rsCStrDestruct(cstr_t **const ppThis)\n {\n-\tfree((*ppThis)->pBuf);\n+\tif ((*ppThis)->pBuf) free((*ppThis)->pBuf);\n \tRSFREEOBJ(*ppThis);\n \t*ppThis = NULL;\n }\n-- \n2.25.1\n\n",
+      "sha256": "22708699ef5008d2f47669de4a47f3376e3eceeb8f393db3ba86aa9aaee35231"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for rsyslog.\ncase_id: oe-82-rsyslog\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 7d8519c92d55f073b4a6cc57e27ea34b5c4dc5d1\nreference_parent: 981a764d64a5f1601b0843cbcd2d982579ee180b\ntarget_ref: 7d9aec94ad741703824bef6abc387ffb929a2309\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "2e9a1a0fa8f633439da9ffb540299d4e78cb047a7988d5d66b39a4bd6dca33ef",
+      "text": "From 7d8519c92d55f073b4a6cc57e27ea34b5c4dc5d1 Mon Sep 17 00:00:00 2001\nFrom: Flos Lonicerae <lonicerae@gmail.com>\nDate: Fri, 19 Apr 2024 16:55:55 +0800\nSubject: [PATCH] Do not free the uninitialized cstring.\n\n  * Better deal with corrupted queue messages\n---\n runtime/obj.c       | 6 +++++-\n runtime/stringbuf.c | 2 +-\n 2 files changed, 6 insertions(+), 2 deletions(-)\n\ndiff --git a/runtime/obj.c b/runtime/obj.c\nindex c78b1d27a..03a56f7a3 100644\n--- a/runtime/obj.c\n+++ b/runtime/obj.c\n@@ -518,7 +518,11 @@ static rsRetVal objDeserializeStr(cstr_t **ppCStr, int iLen, strm_t *pStrm)\n \tcstrFinalize(pCStr);\n \n \t/* check terminator */\n-\tif(c != ':') ABORT_FINALIZE(RS_RET_INVALID_DELIMITER);\n+\tif(c != ':') {\n+\t\t/* Initialized to NULL */\n+\t\t*ppCStr = NULL;\n+\t\tABORT_FINALIZE(RS_RET_INVALID_DELIMITER);\n+\t}\n \n \t*ppCStr = pCStr;\n \ndiff --git a/runtime/stringbuf.c b/runtime/stringbuf.c\nindex ea39b7c82..9c639a04e 100644\n--- a/runtime/stringbuf.c\n+++ b/runtime/stringbuf.c\n@@ -219,7 +219,7 @@ finalize_it:\n \n void rsCStrDestruct(cstr_t **const ppThis)\n {\n-\tfree((*ppThis)->pBuf);\n+\tif ((*ppThis)->pBuf) free((*ppThis)->pBuf);\n \tRSFREEOBJ(*ppThis);\n \t*ppThis = NULL;\n }\n-- \n2.33.0\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "37a55d58ab7ec95e747a0e3550a3308bec6ba3ca661df41e081a78b07627c856",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-82-rsyslog/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-82-rsyslog",
+      "package": "rsyslog",
+      "version": "8.2312.0",
+      "source_commit": "7d8519c92d55f073b4a6cc57e27ea34b5c4dc5d1",
+      "target_ref": "7d9aec94ad741703824bef6abc387ffb929a2309",
+      "target_tree": "3d4b71c7aec2a1d6310fe53624546b71f95f0d95",
+      "reference_patch": "patches/oe-82-rsyslog/reference.patch",
+      "reference_sha256": "22708699ef5008d2f47669de4a47f3376e3eceeb8f393db3ba86aa9aaee35231",
+      "oracle_patch": "patches/oe-82-rsyslog/oracle.patch",
+      "oracle_sha256": "2e9a1a0fa8f633439da9ffb540299d4e78cb047a7988d5d66b39a4bd6dca33ef"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

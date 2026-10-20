@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "595",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-595-84kmikh5/repo",
+      "target_ref": "77fcddb6be7ca0c8d2e36b78442e993cdbbf6608",
+      "target_tree": "e327bad8ee8c155d06d0bd42c06eddb18e34b28c"
+    },
+    "source_commit": "172ba7d46c202e679f3ccb10264c67416aaeb1c4",
+    "reference_parent": "c3d8edb170863cbd93524c2660de233204364380",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/sched/act_ct.c b/net/sched/act_ct.c\nindex 81a2d6cbfb441c824ab026ccf97f0f5732063e58..b4c42b257ae7c6798c86c95ad09dce0987b23f68 100644\n--- a/net/sched/act_ct.c\n+++ b/net/sched/act_ct.c\n@@ -705,7 +705,6 @@ static int tcf_ct_handle_fragments(struct net *net, struct sk_buff *skb,\n \tif (err || !frag)\n \t\treturn err;\n \n-\tskb_get(skb);\n \tmru = tc_skb_cb(skb)->mru;\n \n \tif (family == NFPROTO_IPV4) {\n@@ -987,12 +986,8 @@ static int tcf_ct_act(struct sk_buff *skb, const struct tc_action *a,\n \tnh_ofs = skb_network_offset(skb);\n \tskb_pull_rcsum(skb, nh_ofs);\n \terr = tcf_ct_handle_fragments(net, skb, family, p->zone, &defrag);\n-\tif (err == -EINPROGRESS) {\n-\t\tretval = TC_ACT_STOLEN;\n-\t\tgoto out_clear;\n-\t}\n \tif (err)\n-\t\tgoto drop;\n+\t\tgoto out_frag;\n \n \terr = tcf_ct_skb_network_trim(skb, family);\n \tif (err)\n@@ -1059,6 +1054,11 @@ static int tcf_ct_act(struct sk_buff *skb, const struct tc_action *a,\n \t\tqdisc_skb_cb(skb)->pkt_len = skb->len;\n \treturn retval;\n \n+out_frag:\n+\tif (err != -EINPROGRESS)\n+\t\ttcf_action_inc_drop_qstats(&c->common);\n+\treturn TC_ACT_CONSUMED;\n+\n drop:\n \ttcf_action_inc_drop_qstats(&c->common);\n \treturn TC_ACT_SHOT;\n",
+      "sha256": "d268c1cac40d123331d7f5f05d22f18d3ce99b401e59068d5577855ee70be699"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2023-52610\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-595-84kmikh5/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-595-84kmikh5/repo/.patch-port/reference.diff\nreference_fix: 172ba7d46c202e679f3ccb10264c67416aaeb1c4\nreference_parent: c3d8edb170863cbd93524c2660de233204364380\ntarget_ref: 77fcddb6be7ca0c8d2e36b78442e993cdbbf6608\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-595-84kmikh5/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-595-84kmikh5/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2023-52610"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "f5346df0591d10bc948761ca854b1fae6d2ef441",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "59d4eea67946f7baa8f40567fdd01d88d6eb6b9c2db9f91efa14fc2ee8b25f88",
+      "text": "diff --git a/net/sched/act_ct.c b/net/sched/act_ct.c\nindex f69c47945175b657da6d7368c94693e81465296f..3d50215985d51718860b28d6e1ed5cbf72155482 100644\n--- a/net/sched/act_ct.c\n+++ b/net/sched/act_ct.c\n@@ -850,7 +850,6 @@ static int tcf_ct_handle_fragments(struct net *net, struct sk_buff *skb,\n \tif (err || !frag)\n \t\treturn err;\n \n-\tskb_get(skb);\n \terr = nf_ct_handle_fragments(net, skb, zone, family, &proto, &mru);\n \tif (err)\n \t\treturn err;\n@@ -999,12 +998,8 @@ TC_INDIRECT_SCOPE int tcf_ct_act(struct sk_buff *skb, const struct tc_action *a,\n \tnh_ofs = skb_network_offset(skb);\n \tskb_pull_rcsum(skb, nh_ofs);\n \terr = tcf_ct_handle_fragments(net, skb, family, p->zone, &defrag);\n-\tif (err == -EINPROGRESS) {\n-\t\tretval = TC_ACT_STOLEN;\n-\t\tgoto out_clear;\n-\t}\n \tif (err)\n-\t\tgoto drop;\n+\t\tgoto out_frag;\n \n \terr = nf_ct_skb_network_trim(skb, family);\n \tif (err)\n@@ -1091,6 +1086,11 @@ TC_INDIRECT_SCOPE int tcf_ct_act(struct sk_buff *skb, const struct tc_action *a,\n \t\tqdisc_skb_cb(skb)->pkt_len = skb->len;\n \treturn retval;\n \n+out_frag:\n+\tif (err != -EINPROGRESS)\n+\t\ttcf_action_inc_drop_qstats(&c->common);\n+\treturn TC_ACT_CONSUMED;\n+\n drop:\n \ttcf_action_inc_drop_qstats(&c->common);\n \treturn TC_ACT_SHOT;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "1b1ceb1534cdf0617bc8b47259a25d2d7197a0b4c9e7902c283674a971d3bda9",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00595_CVE-2023-52610/reference.diff",
+    "source_dataset_record": {
+      "case_id": 595,
+      "cve": "CVE-2023-52610",
+      "source_commit": "172ba7d46c202e679f3ccb10264c67416aaeb1c4",
+      "oracle_commit": "f5346df0591d10bc948761ca854b1fae6d2ef441"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

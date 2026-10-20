@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-32-libsoup",
+  "candidate_sha256": "b3158b8d7d89f0d36288bae4e45e9d5b8a0a4e55b927b80f7939089008c6e700",
+  "oracle_sha256": "a43f8fc54ffd4bd0c2a54f8fa5054dedbeff9a1c088898052d6f92cbca4805a2",
+  "candidate_nonempty": true,
+  "target_ref": "ba6ac577409801cc2449e25704ebe9502f1528e7",
+  "baseline_tree": "f4424127d163e65e6561befa854bad7d034eec8e",
+  "candidate_tree": "d9a2754ae407bf7485dfdfafad78bd80d453add4",
+  "oracle_tree": "37bff6bcbb0b67e9378d0ae30cdedae486d02687",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-32-libsoup",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "b3158b8d7d89f0d36288bae4e45e9d5b8a0a4e55b927b80f7939089008c6e700",
+    "text": "diff --git a/libsoup/soup-headers.c b/libsoup/soup-headers.c\nindex eec28adf..e5d3c03b 100644\n--- a/libsoup/soup-headers.c\n+++ b/libsoup/soup-headers.c\n@@ -50,13 +50,14 @@ soup_headers_parse (const char *str, int len, SoupMessageHeaders *dest)\n \t * ignorable trailing whitespace.\n \t */\n \n+\t/* No '\\0's are allowed */\n+\tif (memchr (str, '\\0', len))\n+\t\treturn FALSE;\n+\n \t/* Skip over the Request-Line / Status-Line */\n \theaders_start = memchr (str, '\\n', len);\n \tif (!headers_start)\n \t\treturn FALSE;\n-\t/* No '\\0's in the Request-Line / Status-Line */\n-\tif (memchr (str, '\\0', headers_start - str))\n-\t\treturn FALSE;\n \n \t/* We work on a copy of the headers, which we can write '\\0's\n \t * into, so that we don't have to individually g_strndup and\n@@ -68,14 +69,6 @@ soup_headers_parse (const char *str, int len, SoupMessageHeaders *dest)\n \theaders_copy[copy_len] = '\\0';\n \tvalue_end = headers_copy;\n \n-\t/* There shouldn't be any '\\0's in the headers already, but\n-\t * this is the web we're talking about.\n-\t */\n-\twhile ((p = memchr (headers_copy, '\\0', copy_len))) {\n-\t\tmemmove (p, p + 1, copy_len - (p - headers_copy));\n-\t\tcopy_len--;\n-\t}\n-\n \twhile (*(value_end + 1)) {\n \t\tname = value_end + 1;\n \t\tname_end = strchr (name, ':');\ndiff --git a/tests/header-parsing-test.c b/tests/header-parsing-test.c\nindex 946f1188..e7d5e648 100644\n--- a/tests/header-parsing-test.c\n+++ b/tests/header-parsing-test.c\n@@ -358,24 +358,6 @@ static struct RequestTest {\n \t  }\n \t},\n \n-\t{ \"NUL in header name\", \"760832\",\n-\t  \"GET / HTTP/1.1\\r\\nHost\\x00: example.com\\r\\n\", 36,\n-\t  SOUP_STATUS_OK,\n-\t  \"GET\", \"/\", SOUP_HTTP_1_1,\n-\t  { { \"Host\", \"example.com\" },\n-\t    { NULL }\n-\t  }\n-\t},\n-\n-\t{ \"NUL in header value\", \"760832\",\n-\t  \"GET / HTTP/1.1\\r\\nHost: example\\x00\" \"com\\r\\n\", 35,\n-\t  SOUP_STATUS_OK,\n-\t  \"GET\", \"/\", SOUP_HTTP_1_1,\n-\t  { { \"Host\", \"examplecom\" },\n-\t    { NULL }\n-\t  }\n-\t},\n-\n \t/************************/\n \t/*** INVALID REQUESTS ***/\n \t/************************/\n@@ -448,6 +430,21 @@ static struct RequestTest {\n \t  SOUP_STATUS_EXPECTATION_FAILED,\n \t  NULL, NULL, -1,\n \t  { { NULL } }\n+\t},\n+\n+\t// https://gitlab.gnome.org/GNOME/libsoup/-/issues/377\n+\t{ \"NUL in header name\", NULL,\n+\t  \"GET / HTTP/1.1\\r\\nHost\\x00: example.com\\r\\n\", 36,\n+\t  SOUP_STATUS_BAD_REQUEST,\n+\t  NULL, NULL, -1,\n+\t  { { NULL } }\n+\t},\n+\n+\t{ \"NUL in header value\", NULL,\n+\t  \"HTTP/1.1 200 OK\\r\\nFoo: b\\x00\" \"ar\\r\\n\", 28,\n+\t  SOUP_STATUS_BAD_REQUEST,\n+           NULL, NULL, -1,\n+\t  { { NULL } }\n \t}\n };\n static const int num_reqtests = G_N_ELEMENTS (reqtests);\n@@ -620,22 +617,6 @@ static struct ResponseTest {\n \t    { NULL } }\n \t},\n \n-\t{ \"NUL in header name\", \"760832\",\n-\t  \"HTTP/1.1 200 OK\\r\\nF\\x00oo: bar\\r\\n\", 28,\n-\t  SOUP_HTTP_1_1, SOUP_STATUS_OK, \"OK\",\n-\t  { { \"Foo\", \"bar\" },\n-\t    { NULL }\n-\t  }\n-\t},\n-\n-\t{ \"NUL in header value\", \"760832\",\n-\t  \"HTTP/1.1 200 OK\\r\\nFoo: b\\x00\" \"ar\\r\\n\", 28,\n-\t  SOUP_HTTP_1_1, SOUP_STATUS_OK, \"OK\",\n-\t  { { \"Foo\", \"bar\" },\n-\t    { NULL }\n-\t  }\n-\t},\n-\n \t/********************************/\n \t/*** VALID CONTINUE RESPONSES ***/\n \t/********************************/\n@@ -768,6 +749,19 @@ static struct ResponseTest {\n \t  { { NULL }\n \t  }\n \t},\n+\n+\t// https://gitlab.gnome.org/GNOME/libsoup/-/issues/377\n+\t{ \"NUL in header name\", NULL,\n+\t  \"HTTP/1.1 200 OK\\r\\nF\\x00oo: bar\\r\\n\", 28,\n+\t  -1, 0, NULL,\n+\t  { { NULL } }\n+\t},\n+\n+\t{ \"NUL in header value\", \"760832\",\n+\t  \"HTTP/1.1 200 OK\\r\\nFoo: b\\x00\" \"ar\\r\\n\", 28,\n+\t  -1, 0, NULL,\n+\t  { { NULL } }\n+\t},\n };\n static const int num_resptests = G_N_ELEMENTS (resptests);\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

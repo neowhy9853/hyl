@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "376",
+  "candidate_sha256": "4bbe6dd37f6ac491d24b1f2f7347981e736a6bd4d1f0a08398c3a62651131b0f",
+  "oracle_sha256": "c42c1271f65c19f428b479a0c4529134c64a50b48ccfcf31679d9543dd13945b",
+  "candidate_nonempty": true,
+  "target_ref": "891ca5dfe3b718b441fc786014a7ba8f517da188",
+  "baseline_tree": "0adbe30544a23deeed5f09e0918611f71c06ee1e",
+  "candidate_tree": "a5c9485a9d803baebc1866ac94eca63fe24bc1f0",
+  "oracle_tree": "e384c3ef1bcbe57ae0fe63ad74deac53d14d6578",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/376",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "4bbe6dd37f6ac491d24b1f2f7347981e736a6bd4d1f0a08398c3a62651131b0f",
+    "text": "diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c\nindex 206755eb35f3..e69a6659e3c4 100644\n--- a/net/netfilter/nf_tables_api.c\n+++ b/net/netfilter/nf_tables_api.c\n@@ -8320,6 +8320,22 @@ static void nft_set_commit_update(struct list_head *set_update_list)\n \t}\n }\n \n+static unsigned int nft_gc_seq_begin(struct nftables_pernet *nft_net)\n+{\n+\tunsigned int gc_seq;\n+\n+\t/* Bump gc counter, it becomes odd, this is the busy mark. */\n+\tgc_seq = READ_ONCE(nft_net->gc_seq);\n+\tWRITE_ONCE(nft_net->gc_seq, ++gc_seq);\n+\n+\treturn gc_seq;\n+}\n+\n+static void nft_gc_seq_end(struct nftables_pernet *nft_net, unsigned int gc_seq)\n+{\n+\tWRITE_ONCE(nft_net->gc_seq, ++gc_seq);\n+}\n+\n static int nf_tables_commit(struct net *net, struct sk_buff *skb)\n {\n \tstruct nftables_pernet *nft_net = net_generic(net, nf_tables_net_id);\n@@ -8401,9 +8417,7 @@ static int nf_tables_commit(struct net *net, struct sk_buff *skb)\n \twhile (++nft_net->base_seq == 0)\n \t\t;\n \n-\t/* Bump gc counter, it becomes odd, this is the busy mark. */\n-\tgc_seq = READ_ONCE(nft_net->gc_seq);\n-\tWRITE_ONCE(nft_net->gc_seq, ++gc_seq);\n+\tgc_seq = nft_gc_seq_begin(nft_net);\n \n \t/* step 3. Start new generation, rules_gen_X now in use. */\n \tnet->nft.gencursor = nft_gencursor_next(net);\n@@ -8583,7 +8597,7 @@ static int nf_tables_commit(struct net *net, struct sk_buff *skb)\n \tnf_tables_gen_notify(net, skb, NFT_MSG_NEWGEN);\n \tnf_tables_commit_audit_log(&adl, nft_net->base_seq);\n \n-\tWRITE_ONCE(nft_net->gc_seq, ++gc_seq);\n+\tnft_gc_seq_end(nft_net, gc_seq);\n \tnf_tables_commit_release(net);\n \n \treturn 0;\n@@ -9538,11 +9552,19 @@ static void __net_exit nf_tables_pre_exit_net(struct net *net)\n static void __net_exit nf_tables_exit_net(struct net *net)\n {\n \tstruct nftables_pernet *nft_net = net_generic(net, nf_tables_net_id);\n+\tunsigned int gc_seq;\n \n \tmutex_lock(&nft_net->commit_mutex);\n+\n+\tgc_seq = nft_gc_seq_begin(nft_net);\n+\n \tif (!list_empty(&nft_net->commit_list))\n \t\t__nf_tables_abort(net, NFNL_ABORT_NONE);\n+\n \t__nft_release_tables(net);\n+\n+\tnft_gc_seq_end(nft_net, gc_seq);\n+\n \tmutex_unlock(&nft_net->commit_mutex);\n \tWARN_ON_ONCE(!list_empty(&nft_net->tables));\n \tWARN_ON_ONCE(!list_empty(&nft_net->module_list));\n"
+  },
+  "trace_file": "trace.jsonl"
+}

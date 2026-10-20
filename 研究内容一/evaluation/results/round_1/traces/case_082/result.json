@@ -1,0 +1,72 @@
+{
+  "round": 1,
+  "case_id": "case_082",
+  "source_index": 81,
+  "repo": "kernel",
+  "commit_id": "9e328d92bf287c734b0ca25fed42bf38f56a86cb",
+  "oracle_label": "feat",
+  "predicted_label": "fix",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "8d354b0a0a24",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.78,
+    "reason": "提交在设备初始化/复位路径中为支持 imp-handle RAS 的设备新增错误处理分支，纠正此前统一走 hclge_handle_all_hns_hw_errors 导致误复位的问题，主导意图是修复既有错误路径。",
+    "intent_items": [
+      {
+        "target": "hns3 PF 驱动初始化与复位流程（hclge_init_ae_dev/hclge_reset_ae_dev）",
+        "change": "按 hnae3_dev_ras_imp_supported 分支：支持 imp-handle RAS 时调用新增 hclge_handle_occurred_error，否则保持 hclge_handle_all_hns_hw_errors",
+        "effect_or_reason": "此前所有设备统一处理已发生的 hw error，对具备 imp-handle RAS 能力的设备可能触发错误的复位；新分支使其按自身错误状态处理",
+        "context_used": [
+          "drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_main.c",
+          "drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.c"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "初始化时记录并清除已发生的 hw error"
+          ],
+          "message_only_details": [
+            "对 imp-handle RAS 设备处理不当可能导致 wrong reset",
+            "该改动来自主线 commit 1c360a4a077f"
+          ],
+          "code_only_details": [
+            "hclge_handle_err_recovery 新增 ae_dev->hw_err_reset_req = 0 清零",
+            "错误源掩码由 NFE|ROCEE 掩码改为 HCLGE_RAS_REG_ERR_MASK"
+          ]
+        },
+        "evidence": [
+          "补丁把 init/reset 中的无条件 hclge_handle_all_hns_hw_errors 改为按 ras imp 支持能力分支调用",
+          "提交前错误路径：ras imp 设备走通用处理路径可能误复位；提交后由 hclge_find_error_source 判定错误源并仅记录日志处理"
+        ]
+      },
+      {
+        "target": "hclge 错误检测逻辑（hclge_err.c/hclge_err.h）",
+        "change": "新增 hclge_find_error_source 与 hclge_handle_occurred_error，并在头文件导出声明",
+        "effect_or_reason": "把错误源判断与已发生错误的处理抽成可复用入口，供恢复与初始化路径共同使用",
+        "context_used": [
+          "drivers/net/ethernet/hisilicon/hns3/hns3pf/hclge_err.h"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "新增两个错误处理函数并在头文件声明"
+          ],
+          "message_only_details": [],
+          "code_only_details": [
+            "hclge_handle_err_recovery 原有内联检测代码被替换为调用 hclge_find_error_source"
+          ]
+        },
+        "evidence": [
+          "hclge_find_error_source 读取 MISC_VECTOR_INT_STS 与 RAS_PF_OTHER_INT_STS_REG 判断错误源",
+          "hclge_handle_occurred_error 在检测到错误源时调用 hclge_handle_error_info_log"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_082",
+  "trace_status": "available"
+}

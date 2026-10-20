@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1383",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-warning-retry4-2239/task-workspaces/new-porter-1383-l_a_jayg/repo",
+      "target_ref": "5b96c3796cd207060738ffe225fac7b096ceb11f",
+      "target_tree": "62fe3c22cef3dafaf7016ba185bc92662f12e066"
+    },
+    "source_commit": "395982ce12b3aba14a197ead3e5828e77e11aec1",
+    "reference_parent": "9f3c8fdbb9786e46ffc6d2e261c9bf903e37fd4a",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c\nindex fb52b548080d..8f788193e3d4 100644\n--- a/fs/proc/task_mmu.c\n+++ b/fs/proc/task_mmu.c\n@@ -1350,7 +1350,7 @@ static int gather_hugetbl_stats(pte_t *pte, unsigned long hmask,\n \tstruct numa_maps *md;\n \tstruct page *page;\n \n-\tif (pte_none(*pte))\n+\tif (!pte_present(*pte))\n \t\treturn 0;\n \n \tpage = pte_page(*pte);\ndiff --git a/mm/mempolicy.c b/mm/mempolicy.c\nindex ae3c8f3595d4..56224d998c39 100644\n--- a/mm/mempolicy.c\n+++ b/mm/mempolicy.c\n@@ -526,9 +526,13 @@ static void queue_pages_hugetlb_pmd_range(struct vm_area_struct *vma,\n \tint nid;\n \tstruct page *page;\n \tspinlock_t *ptl;\n+\tpte_t entry;\n \n \tptl = huge_pte_lock(hstate_vma(vma), vma->vm_mm, (pte_t *)pmd);\n-\tpage = pte_page(huge_ptep_get((pte_t *)pmd));\n+\tentry = huge_ptep_get((pte_t *)pmd);\n+\tif (!pte_present(entry))\n+\t\tgoto unlock;\n+\tpage = pte_page(entry);\n \tnid = page_to_nid(page);\n \tif (node_isset(nid, *nodes) == !!(flags & MPOL_MF_INVERT))\n \t\tgoto unlock;\n",
+      "sha256": "75616de507351e071e3b54c51f08a508426d9c73d06fee7197156f521bbb536c"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2014-3940\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-warning-retry4-2239/task-workspaces/new-porter-1383-l_a_jayg/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-warning-retry4-2239/task-workspaces/new-porter-1383-l_a_jayg/repo/.patch-port/reference.diff\nreference_fix: 395982ce12b3aba14a197ead3e5828e77e11aec1\nreference_parent: 9f3c8fdbb9786e46ffc6d2e261c9bf903e37fd4a\ntarget_ref: 5b96c3796cd207060738ffe225fac7b096ceb11f\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-warning-retry4-2239/task-workspaces/new-porter-1383-l_a_jayg/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-warning-retry4-2239/task-workspaces/new-porter-1383-l_a_jayg/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2014-3940"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "7032d5fbbf1b08586e1463684d6c8f456889c293",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "6f19fab557e0f245447b0d95fc04280f2a95ddc858f2310b56aad8426b4ef983",
+      "text": "diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c\nindex 390bdab01c3c..ad4df869c907 100644\n--- a/fs/proc/task_mmu.c\n+++ b/fs/proc/task_mmu.c\n@@ -1353,7 +1353,7 @@ static int gather_hugetbl_stats(pte_t *pte, unsigned long hmask,\n \tstruct numa_maps *md;\n \tstruct page *page;\n \n-\tif (pte_none(*pte))\n+\tif (!pte_present(*pte))\n \t\treturn 0;\n \n \tpage = pte_page(*pte);\ndiff --git a/mm/mempolicy.c b/mm/mempolicy.c\nindex 927a69cf354a..a005cc9f6f18 100644\n--- a/mm/mempolicy.c\n+++ b/mm/mempolicy.c\n@@ -525,9 +525,13 @@ static void queue_pages_hugetlb_pmd_range(struct vm_area_struct *vma,\n #ifdef CONFIG_HUGETLB_PAGE\n \tint nid;\n \tstruct page *page;\n+\tpte_t entry;\n \n \tspin_lock(&vma->vm_mm->page_table_lock);\n-\tpage = pte_page(huge_ptep_get((pte_t *)pmd));\n+\tentry = huge_ptep_get((pte_t *)pmd);\n+\tif (!pte_present(entry))\n+\t\tgoto unlock;\n+\tpage = pte_page(entry);\n \tnid = page_to_nid(page);\n \tif (node_isset(nid, *nodes) == !!(flags & MPOL_MF_INVERT))\n \t\tgoto unlock;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "e73f19ccd99919f41214c82dcf79b762b383356723345713f06160abfd4a9a8d",
+    "reference_patch_source": "/data/SCA-repair/src/core-c/result/opencode_agent_robust_failed404_random40_more_work/01383_CVE-2014-3940/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1383,
+      "cve": "CVE-2014-3940",
+      "source_commit": "395982ce12b3aba14a197ead3e5828e77e11aec1",
+      "oracle_commit": "7032d5fbbf1b08586e1463684d6c8f456889c293"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

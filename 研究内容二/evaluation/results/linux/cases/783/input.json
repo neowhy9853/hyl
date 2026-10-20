@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "783",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-783-3b5lp04q/repo",
+      "target_ref": "3a63b718200be5b1997f6eb28e5e688ec58ec41b",
+      "target_tree": "8998ddf82e28a659048379a00441231046ace755"
+    },
+    "source_commit": "b391bb3554dd6e04b7a8ede975dbd3342526a045",
+    "reference_parent": "21ad423fe5210f5aa50bd43f9ae99b655090a227",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/kernel/cgroup/cgroup-v1.c b/kernel/cgroup/cgroup-v1.c\nindex 5602bd81caa9051a4747724664882602038bf550..105f5b2f597838c9c5cb97b5593005ff8af655ad 100644\n--- a/kernel/cgroup/cgroup-v1.c\n+++ b/kernel/cgroup/cgroup-v1.c\n@@ -577,6 +577,14 @@ static ssize_t cgroup_release_agent_write(struct kernfs_open_file *of,\n \n \tBUILD_BUG_ON(sizeof(cgrp->root->release_agent_path) < PATH_MAX);\n \n+\t/*\n+\t * Release agent gets called with all capabilities,\n+\t * require capabilities to set release agent.\n+\t */\n+\tif ((of->file->f_cred->user_ns != &init_user_ns) ||\n+\t    !capable(CAP_SYS_ADMIN))\n+\t\treturn -EPERM;\n+\n \tcgrp = cgroup_kn_lock_live(of->kn, false);\n \tif (!cgrp)\n \t\treturn -ENODEV;\n@@ -1060,6 +1068,7 @@ static int cgroup1_remount(struct kernfs_root *kf_root, int *flags, char *data)\n {\n \tint ret = 0;\n \tstruct cgroup_root *root = cgroup_root_from_kf(kf_root);\n+\tstruct cgroup_namespace *ns = current->nsproxy->cgroup_ns;\n \tstruct cgroup_sb_opts opts;\n \tu16 added_mask, removed_mask;\n \n@@ -1073,6 +1082,12 @@ static int cgroup1_remount(struct kernfs_root *kf_root, int *flags, char *data)\n \tif (opts.subsys_mask != root->subsys_mask || opts.release_agent)\n \t\tpr_warn(\"option changes via remount are deprecated (pid=%d comm=%s)\\n\",\n \t\t\ttask_tgid_nr(current), current->comm);\n+\t/* See cgroup1_mount release_agent handling */\n+\tif (opts.release_agent &&\n+\t    ((ns->user_ns != &init_user_ns) || !capable(CAP_SYS_ADMIN))) {\n+\t\tret = -EINVAL;\n+\t\tgoto out_unlock;\n+\t}\n \n \tadded_mask = opts.subsys_mask & ~root->subsys_mask;\n \tremoved_mask = root->subsys_mask & ~opts.subsys_mask;\n@@ -1236,6 +1251,15 @@ struct dentry *cgroup1_mount(struct file_system_type *fs_type, int flags,\n \t\tret = -EPERM;\n \t\tgoto out_unlock;\n \t}\n+\t/*\n+\t * Release agent gets called with all capabilities,\n+\t * require capabilities to set release agent.\n+\t */\n+\tif (opts.release_agent &&\n+\t    ((ns->user_ns != &init_user_ns) || !capable(CAP_SYS_ADMIN))) {\n+\t\tret = -EINVAL;\n+\t\tgoto out_unlock;\n+\t}\n \n \troot = kzalloc(sizeof(*root), GFP_KERNEL);\n \tif (!root) {\n",
+      "sha256": "be8a4a5773ecb25bb4dd801cd4277b407741208e9c9bad60264e6fbeb9c35351"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2022-0492\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-783-3b5lp04q/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-783-3b5lp04q/repo/.patch-port/reference.diff\nreference_fix: b391bb3554dd6e04b7a8ede975dbd3342526a045\nreference_parent: 21ad423fe5210f5aa50bd43f9ae99b655090a227\ntarget_ref: 3a63b718200be5b1997f6eb28e5e688ec58ec41b\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-783-3b5lp04q/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-783-3b5lp04q/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2022-0492"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "9c9dbb954e618e3d9110f13cc02c5db1fb73ea5d",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "11e08ba0823777d8eca76ecac005ffbda2f11570a9b34992a25d3a9f2f54806c",
+      "text": "diff --git a/kernel/cgroup/cgroup-v1.c b/kernel/cgroup/cgroup-v1.c\nindex 41e0837a5a0bda17b361b87f4a4faf4790eb0b8a..0e877dbcfeea9c337e9af64c9264bc888f5b9968 100644\n--- a/kernel/cgroup/cgroup-v1.c\n+++ b/kernel/cgroup/cgroup-v1.c\n@@ -549,6 +549,14 @@ static ssize_t cgroup_release_agent_write(struct kernfs_open_file *of,\n \n \tBUILD_BUG_ON(sizeof(cgrp->root->release_agent_path) < PATH_MAX);\n \n+\t/*\n+\t * Release agent gets called with all capabilities,\n+\t * require capabilities to set release agent.\n+\t */\n+\tif ((of->file->f_cred->user_ns != &init_user_ns) ||\n+\t    !capable(CAP_SYS_ADMIN))\n+\t\treturn -EPERM;\n+\n \tcgrp = cgroup_kn_lock_live(of->kn, false);\n \tif (!cgrp)\n \t\treturn -ENODEV;\n@@ -954,6 +962,12 @@ int cgroup1_parse_param(struct fs_context *fc, struct fs_parameter *param)\n \t\t/* Specifying two release agents is forbidden */\n \t\tif (ctx->release_agent)\n \t\t\treturn invalfc(fc, \"release_agent respecified\");\n+\t\t/*\n+\t\t * Release agent gets called with all capabilities,\n+\t\t * require capabilities to set release agent.\n+\t\t */\n+\t\tif ((fc->user_ns != &init_user_ns) || !capable(CAP_SYS_ADMIN))\n+\t\t\treturn invalfc(fc, \"Setting release_agent not allowed\");\n \t\tctx->release_agent = param->string;\n \t\tparam->string = NULL;\n \t\tbreak;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "f7179e008b7e718b3d9582b5a882ae886dcb6936c186351f403f0bf9749f865d",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00783_CVE-2022-0492/reference.diff",
+    "source_dataset_record": {
+      "case_id": 783,
+      "cve": "CVE-2022-0492",
+      "source_commit": "b391bb3554dd6e04b7a8ede975dbd3342526a045",
+      "oracle_commit": "9c9dbb954e618e3d9110f13cc02c5db1fb73ea5d"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

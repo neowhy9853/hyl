@@ -1,0 +1,49 @@
+{
+  "round": 5,
+  "case_id": "case_077",
+  "source_index": 76,
+  "repo": "kernel",
+  "commit_id": "e8b3047f8174cf59499d0ee31fd7f52194f17b21",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "62cc117c13aa",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "提交修复了硬件中毒尾页场景下的页表解除映射错误，并优化了folio API使用。主导意图是纠正错误路径，属于修复。",
+    "intent_items": [
+      {
+        "target": "__do_fault() 函数中的硬件中毒页处理路径",
+        "change": "将 vmf->page 转换为 folio，用 unmap_mapping_folio() 替换 unmap_mapping_pages()，并使用 folio 系列 API 替换 page 操作",
+        "effect_or_reason": "修复了当 fault handler 返回硬件中毒尾页时，因 page->index 无效而无法从页表解除映射的 bug；同时减少 compound_head() 调用",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交修复了硬件中毒尾页的解除映射错误",
+            "将 page 操作转换为 folio 操作"
+          ],
+          "message_only_details": [
+            "尾页的 page->index 无效导致无法解除映射",
+            "需要解除映射整个 folio 否则 mapping_evict_folio() 会失败"
+          ],
+          "code_only_details": [
+            "具体替换了 unmap_mapping_pages(page_mapping(page), page->index, 1, false) 为 unmap_mapping_folio(folio)",
+            "将 lock_page()/unlock_page()/put_page() 替换为 folio_lock()/folio_unlock()/folio_put()"
+          ]
+        },
+        "evidence": [
+          "提交前使用 unmap_mapping_pages(page_mapping(page), page->index, 1, false) 仅解除映射单个页，但尾页的 page->index 无效，导致无法正确解除映射。提交后使用 unmap_mapping_folio(folio) 解除映射整个 folio，纠正了错误。",
+          "提交将 PageHWPoison 处理路径中的 page 操作全部替换为 folio 操作，确保对复合页的正确处理。"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_077",
+  "trace_status": "available"
+}

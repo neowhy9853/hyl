@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2226",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2226-p0zt59u_/repo",
+      "target_ref": "8313432df224d926590731ec3ace3e1bd7bc4a1a",
+      "target_tree": "0a350bb841574ff82c888cd1954571806891d05c"
+    },
+    "source_commit": "55c262ea5d0f754648cd25aa73de081adaab07d9",
+    "reference_parent": "b7243c0ab298feb651a19a092ab9ebda02789904",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c\nindex 37581919e050c8fc63afb74aa9812d7e40df8eea..20babdd06278fc5d10612d5b77f3684c5b70db5d 100644\n--- a/kernel/bpf/verifier.c\n+++ b/kernel/bpf/verifier.c\n@@ -11006,7 +11006,7 @@ static int fixup_bpf_calls(struct bpf_verifier_env *env)\n \t\t\tbool isdiv = BPF_OP(insn->code) == BPF_DIV;\n \t\t\tstruct bpf_insn *patchlet;\n \t\t\tstruct bpf_insn chk_and_div[] = {\n-\t\t\t\t/* Rx div 0 -> 0 */\n+\t\t\t\t/* [R,W]x div 0 -> 0 */\n \t\t\t\tBPF_RAW_INSN((is64 ? BPF_JMP : BPF_JMP32) |\n \t\t\t\t\t     BPF_JNE | BPF_K, insn->src_reg,\n \t\t\t\t\t     0, 2, 0),\n@@ -11015,16 +11015,18 @@ static int fixup_bpf_calls(struct bpf_verifier_env *env)\n \t\t\t\t*insn,\n \t\t\t};\n \t\t\tstruct bpf_insn chk_and_mod[] = {\n-\t\t\t\t/* Rx mod 0 -> Rx */\n+\t\t\t\t/* [R,W]x mod 0 -> [R,W]x */\n \t\t\t\tBPF_RAW_INSN((is64 ? BPF_JMP : BPF_JMP32) |\n \t\t\t\t\t     BPF_JEQ | BPF_K, insn->src_reg,\n-\t\t\t\t\t     0, 1, 0),\n+\t\t\t\t\t     0, 1 + (is64 ? 0 : 1), 0),\n \t\t\t\t*insn,\n+\t\t\t\tBPF_JMP_IMM(BPF_JA, 0, 0, 1),\n+\t\t\t\tBPF_MOV32_REG(insn->dst_reg, insn->dst_reg),\n \t\t\t};\n \n \t\t\tpatchlet = isdiv ? chk_and_div : chk_and_mod;\n \t\t\tcnt = isdiv ? ARRAY_SIZE(chk_and_div) :\n-\t\t\t\t      ARRAY_SIZE(chk_and_mod);\n+\t\t\t\t      ARRAY_SIZE(chk_and_mod) - (is64 ? 2 : 0);\n \n \t\t\tnew_prog = bpf_patch_insn_data(env, i + delta, patchlet, cnt);\n \t\t\tif (!new_prog)\n",
+      "sha256": "28de92b3d2f767e4544450e6979a6121086ae5b3ef1167c5ac0b23a8fb74eae9"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2021-3444\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2226-p0zt59u_/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2226-p0zt59u_/repo/.patch-port/reference.diff\nreference_fix: 55c262ea5d0f754648cd25aa73de081adaab07d9\nreference_parent: b7243c0ab298feb651a19a092ab9ebda02789904\ntarget_ref: 8313432df224d926590731ec3ace3e1bd7bc4a1a\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2226-p0zt59u_/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2226-p0zt59u_/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2021-3444"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "39f74b7c81cca139c05757d9c8f9d1e35fbbf56b",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "8439890adc8c5fc567747c3687f394bfbd566090ebcaefa9e039d095953bc39f",
+      "text": "diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c\nindex a346ecfe6241f9a084124c39e1cda3d0ea3411d4..abdc9eca463c55a2c138b4da6eb0db790cb0ac9c 100644\n--- a/kernel/bpf/verifier.c\n+++ b/kernel/bpf/verifier.c\n@@ -6178,7 +6178,7 @@ static int fixup_bpf_calls(struct bpf_verifier_env *env)\n \t\t\tbool is64 = BPF_CLASS(insn->code) == BPF_ALU64;\n \t\t\tstruct bpf_insn mask_and_div[] = {\n \t\t\t\tBPF_MOV_REG(BPF_CLASS(insn->code), BPF_REG_AX, insn->src_reg),\n-\t\t\t\t/* Rx div 0 -> 0 */\n+\t\t\t\t/* [R,W]x div 0 -> 0 */\n \t\t\t\tBPF_JMP_IMM(BPF_JEQ, BPF_REG_AX, 0, 2),\n \t\t\t\tBPF_RAW_REG(*insn, insn->dst_reg, BPF_REG_AX),\n \t\t\t\tBPF_JMP_IMM(BPF_JA, 0, 0, 1),\n@@ -6186,9 +6186,10 @@ static int fixup_bpf_calls(struct bpf_verifier_env *env)\n \t\t\t};\n \t\t\tstruct bpf_insn mask_and_mod[] = {\n \t\t\t\tBPF_MOV_REG(BPF_CLASS(insn->code), BPF_REG_AX, insn->src_reg),\n-\t\t\t\t/* Rx mod 0 -> Rx */\n-\t\t\t\tBPF_JMP_IMM(BPF_JEQ, BPF_REG_AX, 0, 1),\n+\t\t\t\tBPF_JMP_IMM(BPF_JEQ, BPF_REG_AX, 0, 1 + (is64 ? 0 : 1)),\n \t\t\t\tBPF_RAW_REG(*insn, insn->dst_reg, BPF_REG_AX),\n+\t\t\t\tBPF_JMP_IMM(BPF_JA, 0, 0, 1),\n+\t\t\t\tBPF_MOV32_REG(insn->dst_reg, insn->dst_reg),\n \t\t\t};\n \t\t\tstruct bpf_insn *patchlet;\n \n@@ -6198,7 +6199,7 @@ static int fixup_bpf_calls(struct bpf_verifier_env *env)\n \t\t\t\tcnt = ARRAY_SIZE(mask_and_div);\n \t\t\t} else {\n \t\t\t\tpatchlet = mask_and_mod;\n-\t\t\t\tcnt = ARRAY_SIZE(mask_and_mod);\n+\t\t\t\tcnt = ARRAY_SIZE(mask_and_mod) - (is64 ? 2 : 0);\n \t\t\t}\n \n \t\t\tnew_prog = bpf_patch_insn_data(env, i + delta, patchlet, cnt);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "00253494a40a4d9a4b44d1c512873d7c8e2f9a68fb158611a6193688be4c703c",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/02226_CVE-2021-3444/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2226,
+      "cve": "CVE-2021-3444",
+      "source_commit": "55c262ea5d0f754648cd25aa73de081adaab07d9",
+      "oracle_commit": "39f74b7c81cca139c05757d9c8f9d1e35fbbf56b"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

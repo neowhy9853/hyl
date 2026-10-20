@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-76-haproxy",
+  "task_input": {
+    "repository": {
+      "name": "haproxy",
+      "version": "2.9.5",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "2f63f0f61bf203da98d836901a9f5b232a1940fe",
+      "target_tree": "19f9c00c29159c771c600ea2c0a9a6b8937045ef"
+    },
+    "source_commit": "3e3b9eebf871510aee36c3a3336faac2f38c9559",
+    "reference_parent": "9e8444b730e9b24e73f1f78d269f5001a34bd98d",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 3e3b9eebf871510aee36c3a3336faac2f38c9559 Mon Sep 17 00:00:00 2001\nFrom: Willy Tarreau <w@1wt.eu>\nDate: Mon, 7 Apr 2025 15:30:43 +0200\nSubject: [PATCH] BUG/MEDIUM: sample: fix risk of overflow when replacing\n multiple regex back-refs\n\nAleandro Prudenzano of Doyensec and Edoardo Geraci of Codean Labs\nreported a bug in sample_conv_regsub(), which can cause replacements\nof multiple back-references to overflow the temporary trash buffer.\n\nThe problem happens when doing \"regsub(match,replacement,g)\": we're\nreplacing every occurrence of \"match\" with \"replacement\" in the input\nsample, which requires a length check. For this, a max is applied, so\nthat a replacement may not use more than the remaining length in the\nbuffer. However, the length check is made on the replaced pattern and\nnot on the temporary buffer used to carry the new string. This results\nin the remaining size to be usable for each input match, which can go\nbeyond the temporary buffer size if more than one occurrence has to be\nreplaced with something that's larger than the remaining room.\n\nThe fix proposed by Aleandro and Edoardo is the correct one (check on\n\"trash\" not \"output\"), and is the one implemented in this patch.\n\nWhile it is very unlikely that a config will replace multiple short\npatterns each with a larger one in a request, this possibility cannot\nbe entirely ruled out (e.g. mask a known, short IP address using\n\"XXX.XXX.XXX.XXX\").  However when this happens, the replacement pattern\nwill be static, and not be user-controlled, which is why this patch is\nmarked as medium.\n\nThe bug was introduced in 2.2 with commit 07e1e3c93e (\"MINOR: sample:\nregsub now supports backreferences\"), so it must be backported to all\nversions.\n\nSpecial thanks go to Aleandro and Edoardo for reporting this bug with\na simple reproducer and a fix.\n---\n src/sample.c | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n\ndiff --git a/src/sample.c b/src/sample.c\nindex 1e2ff7d2e..980c27cb6 100644\n--- a/src/sample.c\n+++ b/src/sample.c\n@@ -3168,7 +3168,7 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void\n \t\toutput->data = exp_replace(output->area, output->size, start, arg_p[1].data.str.area, pmatch);\n \n \t\t/* replace the matching part */\n-\t\tmax = output->size - output->data;\n+\t\tmax = trash->size - trash->data;\n \t\tif (max) {\n \t\t\tif (max > output->data)\n \t\t\t\tmax = output->data;\n-- \n2.25.1\n\n",
+      "sha256": "83a2011a0f5d38c7e634cc0c02fb24dfd165e28958567a8ca247d0efa967c1fe"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for haproxy.\ncase_id: oe-76-haproxy\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 3e3b9eebf871510aee36c3a3336faac2f38c9559\nreference_parent: 9e8444b730e9b24e73f1f78d269f5001a34bd98d\ntarget_ref: 2f63f0f61bf203da98d836901a9f5b232a1940fe\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "c879ae1b155e943fcf24b327cbdf6f02dcec344a5b10d20cd77a867e2f09af35",
+      "text": "From 3e3b9eebf871510aee36c3a3336faac2f38c9559 Mon Sep 17 00:00:00 2001\nFrom: Willy Tarreau <w@1wt.eu>\nDate: Mon, 7 Apr 2025 15:30:43 +0200\nSubject: [PATCH] BUG/MEDIUM: sample: fix risk of overflow when replacing\n multiple regex back-refs\n\nAleandro Prudenzano of Doyensec and Edoardo Geraci of Codean Labs\nreported a bug in sample_conv_regsub(), which can cause replacements\nof multiple back-references to overflow the temporary trash buffer.\n\nThe problem happens when doing \"regsub(match,replacement,g)\": we're\nreplacing every occurrence of \"match\" with \"replacement\" in the input\nsample, which requires a length check. For this, a max is applied, so\nthat a replacement may not use more than the remaining length in the\nbuffer. However, the length check is made on the replaced pattern and\nnot on the temporary buffer used to carry the new string. This results\nin the remaining size to be usable for each input match, which can go\nbeyond the temporary buffer size if more than one occurrence has to be\nreplaced with something that's larger than the remaining room.\n\nThe fix proposed by Aleandro and Edoardo is the correct one (check on\n\"trash\" not \"output\"), and is the one implemented in this patch.\n\nWhile it is very unlikely that a config will replace multiple short\npatterns each with a larger one in a request, this possibility cannot\nbe entirely ruled out (e.g. mask a known, short IP address using\n\"XXX.XXX.XXX.XXX\").  However when this happens, the replacement pattern\nwill be static, and not be user-controlled, which is why this patch is\nmarked as medium.\n\nThe bug was introduced in 2.2 with commit 07e1e3c93e (\"MINOR: sample:\nregsub now supports backreferences\"), so it must be backported to all\nversions.\n\nSpecial thanks go to Aleandro and Edoardo for reporting this bug with\na simple reproducer and a fix.\n\nConflict: NA\nReference: https://github.com/haproxy/haproxy/commit/3e3b9eebf871510aee36c3a3336faac2f38c9559\n---\n src/sample.c | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n\ndiff --git a/src/sample.c b/src/sample.c\nindex 1e2ff7d2ee8e8..980c27cb6a507 100644\n--- a/src/sample.c\n+++ b/src/sample.c\n@@ -3168,7 +3168,7 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void\n \t\toutput->data = exp_replace(output->area, output->size, start, arg_p[1].data.str.area, pmatch);\n \n \t\t/* replace the matching part */\n-\t\tmax = output->size - output->data;\n+\t\tmax = trash->size - trash->data;\n \t\tif (max) {\n \t\t\tif (max > output->data)\n \t\t\t\tmax = output->data;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "0321ff0d3bcd94b6f6634845216aa213191a0efda2e9628c08fb95c48117c760",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-76-haproxy/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-76-haproxy",
+      "package": "haproxy",
+      "version": "2.9.5",
+      "source_commit": "3e3b9eebf871510aee36c3a3336faac2f38c9559",
+      "target_ref": "2f63f0f61bf203da98d836901a9f5b232a1940fe",
+      "target_tree": "19f9c00c29159c771c600ea2c0a9a6b8937045ef",
+      "reference_patch": "patches/oe-76-haproxy/reference.patch",
+      "reference_sha256": "83a2011a0f5d38c7e634cc0c02fb24dfd165e28958567a8ca247d0efa967c1fe",
+      "oracle_patch": "patches/oe-76-haproxy/oracle.patch",
+      "oracle_sha256": "c879ae1b155e943fcf24b327cbdf6f02dcec344a5b10d20cd77a867e2f09af35"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

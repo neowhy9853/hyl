@@ -1,0 +1,49 @@
+{
+  "round": 2,
+  "case_id": "case_244",
+  "source_index": 243,
+  "repo": "kernel",
+  "commit_id": "4788b281019668c4a78ff47d2a77739dbc1f9aca",
+  "oracle_label": "fix",
+  "predicted_label": "refactor",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "0c0ca9f8e9ec",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "refactor",
+    "confidence": 0.72,
+    "reason": "提交移除 nft_expr_clone 中从不被触发的 memcpy 回退路径，改为缺少 .clone 时 WARN 并返回 -EINVAL，属结构清理与防御性加固，未修复已发生的错误路径",
+    "intent_items": [
+      {
+        "target": "net/netfilter/nf_tables_api.c 中的 nft_expr_clone",
+        "change": "删除 src->ops->clone 为空时用 memcpy 拷贝表达式的回退分支，改为 WARN_ON_ONCE 并返回 -EINVAL",
+        "effect_or_reason": "现有 STATEFUL 表达式都实现了 .clone，回退路径无用；去掉后可简化克隆逻辑并为后续允许 clone 回调休眠的改动铺路",
+        "context_used": [
+          "net/netfilter/nf_tables_api.c 中 nft_expr_clone 的补丁 hunk"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "所有现有 NFT_EXPR_STATEFUL 均提供 .clone 接口，回退路径不再保留"
+          ],
+          "message_only_details": [
+            "该回退路径从未被实际执行（never exercised）",
+            "作为 fa23e0d4b756 允许 clone 回调休眠的前置依赖"
+          ],
+          "code_only_details": [
+            "缺少 .clone 时使用 WARN_ON_ONCE 并返回 -EINVAL 而非静默 memcpy"
+          ]
+        },
+        "evidence": [
+          "补丁把 memcpy 回退分支替换为 WARN_ON_ONCE(!src->ops->clone) 并返回 -EINVAL，随后统一调用 src->ops->clone",
+          "无外部可感知能力增量：仅移除未使用分支并加防御检查，原有克隆行为与接口不变"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_244",
+  "trace_status": "available"
+}

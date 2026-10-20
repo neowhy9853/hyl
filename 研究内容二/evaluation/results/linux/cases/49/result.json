@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "49",
+  "candidate_sha256": "010fd1b24e2afffbf2376aa9573795b531a9748c1f46c1f8e352e09cd779a446",
+  "oracle_sha256": "b5070b1594aac48b9904c13ab93c6df697967598cc683fcd1f1627a09dd16195",
+  "candidate_nonempty": true,
+  "target_ref": "bd5ab00affa19dcc491318cbb1e0891ffa49c645",
+  "baseline_tree": "0441814b1b76bc93263e6acc9a2afda2ede6b7db",
+  "candidate_tree": "9a22c2ded1ff2553e545f8eee583b3f1b0393d40",
+  "oracle_tree": "d98bcd96d1dbec70e5ad992256eaf66285e0c672",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/49",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "010fd1b24e2afffbf2376aa9573795b531a9748c1f46c1f8e352e09cd779a446",
+    "text": "diff --git a/fs/ecryptfs/main.c b/fs/ecryptfs/main.c\nindex 34eb8433d93..d9eb84bda55 100644\n--- a/fs/ecryptfs/main.c\n+++ b/fs/ecryptfs/main.c\n@@ -576,6 +576,13 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags\n \ts->s_maxbytes = path.dentry->d_sb->s_maxbytes;\n \ts->s_blocksize = path.dentry->d_sb->s_blocksize;\n \ts->s_magic = ECRYPTFS_SUPER_MAGIC;\n+\ts->s_stack_depth = path.dentry->d_sb->s_stack_depth + 1;\n+\n+\trc = -EINVAL;\n+\tif (s->s_stack_depth > FILESYSTEM_MAX_STACK_DEPTH) {\n+\t\tpr_err(\"eCryptfs: maximum fs stacking depth exceeded\\n\");\n+\t\tgoto out_free;\n+\t}\n \n \tinode = ecryptfs_get_inode(path.dentry->d_inode, s);\n \trc = PTR_ERR(inode);\ndiff --git a/include/linux/fs.h b/include/linux/fs.h\nindex e032a8a40c3..0f478a82fc4 100644\n--- a/include/linux/fs.h\n+++ b/include/linux/fs.h\n@@ -256,6 +256,12 @@ struct iattr {\n  */\n #include <linux/quota.h>\n \n+/*\n+ * Maximum number of layers of fs stack.  Needs to be limited to\n+ * prevent kernel stack overflow\n+ */\n+#define FILESYSTEM_MAX_STACK_DEPTH 2\n+\n /** \n  * enum positive_aop_returns - aop return codes with specific semantics\n  *\n@@ -1242,6 +1248,11 @@ struct super_block {\n \n \tstruct shrinker s_shrink;\t/* per-sb shrinker handle */\n \n+\t/*\n+\t * Indicates how deep in a filesystem stack this SB is\n+\t */\n+\tint s_stack_depth;\n+\n \t/* Number of inodes with nlink == 0 but still referenced */\n \tatomic_long_t s_remove_count;\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

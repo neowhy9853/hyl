@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "929",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-929-bxt56_s1/repo",
+      "target_ref": "e61b476896432d3cbabc83129966d85cf102c0e7",
+      "target_tree": "7a5ff623fd33e3c7c6903e97e7415b0b699cd81a"
+    },
+    "source_commit": "7df83adfc5d38bf960ef7ff0e4cb1c2c92715f63",
+    "reference_parent": "8a97fcd83ab01fb303bb5cdfc449f7d1a70462b6",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/net/wireless/brcm80211/brcmfmac/wl_cfg80211.c b/drivers/net/wireless/brcm80211/brcmfmac/wl_cfg80211.c\nindex 1d6ff00a4194369741f110b4ef9faae324895572..26c5f3bdf2c5c3f000cd8a71385f7cc39655f8bf 100644\n--- a/drivers/net/wireless/brcm80211/brcmfmac/wl_cfg80211.c\n+++ b/drivers/net/wireless/brcm80211/brcmfmac/wl_cfg80211.c\n@@ -2692,6 +2692,7 @@ brcmf_cfg80211_escan_handler(struct brcmf_if *ifp,\n \ts32 status;\n \ts32 err = 0;\n \tstruct brcmf_escan_result_le *escan_result_le;\n+\tu32 escan_buflen;\n \tstruct brcmf_bss_info_le *bss_info_le;\n \tstruct brcmf_bss_info_le *bss = NULL;\n \tu32 bi_length;\n@@ -2708,11 +2709,23 @@ brcmf_cfg80211_escan_handler(struct brcmf_if *ifp,\n \n \tif (status == BRCMF_E_STATUS_PARTIAL) {\n \t\tbrcmf_dbg(SCAN, \"ESCAN Partial result\\n\");\n+\t\tif (e->datalen < sizeof(*escan_result_le)) {\n+\t\t\tbrcmf_err(\"invalid event data length\\n\");\n+\t\t\tgoto exit;\n+\t\t}\n \t\tescan_result_le = (struct brcmf_escan_result_le *) data;\n \t\tif (!escan_result_le) {\n \t\t\tbrcmf_err(\"Invalid escan result (NULL pointer)\\n\");\n \t\t\tgoto exit;\n \t\t}\n+\t\tescan_buflen = le32_to_cpu(escan_result_le->buflen);\n+\t\tif (escan_buflen > WL_ESCAN_BUF_SIZE ||\n+\t\t    escan_buflen > e->datalen ||\n+\t\t    escan_buflen < sizeof(*escan_result_le)) {\n+\t\t\tbrcmf_err(\"Invalid escan buffer length: %d\\n\",\n+\t\t\t\t  escan_buflen);\n+\t\t\tgoto exit;\n+\t\t}\n \t\tif (le16_to_cpu(escan_result_le->bss_count) != 1) {\n \t\t\tbrcmf_err(\"Invalid bss_count %d: ignoring\\n\",\n \t\t\t\t  escan_result_le->bss_count);\n@@ -2729,9 +2742,8 @@ brcmf_cfg80211_escan_handler(struct brcmf_if *ifp,\n \t\t}\n \n \t\tbi_length = le32_to_cpu(bss_info_le->length);\n-\t\tif (bi_length != (le32_to_cpu(escan_result_le->buflen) -\n-\t\t\t\t\tWL_ESCAN_RESULTS_FIXED_SIZE)) {\n-\t\t\tbrcmf_err(\"Invalid bss_info length %d: ignoring\\n\",\n+\t\tif (bi_length != escan_buflen -\tWL_ESCAN_RESULTS_FIXED_SIZE) {\n+\t\t\tbrcmf_err(\"Ignoring invalid bss_info length: %d\\n\",\n \t\t\t\t  bi_length);\n \t\t\tgoto exit;\n \t\t}\n",
+      "sha256": "a3013a60022b48d312556d82003e187354ed931cc5d219fed92dfc4a43b2e8c0"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2017-0786\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-929-bxt56_s1/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-929-bxt56_s1/repo/.patch-port/reference.diff\nreference_fix: 7df83adfc5d38bf960ef7ff0e4cb1c2c92715f63\nreference_parent: 8a97fcd83ab01fb303bb5cdfc449f7d1a70462b6\ntarget_ref: e61b476896432d3cbabc83129966d85cf102c0e7\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-929-bxt56_s1/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-929-bxt56_s1/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2017-0786"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "1b9fff6661fe217d56c6257515c0effbe41d9ab7",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "c1c2b43a79bc5317b7a6be43ab6f6b73a9fb2b800c1d44b986f6ecb5f2bd6b74",
+      "text": "diff --git a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c\nindex 7e689c86d56576cf96ca755b16107216470fccdf..15592641eaf22078773aeda5e8866fdd9d12e48c 100644\n--- a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c\n+++ b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c\n@@ -3162,6 +3162,7 @@ brcmf_cfg80211_escan_handler(struct brcmf_if *ifp,\n \tstruct brcmf_cfg80211_info *cfg = ifp->drvr->config;\n \ts32 status;\n \tstruct brcmf_escan_result_le *escan_result_le;\n+\tu32 escan_buflen;\n \tstruct brcmf_bss_info_le *bss_info_le;\n \tstruct brcmf_bss_info_le *bss = NULL;\n \tu32 bi_length;\n@@ -3181,11 +3182,23 @@ brcmf_cfg80211_escan_handler(struct brcmf_if *ifp,\n \n \tif (status == BRCMF_E_STATUS_PARTIAL) {\n \t\tbrcmf_dbg(SCAN, \"ESCAN Partial result\\n\");\n+\t\tif (e->datalen < sizeof(*escan_result_le)) {\n+\t\t\tbrcmf_err(\"invalid event data length\\n\");\n+\t\t\tgoto exit;\n+\t\t}\n \t\tescan_result_le = (struct brcmf_escan_result_le *) data;\n \t\tif (!escan_result_le) {\n \t\t\tbrcmf_err(\"Invalid escan result (NULL pointer)\\n\");\n \t\t\tgoto exit;\n \t\t}\n+\t\tescan_buflen = le32_to_cpu(escan_result_le->buflen);\n+\t\tif (escan_buflen > BRCMF_ESCAN_BUF_SIZE ||\n+\t\t    escan_buflen > e->datalen ||\n+\t\t    escan_buflen < sizeof(*escan_result_le)) {\n+\t\t\tbrcmf_err(\"Invalid escan buffer length: %d\\n\",\n+\t\t\t\t  escan_buflen);\n+\t\t\tgoto exit;\n+\t\t}\n \t\tif (le16_to_cpu(escan_result_le->bss_count) != 1) {\n \t\t\tbrcmf_err(\"Invalid bss_count %d: ignoring\\n\",\n \t\t\t\t  escan_result_le->bss_count);\n@@ -3202,9 +3215,8 @@ brcmf_cfg80211_escan_handler(struct brcmf_if *ifp,\n \t\t}\n \n \t\tbi_length = le32_to_cpu(bss_info_le->length);\n-\t\tif (bi_length != (le32_to_cpu(escan_result_le->buflen) -\n-\t\t\t\t\tWL_ESCAN_RESULTS_FIXED_SIZE)) {\n-\t\t\tbrcmf_err(\"Invalid bss_info length %d: ignoring\\n\",\n+\t\tif (bi_length != escan_buflen -\tWL_ESCAN_RESULTS_FIXED_SIZE) {\n+\t\t\tbrcmf_err(\"Ignoring invalid bss_info length: %d\\n\",\n \t\t\t\t  bi_length);\n \t\t\tgoto exit;\n \t\t}\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "7727ef92ba162c910db6e3885a8b2cbcf6810fd6a2fa14c19f55b92c26060a84",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/00929_CVE-2017-0786/reference.diff",
+    "source_dataset_record": {
+      "case_id": 929,
+      "cve": "CVE-2017-0786",
+      "source_commit": "7df83adfc5d38bf960ef7ff0e4cb1c2c92715f63",
+      "oracle_commit": "1b9fff6661fe217d56c6257515c0effbe41d9ab7"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

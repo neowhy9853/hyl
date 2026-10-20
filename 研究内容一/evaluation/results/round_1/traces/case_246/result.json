@@ -1,0 +1,46 @@
+{
+  "round": 1,
+  "case_id": "case_246",
+  "source_index": 245,
+  "repo": "kernel",
+  "commit_id": "458b355c88a0a4db8c7fd2c256c1d1533d50418a",
+  "oracle_label": "feat",
+  "predicted_label": "refactor",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "3429f02783d8",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "refactor",
+    "confidence": 0.9,
+    "reason": "主导意图是重构 kfence 分配/释放路径中的锁临界区，将内存初始化和 canary 字节检查移出锁外，以减少中断和抢占被禁用的时间，外部行为不变。",
+    "intent_items": [
+      {
+        "target": "kfence 的 guarded_alloc 和 guarded_free 函数",
+        "change": "将 meta->addr 和 meta->size 的读取、内存初始化、canary 字节设置/检查移出 meta->lock 临界区，并调整了锁的释放时机",
+        "effect_or_reason": "减少锁持有期间中断和抢占被禁用的时间，提升性能，同时保持功能等价",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "将内存初始化和 canary 检查移出锁临界区以减少中断禁用时间"
+          ],
+          "message_only_details": [
+            "初始化和检查 canary 字节相对昂贵，在临界区内执行会不必要地延长中断禁用时间"
+          ],
+          "code_only_details": [
+            "在 kfence_guarded_free 中提前读取 slab_want_init_on_free 结果并保存到局部变量 init，以便在锁外使用"
+          ]
+        },
+        "evidence": [
+          "Patch 显示 for_each_canary(meta, set_canary_byte) 从锁内移到了 kfence_guarded_alloc 的锁外执行",
+          "Patch 显示在 kfence_guarded_free 中，meta->lock 在 metadata_update_state 和读取 slab_want_init_on_free 后立即释放，后续的 canary 检查和内存清零在锁外进行"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_246",
+  "trace_status": "available"
+}

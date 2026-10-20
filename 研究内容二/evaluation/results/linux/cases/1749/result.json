@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1749",
+  "candidate_sha256": "bac08ef5255d3b233f4cdf2f628f9536b5f62d8eb4942552bf0d5b408e44e288",
+  "oracle_sha256": "78c521ff946edac05550aed3d944e6402b629497e4a45d047457206e113f9afe",
+  "candidate_nonempty": true,
+  "target_ref": "65cadfb3b05a1bac35e852819f6c891402b7acc8",
+  "baseline_tree": "4ce5cbeb3a62e0e608f9a116d2ddd4a6e080c332",
+  "candidate_tree": "9ad3a96a28f2af6b85dc67e861c92e1d33516eef",
+  "oracle_tree": "9ad3a96a28f2af6b85dc67e861c92e1d33516eef",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1749",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "bac08ef5255d3b233f4cdf2f628f9536b5f62d8eb4942552bf0d5b408e44e288",
+    "text": "diff --git a/fs/ksmbd/asn1.c b/fs/ksmbd/asn1.c\nindex 4a4b2b03ff33..b931a99ab9c8 100644\n--- a/fs/ksmbd/asn1.c\n+++ b/fs/ksmbd/asn1.c\n@@ -214,10 +214,15 @@ static int ksmbd_neg_token_alloc(void *context, size_t hdrlen,\n {\n \tstruct ksmbd_conn *conn = context;\n \n+\tif (!vlen)\n+\t\treturn -EINVAL;\n+\n \tconn->mechToken = kmemdup_nul(value, vlen, GFP_KERNEL);\n \tif (!conn->mechToken)\n \t\treturn -ENOMEM;\n \n+\tconn->mechTokenLen = (unsigned int)vlen;\n+\n \treturn 0;\n }\n \ndiff --git a/fs/ksmbd/connection.h b/fs/ksmbd/connection.h\nindex 3c005246a32e..342f935f5770 100644\n--- a/fs/ksmbd/connection.h\n+++ b/fs/ksmbd/connection.h\n@@ -88,6 +88,7 @@ struct ksmbd_conn {\n \t__u16\t\t\t\tdialect;\n \n \tchar\t\t\t\t*mechToken;\n+\tunsigned int\t\t\tmechTokenLen;\n \n \tstruct ksmbd_conn_ops\t*conn_ops;\n \ndiff --git a/fs/ksmbd/smb2pdu.c b/fs/ksmbd/smb2pdu.c\nindex bf3bb37c00a9..92ea42876e75 100644\n--- a/fs/ksmbd/smb2pdu.c\n+++ b/fs/ksmbd/smb2pdu.c\n@@ -1414,7 +1414,10 @@ static struct ksmbd_user *session_user(struct ksmbd_conn *conn,\n \tchar *name;\n \tunsigned int name_off, name_len, secbuf_len;\n \n-\tsecbuf_len = le16_to_cpu(req->SecurityBufferLength);\n+\tif (conn->use_spnego && conn->mechToken)\n+\t\tsecbuf_len = conn->mechTokenLen;\n+\telse\n+\t\tsecbuf_len = le16_to_cpu(req->SecurityBufferLength);\n \tif (secbuf_len < sizeof(struct authenticate_message)) {\n \t\tksmbd_debug(SMB, \"blob len %d too small\\n\", secbuf_len);\n \t\treturn NULL;\n@@ -1505,7 +1508,10 @@ static int ntlm_authenticate(struct ksmbd_work *work,\n \t\tstruct authenticate_message *authblob;\n \n \t\tauthblob = user_authblob(conn, req);\n-\t\tsz = le16_to_cpu(req->SecurityBufferLength);\n+\t\tif (conn->use_spnego && conn->mechToken)\n+\t\t\tsz = conn->mechTokenLen;\n+\t\telse\n+\t\t\tsz = le16_to_cpu(req->SecurityBufferLength);\n \t\trc = ksmbd_decode_ntlmssp_auth_blob(authblob, sz, conn, sess);\n \t\tif (rc) {\n \t\t\tset_user_flag(sess->user, KSMBD_USER_FLAG_BAD_PASSWORD);\n@@ -1778,8 +1784,7 @@ int smb2_sess_setup(struct ksmbd_work *work)\n \n \tnegblob_off = le16_to_cpu(req->SecurityBufferOffset);\n \tnegblob_len = le16_to_cpu(req->SecurityBufferLength);\n-\tif (negblob_off < offsetof(struct smb2_sess_setup_req, Buffer) ||\n-\t    negblob_len < offsetof(struct negotiate_message, NegotiateFlags)) {\n+\tif (negblob_off < offsetof(struct smb2_sess_setup_req, Buffer)) {\n \t\trc = -EINVAL;\n \t\tgoto out_err;\n \t}\n@@ -1788,8 +1793,15 @@ int smb2_sess_setup(struct ksmbd_work *work)\n \t\t\tnegblob_off);\n \n \tif (decode_negotiation_token(conn, negblob, negblob_len) == 0) {\n-\t\tif (conn->mechToken)\n+\t\tif (conn->mechToken) {\n \t\t\tnegblob = (struct negotiate_message *)conn->mechToken;\n+\t\t\tnegblob_len = conn->mechTokenLen;\n+\t\t}\n+\t}\n+\n+\tif (negblob_len < offsetof(struct negotiate_message, NegotiateFlags)) {\n+\t\trc = -EINVAL;\n+\t\tgoto out_err;\n \t}\n \n \tif (server_conf.auth_mechs & conn->auth_mechs) {\n"
+  },
+  "trace_file": "trace.jsonl"
+}

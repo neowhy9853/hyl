@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2298",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2298-r58dqum5/repo",
+      "target_ref": "a93a63333dbdb182b87e8cc99df8b4474f867acb",
+      "target_tree": "f2ec8a3289ecc1a75eef86d4eb6e2a5be93454ce"
+    },
+    "source_commit": "efafc4236827a88320bfe12da8ddc7edaf6e8495",
+    "reference_parent": "c72b52a2d088ec809b9ef6d6828b09c5f2024b9c",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c\nindex 981a1fc30eaa2c291c97958ce088e3ce96ab4353..250c2df04a92c5feee85c6e07c75940dc0af5392 100644\n--- a/fs/ext4/inode.c\n+++ b/fs/ext4/inode.c\n@@ -684,6 +684,21 @@ int ext4_map_blocks(handle_t *handle, struct inode *inode,\n \t\tret = check_block_validity(inode, map);\n \t\tif (ret != 0)\n \t\t\treturn ret;\n+\n+\t\t/*\n+\t\t * Inodes with freshly allocated blocks where contents will be\n+\t\t * visible after transaction commit must be on transaction's\n+\t\t * ordered data list.\n+\t\t */\n+\t\tif (map->m_flags & EXT4_MAP_NEW &&\n+\t\t    !(map->m_flags & EXT4_MAP_UNWRITTEN) &&\n+\t\t    !(flags & EXT4_GET_BLOCKS_ZERO) &&\n+\t\t    !IS_NOQUOTA(inode) &&\n+\t\t    ext4_should_order_data(inode)) {\n+\t\t\tret = ext4_jbd2_file_inode(handle, inode);\n+\t\t\tif (ret)\n+\t\t\t\treturn ret;\n+\t\t}\n \t}\n \treturn retval;\n }\n@@ -1289,15 +1304,6 @@ static int ext4_write_end(struct file *file,\n \tint i_size_changed = 0;\n \n \ttrace_ext4_write_end(inode, pos, len, copied);\n-\tif (ext4_test_inode_state(inode, EXT4_STATE_ORDERED_MODE)) {\n-\t\tret = ext4_jbd2_file_inode(handle, inode);\n-\t\tif (ret) {\n-\t\t\tunlock_page(page);\n-\t\t\tput_page(page);\n-\t\t\tgoto errout;\n-\t\t}\n-\t}\n-\n \tif (ext4_has_inline_data(inode)) {\n \t\tret = ext4_write_inline_data_end(inode, pos, len,\n \t\t\t\t\t\t copied, page);\n",
+      "sha256": "fbde61cd1ee13af06bbc20bde1735eca035c273a2425e0bc233165558c3d34d1"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2017-7495\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2298-r58dqum5/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2298-r58dqum5/repo/.patch-port/reference.diff\nreference_fix: efafc4236827a88320bfe12da8ddc7edaf6e8495\nreference_parent: c72b52a2d088ec809b9ef6d6828b09c5f2024b9c\ntarget_ref: a93a63333dbdb182b87e8cc99df8b4474f867acb\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2298-r58dqum5/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2298-r58dqum5/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2017-7495"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "10de8b686e90eb57066cf4d04d7ddbc54b4f1833",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "59f0c4459ceffde49a55eb2107896946b20a71b2d9b2e8d8a79ffdd562dac05c",
+      "text": "diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c\nindex 4a3735a795d00b5f5ba0ca7861652216d3708e40..3fa2da53400d0ce7878ed6df187b884ad598339a 100644\n--- a/fs/ext4/inode.c\n+++ b/fs/ext4/inode.c\n@@ -701,6 +701,20 @@ int ext4_map_blocks(handle_t *handle, struct inode *inode,\n \t\tint ret = check_block_validity(inode, map);\n \t\tif (ret != 0)\n \t\t\treturn ret;\n+\n+\t\t/*\n+\t\t * Inodes with freshly allocated blocks where contents will be\n+\t\t * visible after transaction commit must be on transaction's\n+\t\t * ordered data list.\n+\t\t */\n+\t\tif (map->m_flags & EXT4_MAP_NEW &&\n+\t\t    !(map->m_flags & EXT4_MAP_UNWRITTEN) &&\n+\t\t    !IS_NOQUOTA(inode) &&\n+\t\t    ext4_should_order_data(inode)) {\n+\t\t\tret = ext4_jbd2_file_inode(handle, inode);\n+\t\t\tif (ret)\n+\t\t\t\treturn ret;\n+\t\t}\n \t}\n \treturn retval;\n }\n@@ -1065,15 +1079,6 @@ static int ext4_write_end(struct file *file,\n \tint i_size_changed = 0;\n \n \ttrace_ext4_write_end(inode, pos, len, copied);\n-\tif (ext4_test_inode_state(inode, EXT4_STATE_ORDERED_MODE)) {\n-\t\tret = ext4_jbd2_file_inode(handle, inode);\n-\t\tif (ret) {\n-\t\t\tunlock_page(page);\n-\t\t\tpage_cache_release(page);\n-\t\t\tgoto errout;\n-\t\t}\n-\t}\n-\n \tif (ext4_has_inline_data(inode)) {\n \t\tret = ext4_write_inline_data_end(inode, pos, len,\n \t\t\t\t\t\t copied, page);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "74c07584d1ab4cd25d2b8fd24ac609982709d06cde081b01f6b8bce90e8848ba",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/02298_CVE-2017-7495/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2298,
+      "cve": "CVE-2017-7495",
+      "source_commit": "efafc4236827a88320bfe12da8ddc7edaf6e8495",
+      "oracle_commit": "10de8b686e90eb57066cf4d04d7ddbc54b4f1833"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

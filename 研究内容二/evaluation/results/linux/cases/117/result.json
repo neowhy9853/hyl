@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "117",
+  "candidate_sha256": "15d0e78551be7e57e439e78c578c5d046bd22b30985c5f96e575ef8b0325637e",
+  "oracle_sha256": "15d0e78551be7e57e439e78c578c5d046bd22b30985c5f96e575ef8b0325637e",
+  "candidate_nonempty": true,
+  "target_ref": "0d3d5099a50badadad6837edda00e42149b2f657",
+  "baseline_tree": "47fbc2981ab537f3df9593c295adc7a32875373b",
+  "candidate_tree": "26b2c593aee01df1d8818e9d66afce408c47c42e",
+  "oracle_tree": "26b2c593aee01df1d8818e9d66afce408c47c42e",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/117",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "15d0e78551be7e57e439e78c578c5d046bd22b30985c5f96e575ef8b0325637e",
+    "text": "diff --git a/include/linux/nospec.h b/include/linux/nospec.h\nindex c1e79f72cd89..9f0af4f116d9 100644\n--- a/include/linux/nospec.h\n+++ b/include/linux/nospec.h\n@@ -11,6 +11,10 @@\n \n struct task_struct;\n \n+#ifndef barrier_nospec\n+# define barrier_nospec() do { } while (0)\n+#endif\n+\n /**\n  * array_index_mask_nospec() - generate a ~0 mask when index < size, 0 otherwise\n  * @index: array element index\ndiff --git a/kernel/bpf/core.c b/kernel/bpf/core.c\nindex 4ce500eac2ef..25bcb8a50eaa 100644\n--- a/kernel/bpf/core.c\n+++ b/kernel/bpf/core.c\n@@ -1648,9 +1648,7 @@ static u64 ___bpf_prog_run(u64 *regs, const struct bpf_insn *insn)\n \t\t * reuse preexisting logic from Spectre v1 mitigation that\n \t\t * happens to produce the required code on x86 for v4 as well.\n \t\t */\n-#ifdef CONFIG_X86\n \t\tbarrier_nospec();\n-#endif\n \t\tCONT;\n #define LDST(SIZEOP, SIZE)\t\t\t\t\t\t\\\n \tSTX_MEM_##SIZEOP:\t\t\t\t\t\t\\\ndiff --git a/lib/usercopy.c b/lib/usercopy.c\nindex 7413dd300516..7ee63df042d7 100644\n--- a/lib/usercopy.c\n+++ b/lib/usercopy.c\n@@ -3,6 +3,7 @@\n #include <linux/fault-inject-usercopy.h>\n #include <linux/instrumented.h>\n #include <linux/uaccess.h>\n+#include <linux/nospec.h>\n \n /* out-of-line parts */\n \n@@ -12,6 +13,12 @@ unsigned long _copy_from_user(void *to, const void __user *from, unsigned long n\n \tunsigned long res = n;\n \tmight_fault();\n \tif (!should_fail_usercopy() && likely(access_ok(from, n))) {\n+\t\t/*\n+\t\t * Ensure that bad access_ok() speculation will not\n+\t\t * lead to nasty side effects *after* the copy is\n+\t\t * finished:\n+\t\t */\n+\t\tbarrier_nospec();\n \t\tinstrument_copy_from_user(to, from, n);\n \t\tres = raw_copy_from_user(to, from, n);\n \t}\n"
+  },
+  "trace_file": "trace.jsonl"
+}

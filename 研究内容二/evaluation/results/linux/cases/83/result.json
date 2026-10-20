@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "83",
+  "candidate_sha256": "ad122109319ac84c5bbe992a1eda35619e63042ad1aff96d5c46d3fe6014db6d",
+  "oracle_sha256": "ac1b0876ac1074fb0ed32f6bfbf1fd61970351882d8396dc5f5917f366115665",
+  "candidate_nonempty": true,
+  "target_ref": "69dc72f058c9b98f9b66bed184cfab7c2e9f49b0",
+  "baseline_tree": "54a66fbe94f857ddddb2c57cab7518112283de1f",
+  "candidate_tree": "a3629c520bb462392eab0d4249bd5161f70bed90",
+  "oracle_tree": "9b8ec307a39eb8916b03a66d851e2451824297d6",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/83",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "ad122109319ac84c5bbe992a1eda35619e63042ad1aff96d5c46d3fe6014db6d",
+    "text": "diff --git a/include/linux/compiler-clang.h b/include/linux/compiler-clang.h\nindex 333a6695a918..96ac0de5eac4 100644\n--- a/include/linux/compiler-clang.h\n+++ b/include/linux/compiler-clang.h\n@@ -41,4 +41,3 @@\n  * and may be redefined here because they should not be shared with other\n  * compilers, like ICC.\n  */\n-#define barrier() __asm__ __volatile__(\"\" : : : \"memory\")\ndiff --git a/include/linux/compiler-gcc.h b/include/linux/compiler-gcc.h\nindex e8579412ad21..d8fab3ecf512 100644\n--- a/include/linux/compiler-gcc.h\n+++ b/include/linux/compiler-gcc.h\n@@ -14,25 +14,6 @@\n # error Sorry, your compiler is too old - please upgrade it.\n #endif\n \n-/* Optimization barrier */\n-\n-/* The \"volatile\" is due to gcc bugs */\n-#define barrier() __asm__ __volatile__(\"\": : :\"memory\")\n-/*\n- * This version is i.e. to prevent dead stores elimination on @ptr\n- * where gcc and llvm may behave differently when otherwise using\n- * normal barrier(): while gcc behavior gets along with a normal\n- * barrier(), llvm needs an explicit input variable to be assumed\n- * clobbered. The issue is as follows: while the inline asm might\n- * access any memory it wants, the compiler could have fit all of\n- * @ptr into memory registers instead, and since @ptr never escaped\n- * from that, it proved that the inline asm wasn't touching any of\n- * it. This version works well with both compilers, i.e. we're telling\n- * the compiler that the inline asm absolutely may see the contents\n- * of @ptr. See also: https://llvm.org/bugs/show_bug.cgi?id=15495\n- */\n-#define barrier_data(ptr) __asm__ __volatile__(\"\": :\"r\"(ptr) :\"memory\")\n-\n /*\n  * This macro obfuscates arithmetic on a variable address so that gcc\n  * shouldn't recognize the original var, and make assumptions about it.\ndiff --git a/include/linux/compiler.h b/include/linux/compiler.h\nindex 448c91bf543b..f164a9b12813 100644\n--- a/include/linux/compiler.h\n+++ b/include/linux/compiler.h\n@@ -80,11 +80,25 @@ void ftrace_likely_update(struct ftrace_likely_data *f, int val,\n \n /* Optimization barrier */\n #ifndef barrier\n-# define barrier() __memory_barrier()\n+/* The \"volatile\" is due to gcc bugs */\n+# define barrier() __asm__ __volatile__(\"\": : :\"memory\")\n #endif\n \n #ifndef barrier_data\n-# define barrier_data(ptr) barrier()\n+/*\n+ * This version is i.e. to prevent dead stores elimination on @ptr\n+ * where gcc and llvm may behave differently when otherwise using\n+ * normal barrier(): while gcc behavior gets along with a normal\n+ * barrier(), llvm needs an explicit input variable to be assumed\n+ * clobbered. The issue is as follows: while the inline asm might\n+ * access any memory it wants, the compiler could have fit all of\n+ * @ptr into memory registers instead, and since @ptr never escaped\n+ * from that, it proved that the inline asm wasn't touching any of\n+ * it. This version works well with both compilers, i.e. we're telling\n+ * the compiler that the inline asm absolutely may see the contents\n+ * of @ptr. See also: https://llvm.org/bugs/show_bug.cgi?id=15495\n+ */\n+# define barrier_data(ptr) __asm__ __volatile__(\"\": :\"r\"(ptr) :\"memory\")\n #endif\n \n /* workaround for GCC PR82365 if needed */\n"
+  },
+  "trace_file": "trace.jsonl"
+}

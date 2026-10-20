@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "368",
+  "candidate_sha256": "5688d11e35768c0d0046d9d3dd9db1cd2e6590ac69176940c93265c1072f095e",
+  "oracle_sha256": "9c7be5d3639fc88767135ae8605ceb76d759f218b6d1d0e6688cbdb42a715ddb",
+  "candidate_nonempty": true,
+  "target_ref": "b8b6a72089869dee41bd9f29e86bbcf6501e5524",
+  "baseline_tree": "b84c3622c8e10fd22955b1003574e9cddc6090d4",
+  "candidate_tree": "206da055c6c7e4898f57646dfe2cba24ecb1db3f",
+  "oracle_tree": "206da055c6c7e4898f57646dfe2cba24ecb1db3f",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/368",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "5688d11e35768c0d0046d9d3dd9db1cd2e6590ac69176940c93265c1072f095e",
+    "text": "diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c\nindex dcee3f09793..f46ac929ef8 100644\n--- a/drivers/usb/core/hub.c\n+++ b/drivers/usb/core/hub.c\n@@ -106,6 +106,7 @@ EXPORT_SYMBOL_GPL(ehci_cf_port_reset_rwsem);\n #define HUB_DEBOUNCE_STEP\t  25\n #define HUB_DEBOUNCE_STABLE\t 100\n \n+static void hub_release(struct kref *kref);\n static int usb_reset_and_verify_device(struct usb_device *udev);\n \n static inline char *portspeed(struct usb_hub *hub, int portstatus)\n@@ -1023,10 +1024,20 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)\n \tunsigned delay;\n \n \t/* Continue a partial initialization */\n-\tif (type == HUB_INIT2)\n-\t\tgoto init2;\n-\tif (type == HUB_INIT3)\n+\tif (type == HUB_INIT2 || type == HUB_INIT3) {\n+\t\tdevice_lock(hub->intfdev);\n+\n+\t\t/* Was the hub disconnected while we were waiting? */\n+\t\tif (hub->disconnected) {\n+\t\t\tdevice_unlock(hub->intfdev);\n+\t\t\tkref_put(&hub->kref, hub_release);\n+\t\t\treturn;\n+\t\t}\n+\t\tif (type == HUB_INIT2)\n+\t\t\tgoto init2;\n \t\tgoto init3;\n+\t}\n+\tkref_get(&hub->kref);\n \n \t/* The superspeed hub except for root hub has to use Hub Depth\n \t * value as an offset into the route string to locate the bits\n@@ -1220,6 +1231,7 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)\n \t\t\tPREPARE_DELAYED_WORK(&hub->init_work, hub_init_func3);\n \t\t\tschedule_delayed_work(&hub->init_work,\n \t\t\t\t\tmsecs_to_jiffies(delay));\n+\t\t\tdevice_unlock(hub->intfdev);\n \t\t\treturn;\t\t/* Continues at init3: below */\n \t\t} else {\n \t\t\tmsleep(delay);\n@@ -1240,6 +1252,11 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)\n \t/* Allow autosuspend if it was suppressed */\n \tif (type <= HUB_INIT3)\n \t\tusb_autopm_put_interface_async(to_usb_interface(hub->intfdev));\n+\n+\tif (type == HUB_INIT2 || type == HUB_INIT3)\n+\t\tdevice_unlock(hub->intfdev);\n+\n+\tkref_put(&hub->kref, hub_release);\n }\n \n /* Implement the continuations for the delays above */\n"
+  },
+  "trace_file": "trace.jsonl"
+}

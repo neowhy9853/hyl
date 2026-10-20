@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "452",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-452-yh4akicm/repo",
+      "target_ref": "5430db94434f9100cbf2284903652c5fb26a5ce1",
+      "target_tree": "31d52df3c396a217711b22199b541bc85843c1b1"
+    },
+    "source_commit": "d3015b3bf4a3a0c5e04edcf8bb941146ce9206fd",
+    "reference_parent": "8434591c14d33a1784d062c3ec7a21a0a337ecd3",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/ksmbd/smb2misc.c b/fs/ksmbd/smb2misc.c\nindex 03bcd7ce0c75ca95ce3a6d1ba732752f829e79c1..6e25ace3656847f0946dc6b088051e51714bee15 100644\n--- a/fs/ksmbd/smb2misc.c\n+++ b/fs/ksmbd/smb2misc.c\n@@ -131,8 +131,11 @@ static int smb2_get_data_area_len(unsigned int *off, unsigned int *len,\n \t\t*len = le16_to_cpu(((struct smb2_read_req *)hdr)->ReadChannelInfoLength);\n \t\tbreak;\n \tcase SMB2_WRITE:\n-\t\tif (((struct smb2_write_req *)hdr)->DataOffset) {\n-\t\t\t*off = le16_to_cpu(((struct smb2_write_req *)hdr)->DataOffset);\n+\t\tif (((struct smb2_write_req *)hdr)->DataOffset ||\n+\t\t    ((struct smb2_write_req *)hdr)->Length) {\n+\t\t\t*off = max_t(unsigned int,\n+\t\t\t\t     le16_to_cpu(((struct smb2_write_req *)hdr)->DataOffset),\n+\t\t\t\t     offsetof(struct smb2_write_req, Buffer));\n \t\t\t*len = le32_to_cpu(((struct smb2_write_req *)hdr)->Length);\n \t\t\tbreak;\n \t\t}\ndiff --git a/fs/ksmbd/smb2pdu.c b/fs/ksmbd/smb2pdu.c\nindex 6c8dd718b5dbd7cdd3cf6800c586bc33a7d73f03..85a9ed7156ea1d715210ad4272fd41cfd3dc2fd0 100644\n--- a/fs/ksmbd/smb2pdu.c\n+++ b/fs/ksmbd/smb2pdu.c\n@@ -6505,14 +6505,12 @@ int smb2_write(struct ksmbd_work *work)\n \t\twritethrough = true;\n \n \tif (is_rdma_channel == false) {\n-\t\tif ((u64)le16_to_cpu(req->DataOffset) + length >\n-\t\t    get_rfc1002_len(work->request_buf)) {\n-\t\t\tpr_err(\"invalid write data offset %u, smb_len %u\\n\",\n-\t\t\t       le16_to_cpu(req->DataOffset),\n-\t\t\t       get_rfc1002_len(work->request_buf));\n+\t\tif (le16_to_cpu(req->DataOffset) <\n+\t\t    offsetof(struct smb2_write_req, Buffer)) {\n \t\t\terr = -EINVAL;\n \t\t\tgoto out;\n \t\t}\n+\n \t\tdata_buf = (char *)(((char *)&req->hdr.ProtocolId) +\n \t\t\t\t    le16_to_cpu(req->DataOffset));\n \n",
+      "sha256": "8eca9930200a2bcdfb752a58e5b8c4af39b6605f7e73c184876b6e8f93431de1"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2022-47943\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-452-yh4akicm/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-452-yh4akicm/repo/.patch-port/reference.diff\nreference_fix: d3015b3bf4a3a0c5e04edcf8bb941146ce9206fd\nreference_parent: 8434591c14d33a1784d062c3ec7a21a0a337ecd3\ntarget_ref: 5430db94434f9100cbf2284903652c5fb26a5ce1\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-452-yh4akicm/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-452-yh4akicm/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2022-47943"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "c76b216753c9eb2950a091037c9976f389e73529",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "cba9b4ab2f6b5fd6f243936f576e23116088635681c784dfe2f1a72c1ecb989f",
+      "text": "diff --git a/fs/ksmbd/smb2misc.c b/fs/ksmbd/smb2misc.c\nindex 66b24b480ebf4c7166a425870b38c25a5661611a..b47be71be4c829a851ff7975a927c7dcdb83fa33 100644\n--- a/fs/ksmbd/smb2misc.c\n+++ b/fs/ksmbd/smb2misc.c\n@@ -132,8 +132,11 @@ static int smb2_get_data_area_len(unsigned int *off, unsigned int *len,\n \t\t*len = le16_to_cpu(((struct smb2_read_req *)hdr)->ReadChannelInfoLength);\n \t\tbreak;\n \tcase SMB2_WRITE:\n-\t\tif (((struct smb2_write_req *)hdr)->DataOffset) {\n-\t\t\t*off = le16_to_cpu(((struct smb2_write_req *)hdr)->DataOffset);\n+\t\tif (((struct smb2_write_req *)hdr)->DataOffset ||\n+\t\t    ((struct smb2_write_req *)hdr)->Length) {\n+\t\t\t*off = max_t(unsigned int,\n+\t\t\t\t     le16_to_cpu(((struct smb2_write_req *)hdr)->DataOffset),\n+\t\t\t\t     offsetof(struct smb2_write_req, Buffer) - 4);\n \t\t\t*len = le32_to_cpu(((struct smb2_write_req *)hdr)->Length);\n \t\t\tbreak;\n \t\t}\ndiff --git a/fs/ksmbd/smb2pdu.c b/fs/ksmbd/smb2pdu.c\nindex 53f5db40b96e8dea0e126090dee2044e879472d6..06552a67a8101b4c0e38181655a29d064beb412f 100644\n--- a/fs/ksmbd/smb2pdu.c\n+++ b/fs/ksmbd/smb2pdu.c\n@@ -6471,10 +6471,8 @@ int smb2_write(struct ksmbd_work *work)\n \t\t    (offsetof(struct smb2_write_req, Buffer) - 4)) {\n \t\t\tdata_buf = (char *)&req->Buffer[0];\n \t\t} else {\n-\t\t\tif ((u64)le16_to_cpu(req->DataOffset) + length > get_rfc1002_len(req)) {\n-\t\t\t\tpr_err(\"invalid write data offset %u, smb_len %u\\n\",\n-\t\t\t\t       le16_to_cpu(req->DataOffset),\n-\t\t\t\t       get_rfc1002_len(req));\n+\t\t\tif (le16_to_cpu(req->DataOffset) <\n+\t\t\t    offsetof(struct smb2_write_req, Buffer)) {\n \t\t\t\terr = -EINVAL;\n \t\t\t\tgoto out;\n \t\t\t}\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "8627101ba5c72b522ad4d07b6716d732a1618430139cfb247c0294b70ed64f71",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/00452_CVE-2022-47943/reference.diff",
+    "source_dataset_record": {
+      "case_id": 452,
+      "cve": "CVE-2022-47943",
+      "source_commit": "d3015b3bf4a3a0c5e04edcf8bb941146ce9206fd",
+      "oracle_commit": "c76b216753c9eb2950a091037c9976f389e73529"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

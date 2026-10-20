@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "657",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-657-c08ll5fl/repo",
+      "target_ref": "bdffda8db8d9e0125b9a41edc420c39f9905c6ab",
+      "target_tree": "15799d3d59f151c0578c0c8c3b74444da867306d"
+    },
+    "source_commit": "b10a6ac262f8c1c0c70a90e992137a5590325f0b",
+    "reference_parent": "e33c1e29d4c3afbdca7390ee97efcb29275d4061",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/f2fs/data.c b/fs/f2fs/data.c\nindex 88d25a40e4aa2810fd29099eb6ac8b03eb0e3aa8..9041805096e0cf70f2bcd7b9386780429534083b 100644\n--- a/fs/f2fs/data.c\n+++ b/fs/f2fs/data.c\n@@ -995,6 +995,9 @@ static struct bio *f2fs_grab_bio(struct inode *inode, block_t blkaddr,\n \tstruct block_device *bdev = sbi->sb->s_bdev;\n \tstruct bio *bio;\n \n+\tif (!f2fs_is_valid_blkaddr(sbi, blkaddr, DATA_GENERIC))\n+\t\treturn ERR_PTR(-EFAULT);\n+\n \tif (f2fs_encrypted_inode(inode) && S_ISREG(inode->i_mode)) {\n \t\tctx = fscrypt_get_ctx(inode, GFP_NOFS);\n \t\tif (IS_ERR(ctx))\ndiff --git a/fs/f2fs/inode.c b/fs/f2fs/inode.c\nindex 315a01d7d500dfdb54e86d364fdad1906c996b90..1de02c31756bc5ac531921a9407781f9f9c34a98 100644\n--- a/fs/f2fs/inode.c\n+++ b/fs/f2fs/inode.c\n@@ -59,14 +59,16 @@ static void __get_inode_rdev(struct inode *inode, struct f2fs_inode *ri)\n \t}\n }\n \n-static bool __written_first_block(struct f2fs_sb_info *sbi,\n+static int __written_first_block(struct f2fs_sb_info *sbi,\n \t\t\t\t\tstruct f2fs_inode *ri)\n {\n \tblock_t addr = le32_to_cpu(ri->i_addr[0]);\n \n-\tif (is_valid_data_blkaddr(sbi, addr))\n-\t\treturn true;\n-\treturn false;\n+\tif (!__is_valid_data_blkaddr(addr))\n+\t\treturn 1;\n+\tif (!f2fs_is_valid_blkaddr(sbi, addr, DATA_GENERIC))\n+\t\treturn -EFAULT;\n+\treturn 0;\n }\n \n static void __set_inode_rdev(struct inode *inode, struct f2fs_inode *ri)\n@@ -154,6 +156,7 @@ static int do_read_inode(struct inode *inode)\n \tstruct f2fs_inode_info *fi = F2FS_I(inode);\n \tstruct page *node_page;\n \tstruct f2fs_inode *ri;\n+\tint err;\n \n \t/* Check if ino is within scope */\n \tif (check_nid_range(sbi, inode->i_ino)) {\n@@ -209,7 +212,12 @@ static int do_read_inode(struct inode *inode)\n \t/* get rdev by using inline_info */\n \t__get_inode_rdev(inode, ri);\n \n-\tif (__written_first_block(sbi, ri))\n+\terr = __written_first_block(sbi, ri);\n+\tif (err < 0) {\n+\t\tf2fs_put_page(node_page, 1);\n+\t\treturn err;\n+\t}\n+\tif (!err)\n \t\tset_inode_flag(inode, FI_FIRST_BLOCK_WRITTEN);\n \n \tif (!need_inode_block_update(sbi, inode->i_ino))\n",
+      "sha256": "81dc6f5c73ee89606aba176b0f9c03c1c5e4e5666f77db8d12469cbc1c4a2525"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2018-14616\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-657-c08ll5fl/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-657-c08ll5fl/repo/.patch-port/reference.diff\nreference_fix: b10a6ac262f8c1c0c70a90e992137a5590325f0b\nreference_parent: e33c1e29d4c3afbdca7390ee97efcb29275d4061\ntarget_ref: bdffda8db8d9e0125b9a41edc420c39f9905c6ab\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-657-c08ll5fl/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-657-c08ll5fl/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2018-14616"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "4901e126b6e1677c90d3c0a668193e52ecdd4971",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "3b7111c2a1ba7b42704216f381100b26b05bfc7b8374d3569256226b85c8ca08",
+      "text": "diff --git a/fs/f2fs/data.c b/fs/f2fs/data.c\nindex fe7694ec3546650cd0a4b3f179edbc97d6bce206..2b0b671484bde0e814cb60ae443e0902d2db9a3a 100644\n--- a/fs/f2fs/data.c\n+++ b/fs/f2fs/data.c\n@@ -884,6 +884,9 @@ struct bio *f2fs_grab_bio(struct inode *inode, block_t blkaddr,\n \tstruct block_device *bdev = sbi->sb->s_bdev;\n \tstruct bio *bio;\n \n+\tif (!f2fs_is_valid_blkaddr(sbi, blkaddr, DATA_GENERIC))\n+\t\treturn ERR_PTR(-EFAULT);\n+\n \tif (f2fs_encrypted_inode(inode) && S_ISREG(inode->i_mode)) {\n \t\tctx = f2fs_get_crypto_ctx(inode);\n \t\tif (IS_ERR(ctx))\ndiff --git a/fs/f2fs/inode.c b/fs/f2fs/inode.c\nindex 3ac57cbee0fd49d9a6ba3c3792e1667bcc337e00..89bf8dd7758c23bef426b3b3639211029435811c 100644\n--- a/fs/f2fs/inode.c\n+++ b/fs/f2fs/inode.c\n@@ -50,14 +50,16 @@ static void __get_inode_rdev(struct inode *inode, struct f2fs_inode *ri)\n \t}\n }\n \n-static bool __written_first_block(struct f2fs_sb_info *sbi,\n+static int __written_first_block(struct f2fs_sb_info *sbi,\n \t\t\t\t\tstruct f2fs_inode *ri)\n {\n \tblock_t addr = le32_to_cpu(ri->i_addr[0]);\n \n-\tif (is_valid_data_blkaddr(sbi, addr))\n-\t\treturn true;\n-\treturn false;\n+\tif (!__is_valid_data_blkaddr(addr))\n+\t\treturn 1;\n+\tif (!f2fs_is_valid_blkaddr(sbi, addr, DATA_GENERIC))\n+\t\treturn -EFAULT;\n+\treturn 0;\n }\n \n static void __set_inode_rdev(struct inode *inode, struct f2fs_inode *ri)\n@@ -145,6 +147,7 @@ static int do_read_inode(struct inode *inode)\n \tstruct f2fs_inode_info *fi = F2FS_I(inode);\n \tstruct page *node_page;\n \tstruct f2fs_inode *ri;\n+\tint err;\n \n \t/* Check if ino is within scope */\n \tif (check_nid_range(sbi, inode->i_ino)) {\n@@ -199,7 +202,12 @@ static int do_read_inode(struct inode *inode)\n \t/* get rdev by using inline_info */\n \t__get_inode_rdev(inode, ri);\n \n-\tif (__written_first_block(sbi, ri))\n+\terr = __written_first_block(sbi, ri);\n+\tif (err < 0) {\n+\t\tf2fs_put_page(node_page, 1);\n+\t\treturn err;\n+\t}\n+\tif (!err)\n \t\tset_inode_flag(F2FS_I(inode), FI_FIRST_BLOCK_WRITTEN);\n \n \tf2fs_put_page(node_page, 1);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "611112ee165b614979bd1dbc369c6c5f0eea43a772a24496f9f7b571381ca4d8",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/00657_CVE-2018-14616/reference.diff",
+    "source_dataset_record": {
+      "case_id": 657,
+      "cve": "CVE-2018-14616",
+      "source_commit": "b10a6ac262f8c1c0c70a90e992137a5590325f0b",
+      "oracle_commit": "4901e126b6e1677c90d3c0a668193e52ecdd4971"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

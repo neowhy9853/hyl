@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "396",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-396-rthyhsdn/repo",
+      "target_ref": "a4418e11cf9b617b0d433ec9507291dc785d3501",
+      "target_tree": "66292cdb8628fa6a37a4c9bb780a2083f2964568"
+    },
+    "source_commit": "f93bc10c64afceb019ccdc7b5424ecedbd613f64",
+    "reference_parent": "da914d858adca1bbfd3b39f8dee44d76a568e43a",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/io_uring.c b/fs/io_uring.c\nindex 280e5881880b..b33d4a97a877 100644\n--- a/fs/io_uring.c\n+++ b/fs/io_uring.c\n@@ -4214,6 +4214,8 @@ static int __io_async_wake(struct io_kiocb *req, struct io_poll_iocb *poll,\n \ttsk = req->task;\n \treq->result = mask;\n \tinit_task_work(&req->task_work, func);\n+\tpercpu_ref_get(&req->ctx->refs);\n+\n \t/*\n \t * If this fails, then the task is exiting. When a task exits, the\n \t * work gets canceled, so just cancel this request as well instead\n@@ -4313,6 +4315,7 @@ static void io_poll_task_handler(struct io_kiocb *req, struct io_kiocb **nxt)\n static void io_poll_task_func(struct callback_head *cb)\n {\n \tstruct io_kiocb *req = container_of(cb, struct io_kiocb, task_work);\n+\tstruct io_ring_ctx *ctx = req->ctx;\n \tstruct io_kiocb *nxt = NULL;\n \n \tio_poll_task_handler(req, &nxt);\n@@ -4323,6 +4326,7 @@ static void io_poll_task_func(struct callback_head *cb)\n \t\t__io_queue_sqe(nxt, NULL);\n \t\tmutex_unlock(&ctx->uring_lock);\n \t}\n+\tpercpu_ref_put(&ctx->refs);\n }\n \n static int io_poll_double_wake(struct wait_queue_entry *wait, unsigned mode,\n@@ -4439,6 +4443,7 @@ static void io_async_task_func(struct callback_head *cb)\n \n \tif (io_poll_rewait(req, &apoll->poll)) {\n \t\tspin_unlock_irq(&ctx->completion_lock);\n+\t\tpercpu_ref_put(&ctx->refs);\n \t\treturn;\n \t}\n \n@@ -4476,6 +4481,7 @@ static void io_async_task_func(struct callback_head *cb)\n \n \tkfree(apoll->double_poll);\n \tkfree(apoll);\n+\tpercpu_ref_put(&ctx->refs);\n }\n \n static int io_async_wake(struct wait_queue_entry *wait, unsigned mode, int sync,\n",
+      "sha256": "2888706278dc5f878eeb280424429e5f5de4c7ff2f5e1721fc787c03811528e9"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2020-36387\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-396-rthyhsdn/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-396-rthyhsdn/repo/.patch-port/reference.diff\nreference_fix: f93bc10c64afceb019ccdc7b5424ecedbd613f64\nreference_parent: da914d858adca1bbfd3b39f8dee44d76a568e43a\ntarget_ref: a4418e11cf9b617b0d433ec9507291dc785d3501\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-396-rthyhsdn/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-396-rthyhsdn/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history"
+    },
+    "cve": "CVE-2020-36387"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "960ea38bfe7a0edd403d6a9e2d358018b4ce3bfa",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "68e80696b90921a38edd356e30c3d80c5f89d28a9761ba8d07b3f836a8b34e53",
+      "text": "diff --git a/fs/io_uring.c b/fs/io_uring.c\nindex e42c7583ee5e..0918fae6270c 100644\n--- a/fs/io_uring.c\n+++ b/fs/io_uring.c\n@@ -4140,6 +4140,8 @@ static int __io_async_wake(struct io_kiocb *req, struct io_poll_iocb *poll,\n \ttsk = req->task;\n \treq->result = mask;\n \tinit_task_work(&req->task_work, func);\n+\tpercpu_ref_get(&req->ctx->refs);\n+\n \t/*\n \t * If this fails, then the task is exiting. When a task exits, the\n \t * work gets canceled, so just cancel this request as well instead\n@@ -4239,6 +4241,7 @@ static void io_poll_task_handler(struct io_kiocb *req, struct io_kiocb **nxt)\n static void io_poll_task_func(struct callback_head *cb)\n {\n \tstruct io_kiocb *req = container_of(cb, struct io_kiocb, task_work);\n+\tstruct io_ring_ctx *ctx = req->ctx;\n \tstruct io_kiocb *nxt = NULL;\n \n \tio_poll_task_handler(req, &nxt);\n@@ -4249,6 +4252,7 @@ static void io_poll_task_func(struct callback_head *cb)\n \t\t__io_queue_sqe(nxt, NULL);\n \t\tmutex_unlock(&ctx->uring_lock);\n \t}\n+\tpercpu_ref_put(&ctx->refs);\n }\n \n static int io_poll_double_wake(struct wait_queue_entry *wait, unsigned mode,\n@@ -4365,6 +4369,7 @@ static void io_async_task_func(struct callback_head *cb)\n \n \tif (io_poll_rewait(req, &apoll->poll)) {\n \t\tspin_unlock_irq(&ctx->completion_lock);\n+\t\tpercpu_ref_put(&ctx->refs);\n \t\treturn;\n \t}\n \n@@ -4402,6 +4407,7 @@ static void io_async_task_func(struct callback_head *cb)\n \t\treq_set_fail_links(req);\n \t\tio_double_put_req(req);\n \t}\n+\tpercpu_ref_put(&ctx->refs);\n }\n \n static int io_async_wake(struct wait_queue_entry *wait, unsigned mode, int sync,\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "adaa6e6fec67db24c9faffcf199536ad73aee6f5fd2af6c046983ea8aa1d7955",
+    "reference_patch_source": "/data/SCA-repair/src/core-c/result/opencode_agent_robust_failed404_random20_work/00396_CVE-2020-36387/reference.diff",
+    "source_dataset_record": {
+      "case_id": 396,
+      "cve": "CVE-2020-36387",
+      "source_commit": "f93bc10c64afceb019ccdc7b5424ecedbd613f64",
+      "oracle_commit": "960ea38bfe7a0edd403d6a9e2d358018b4ce3bfa"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

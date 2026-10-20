@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1242",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-runtime-retry7-1410/task-workspaces/new-porter-1242-vvirlk5x/repo",
+      "target_ref": "b71f455440fd7ed03f088580b3a117352fc815dd",
+      "target_tree": "0b6cf6f8a6f47487d517c22466ab0a36c345a16d"
+    },
+    "source_commit": "19aa9c14989e7a3fe04b444f146a05ff857b058e",
+    "reference_parent": "129e4323df377297408f2da99a0e48e01a7c60fd",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/arch/x86/kvm/vmx.c b/arch/x86/kvm/vmx.c\nindex 268df707b5ce..bb620df05d0d 100644\n--- a/arch/x86/kvm/vmx.c\n+++ b/arch/x86/kvm/vmx.c\n@@ -1247,10 +1247,10 @@ static inline bool nested_cpu_has_posted_intr(struct vmcs12 *vmcs12)\n \treturn vmcs12->pin_based_vm_exec_control & PIN_BASED_POSTED_INTR;\n }\n \n-static inline bool is_exception(u32 intr_info)\n+static inline bool is_nmi(u32 intr_info)\n {\n \treturn (intr_info & (INTR_INFO_INTR_TYPE_MASK | INTR_INFO_VALID_MASK))\n-\t\t== (INTR_TYPE_HARD_EXCEPTION | INTR_INFO_VALID_MASK);\n+\t\t== (INTR_TYPE_NMI_INTR | INTR_INFO_VALID_MASK);\n }\n \n static void nested_vmx_vmexit(struct kvm_vcpu *vcpu, u32 exit_reason,\n@@ -5234,7 +5234,7 @@ static int handle_exception(struct kvm_vcpu *vcpu)\n \tif (is_machine_check(intr_info))\n \t\treturn handle_machine_check(vcpu);\n \n-\tif ((intr_info & INTR_INFO_INTR_TYPE_MASK) == INTR_TYPE_NMI_INTR)\n+\tif (is_nmi(intr_info))\n \t\treturn 1;  /* already handled by vmx_vcpu_run() */\n \n \tif (is_no_device(intr_info)) {\n@@ -7722,7 +7722,7 @@ static bool nested_vmx_exit_handled(struct kvm_vcpu *vcpu)\n \n \tswitch (exit_reason) {\n \tcase EXIT_REASON_EXCEPTION_NMI:\n-\t\tif (!is_exception(intr_info))\n+\t\tif (is_nmi(intr_info))\n \t\t\treturn false;\n \t\telse if (is_page_fault(intr_info))\n \t\t\treturn enable_ept;\n@@ -8329,8 +8329,7 @@ static void vmx_complete_atomic_exit(struct vcpu_vmx *vmx)\n \t\tkvm_machine_check();\n \n \t/* We need to handle NMIs before interrupts are enabled */\n-\tif ((exit_intr_info & INTR_INFO_INTR_TYPE_MASK) == INTR_TYPE_NMI_INTR &&\n-\t    (exit_intr_info & INTR_INFO_VALID_MASK)) {\n+\tif (is_nmi(exit_intr_info)) {\n \t\tkvm_before_handle_nmi(&vmx->vcpu);\n \t\tasm(\"int $2\");\n \t\tkvm_after_handle_nmi(&vmx->vcpu);\n",
+      "sha256": "cd26c33708bf0a8ea5308005f46763a385e0ade92b4eabb3ae64f1a61d39c2bc"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2016-9588\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-runtime-retry7-1410/task-workspaces/new-porter-1242-vvirlk5x/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-runtime-retry7-1410/task-workspaces/new-porter-1242-vvirlk5x/repo/.patch-port/reference.diff\nreference_fix: 19aa9c14989e7a3fe04b444f146a05ff857b058e\nreference_parent: 129e4323df377297408f2da99a0e48e01a7c60fd\ntarget_ref: b71f455440fd7ed03f088580b3a117352fc815dd\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-runtime-retry7-1410/task-workspaces/new-porter-1242-vvirlk5x/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-runtime-retry7-1410/task-workspaces/new-porter-1242-vvirlk5x/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2016-9588"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "8cebcee992c81aaec741311db337705a4949261c",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "fff1814f885e37ab1726fc6e7cf4f9b82b353f257b2b8e6bf49a4b698e7d2ad7",
+      "text": "diff --git a/arch/x86/kvm/vmx.c b/arch/x86/kvm/vmx.c\nindex 413fbb087718..7b16666d6ed4 100644\n--- a/arch/x86/kvm/vmx.c\n+++ b/arch/x86/kvm/vmx.c\n@@ -1073,10 +1073,10 @@ static inline int nested_cpu_has_ept(struct vmcs12 *vmcs12)\n \treturn nested_cpu_has2(vmcs12, SECONDARY_EXEC_ENABLE_EPT);\n }\n \n-static inline bool is_exception(u32 intr_info)\n+static inline bool is_nmi(u32 intr_info)\n {\n \treturn (intr_info & (INTR_INFO_INTR_TYPE_MASK | INTR_INFO_VALID_MASK))\n-\t\t== (INTR_TYPE_HARD_EXCEPTION | INTR_INFO_VALID_MASK);\n+\t\t== (INTR_TYPE_NMI_INTR | INTR_INFO_VALID_MASK);\n }\n \n static void nested_vmx_vmexit(struct kvm_vcpu *vcpu, u32 exit_reason,\n@@ -4838,7 +4838,7 @@ static int handle_exception(struct kvm_vcpu *vcpu)\n \tif (is_machine_check(intr_info))\n \t\treturn handle_machine_check(vcpu);\n \n-\tif ((intr_info & INTR_INFO_INTR_TYPE_MASK) == INTR_TYPE_NMI_INTR)\n+\tif (is_nmi(intr_info))\n \t\treturn 1;  /* already handled by vmx_vcpu_run() */\n \n \tif (is_no_device(intr_info)) {\n@@ -6888,7 +6888,7 @@ static bool nested_vmx_exit_handled(struct kvm_vcpu *vcpu)\n \n \tswitch (exit_reason) {\n \tcase EXIT_REASON_EXCEPTION_NMI:\n-\t\tif (!is_exception(intr_info))\n+\t\tif (is_nmi(intr_info))\n \t\t\treturn 0;\n \t\telse if (is_page_fault(intr_info))\n \t\t\treturn enable_ept;\n@@ -7185,8 +7185,7 @@ static void vmx_complete_atomic_exit(struct vcpu_vmx *vmx)\n \t\tkvm_machine_check();\n \n \t/* We need to handle NMIs before interrupts are enabled */\n-\tif ((exit_intr_info & INTR_INFO_INTR_TYPE_MASK) == INTR_TYPE_NMI_INTR &&\n-\t    (exit_intr_info & INTR_INFO_VALID_MASK)) {\n+\tif (is_nmi(exit_intr_info)) {\n \t\tkvm_before_handle_nmi(&vmx->vcpu);\n \t\tasm(\"int $2\");\n \t\tkvm_after_handle_nmi(&vmx->vcpu);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "787f6b3a2dc78db5f6336b128a2992f511df019b489ac55d4a7a53500e394b9a",
+    "reference_patch_source": "/data/SCA-repair/src/core-c/result/opencode_agent_robust_failed404_random40_more_work/01242_CVE-2016-9588/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1242,
+      "cve": "CVE-2016-9588",
+      "source_commit": "19aa9c14989e7a3fe04b444f146a05ff857b058e",
+      "oracle_commit": "8cebcee992c81aaec741311db337705a4949261c"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

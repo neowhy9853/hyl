@@ -1,0 +1,49 @@
+{
+  "round": 4,
+  "case_id": "case_162",
+  "source_index": 161,
+  "repo": "kernel",
+  "commit_id": "bccaeee206241b956e8e1b80ae686de015f9b2dc",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "86b5b6dc93dc",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "提交修复了在特定条件下（QD<32）可能导致系统挂起的错误唤醒批次配置，纠正了错误的计算逻辑。",
+    "intent_items": [
+      {
+        "target": "sbitmap_queue_recalculate_wake_batch 函数",
+        "change": "修改了 wake_batch 的计算逻辑，引入 min_batch 变量，并根据队列深度动态调整最小批次值。",
+        "effect_or_reason": "修复了当 QD 较小时，因 wakeup batch 被不当增大而导致的系统挂起问题。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "修改了 lib/sbitmap.c 中 sbitmap_queue_recalculate_wake_batch 函数的实现。",
+            "提交信息描述了修复因错误唤醒批次配置导致的挂起问题。"
+          ],
+          "message_only_details": [
+            "提交信息提到该问题在 QD=1 等小队列深度时发生。",
+            "提交信息引用了详细的问题报告链接和修复策略。"
+          ],
+          "code_only_details": [
+            "补丁在计算 wake_batch 前，先根据 sbq->sb.depth 计算 min_batch（>=4?4:1）。",
+            "补丁将 depth 的计算从 clamp_val 参数中分离，并显式使用 min_batch 作为下限。"
+          ]
+        },
+        "evidence": [
+          "提交前代码：wake_batch = clamp_val((sbq->sb.depth + users - 1) / users, 4, SBQ_WAKE_BATCH); 这强制最小 wake_batch 为 4，对于小 QD 可能过大。",
+          "提交后代码：min_batch = sbq->sb.depth >= (4 * SBQ_WAIT_QUEUES) ? 4 : 1; wake_batch = clamp_val(depth / SBQ_WAIT_QUEUES, min_batch, SBQ_WAKE_BATCH); 这根据队列深度动态调整最小批次，纠正了错误行为。"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_162",
+  "trace_status": "available"
+}

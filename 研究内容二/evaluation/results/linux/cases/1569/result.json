@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1569",
+  "candidate_sha256": "ee358a6b542f03529637b8099533a86ac1c6442462cc5d876ea3fc1c9887bab9",
+  "oracle_sha256": "0d4be7e05ec0cc8c64faa44ad7a1d5dc6e7ab209ab98dbf675ade6774d1e60e1",
+  "candidate_nonempty": true,
+  "target_ref": "4a027b96515e30e831047cf5cc1f8bd80ea55050",
+  "baseline_tree": "d9f3b75d7069ca3d2558fc58386a196b7a088d7d",
+  "candidate_tree": "7af698d13c1a1a44deecc14424440876aba0f59f",
+  "oracle_tree": "7af698d13c1a1a44deecc14424440876aba0f59f",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1569",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "ee358a6b542f03529637b8099533a86ac1c6442462cc5d876ea3fc1c9887bab9",
+    "text": "diff --git a/fs/ksmbd/smb2pdu.c b/fs/ksmbd/smb2pdu.c\nindex ecabb0b2eb13..cf22815029e9 100644\n--- a/fs/ksmbd/smb2pdu.c\n+++ b/fs/ksmbd/smb2pdu.c\n@@ -87,9 +87,9 @@ struct channel *lookup_chann_list(struct ksmbd_session *sess, struct ksmbd_conn\n  */\n int smb2_get_ksmbd_tcon(struct ksmbd_work *work)\n {\n-\tstruct smb2_hdr *req_hdr = smb2_get_msg(work->request_buf);\n+\tstruct smb2_hdr *req_hdr = ksmbd_req_buf_next(work);\n \tunsigned int cmd = le16_to_cpu(req_hdr->Command);\n-\tint tree_id;\n+\tunsigned int tree_id;\n \n \tif (cmd == SMB2_TREE_CONNECT_HE ||\n \t    cmd ==  SMB2_CANCEL_HE ||\n@@ -114,7 +114,7 @@ int smb2_get_ksmbd_tcon(struct ksmbd_work *work)\n \t\t\tpr_err(\"The first operation in the compound does not have tcon\\n\");\n \t\t\treturn -EINVAL;\n \t\t}\n-\t\tif (work->tcon->id != tree_id) {\n+\t\tif (tree_id != UINT_MAX && work->tcon->id != tree_id) {\n \t\t\tpr_err(\"tree id(%u) is different with id(%u) in first operation\\n\",\n \t\t\t\t\ttree_id, work->tcon->id);\n \t\t\treturn -EINVAL;\n@@ -560,9 +560,9 @@ int smb2_allocate_rsp_buf(struct ksmbd_work *work)\n  */\n int smb2_check_user_session(struct ksmbd_work *work)\n {\n-\tstruct smb2_hdr *req_hdr = smb2_get_msg(work->request_buf);\n+\tstruct smb2_hdr *req_hdr = ksmbd_req_buf_next(work);\n \tstruct ksmbd_conn *conn = work->conn;\n-\tunsigned int cmd = conn->ops->get_cmd_val(work);\n+\tunsigned int cmd = le16_to_cpu(req_hdr->Command);\n \tunsigned long long sess_id;\n \n \t/*\n@@ -588,7 +588,7 @@ int smb2_check_user_session(struct ksmbd_work *work)\n \t\t\tpr_err(\"The first operation in the compound does not have sess\\n\");\n \t\t\treturn -EINVAL;\n \t\t}\n-\t\tif (work->sess->id != sess_id) {\n+\t\tif (sess_id != ULLONG_MAX && work->sess->id != sess_id) {\n \t\t\tpr_err(\"session id(%llu) is different with the first operation(%lld)\\n\",\n \t\t\t\t\tsess_id, work->sess->id);\n \t\t\treturn -EINVAL;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

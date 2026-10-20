@@ -1,0 +1,48 @@
+{
+  "round": 2,
+  "case_id": "case_171",
+  "source_index": 170,
+  "repo": "kernel",
+  "commit_id": "4c14b550518fbf7071f3a8e7ff475a3d73614daf",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "1cdd9ab7c557",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.93,
+    "reason": "该提交重排 vlan_dev_hard_start_xmit() 中的判断顺序，修复未初始化内存读取；属于明确的错误路径纠正。",
+    "intent_items": [
+      {
+        "target": "net/8021q/vlan_dev.c 中的 vlan_dev_hard_start_xmit()",
+        "change": "把 VLAN_FLAG_REORDER_HDR 检查移到 veth->h_vlan_proto 读取之前",
+        "effect_or_reason": "避免在 reorder/offload 且未压入 VLAN 头时读取未初始化的 veth->h_vlan_proto，消除 KMSAN uninit-value 告警",
+        "context_used": [
+          "net/8021q/vlan_dev.c（目标 commit 版本 patch）"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "提交前先读 veth->h_vlan_proto，提交后先判断 VLAN_FLAG_REORDER_HDR"
+          ],
+          "message_only_details": [
+            "syzbot 通过 pppoe_sendmsg() 发送空消息触发了 KMSAN uninit-value 报告"
+          ],
+          "code_only_details": [
+            "改动仅交换两个条件顺序，原分支体内容未变"
+          ]
+        },
+        "evidence": [
+          "提交前：veth->h_vlan_proto 在判断 VLAN_FLAG_REORDER_HDR 前被读取，vlan_dev_hard_header() 未压入 VLAN 头时该字段可能未初始化",
+          "提交后：条件顺序交换，先判断 VLAN_FLAG_REORDER_HDR，短路避免读取未初始化字段"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_171",
+  "trace_status": "available"
+}

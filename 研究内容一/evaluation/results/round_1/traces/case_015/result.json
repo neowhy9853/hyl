@@ -1,0 +1,48 @@
+{
+  "round": 1,
+  "case_id": "case_015",
+  "source_index": 14,
+  "repo": "kernel",
+  "commit_id": "718b1164e222ec328aa40d8dfd721d9bd8e0153e",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "01480a7efe15",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.93,
+    "reason": "补丁把 fib6_find_prefix() 返回 NULL 时回退到 fib6_null_entry 的逻辑从 RT6_DEBUG>=2 条件编译中移出，避免了非调试配置下的 NULL 解引用，主导意图是纠正既有崩溃路径。",
+    "intent_items": [
+      {
+        "target": "net/ipv6/ip6_fib.c 中 fib6_add() 的叶节点回填逻辑",
+        "change": "去掉 #if RT6_DEBUG >= 2 包裹，使 pn_leaf 为空时无条件回退到 fib6_null_entry",
+        "effect_or_reason": "此前仅在 RT6_DEBUG>=2 时做空值兜底，非调试内核会把 NULL 传给 fib6_info_hold 而解引用崩溃；改为始终兜底后该路径安全",
+        "context_used": [
+          "net/ipv6/ip6_fib.c 目标 commit 版本 fib6_add() 片段"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "fib6_find_prefix() 可能返回 NULL，需回退 fib6_null_entry"
+          ],
+          "message_only_details": [
+            "syzbot 报告的 WARNING 调用栈与 ioctl 触发路径"
+          ],
+          "code_only_details": [
+            "原兜底代码位于 #if RT6_DEBUG >= 2 内，非调试配置下完全缺失"
+          ]
+        },
+        "evidence": [
+          "删除前 fib6_info_hold(pn_leaf) 在 RT6_DEBUG<2 且 pn_leaf 为 NULL 时直接解引用空指针",
+          "补丁将 pn_leaf = info->nl_net->ipv6.fib6_null_entry 改为无条件执行，并移除 WARN_ON"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_015",
+  "trace_status": "available"
+}

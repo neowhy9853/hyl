@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "853",
+  "candidate_sha256": "7770bfbf26083d9e67e65d491400fffa4c89a7dbafe99e49b123bc904883213e",
+  "oracle_sha256": "965864ea07e3008eb80a5d202b67872c6d92ababb1499989a5f7206a792ea6cd",
+  "candidate_nonempty": true,
+  "target_ref": "0cabe04c56167f8c782c8ecb1966458eb90a48ad",
+  "baseline_tree": "178dc6c84cdca11a405986a9cceb68ffe0ab9ef8",
+  "candidate_tree": "be5e18e34a72d10620839099f8faeff04e54a4bb",
+  "oracle_tree": "be5e18e34a72d10620839099f8faeff04e54a4bb",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/853",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "7770bfbf26083d9e67e65d491400fffa4c89a7dbafe99e49b123bc904883213e",
+    "text": "diff --git a/fs/ext4/resize.c b/fs/ext4/resize.c\nindex 6dcf7406b77e..70d4f6e3aaa7 100644\n--- a/fs/ext4/resize.c\n+++ b/fs/ext4/resize.c\n@@ -227,10 +227,17 @@ struct ext4_new_flex_group_data {\n \t\t\t\t\t\t   in the flex group */\n \t__u16 *bg_flags;\t\t\t/* block group flags of groups\n \t\t\t\t\t\t   in @groups */\n+\text4_group_t resize_bg;\t\t\t/* number of allocated\n+\t\t\t\t\t\t   new_group_data */\n \text4_group_t count;\t\t\t/* number of groups in @groups\n \t\t\t\t\t\t */\n };\n \n+/*\n+ * Avoiding memory allocation failures due to too many groups added each time.\n+ */\n+#define MAX_RESIZE_BG\t\t\t\t16384\n+\n /*\n  * alloc_flex_gd() allocates a ext4_new_flex_group_data with size of\n  * @flexbg_size.\n@@ -245,14 +252,18 @@ static struct ext4_new_flex_group_data *alloc_flex_gd(unsigned int flexbg_size)\n \tif (flex_gd == NULL)\n \t\tgoto out3;\n \n-\tflex_gd->count = flexbg_size;\n-\tflex_gd->groups = kmalloc_array(flexbg_size,\n+\tif (unlikely(flexbg_size > MAX_RESIZE_BG))\n+\t\tflex_gd->resize_bg = MAX_RESIZE_BG;\n+\telse\n+\t\tflex_gd->resize_bg = flexbg_size;\n+\n+\tflex_gd->groups = kmalloc_array(flex_gd->resize_bg,\n \t\t\t\t\tsizeof(struct ext4_new_group_data),\n \t\t\t\t\tGFP_NOFS);\n \tif (flex_gd->groups == NULL)\n \t\tgoto out2;\n \n-\tflex_gd->bg_flags = kmalloc_array(flexbg_size, sizeof(__u16),\n+\tflex_gd->bg_flags = kmalloc_array(flex_gd->resize_bg, sizeof(__u16),\n \t\t\t\t\t  GFP_NOFS);\n \tif (flex_gd->bg_flags == NULL)\n \t\tgoto out1;\n@@ -1573,8 +1584,7 @@ static int ext4_flex_group_add(struct super_block *sb,\n \n static int ext4_setup_next_flex_gd(struct super_block *sb,\n \t\t\t\t    struct ext4_new_flex_group_data *flex_gd,\n-\t\t\t\t    ext4_fsblk_t n_blocks_count,\n-\t\t\t\t    unsigned int flexbg_size)\n+\t\t\t\t    ext4_fsblk_t n_blocks_count)\n {\n \tstruct ext4_sb_info *sbi = EXT4_SB(sb);\n \tstruct ext4_super_block *es = sbi->s_es;\n@@ -1598,7 +1608,7 @@ static int ext4_setup_next_flex_gd(struct super_block *sb,\n \tBUG_ON(last);\n \text4_get_group_no_and_offset(sb, n_blocks_count - 1, &n_group, &last);\n \n-\tlast_group = group | (flexbg_size - 1);\n+\tlast_group = group | (flex_gd->resize_bg - 1);\n \tif (last_group > n_group)\n \t\tlast_group = n_group;\n \n@@ -2103,8 +2113,7 @@ int ext4_resize_fs(struct super_block *sb, ext4_fsblk_t n_blocks_count)\n \t/* Add flex groups. Note that a regular group is a\n \t * flex group with 1 group.\n \t */\n-\twhile (ext4_setup_next_flex_gd(sb, flex_gd, n_blocks_count,\n-\t\t\t\t\t      flexbg_size)) {\n+\twhile (ext4_setup_next_flex_gd(sb, flex_gd, n_blocks_count)) {\n \t\tif (jiffies - last_update_time > HZ * 10) {\n \t\t\tif (last_update_time)\n \t\t\t\text4_msg(sb, KERN_INFO,\n"
+  },
+  "trace_file": "trace.jsonl"
+}

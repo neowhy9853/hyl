@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "683",
+  "candidate_sha256": "96ff816adfde8eeff4360d5b93553e3080456c584370ffd1276fc1f1626f2dcb",
+  "oracle_sha256": "52c0bc77e44e00add7a0c60d47b18c32ed8453783f23327127b5827fd0570692",
+  "candidate_nonempty": true,
+  "target_ref": "a88638a95407f7581e41563c83ddeb9085931edb",
+  "baseline_tree": "a335db35b9539a1be8d95789086344086cb42fd8",
+  "candidate_tree": "37a5e0d7d5680e9f5e2f6755e3a77733fe1ec96e",
+  "oracle_tree": "0fde7fd8b3d4445f91af34da4631b26cc899351b",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/683",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "96ff816adfde8eeff4360d5b93553e3080456c584370ffd1276fc1f1626f2dcb",
+    "text": "diff --git a/arch/x86/include/asm/kvm_host.h b/arch/x86/include/asm/kvm_host.h\nindex 4bc476d7fa6c..80239c84b4dd 100644\n--- a/arch/x86/include/asm/kvm_host.h\n+++ b/arch/x86/include/asm/kvm_host.h\n@@ -563,6 +563,7 @@ struct kvm_vcpu_arch {\n \tu64 ia32_misc_enable_msr;\n \tu64 smbase;\n \tu64 smi_count;\n+\tbool at_instruction_boundary;\n \tbool tpr_access_reporting;\n \tu64 ia32_xss;\n \tu64 microcode_version;\n@@ -981,6 +982,8 @@ struct kvm_vcpu_stat {\n \tu64 irq_injections;\n \tu64 nmi_injections;\n \tu64 req_event;\n+\tu64 preemption_reported;\n+\tu64 preemption_other;\n };\n \n struct x86_instruction_info;\ndiff --git a/arch/x86/kvm/svm.c b/arch/x86/kvm/svm.c\nindex c5a9de8d0725..e9444e202c33 100644\n--- a/arch/x86/kvm/svm.c\n+++ b/arch/x86/kvm/svm.c\n@@ -6246,7 +6246,8 @@ static int svm_check_intercept(struct kvm_vcpu *vcpu,\n \n static void svm_handle_exit_irqoff(struct kvm_vcpu *vcpu)\n {\n-\n+\tif (to_svm(vcpu)->vmcb->control.exit_code == SVM_EXIT_INTR)\n+\t\tvcpu->arch.at_instruction_boundary = true;\n }\n \n static void svm_sched_in(struct kvm_vcpu *vcpu, int cpu)\ndiff --git a/arch/x86/kvm/vmx/vmx.c b/arch/x86/kvm/vmx/vmx.c\nindex 9bd08d264603..047bffff7ddc 100644\n--- a/arch/x86/kvm/vmx/vmx.c\n+++ b/arch/x86/kvm/vmx/vmx.c\n@@ -6358,6 +6358,8 @@ static void handle_external_interrupt_irqoff(struct kvm_vcpu *vcpu)\n \t);\n \n \tkvm_after_interrupt(vcpu);\n+\n+\tvcpu->arch.at_instruction_boundary = true;\n }\n STACK_FRAME_NON_STANDARD(handle_external_interrupt_irqoff);\n \ndiff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c\nindex f5e9590a8f31..b541111c3e40 100644\n--- a/arch/x86/kvm/x86.c\n+++ b/arch/x86/kvm/x86.c\n@@ -206,6 +206,8 @@ struct kvm_stats_debugfs_item debugfs_entries[] = {\n \t{ \"irq_injections\", VCPU_STAT(irq_injections) },\n \t{ \"nmi_injections\", VCPU_STAT(nmi_injections) },\n \t{ \"req_event\", VCPU_STAT(req_event) },\n+\t{ \"preemption_reported\", VCPU_STAT(preemption_reported) },\n+\t{ \"preemption_other\", VCPU_STAT(preemption_other) },\n \t{ \"l1d_flush\", VCPU_STAT(l1d_flush) },\n \t{ \"mmu_shadow_zapped\", VM_STAT(mmu_shadow_zapped) },\n \t{ \"mmu_pte_write\", VM_STAT(mmu_pte_write) },\n@@ -3562,6 +3564,19 @@ static void kvm_steal_time_set_preempted(struct kvm_vcpu *vcpu)\n \tstruct kvm_host_map map;\n \tstruct kvm_steal_time *st;\n \n+\t/*\n+\t * The vCPU can be marked preempted if and only if the VM-Exit was on\n+\t * an instruction boundary and will not trigger guest emulation of any\n+\t * kind (see vcpu_run).  Vendor specific code controls (conservatively)\n+\t * when this is true, for example allowing the vCPU to be marked\n+\t * preempted if and only if the VM-Exit was due to a host interrupt.\n+\t */\n+\tif (!vcpu->arch.at_instruction_boundary) {\n+\t\tvcpu->stat.preemption_other++;\n+\t\treturn;\n+\t}\n+\n+\tvcpu->stat.preemption_reported++;\n \tif (!(vcpu->arch.st.msr_val & KVM_MSR_ENABLED))\n \t\treturn;\n \n@@ -8446,6 +8461,13 @@ static int vcpu_run(struct kvm_vcpu *vcpu)\n \tvcpu->arch.l1tf_flush_l1d = true;\n \n \tfor (;;) {\n+\t\t/*\n+\t\t * If another guest vCPU requests a PV TLB flush in the middle\n+\t\t * of instruction emulation, the rest of the emulation could\n+\t\t * use a stale page translation. Assume that any code after\n+\t\t * this point can start executing an instruction.\n+\t\t */\n+\t\tvcpu->arch.at_instruction_boundary = false;\n \t\tif (kvm_vcpu_running(vcpu)) {\n \t\t\tr = vcpu_enter_guest(vcpu);\n \t\t} else {\n"
+  },
+  "trace_file": "trace.jsonl"
+}

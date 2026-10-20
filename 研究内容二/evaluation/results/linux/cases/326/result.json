@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "326",
+  "candidate_sha256": "b00e394af2c7fdc1770fa12b0197b6d9d5d18c0402056b82db93dece0f2b8780",
+  "oracle_sha256": "a259f40054b71c21e3c31cd1e4acd1ed10594fea7bf1ed10156a297874bb4af9",
+  "candidate_nonempty": true,
+  "target_ref": "786f9eb0c5de4ac73da92b244d726886ab6414cd",
+  "baseline_tree": "f7ed2a8fabe861eba9ead0f22d7ee9d7dd251a8d",
+  "candidate_tree": "333c616c67a614ed1b94c9ca1ee402c63b0c8f8b",
+  "oracle_tree": "333c616c67a614ed1b94c9ca1ee402c63b0c8f8b",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/326",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "b00e394af2c7fdc1770fa12b0197b6d9d5d18c0402056b82db93dece0f2b8780",
+    "text": "diff --git a/net/ipv4/tcp_input.c b/net/ipv4/tcp_input.c\nindex ba358b7369c4..650bd2e6c60f 100644\n--- a/net/ipv4/tcp_input.c\n+++ b/net/ipv4/tcp_input.c\n@@ -4874,6 +4874,7 @@ static void tcp_collapse_ofo_queue(struct sock *sk)\n  * 2) not add too big latencies if thousands of packets sit there.\n  *    (But if application shrinks SO_RCVBUF, we could still end up\n  *     freeing whole queue here)\n+ * 3) Drop at least 12.5 % of sk_rcvbuf to avoid malicious attacks.\n  *\n  * Return true if queue has shrunk.\n  */\n@@ -4881,20 +4882,26 @@ static bool tcp_prune_ofo_queue(struct sock *sk)\n {\n \tstruct tcp_sock *tp = tcp_sk(sk);\n \tstruct rb_node *node, *prev;\n+\tint goal;\n \n \tif (RB_EMPTY_ROOT(&tp->out_of_order_queue))\n \t\treturn false;\n \n \tNET_INC_STATS(sock_net(sk), LINUX_MIB_OFOPRUNED);\n+\tgoal = sk->sk_rcvbuf >> 3;\n \tnode = &tp->ooo_last_skb->rbnode;\n \tdo {\n \t\tprev = rb_prev(node);\n \t\trb_erase(node, &tp->out_of_order_queue);\n+\t\tgoal -= rb_to_skb(node)->truesize;\n \t\ttcp_drop(sk, rb_to_skb(node));\n-\t\tsk_mem_reclaim(sk);\n-\t\tif (atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf &&\n-\t\t    !tcp_under_memory_pressure(sk))\n-\t\t\tbreak;\n+\t\tif (!prev || goal <= 0) {\n+\t\t\tsk_mem_reclaim(sk);\n+\t\t\tif (atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf &&\n+\t\t\t    !tcp_under_memory_pressure(sk))\n+\t\t\t\tbreak;\n+\t\t\tgoal = sk->sk_rcvbuf >> 3;\n+\t\t}\n \t\tnode = prev;\n \t} while (node);\n \ttp->ooo_last_skb = rb_to_skb(prev);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

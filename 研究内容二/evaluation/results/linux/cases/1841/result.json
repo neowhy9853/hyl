@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1841",
+  "candidate_sha256": "959e83e0df83f6c692e77c74ac28e1eb1ea9f1efe09db88834ebbd45a996a24a",
+  "oracle_sha256": "efe0980fa5d0ced4a9117c851326f84b11b8cc6d890eb0dacbed66538ca2c5d1",
+  "candidate_nonempty": true,
+  "target_ref": "536d35b48dca070a9b4f49c084207186fb7ac807",
+  "baseline_tree": "4df18506c246a966d8c7db80b77f884199279778",
+  "candidate_tree": "cf35980c84976258eb55d0459b44e8fed5101fc4",
+  "oracle_tree": "cf35980c84976258eb55d0459b44e8fed5101fc4",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1841",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "959e83e0df83f6c692e77c74ac28e1eb1ea9f1efe09db88834ebbd45a996a24a",
+    "text": "diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c\nindex 876048a35b5f..cec7a62b4028 100644\n--- a/drivers/usb/core/hub.c\n+++ b/drivers/usb/core/hub.c\n@@ -2211,7 +2211,7 @@ static int usb_enumerate_device_otg(struct usb_device *udev)\n \t\t/* descriptor may appear anywhere in config */\n \t\tif (__usb_get_extra_descriptor (udev->rawdescriptors[0],\n \t\t\t\t\tle16_to_cpu(udev->config[0].desc.wTotalLength),\n-\t\t\t\t\tUSB_DT_OTG, (void **) &desc) == 0) {\n+\t\t\t\t\tUSB_DT_OTG, (void **) &desc, sizeof(*desc)) == 0) {\n \t\t\tif (desc->bmAttributes & USB_OTG_HNP) {\n \t\t\t\tunsigned\t\tport1 = udev->portnum;\n \ndiff --git a/drivers/usb/core/usb.c b/drivers/usb/core/usb.c\nindex d885a07be4df..b35bde5e5e11 100644\n--- a/drivers/usb/core/usb.c\n+++ b/drivers/usb/core/usb.c\n@@ -663,14 +663,14 @@ EXPORT_SYMBOL_GPL(usb_get_current_frame_number);\n  */\n \n int __usb_get_extra_descriptor(char *buffer, unsigned size,\n-\t\t\t       unsigned char type, void **ptr)\n+\t\t\t       unsigned char type, void **ptr, size_t minsize)\n {\n \tstruct usb_descriptor_header *header;\n \n \twhile (size >= sizeof(struct usb_descriptor_header)) {\n \t\theader = (struct usb_descriptor_header *)buffer;\n \n-\t\tif (header->bLength < 2) {\n+\t\tif (header->bLength < 2 || header->bLength > size) {\n \t\t\tprintk(KERN_ERR\n \t\t\t\t\"%s: bogus descriptor, type %d length %d\\n\",\n \t\t\t\tusbcore_name,\n@@ -679,7 +679,7 @@ int __usb_get_extra_descriptor(char *buffer, unsigned size,\n \t\t\treturn -1;\n \t\t}\n \n-\t\tif (header->bDescriptorType == type) {\n+\t\tif (header->bDescriptorType == type && header->bLength >= minsize) {\n \t\t\t*ptr = header;\n \t\t\treturn 0;\n \t\t}\ndiff --git a/drivers/usb/host/hwa-hc.c b/drivers/usb/host/hwa-hc.c\nindex d0d8fadf7066..1931a2b029eb 100644\n--- a/drivers/usb/host/hwa-hc.c\n+++ b/drivers/usb/host/hwa-hc.c\n@@ -654,7 +654,7 @@ static int hwahc_security_create(struct hwahc *hwahc)\n \ttop = itr + itr_size;\n \tresult = __usb_get_extra_descriptor(usb_dev->rawdescriptors[index],\n \t\t\tle16_to_cpu(usb_dev->actconfig->desc.wTotalLength),\n-\t\t\tUSB_DT_SECURITY, (void **) &secd);\n+\t\t\tUSB_DT_SECURITY, (void **) &secd, sizeof(*secd));\n \tif (result == -1) {\n \t\tdev_warn(dev, \"BUG? WUSB host has no security descriptors\\n\");\n \t\treturn 0;\ndiff --git a/include/linux/usb.h b/include/linux/usb.h\nindex 7199f201c7a8..a53e036b2252 100644\n--- a/include/linux/usb.h\n+++ b/include/linux/usb.h\n@@ -334,11 +334,11 @@ struct usb_host_bos {\n };\n \n int __usb_get_extra_descriptor(char *buffer, unsigned size,\n-\tunsigned char type, void **ptr);\n+\tunsigned char type, void **ptr, size_t min);\n #define usb_get_extra_descriptor(ifpoint, type, ptr) \\\n \t\t\t\t__usb_get_extra_descriptor((ifpoint)->extra, \\\n \t\t\t\t(ifpoint)->extralen, \\\n-\t\t\t\ttype, (void **)ptr)\n+\t\t\t\ttype, (void **)ptr, sizeof(**(ptr)))\n \n /* ----------------------------------------------------------------------- */\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

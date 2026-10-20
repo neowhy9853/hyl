@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-56-ruby",
+  "candidate_sha256": "06a75fda1ceac13ae4b2d1e690c72cc9612dd9630fdf3cb80fb296ff5f8706ed",
+  "oracle_sha256": "4e18208b3540a88a411bdc2b4958ec614f0347e0c8acf5685ce16c24a12fa750",
+  "candidate_nonempty": true,
+  "target_ref": "1a8931fcfbd13b6fc8aa6331e7a00b1a999c2273",
+  "baseline_tree": "47538bbd1aaf4cf8fe9d7503378674acf98899b1",
+  "candidate_tree": "db42d5518714264555f5e15349c8c4f4044c087c",
+  "oracle_tree": "154a54b94a2cfacd3cf72058afe759a6061f3348",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-56-ruby",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "06a75fda1ceac13ae4b2d1e690c72cc9612dd9630fdf3cb80fb296ff5f8706ed",
+    "text": "diff --git a/lib/rdoc/store.rb b/lib/rdoc/store.rb\nindex 9fc540d317..c793e49ed8 100644\n--- a/lib/rdoc/store.rb\n+++ b/lib/rdoc/store.rb\n@@ -556,9 +556,7 @@ class RDoc::Store\n   def load_cache\n     #orig_enc = @encoding\n \n-    File.open cache_path, 'rb' do |io|\n-      @cache = Marshal.load io\n-    end\n+    @cache = marshal_load(cache_path)\n \n     load_enc = @cache[:encoding]\n \n@@ -615,9 +613,7 @@ class RDoc::Store\n   def load_class_data klass_name\n     file = class_file klass_name\n \n-    File.open file, 'rb' do |io|\n-      Marshal.load io\n-    end\n+    marshal_load(file)\n   rescue Errno::ENOENT => e\n     error = MissingFileError.new(self, file, klass_name)\n     error.set_backtrace e.backtrace\n@@ -630,14 +626,10 @@ class RDoc::Store\n   def load_method klass_name, method_name\n     file = method_file klass_name, method_name\n \n-    File.open file, 'rb' do |io|\n-      obj = Marshal.load io\n-      obj.store = self\n-      obj.parent =\n-        find_class_or_module(klass_name) || load_class(klass_name) unless\n-          obj.parent\n-      obj\n-    end\n+    obj = marshal_load(file)\n+    obj.store = self\n+    obj.parent ||= find_class_or_module(klass_name) || load_class(klass_name)\n+    obj\n   rescue Errno::ENOENT => e\n     error = MissingFileError.new(self, file, klass_name + method_name)\n     error.set_backtrace e.backtrace\n@@ -650,11 +642,9 @@ class RDoc::Store\n   def load_page page_name\n     file = page_file page_name\n \n-    File.open file, 'rb' do |io|\n-      obj = Marshal.load io\n-      obj.store = self\n-      obj\n-    end\n+    obj = marshal_load(file)\n+    obj.store = self\n+    obj\n   rescue Errno::ENOENT => e\n     error = MissingFileError.new(self, file, page_name)\n     error.set_backtrace e.backtrace\n@@ -976,4 +966,21 @@ class RDoc::Store\n     @unique_modules\n   end\n \n+  private\n+  def marshal_load(file)\n+    File.open(file, 'rb') {|io| Marshal.load(io, MarshalFilter)}\n+  end\n+\n+  MarshalFilter = proc do |obj|\n+    case obj\n+    when true, false, nil, Array, Class, Encoding, Hash, Integer, String, Symbol, RDoc::Text\n+    else\n+      unless obj.class.name.start_with?(\"RDoc::\")\n+        raise TypeError, \"not permitted class: #{obj.class.name}\"\n+      end\n+    end\n+    obj\n+  end\n+  private_constant :MarshalFilter\n+\n end\ndiff --git a/lib/rdoc/version.rb b/lib/rdoc/version.rb\nindex 04322a1970..31c1aa0276 100644\n--- a/lib/rdoc/version.rb\n+++ b/lib/rdoc/version.rb\n@@ -5,6 +5,6 @@ module RDoc\n   ##\n   # RDoc version you are using\n \n-  VERSION = '6.5.0'\n+  VERSION = '6.5.1.1'\n \n end\n"
+  },
+  "trace_file": "trace.jsonl"
+}

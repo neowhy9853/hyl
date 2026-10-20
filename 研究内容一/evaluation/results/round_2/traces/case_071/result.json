@@ -1,0 +1,47 @@
+{
+  "round": 2,
+  "case_id": "case_071",
+  "source_index": 70,
+  "repo": "kernel",
+  "commit_id": "55d7a2b18c2d3f97760960180201e4c11a16ded8",
+  "oracle_label": "feat",
+  "predicted_label": "fix",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "d32e204035d4",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "提交修复了 ARM SMMUv3 驱动中多核环境下 ECMDQ 命令同步问题，通过禁用抢占确保关联命令插入同一队列，纠正了潜在的命令执行顺序错误。",
+    "intent_items": [
+      {
+        "target": "ARM SMMUv3 驱动中的命令队列插入逻辑",
+        "change": "在 arm_smmu_sync_cd、arm_smmu_atc_inv_master 和 arm_smmu_atc_inv_domain 函数中，添加了对 arm_smmu_preempt_disable/enable 的调用，确保执行一组关联命令的进程不会被迁移到其他核心。",
+        "effect_or_reason": "防止因进程迁移导致关联命令被插入不同 ECMDQ，从而确保 SYNC 命令能正确同步所有前置命令的执行，修复了多核环境下命令执行顺序可能出错的问题。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交添加了 arm_smmu_preempt_disable 和 arm_smmu_preempt_enable 两个静态函数，并在三个命令提交路径中调用它们。",
+            "提交信息解释了 SYNC 命令只能同步同一 ECMDQ 中的命令，多核插入可能导致同步失败。"
+          ],
+          "message_only_details": [
+            "提交信息提到 'hulk inclusion'，这可能是内部标签，不影响分类。"
+          ],
+          "code_only_details": [
+            "新增的 arm_smmu_preempt_disable/enable 函数仅在 smmu->ecmdq_enabled 为真时禁用/启用抢占。"
+          ]
+        },
+        "evidence": [
+          "Patch 显示在 arm_smmu_sync_cd 函数中，在 spin_lock_irqsave 之前调用 arm_smmu_preempt_disable，在 arm_smmu_cmdq_batch_submit 之后调用 arm_smmu_preempt_enable。",
+          "提交信息明确指出：'Prevent the process that performs a set of associated commands insertion from being migrated to other cores ensures that all commands are inserted into the same ECMDQ.'"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_071",
+  "trace_status": "available"
+}

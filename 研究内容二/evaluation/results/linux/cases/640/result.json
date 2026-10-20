@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "640",
+  "candidate_sha256": "e21db9a550682d55a272ba18dfc7882b6e94b12434edc17e6d362795a6ef16e7",
+  "oracle_sha256": "f85aeb0dc2ddebfce40f166d9116b4cdfa924acd2dc9b4d9b4cc3c27e84a720f",
+  "candidate_nonempty": true,
+  "target_ref": "553ae0f9207b1779e4da88b53f3a1f0cb0c127c6",
+  "baseline_tree": "c81444b1721073e9e5bb6fafe02222a2b8a51bd5",
+  "candidate_tree": "3b68ee6f76606f2e667aa4577ec73f7896f449ea",
+  "oracle_tree": "3b68ee6f76606f2e667aa4577ec73f7896f449ea",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/640",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "e21db9a550682d55a272ba18dfc7882b6e94b12434edc17e6d362795a6ef16e7",
+    "text": "diff --git a/fs/cifs/sess.c b/fs/cifs/sess.c\nindex 7426b06741ce..d7218c16ba70 100644\n--- a/fs/cifs/sess.c\n+++ b/fs/cifs/sess.c\n@@ -343,13 +343,12 @@ void build_ntlmssp_negotiate_blob(unsigned char *pbuffer,\n \t/* BB is NTLMV2 session security format easier to use here? */\n \tflags = NTLMSSP_NEGOTIATE_56 |\tNTLMSSP_REQUEST_TARGET |\n \t\tNTLMSSP_NEGOTIATE_128 | NTLMSSP_NEGOTIATE_UNICODE |\n-\t\tNTLMSSP_NEGOTIATE_NTLM | NTLMSSP_NEGOTIATE_EXTENDED_SEC;\n-\tif (ses->server->sign) {\n+\t\tNTLMSSP_NEGOTIATE_NTLM | NTLMSSP_NEGOTIATE_EXTENDED_SEC |\n+\t\tNTLMSSP_NEGOTIATE_SEAL;\n+\tif (ses->server->sign)\n \t\tflags |= NTLMSSP_NEGOTIATE_SIGN;\n-\t\tif (!ses->server->session_estab ||\n-\t\t\t\tses->ntlmssp->sesskey_per_smbsess)\n-\t\t\tflags |= NTLMSSP_NEGOTIATE_KEY_XCH;\n-\t}\n+\tif (!ses->server->session_estab || ses->ntlmssp->sesskey_per_smbsess)\n+\t\tflags |= NTLMSSP_NEGOTIATE_KEY_XCH;\n \n \tsec_blob->NegotiateFlags = cpu_to_le32(flags);\n \n@@ -412,13 +411,12 @@ int build_ntlmssp_auth_blob(unsigned char **pbuffer,\n \tflags = NTLMSSP_NEGOTIATE_56 |\n \t\tNTLMSSP_REQUEST_TARGET | NTLMSSP_NEGOTIATE_TARGET_INFO |\n \t\tNTLMSSP_NEGOTIATE_128 | NTLMSSP_NEGOTIATE_UNICODE |\n-\t\tNTLMSSP_NEGOTIATE_NTLM | NTLMSSP_NEGOTIATE_EXTENDED_SEC;\n-\tif (ses->server->sign) {\n+\t\tNTLMSSP_NEGOTIATE_NTLM | NTLMSSP_NEGOTIATE_EXTENDED_SEC |\n+\t\tNTLMSSP_NEGOTIATE_SEAL;\n+\tif (ses->server->sign)\n \t\tflags |= NTLMSSP_NEGOTIATE_SIGN;\n-\t\tif (!ses->server->session_estab ||\n-\t\t\t\tses->ntlmssp->sesskey_per_smbsess)\n-\t\t\tflags |= NTLMSSP_NEGOTIATE_KEY_XCH;\n-\t}\n+\tif (!ses->server->session_estab || ses->ntlmssp->sesskey_per_smbsess)\n+\t\tflags |= NTLMSSP_NEGOTIATE_KEY_XCH;\n \n \ttmp = *pbuffer + sizeof(AUTHENTICATE_MESSAGE);\n \tsec_blob->NegotiateFlags = cpu_to_le32(flags);\ndiff --git a/fs/cifs/smb2pdu.c b/fs/cifs/smb2pdu.c\nindex 219fdc07aa6b..6a5b70240a08 100644\n--- a/fs/cifs/smb2pdu.c\n+++ b/fs/cifs/smb2pdu.c\n@@ -764,10 +764,8 @@ ssetup_exit:\n \n \tif (!rc) {\n \t\tmutex_lock(&server->srv_mutex);\n-\t\tif (server->sign && server->ops->generate_signingkey) {\n+\t\tif (server->ops->generate_signingkey) {\n \t\t\trc = server->ops->generate_signingkey(ses);\n-\t\t\tkfree(ses->auth_key.response);\n-\t\t\tses->auth_key.response = NULL;\n \t\t\tif (rc) {\n \t\t\t\tcifs_dbg(FYI,\n \t\t\t\t\t\"SMB3 session key generation failed\\n\");\n@@ -789,10 +787,6 @@ ssetup_exit:\n \t}\n \n keygen_exit:\n-\tif (!server->sign) {\n-\t\tkfree(ses->auth_key.response);\n-\t\tses->auth_key.response = NULL;\n-\t}\n \tkfree(ses->ntlmssp);\n \n \treturn rc;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

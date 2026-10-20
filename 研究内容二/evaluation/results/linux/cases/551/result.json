@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "551",
+  "candidate_sha256": "6899a3ade6912a40d5de15e6cb138703e51198f95601449d9929f4400d82474f",
+  "oracle_sha256": "0291642c7c4f19ddaf1d80df04d34d28f0d8109144cdd4e3e13fdc484c0143fb",
+  "candidate_nonempty": true,
+  "target_ref": "b9b197f659043bf29e86effa1d24bab96d1ee5c3",
+  "baseline_tree": "47f90f7aa90efe66151951aef9043a41907e7bf0",
+  "candidate_tree": "8b6d653b93d05358f09ba78232349fe64c332014",
+  "oracle_tree": "8b6d653b93d05358f09ba78232349fe64c332014",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/551",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "6899a3ade6912a40d5de15e6cb138703e51198f95601449d9929f4400d82474f",
+    "text": "diff --git a/lib/kobject.c b/lib/kobject.c\nindex cd3e1a98eff9..73047e847e91 100644\n--- a/lib/kobject.c\n+++ b/lib/kobject.c\n@@ -144,7 +144,7 @@ static int get_kobj_path_length(struct kobject *kobj)\n \treturn length;\n }\n \n-static void fill_kobj_path(struct kobject *kobj, char *path, int length)\n+static int fill_kobj_path(struct kobject *kobj, char *path, int length)\n {\n \tstruct kobject *parent;\n \n@@ -153,12 +153,16 @@ static void fill_kobj_path(struct kobject *kobj, char *path, int length)\n \t\tint cur = strlen(kobject_name(parent));\n \t\t/* back up enough to print this name with '/' */\n \t\tlength -= cur;\n+\t\tif (length <= 0)\n+\t\t\treturn -EINVAL;\n \t\tmemcpy(path + length, kobject_name(parent), cur);\n \t\t*(path + --length) = '/';\n \t}\n \n \tpr_debug(\"kobject: '%s' (%p): %s: path = '%s'\\n\", kobject_name(kobj),\n \t\t kobj, __func__, path);\n+\n+\treturn 0;\n }\n \n /**\n@@ -173,13 +177,17 @@ char *kobject_get_path(struct kobject *kobj, gfp_t gfp_mask)\n \tchar *path;\n \tint len;\n \n+retry:\n \tlen = get_kobj_path_length(kobj);\n \tif (len == 0)\n \t\treturn NULL;\n \tpath = kzalloc(len, gfp_mask);\n \tif (!path)\n \t\treturn NULL;\n-\tfill_kobj_path(kobj, path, len);\n+\tif (fill_kobj_path(kobj, path, len)) {\n+\t\tkfree(path);\n+\t\tgoto retry;\n+\t}\n \n \treturn path;\n }\n"
+  },
+  "trace_file": "trace.jsonl"
+}

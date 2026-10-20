@@ -1,0 +1,48 @@
+{
+  "round": 1,
+  "case_id": "case_055",
+  "source_index": 54,
+  "repo": "kernel",
+  "commit_id": "425db649665c9f222da97245d34ba171438e89ed",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "e1293cd0eb61",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.85,
+    "reason": "该提交回退了此前引入的 shrinker 最小扫描压力补丁，移除 delta 下限逻辑，以纠正小缓存被过度回收、VFS 缓存失衡的错误行为，主导意图是错误纠正。",
+    "intent_items": [
+      {
+        "target": "mm/vmscan.c 中的 do_shrink_slab()",
+        "change": "删除 delta = max_t(unsigned long long, delta, min(freeable, batch_size)) 这一最小扫描压力下限",
+        "effect_or_reason": "取消对小 cgroup/小缓存的强制最小扫描量，避免轻内存压力下小缓存被过度扫描及 dentry/inode 与 page cache 回收失衡",
+        "context_used": [
+          "mm/vmscan.c 目标 commit 版本中 do_shrink_slab 的 delta 计算逻辑"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "回退 172b06c32b9497 提交，理由是其改变 shrinker 回收力度"
+          ],
+          "message_only_details": [
+            "轻内存压力下 VFS 缓存平衡被严重扰动，导致其他缓存失衡问题"
+          ],
+          "code_only_details": [
+            "被删除的是 delta 与 min(freeable, batch_size) 取大值的最小压力保障"
+          ]
+        },
+        "evidence": [
+          "补丁前：delta 被强制下限抬升，小缓存获得与其规模不相称的扫描压力；补丁后：该下限被移除，扫描量回归按 freeable/seeks 比例计算",
+          "commit message 明确该行为为 bad change 并需回退，patch 与之一致地仅移除该 clamp 逻辑"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_055",
+  "trace_status": "available"
+}

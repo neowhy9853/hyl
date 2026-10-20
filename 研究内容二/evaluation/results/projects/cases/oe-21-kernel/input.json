@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-21-kernel",
+  "task_input": {
+    "repository": {
+      "name": "kernel",
+      "version": null,
+      "path_at_run": "/workspace/repo",
+      "target_ref": "47de41ca2eac293add82e4e85aeea8288c5d8a81",
+      "target_tree": "9b689e5a6cc922525b9d35e9a8ec813a6377d18a"
+    },
+    "source_commit": "103e17aac09cdd358133f9e00998b75d6c1f1518",
+    "reference_parent": "f71f7afd0a0cd3f044cd2f8aba71a1a7229df762",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 103e17aac09cdd358133f9e00998b75d6c1f1518 Mon Sep 17 00:00:00 2001\nFrom: Sebastian Ene <sebastianene@google.com>\nDate: Fri, 17 Oct 2025 07:57:10 +0000\nSubject: [PATCH] KVM: arm64: Check the untrusted offset in FF-A memory share\n\nVerify the offset to prevent OOB access in the hypervisor\nFF-A buffer in case an untrusted large enough value\n[U32_MAX - sizeof(struct ffa_composite_mem_region) + 1, U32_MAX]\nis set from the host kernel.\n\nSigned-off-by: Sebastian Ene <sebastianene@google.com>\nAcked-by: Will Deacon <will@kernel.org>\nLink: https://patch.msgid.link/20251017075710.2605118-1-sebastianene@google.com\nSigned-off-by: Marc Zyngier <maz@kernel.org>\n---\n arch/arm64/kvm/hyp/nvhe/ffa.c | 9 +++++++--\n 1 file changed, 7 insertions(+), 2 deletions(-)\n\ndiff --git a/arch/arm64/kvm/hyp/nvhe/ffa.c b/arch/arm64/kvm/hyp/nvhe/ffa.c\nindex 4e16f9b96f63..58b7d0c477d7 100644\n--- a/arch/arm64/kvm/hyp/nvhe/ffa.c\n+++ b/arch/arm64/kvm/hyp/nvhe/ffa.c\n@@ -479,7 +479,7 @@ static void __do_ffa_mem_xfer(const u64 func_id,\n \tstruct ffa_mem_region_attributes *ep_mem_access;\n \tstruct ffa_composite_mem_region *reg;\n \tstruct ffa_mem_region *buf;\n-\tu32 offset, nr_ranges;\n+\tu32 offset, nr_ranges, checked_offset;\n \tint ret = 0;\n \n \tif (addr_mbz || npages_mbz || fraglen > len ||\n@@ -516,7 +516,12 @@ static void __do_ffa_mem_xfer(const u64 func_id,\n \t\tgoto out_unlock;\n \t}\n \n-\tif (fraglen < offset + sizeof(struct ffa_composite_mem_region)) {\n+\tif (check_add_overflow(offset, sizeof(struct ffa_composite_mem_region), &checked_offset)) {\n+\t\tret = FFA_RET_INVALID_PARAMETERS;\n+\t\tgoto out_unlock;\n+\t}\n+\n+\tif (fraglen < checked_offset) {\n \t\tret = FFA_RET_INVALID_PARAMETERS;\n \t\tgoto out_unlock;\n \t}\n-- \n2.25.1\n\n",
+      "sha256": "5fe66060084e8ad73883b50965f47149b18aeae37bf4dd3c22c871908ac8c1ab"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for kernel.\ncase_id: oe-21-kernel\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 103e17aac09cdd358133f9e00998b75d6c1f1518\nreference_parent: f71f7afd0a0cd3f044cd2f8aba71a1a7229df762\ntarget_ref: 47de41ca2eac293add82e4e85aeea8288c5d8a81\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "265b88493b9be1c0178a903079d039f9627db43ccb8b79866e845f7fb9225c43",
+      "text": "From 085abe255addacfeb1ac0892b2fa45595a717b50 Mon Sep 17 00:00:00 2001\nFrom: Sebastian Ene <sebastianene@google.com>\nDate: Mon, 8 Dec 2025 12:09:25 +0000\nSubject: [PATCH] KVM: arm64: Check the untrusted offset in FF-A memory share\n\nstable inclusion\nfrom stable-v6.6.118\ncommit fc3139d9f4c1fe1c7d5f25f99676bd8e9c6a1041\ncategory: bugfix\nbugzilla: https://gitee.com/src-openeuler/kernel/issues/IDATPN\nCVE: CVE-2025-40266\n\nReference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=fc3139d9f4c1fe1c7d5f25f99676bd8e9c6a1041\n\n----------------------------------------------------------------------\n\ncommit 103e17aac09cdd358133f9e00998b75d6c1f1518 upstream.\n\nVerify the offset to prevent OOB access in the hypervisor\nFF-A buffer in case an untrusted large enough value\n[U32_MAX - sizeof(struct ffa_composite_mem_region) + 1, U32_MAX]\nis set from the host kernel.\n\nSigned-off-by: Sebastian Ene <sebastianene@google.com>\nAcked-by: Will Deacon <will@kernel.org>\nLink: https://patch.msgid.link/20251017075710.2605118-1-sebastianene@google.com\nSigned-off-by: Marc Zyngier <maz@kernel.org>\nSigned-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>\nSigned-off-by: Luo Gengkun <luogengkun2@huawei.com>\n---\n arch/arm64/kvm/hyp/nvhe/ffa.c | 9 +++++++--\n 1 file changed, 7 insertions(+), 2 deletions(-)\n\ndiff --git a/arch/arm64/kvm/hyp/nvhe/ffa.c b/arch/arm64/kvm/hyp/nvhe/ffa.c\nindex 8d21ab904f1a..eacf4ba1d88e 100644\n--- a/arch/arm64/kvm/hyp/nvhe/ffa.c\n+++ b/arch/arm64/kvm/hyp/nvhe/ffa.c\n@@ -425,7 +425,7 @@ static void __do_ffa_mem_xfer(const u64 func_id,\n \tDECLARE_REG(u32, npages_mbz, ctxt, 4);\n \tstruct ffa_composite_mem_region *reg;\n \tstruct ffa_mem_region *buf;\n-\tu32 offset, nr_ranges;\n+\tu32 offset, nr_ranges, checked_offset;\n \tint ret = 0;\n \n \tif (addr_mbz || npages_mbz || fraglen > len ||\n@@ -460,7 +460,12 @@ static void __do_ffa_mem_xfer(const u64 func_id,\n \t\tgoto out_unlock;\n \t}\n \n-\tif (fraglen < offset + sizeof(struct ffa_composite_mem_region)) {\n+\tif (check_add_overflow(offset, sizeof(struct ffa_composite_mem_region), &checked_offset)) {\n+\t\tret = FFA_RET_INVALID_PARAMETERS;\n+\t\tgoto out_unlock;\n+\t}\n+\n+\tif (fraglen < checked_offset) {\n \t\tret = FFA_RET_INVALID_PARAMETERS;\n \t\tgoto out_unlock;\n \t}\n-- \n2.25.1\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "704614b81e9a6fe63432e15d9701bcf3c22639b7b79850947f7d6a0a70f70dc8",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-21-kernel/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-21-kernel",
+      "package": "kernel",
+      "source_commit": "103e17aac09cdd358133f9e00998b75d6c1f1518",
+      "target_ref": "47de41ca2eac293add82e4e85aeea8288c5d8a81",
+      "target_tree": "9b689e5a6cc922525b9d35e9a8ec813a6377d18a",
+      "reference_patch": "patches/oe-21-kernel/reference.patch",
+      "reference_sha256": "5fe66060084e8ad73883b50965f47149b18aeae37bf4dd3c22c871908ac8c1ab",
+      "oracle_patch": "patches/oe-21-kernel/oracle.patch",
+      "oracle_sha256": "265b88493b9be1c0178a903079d039f9627db43ccb8b79866e845f7fb9225c43"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

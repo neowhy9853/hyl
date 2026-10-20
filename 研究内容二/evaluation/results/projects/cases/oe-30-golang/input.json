@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-30-golang",
+  "task_input": {
+    "repository": {
+      "name": "golang",
+      "version": "1.21.4",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "43ded89440a817591834f56da83d18e6cafdfc39",
+      "target_tree": "5c9f5fbb4d34f33302466a6fe4171590b9f9ec27"
+    },
+    "source_commit": "334de7982f8ec959c74470dd709ceedfd6dbd50a",
+    "reference_parent": "5d6920842be3078072a65e54131c13c66bed4171",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 334de7982f8ec959c74470dd709ceedfd6dbd50a Mon Sep 17 00:00:00 2001\nFrom: Damien Neil <dneil@google.com>\nDate: Wed, 26 Feb 2025 16:46:43 -0800\nSubject: [PATCH] [release-branch.go1.24] all: updated vendored x/net with\n security fix\n\n6ed00d0 [internal-branch.go1.24-vendor] proxy, http/httpproxy: do not mismatch IPv6 zone ids against hosts\n\nFixes CVE-2025-22870\nFor #71986\n\nChange-Id: I7bda0825f1a9470b0708714d9cc32b5eae212f8b\nReviewed-on: https://go-internal-review.googlesource.com/c/go/+/2121\nReviewed-by: Neal Patel <nealpatel@google.com>\nReviewed-by: Roland Shoemaker <bracewell@google.com>\nCommit-Queue: Roland Shoemaker <bracewell@google.com>\nReviewed-on: https://go-review.googlesource.com/c/go/+/654715\nReviewed-by: Michael Pratt <mpratt@google.com>\nLUCI-TryBot-Result: Go LUCI <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>\nAuto-Submit: Junyang Shao <shaojunyang@google.com>\nReviewed-by: Damien Neil <dneil@google.com>\n---\n src/cmd/internal/moddeps/moddeps_test.go            |  1 +\n src/vendor/golang.org/x/net/http/httpproxy/proxy.go | 10 ++++++++--\n 2 files changed, 9 insertions(+), 2 deletions(-)\n\ndiff --git a/src/cmd/internal/moddeps/moddeps_test.go b/src/cmd/internal/moddeps/moddeps_test.go\nindex 2def029325b..0b43b20b3c1 100644\n--- a/src/cmd/internal/moddeps/moddeps_test.go\n+++ b/src/cmd/internal/moddeps/moddeps_test.go\n@@ -33,6 +33,7 @@ import (\n // See issues 36852, 41409, and 43687.\n // (Also see golang.org/issue/27348.)\n func TestAllDependencies(t *testing.T) {\n+\tt.Skip(\"TODO(#71986): 1.24.1 contains unreleased changes from vendored modules\")\n \tgoBin := testenv.GoToolPath(t)\n \n \t// Ensure that all packages imported within GOROOT\ndiff --git a/src/vendor/golang.org/x/net/http/httpproxy/proxy.go b/src/vendor/golang.org/x/net/http/httpproxy/proxy.go\nindex 6404aaf157d..d89c257ae72 100644\n--- a/src/vendor/golang.org/x/net/http/httpproxy/proxy.go\n+++ b/src/vendor/golang.org/x/net/http/httpproxy/proxy.go\n@@ -14,6 +14,7 @@ import (\n \t\"errors\"\n \t\"fmt\"\n \t\"net\"\n+\t\"net/netip\"\n \t\"net/url\"\n \t\"os\"\n \t\"strings\"\n@@ -177,8 +178,10 @@ func (cfg *config) useProxy(addr string) bool {\n \tif host == \"localhost\" {\n \t\treturn false\n \t}\n-\tip := net.ParseIP(host)\n-\tif ip != nil {\n+\tnip, err := netip.ParseAddr(host)\n+\tvar ip net.IP\n+\tif err == nil {\n+\t\tip = net.IP(nip.AsSlice())\n \t\tif ip.IsLoopback() {\n \t\t\treturn false\n \t\t}\n@@ -360,6 +363,9 @@ type domainMatch struct {\n }\n \n func (m domainMatch) match(host, port string, ip net.IP) bool {\n+\tif ip != nil {\n+\t\treturn false\n+\t}\n \tif strings.HasSuffix(host, m.host) || (m.matchHost && host == m.host[1:]) {\n \t\treturn m.port == \"\" || m.port == port\n \t}\n-- \n2.25.1\n\n",
+      "sha256": "6011cfd04d8b236e91db9c9dc666a46fe877771e0659f59b1fdf86c4ebc2f8d6"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for golang.\ncase_id: oe-30-golang\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 334de7982f8ec959c74470dd709ceedfd6dbd50a\nreference_parent: 5d6920842be3078072a65e54131c13c66bed4171\ntarget_ref: 43ded89440a817591834f56da83d18e6cafdfc39\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "67fa9541d379ea526725d1c1bad6807c31dd2a0296ddee4f6d93f08927c6a6b7",
+      "text": "From 334de7982f8ec959c74470dd709ceedfd6dbd50a Mon Sep 17 00:00:00 2001\nFrom: Damien Neil <dneil@google.com>\nDate: Wed, 26 Feb 2025 16:46:43 -0800\nSubject: [PATCH] [release-branch.go1.24] all: updated vendored x/net with\n security fix\n\n6ed00d0 [internal-branch.go1.24-vendor] proxy, http/httpproxy: do not mismatch IPv6 zone ids against hosts\n\nFixes CVE-2025-22870\nFor #71986\n\nChange-Id: I7bda0825f1a9470b0708714d9cc32b5eae212f8b\nReviewed-on: https://go-internal-review.googlesource.com/c/go/+/2121\nReviewed-by: Neal Patel <nealpatel@google.com>\nReviewed-by: Roland Shoemaker <bracewell@google.com>\nCommit-Queue: Roland Shoemaker <bracewell@google.com>\nReviewed-on: https://go-review.googlesource.com/c/go/+/654715\nReviewed-by: Michael Pratt <mpratt@google.com>\nLUCI-TryBot-Result: Go LUCI <golang-scoped@luci-project-accounts.iam.gserviceaccount.com>\nAuto-Submit: Junyang Shao <shaojunyang@google.com>\nReviewed-by: Damien Neil <dneil@google.com>\n---\n src/cmd/internal/moddeps/moddeps_test.go            |  1 +\n src/vendor/golang.org/x/net/http/httpproxy/proxy.go | 10 ++++++++--\n 2 files changed, 9 insertions(+), 2 deletions(-)\n\ndiff --git a/src/cmd/internal/moddeps/moddeps_test.go b/src/cmd/internal/moddeps/moddeps_test.go\nindex ae890b6..9dc4741 100644\n--- a/src/cmd/internal/moddeps/moddeps_test.go\n+++ b/src/cmd/internal/moddeps/moddeps_test.go\n@@ -33,6 +33,7 @@ import (\n // See issues 36852, 41409, and 43687.\n // (Also see golang.org/issue/27348.)\n func TestAllDependencies(t *testing.T) {\n+\tt.Skip(\"TODO(#71986): 1.24.1 contains unreleased changes from vendored modules\")\n \tgoBin := testenv.GoToolPath(t)\n \n \t// Ensure that all packages imported within GOROOT\ndiff --git a/src/vendor/golang.org/x/net/http/httpproxy/proxy.go b/src/vendor/golang.org/x/net/http/httpproxy/proxy.go\nindex c3bd9a1..334add3 100644\n--- a/src/vendor/golang.org/x/net/http/httpproxy/proxy.go\n+++ b/src/vendor/golang.org/x/net/http/httpproxy/proxy.go\n@@ -14,6 +14,7 @@ import (\n \t\"errors\"\n \t\"fmt\"\n \t\"net\"\n+\t\"net/netip\"\n \t\"net/url\"\n \t\"os\"\n \t\"strings\"\n@@ -180,8 +181,10 @@ func (cfg *config) useProxy(addr string) bool {\n \tif host == \"localhost\" {\n \t\treturn false\n \t}\n-\tip := net.ParseIP(host)\n-\tif ip != nil {\n+\tnip, err := netip.ParseAddr(host)\n+ \tvar ip net.IP\n+ \tif err == nil {\n+ \t\tip = net.IP(nip.AsSlice())\n \t\tif ip.IsLoopback() {\n \t\t\treturn false\n \t\t}\n@@ -363,6 +366,9 @@ type domainMatch struct {\n }\n \n func (m domainMatch) match(host, port string, ip net.IP) bool {\n+\tif ip != nil {\n+ \t\treturn false\n+ \t}\n \tif strings.HasSuffix(host, m.host) || (m.matchHost && host == m.host[1:]) {\n \t\treturn m.port == \"\" || m.port == port\n \t}\n-- \n2.46.0\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "9baee8592dfa5a9750a84b6b899e4a8e01281fbabd5f2a2c982c3b6b0f2259c1",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-30-golang/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-30-golang",
+      "package": "golang",
+      "version": "1.21.4",
+      "source_commit": "334de7982f8ec959c74470dd709ceedfd6dbd50a",
+      "target_ref": "43ded89440a817591834f56da83d18e6cafdfc39",
+      "target_tree": "5c9f5fbb4d34f33302466a6fe4171590b9f9ec27",
+      "reference_patch": "patches/oe-30-golang/reference.patch",
+      "reference_sha256": "6011cfd04d8b236e91db9c9dc666a46fe877771e0659f59b1fdf86c4ebc2f8d6",
+      "oracle_patch": "patches/oe-30-golang/oracle.patch",
+      "oracle_sha256": "67fa9541d379ea526725d1c1bad6807c31dd2a0296ddee4f6d93f08927c6a6b7"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

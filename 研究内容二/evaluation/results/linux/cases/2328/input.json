@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2328",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2328-2iql284f/repo",
+      "target_ref": "cbe5e5cd70c0f6fd187114e7f146f29830fedf9c",
+      "target_tree": "fc340313f0769dfb7ce6ac64b0c5cbdc1e8e8d44"
+    },
+    "source_commit": "235fd393825b8b79d962eb2f9a2d6aa454eb17a5",
+    "reference_parent": "d44e0ddb577dcae51e11e725c19d17d65dad87e5",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/f2fs/inline.c b/fs/f2fs/inline.c\nindex 043830be5662f865b3c5824da2be23a7641dc6d5..f882de2ede95df320d21d8d9170bc8468b7c91f6 100644\n--- a/fs/f2fs/inline.c\n+++ b/fs/f2fs/inline.c\n@@ -130,6 +130,16 @@ int f2fs_convert_inline_page(struct dnode_of_data *dn, struct page *page)\n \tif (err)\n \t\treturn err;\n \n+\tif (unlikely(dn->data_blkaddr != NEW_ADDR)) {\n+\t\tf2fs_put_dnode(dn);\n+\t\tset_sbi_flag(fio.sbi, SBI_NEED_FSCK);\n+\t\tf2fs_msg(fio.sbi->sb, KERN_WARNING,\n+\t\t\t\"%s: corrupted inline inode ino=%lx, i_addr[0]:0x%x, \"\n+\t\t\t\"run fsck to fix.\",\n+\t\t\t__func__, dn->inode->i_ino, dn->data_blkaddr);\n+\t\treturn -EINVAL;\n+\t}\n+\n \tf2fs_bug_on(F2FS_P_SB(page), PageWriteback(page));\n \n \tf2fs_do_read_inline_data(page, dn->inode_page);\n@@ -363,6 +373,17 @@ static int f2fs_move_inline_dirents(struct inode *dir, struct page *ipage,\n \tif (err)\n \t\tgoto out;\n \n+\tif (unlikely(dn.data_blkaddr != NEW_ADDR)) {\n+\t\tf2fs_put_dnode(&dn);\n+\t\tset_sbi_flag(F2FS_P_SB(page), SBI_NEED_FSCK);\n+\t\tf2fs_msg(F2FS_P_SB(page)->sb, KERN_WARNING,\n+\t\t\t\"%s: corrupted inline inode ino=%lx, i_addr[0]:0x%x, \"\n+\t\t\t\"run fsck to fix.\",\n+\t\t\t__func__, dir->i_ino, dn.data_blkaddr);\n+\t\terr = -EINVAL;\n+\t\tgoto out;\n+\t}\n+\n \tf2fs_wait_on_page_writeback(page, DATA, true);\n \n \tdentry_blk = page_address(page);\n",
+      "sha256": "4f55e1ec1ba375240863f85efd7fc3521f9806a5310d663a0b621a4ad39d8f75"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2018-13099\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2328-2iql284f/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2328-2iql284f/repo/.patch-port/reference.diff\nreference_fix: 235fd393825b8b79d962eb2f9a2d6aa454eb17a5\nreference_parent: d44e0ddb577dcae51e11e725c19d17d65dad87e5\ntarget_ref: cbe5e5cd70c0f6fd187114e7f146f29830fedf9c\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2328-2iql284f/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2328-2iql284f/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2018-13099"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "3bfe2049c222b23342ff2a216cd5a869e8a14897",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "7ad6459b3b531d5907dc8b90d9d77c882e9d03a4e9bb5d113256ae05527d023a",
+      "text": "diff --git a/fs/f2fs/inline.c b/fs/f2fs/inline.c\nindex 123b4dc90a23c6adcda954b2b3e471a6de8a6a73..00685a8b1418980f7c9bf717b7c7e6e4df5098fc 100644\n--- a/fs/f2fs/inline.c\n+++ b/fs/f2fs/inline.c\n@@ -127,6 +127,16 @@ int f2fs_convert_inline_page(struct dnode_of_data *dn, struct page *page)\n \tif (err)\n \t\treturn err;\n \n+\tif (unlikely(dn->data_blkaddr != NEW_ADDR)) {\n+\t\tf2fs_put_dnode(dn);\n+\t\tset_sbi_flag(fio.sbi, SBI_NEED_FSCK);\n+\t\tf2fs_msg(fio.sbi->sb, KERN_WARNING,\n+\t\t\t\"%s: corrupted inline inode ino=%lx, i_addr[0]:0x%x, \"\n+\t\t\t\"run fsck to fix.\",\n+\t\t\t__func__, dn->inode->i_ino, dn->data_blkaddr);\n+\t\treturn -EINVAL;\n+\t}\n+\n \tf2fs_wait_on_page_writeback(page, DATA);\n \n \tif (PageUptodate(page))\n@@ -386,6 +396,17 @@ static int f2fs_move_inline_dirents(struct inode *dir, struct page *ipage,\n \tif (err)\n \t\tgoto out;\n \n+\tif (unlikely(dn.data_blkaddr != NEW_ADDR)) {\n+\t\tf2fs_put_dnode(&dn);\n+\t\tset_sbi_flag(F2FS_P_SB(page), SBI_NEED_FSCK);\n+\t\tf2fs_msg(F2FS_P_SB(page)->sb, KERN_WARNING,\n+\t\t\t\"%s: corrupted inline inode ino=%lx, i_addr[0]:0x%x, \"\n+\t\t\t\"run fsck to fix.\",\n+\t\t\t__func__, dir->i_ino, dn.data_blkaddr);\n+\t\terr = -EINVAL;\n+\t\tgoto out;\n+\t}\n+\n \tf2fs_wait_on_page_writeback(page, DATA);\n \tzero_user_segment(page, MAX_INLINE_DATA, PAGE_CACHE_SIZE);\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "19aa8a7ebd1b87cc949e1019e5fd5c6fca896f71cc64345c9758a2b0b459213c",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/02328_CVE-2018-13099/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2328,
+      "cve": "CVE-2018-13099",
+      "source_commit": "235fd393825b8b79d962eb2f9a2d6aa454eb17a5",
+      "oracle_commit": "3bfe2049c222b23342ff2a216cd5a869e8a14897"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "842",
+  "candidate_sha256": "9b3741c50248fd70f6b4dcab1c813f2e8e2f51a95e5fa35d04a66fe3c5c9a37e",
+  "oracle_sha256": "a6d462e54bdc099ef8bd05cc917be8697bbd5f688ee9757b655aedb38b9e30ea",
+  "candidate_nonempty": true,
+  "target_ref": "976dc007c4fde824b46cd40d001a17734ce9e333",
+  "baseline_tree": "964dd7a4968a4209da7de94e956b9088f6d51049",
+  "candidate_tree": "7c2e479bd437dab5a311a0d021498164ca70ad11",
+  "oracle_tree": "754df8d4d3b1c25c0630292a8fb77c6b30b3251f",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/842",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "9b3741c50248fd70f6b4dcab1c813f2e8e2f51a95e5fa35d04a66fe3c5c9a37e",
+    "text": "diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c\nindex 5b8353183cd1..0c16db6b4208 100644\n--- a/security/selinux/hooks.c\n+++ b/security/selinux/hooks.c\n@@ -4669,39 +4669,59 @@ static int selinux_tun_dev_open(void *security)\n \n static int selinux_nlmsg_perm(struct sock *sk, struct sk_buff *skb)\n {\n-\tint err = 0;\n-\tu32 perm;\n+\tint rc = 0;\n+\tunsigned int msg_len;\n+\tunsigned int data_len = skb->len;\n+\tunsigned char *data = skb->data;\n \tstruct nlmsghdr *nlh;\n \tstruct sk_security_struct *sksec = sk->sk_security;\n+\tu16 sclass = sksec->sclass;\n+\tu32 perm;\n \n-\tif (skb->len < NLMSG_HDRLEN) {\n-\t\terr = -EINVAL;\n-\t\tgoto out;\n-\t}\n-\tnlh = nlmsg_hdr(skb);\n+\twhile (data_len >= nlmsg_total_size(0)) {\n+\t\tnlh = (struct nlmsghdr *)data;\n \n-\terr = selinux_nlmsg_lookup(sksec->sclass, nlh->nlmsg_type, &perm);\n-\tif (err) {\n-\t\tif (err == -EINVAL) {\n+\t\t/* NOTE: the nlmsg_len field isn't reliably set by some netlink\n+\t\t *       users which means we can't reject skb's with bogus\n+\t\t *       length fields; our solution is to follow what\n+\t\t *       netlink_rcv_skb() does and simply skip processing at\n+\t\t *       messages with length fields that are clearly junk\n+\t\t */\n+\t\tif (nlh->nlmsg_len < NLMSG_HDRLEN || nlh->nlmsg_len > data_len)\n+\t\t\treturn 0;\n+\n+\t\trc = selinux_nlmsg_lookup(sclass, nlh->nlmsg_type, &perm);\n+\t\tif (rc == 0) {\n+\t\t\trc = sock_has_perm(current, sk, perm);\n+\t\t\tif (rc)\n+\t\t\t\treturn rc;\n+\t\t} else if (rc == -EINVAL) {\n+\t\t\t/* -EINVAL is a missing msg/perm mapping */\n \t\t\tpr_warn_ratelimited(\"SELinux: unrecognized netlink\"\n-\t\t\t       \" message: protocol=%hu nlmsg_type=%hu sclass=%s\"\n-\t\t\t       \" pig=%d comm=%s\\n\",\n-\t\t\t       sk->sk_protocol, nlh->nlmsg_type,\n-\t\t\t       secclass_map[sksec->sclass - 1].name,\n-\t\t\t       task_pid_nr(current), current->comm);\n-\t\t\tif (!selinux_enforcing || security_get_allow_unknown())\n-\t\t\t\terr = 0;\n+\t\t\t\t\" message: protocol=%hu nlmsg_type=%hu sclass=%s\"\n+\t\t\t\t\" pig=%d comm=%s\\n\",\n+\t\t\t\tsk->sk_protocol, nlh->nlmsg_type,\n+\t\t\t\tsecclass_map[sclass - 1].name,\n+\t\t\t\ttask_pid_nr(current), current->comm);\n+\t\t\tif (selinux_enforcing && !security_get_allow_unknown())\n+\t\t\t\treturn rc;\n+\t\t\trc = 0;\n+\t\t} else if (rc == -ENOENT) {\n+\t\t\t/* -ENOENT is a missing socket/class mapping, ignore */\n+\t\t\trc = 0;\n+\t\t} else {\n+\t\t\treturn rc;\n \t\t}\n \n-\t\t/* Ignore */\n-\t\tif (err == -ENOENT)\n-\t\t\terr = 0;\n-\t\tgoto out;\n+\t\t/* move to the next message after applying netlink padding */\n+\t\tmsg_len = NLMSG_ALIGN(nlh->nlmsg_len);\n+\t\tif (msg_len >= data_len)\n+\t\t\treturn 0;\n+\t\tdata_len -= msg_len;\n+\t\tdata += msg_len;\n \t}\n \n-\terr = sock_has_perm(current, sk, perm);\n-out:\n-\treturn err;\n+\treturn rc;\n }\n \n #ifdef CONFIG_NETFILTER\n"
+  },
+  "trace_file": "trace.jsonl"
+}

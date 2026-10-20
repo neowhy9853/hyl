@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-20-kernel",
+  "candidate_sha256": "be1e45f76f1e0e2956f6bd21b7d28f775539d3d5a7fb05a9c7388549666ad7e8",
+  "oracle_sha256": "34a7dc190ba777bde2895fa1d643a1c89ea52b8738453d5e699d39da56150aab",
+  "candidate_nonempty": true,
+  "target_ref": "f3072e528ba53a76e66a34613ecc7b86dc96816d",
+  "baseline_tree": "40a05790121fe8ebda7b7b2cc0c8700a20b2c220",
+  "candidate_tree": "35c8bf4b01e934a4fa6037cbe2b81f7a51fa1ad9",
+  "oracle_tree": "35c8bf4b01e934a4fa6037cbe2b81f7a51fa1ad9",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-20-kernel",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "be1e45f76f1e0e2956f6bd21b7d28f775539d3d5a7fb05a9c7388549666ad7e8",
+    "text": "diff --git a/net/ipv6/ip6_fib.c b/net/ipv6/ip6_fib.c\nindex 023ac39041a2..65702bddb21f 100644\n--- a/net/ipv6/ip6_fib.c\n+++ b/net/ipv6/ip6_fib.c\n@@ -1240,7 +1240,7 @@ static int fib6_add_rt2node(struct fib6_node *fn, struct fib6_info *rt,\n \t\t\t\t\t\t\t &rt->fib6_siblings,\n \t\t\t\t\t\t\t fib6_siblings)\n \t\t\t\t\tsibling->fib6_nsiblings--;\n-\t\t\t\trt->fib6_nsiblings = 0;\n+\t\t\t\tWRITE_ONCE(rt->fib6_nsiblings, 0);\n \t\t\t\tlist_del_rcu(&rt->fib6_siblings);\n \t\t\t\trt6_multipath_rebalance(next_sibling);\n \t\t\t\treturn err;\n@@ -1953,7 +1953,7 @@ static void fib6_del_route(struct fib6_table *table, struct fib6_node *fn,\n \t\tlist_for_each_entry_safe(sibling, next_sibling,\n \t\t\t\t\t &rt->fib6_siblings, fib6_siblings)\n \t\t\tsibling->fib6_nsiblings--;\n-\t\trt->fib6_nsiblings = 0;\n+\t\tWRITE_ONCE(rt->fib6_nsiblings, 0);\n \t\tlist_del_rcu(&rt->fib6_siblings);\n \t\trt6_multipath_rebalance(next_sibling);\n \t}\ndiff --git a/net/ipv6/route.c b/net/ipv6/route.c\nindex 53197087353a..41d358dd58c0 100644\n--- a/net/ipv6/route.c\n+++ b/net/ipv6/route.c\n@@ -5577,32 +5577,34 @@ static int rt6_nh_nlmsg_size(struct fib6_nh *nh, void *arg)\n \n static size_t rt6_nlmsg_size(struct fib6_info *f6i)\n {\n+\tstruct fib6_info *sibling;\n+\tstruct fib6_nh *nh;\n \tint nexthop_len;\n \n \tif (f6i->nh) {\n \t\tnexthop_len = nla_total_size(4); /* RTA_NH_ID */\n \t\tnexthop_for_each_fib6_nh(f6i->nh, rt6_nh_nlmsg_size,\n \t\t\t\t\t &nexthop_len);\n-\t} else {\n-\t\tstruct fib6_nh *nh = f6i->fib6_nh;\n-\t\tstruct fib6_info *sibling;\n-\n-\t\tnexthop_len = 0;\n-\t\tif (f6i->fib6_nsiblings) {\n-\t\t\trt6_nh_nlmsg_size(nh, &nexthop_len);\n-\n-\t\t\trcu_read_lock();\n+\t\tgoto common;\n+\t}\n \n-\t\t\tlist_for_each_entry_rcu(sibling, &f6i->fib6_siblings,\n-\t\t\t\t\t\tfib6_siblings) {\n-\t\t\t\trt6_nh_nlmsg_size(sibling->fib6_nh, &nexthop_len);\n-\t\t\t}\n+\trcu_read_lock();\n+retry:\n+\tnh = f6i->fib6_nh;\n+\tnexthop_len = 0;\n+\tif (READ_ONCE(f6i->fib6_nsiblings)) {\n+\t\trt6_nh_nlmsg_size(nh, &nexthop_len);\n \n-\t\t\trcu_read_unlock();\n+\t\tlist_for_each_entry_rcu(sibling, &f6i->fib6_siblings,\n+\t\t\t\t\tfib6_siblings) {\n+\t\t\trt6_nh_nlmsg_size(sibling->fib6_nh, &nexthop_len);\n+\t\t\tif (!READ_ONCE(f6i->fib6_nsiblings))\n+\t\t\t\tgoto retry;\n \t\t}\n-\t\tnexthop_len += lwtunnel_get_encap_size(nh->fib_nh_lws);\n \t}\n-\n+\trcu_read_unlock();\n+\tnexthop_len += lwtunnel_get_encap_size(nh->fib_nh_lws);\n+common:\n \treturn NLMSG_ALIGN(sizeof(struct rtmsg))\n \t       + nla_total_size(16) /* RTA_SRC */\n \t       + nla_total_size(16) /* RTA_DST */\n"
+  },
+  "trace_file": "trace.jsonl"
+}

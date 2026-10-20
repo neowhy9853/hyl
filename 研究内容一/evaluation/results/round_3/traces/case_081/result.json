@@ -1,0 +1,47 @@
+{
+  "round": 3,
+  "case_id": "case_081",
+  "source_index": 80,
+  "repo": "kernel",
+  "commit_id": "19779f49500ede79838456ab478e5c1102202929",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "50d7210a09d8",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.95,
+    "reason": "修复 XFS 中 page fault 与 write() 调用之间的竞争条件，防止数据丢失",
+    "intent_items": [
+      {
+        "target": "XFS 文件系统的 page fault 处理路径",
+        "change": "将 page fault 使用的 iomap 操作从 xfs_buffered_write_iomap_ops 改为 xfs_page_mkwrite_iomap_ops",
+        "effect_or_reason": "分离 page fault 处理与缓冲写入处理，避免因共享锁导致的竞争条件造成数据丢失",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "page fault 与 write() 调用之间存在竞争条件可能导致数据丢失",
+            "需要为 page fault 使用不同的 iomap 操作以避免清理未使用的 delalloc 区域"
+          ],
+          "message_only_details": [
+            "可通过 generic/34[46] 测试复现该问题"
+          ],
+          "code_only_details": [
+            "新增 xfs_page_mkwrite_iomap_ops 结构体，不包含 .iomap_end 清理函数"
+          ]
+        },
+        "evidence": [
+          "提交前：page fault 使用 xfs_buffered_write_iomap_ops，其 .iomap_end 会在写入失败时清理 delalloc 区域，与并发的 page fault 竞争导致数据丢失",
+          "提交后：page fault 使用专门的 xfs_page_mkwrite_iomap_ops，不进行清理操作，避免竞争条件"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_081",
+  "trace_status": "available"
+}

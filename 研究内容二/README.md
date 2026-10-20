@@ -25,8 +25,7 @@
 | `skills/patch-port-apply/` | 补丁迁移实施 Skill | 按分析计划适配目标代码，提供独立工作区管理、补丁应用和候选补丁导出脚本 |
 | `skills/patch-port-validation/` | 补丁迁移验证 Skill | 定义安全语义与目标兼容性验证规则，提供干净重放、结构检查和验证命令执行脚本 |
 | `skills/patch-dependency-discovery/` | 补丁依赖发现 Skill | 定义参考仓库历史检索、候选前置提交和目标能力核验流程，输出依赖调查结果 |
-| `evaluation/` | 补丁迁移评测材料 | 包含 Linux 与 openEuler 补丁配对数据、参考补丁与标准答案补丁、Linux 评测脚本及使用说明 |
-| `tests/` | 工作流回归测试 | 检查阶段门禁、产物哈希、补丁重放、评测数据格式和标准答案隔离 |
+| `evaluation/` | 补丁迁移评测材料 | 包含 Linux 与 openEuler 补丁配对数据、参考补丁与标准答案补丁、覆盖全部 496 条的一键评测脚本及使用说明 |
 
 ## 环境
 
@@ -112,16 +111,17 @@ docker run --rm -it \
 
 镜像提供 Agent 和迁移脚本运行环境；目标项目的编译器、系统库和测试依赖需按验证计划另行配置。依赖发现可独立进行代码复核；需要关联分析 Skill 时另行安装 `patch-relation-analysis`。配置中的 `{file:...}` 凭据引用需按相同绝对路径挂载到容器。
 
-## 回归检查
-
-在项目根目录执行，无需模型服务：
-
-```bash
-python3 -B -m unittest discover -s tests -v
-```
-
-测试使用临时 Git 仓库验证脚本行为，并核对评测补丁格式和哈希；真实项目的构建、运行测试和模型评测需另行执行。
-
 ## 评测
 
-数据字段、环境准备、运行命令和计分规则见 [evaluation/README.md](evaluation/README.md)。
+首次配置、从零运行、结果核验与续跑见 [一键运行指南](evaluation/ONE_CLICK_GUIDE.md)。在本目录执行：
+
+```bash
+python3 evaluation/scripts/run_evaluation.py \
+  --config /absolute/path/to/opencode.json \
+  --output /absolute/path/outside-repository/patch-port-evaluation \
+  --workers 2
+```
+
+默认覆盖 Linux 404 条与重点项目 92 条，自动准备源码及目标基线，调用模型迁移并按 oracle 等价性判分。每个完成案例保存 `input.json`、`result.json`、`trace.jsonl`；新输出写入指定的项目外目录。
+
+[评测目录说明](evaluation/README.md)介绍目录构成，[数据说明](evaluation/data/README.md)介绍输入字段，[脚本说明](evaluation/scripts/README.md)介绍执行与核验入口。

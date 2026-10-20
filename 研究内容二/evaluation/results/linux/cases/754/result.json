@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "754",
+  "candidate_sha256": "6552799130519a0ad2b3cc0bcc56aa4b1e6429a00fccf50bd5d86fd33398ce4f",
+  "oracle_sha256": "5aa6e7b4b4359016ddd363d68cb4f7794cc115b41b16aeb42138de8c93d4ca96",
+  "candidate_nonempty": true,
+  "target_ref": "8c4fe20091cdc348e0eada94a91d655f0d851bab",
+  "baseline_tree": "30cbf890199ce35fe8f179cef501f3b805c8b71b",
+  "candidate_tree": "e0eb3357350d61b39a32e8e18139a1a4752522ec",
+  "oracle_tree": "e0eb3357350d61b39a32e8e18139a1a4752522ec",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/754",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "6552799130519a0ad2b3cc0bcc56aa4b1e6429a00fccf50bd5d86fd33398ce4f",
+    "text": "diff --git a/arch/powerpc/mm/mmu_context_book3s64.c b/arch/powerpc/mm/mmu_context_book3s64.c\nindex dbd8f762140b..68984d85ad6b 100644\n--- a/arch/powerpc/mm/mmu_context_book3s64.c\n+++ b/arch/powerpc/mm/mmu_context_book3s64.c\n@@ -53,14 +53,48 @@ int hash__alloc_context_id(void)\n }\n EXPORT_SYMBOL_GPL(hash__alloc_context_id);\n \n+static int realloc_context_ids(mm_context_t *ctx)\n+{\n+\tint i, id;\n+\n+\t/*\n+\t * id 0 (aka. ctx->id) is special, we always allocate a new one, even if\n+\t * there wasn't one allocated previously (which happens in the exec\n+\t * case where ctx is newly allocated).\n+\t *\n+\t * We have to be a bit careful here. We must keep the existing ids in\n+\t * the array, so that we can test if they're non-zero to decide if we\n+\t * need to allocate a new one. However in case of error we must free the\n+\t * ids we've allocated but *not* any of the existing ones (or risk a\n+\t * UAF). That's why we decrement i at the start of the error handling\n+\t * loop, to skip the id that we just tested but couldn't reallocate.\n+\t */\n+\tfor (i = 0; i < ARRAY_SIZE(ctx->extended_id); i++) {\n+\t\tif (i == 0 || ctx->extended_id[i]) {\n+\t\t\tid = hash__alloc_context_id();\n+\t\t\tif (id < 0)\n+\t\t\t\tgoto error;\n+\n+\t\t\tctx->extended_id[i] = id;\n+\t\t}\n+\t}\n+\n+\t/* The caller expects us to return id */\n+\treturn ctx->id;\n+\n+error:\n+\tfor (i--; i >= 0; i--) {\n+\t\tif (ctx->extended_id[i])\n+\t\t\tida_free(&mmu_context_ida, ctx->extended_id[i]);\n+\t}\n+\n+\treturn id;\n+}\n+\n static int hash__init_new_context(struct mm_struct *mm)\n {\n \tint index;\n \n-\tindex = hash__alloc_context_id();\n-\tif (index < 0)\n-\t\treturn index;\n-\n \t/*\n \t * The old code would re-promote on fork, we don't do that when using\n \t * slices as it could cause problem promoting slices that have been\n@@ -78,6 +112,10 @@ static int hash__init_new_context(struct mm_struct *mm)\n \tif (mm->context.id == 0)\n \t\tslice_init_new_context_exec(mm);\n \n+\tindex = realloc_context_ids(&mm->context);\n+\tif (index < 0)\n+\t\treturn index;\n+\n \tsubpage_prot_init_new_context(mm);\n \n \tpkey_mm_init(mm);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

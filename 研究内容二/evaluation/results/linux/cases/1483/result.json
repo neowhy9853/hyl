@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1483",
+  "candidate_sha256": "2e0032c44c05869c56a87f73cdcde4e0c4c8d90dbdfccc7366400ee11c2f5732",
+  "oracle_sha256": "4711dc004cc0011236c6eb419499a92a48d562cc979ec7008c6ec7834b8a7cfc",
+  "candidate_nonempty": true,
+  "target_ref": "af9a86cc9f1acfc380e96a9beb59462f32a4b6c4",
+  "baseline_tree": "0db5fea75e3c2bcaccebea8d01504810e06672a5",
+  "candidate_tree": "5a6bd1c9719c112cc2f7a5ff52d98a32dc593392",
+  "oracle_tree": "462366b4cd1cd7ac4d3909c02ba8a01ed7f93273",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1483",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "2e0032c44c05869c56a87f73cdcde4e0c4c8d90dbdfccc7366400ee11c2f5732",
+    "text": "diff --git a/drivers/spi/spi-dw.c b/drivers/spi/spi-dw.c\nindex 87a0e47eeae6..4a977cf62e05 100644\n--- a/drivers/spi/spi-dw.c\n+++ b/drivers/spi/spi-dw.c\n@@ -180,9 +180,11 @@ static inline u32 rx_max(struct dw_spi *dws)\n \n static void dw_writer(struct dw_spi *dws)\n {\n-\tu32 max = tx_max(dws);\n+\tu32 max;\n \tu16 txw = 0;\n \n+\tspin_lock(&dws->buf_lock);\n+\tmax = tx_max(dws);\n \twhile (max--) {\n \t\t/* Set the tx word if the transfer's original \"tx\" is not null */\n \t\tif (dws->tx_end - dws->len) {\n@@ -194,13 +196,16 @@ static void dw_writer(struct dw_spi *dws)\n \t\tdw_write_io_reg(dws, DW_SPI_DR, txw);\n \t\tdws->tx += dws->n_bytes;\n \t}\n+\tspin_unlock(&dws->buf_lock);\n }\n \n static void dw_reader(struct dw_spi *dws)\n {\n-\tu32 max = rx_max(dws);\n+\tu32 max;\n \tu16 rxw;\n \n+\tspin_lock(&dws->buf_lock);\n+\tmax = rx_max(dws);\n \twhile (max--) {\n \t\trxw = dw_read_io_reg(dws, DW_SPI_DR);\n \t\t/* Care rx only if the transfer's original \"rx\" is not null */\n@@ -212,6 +217,7 @@ static void dw_reader(struct dw_spi *dws)\n \t\t}\n \t\tdws->rx += dws->n_bytes;\n \t}\n+\tspin_unlock(&dws->buf_lock);\n }\n \n static void int_error_stop(struct dw_spi *dws, const char *msg)\n@@ -284,6 +290,7 @@ static int dw_spi_transfer_one(struct spi_master *master,\n {\n \tstruct dw_spi *dws = spi_master_get_devdata(master);\n \tstruct chip_data *chip = spi_get_ctldata(spi);\n+\tunsigned long flags;\n \tu8 imask = 0;\n \tu16 txlevel = 0;\n \tu16 clk_div;\n@@ -291,12 +298,13 @@ static int dw_spi_transfer_one(struct spi_master *master,\n \tint ret;\n \n \tdws->dma_mapped = 0;\n-\n+\tspin_lock_irqsave(&dws->buf_lock, flags);\n \tdws->tx = (void *)transfer->tx_buf;\n \tdws->tx_end = dws->tx + transfer->len;\n \tdws->rx = transfer->rx_buf;\n \tdws->rx_end = dws->rx + transfer->len;\n \tdws->len = transfer->len;\n+\tspin_unlock_irqrestore(&dws->buf_lock, flags);\n \n \tspi_enable_chip(dws, 0);\n \n@@ -487,6 +495,8 @@ int dw_spi_add_host(struct device *dev, struct dw_spi *dws)\n \tdws->type = SSI_MOTO_SPI;\n \tdws->dma_inited = 0;\n \tdws->dma_addr = (dma_addr_t)(dws->paddr + DW_SPI_DR);\n+\tspin_lock_init(&dws->buf_lock);\n+\n \tsnprintf(dws->name, sizeof(dws->name), \"dw_spi%d\", dws->bus_num);\n \n \tret = request_irq(dws->irq, dw_spi_irq, IRQF_SHARED, dws->name, master);\ndiff --git a/drivers/spi/spi-dw.h b/drivers/spi/spi-dw.h\nindex 35589a270468..d05b216ea3f8 100644\n--- a/drivers/spi/spi-dw.h\n+++ b/drivers/spi/spi-dw.h\n@@ -117,6 +117,7 @@ struct dw_spi {\n \tsize_t\t\t\tlen;\n \tvoid\t\t\t*tx;\n \tvoid\t\t\t*tx_end;\n+\tspinlock_t\t\tbuf_lock;\n \tvoid\t\t\t*rx;\n \tvoid\t\t\t*rx_end;\n \tint\t\t\tdma_mapped;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

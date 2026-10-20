@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1019",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1019-p0pf4nme/repo",
+      "target_ref": "2149f8a56e2ed345c7a4d022a79f6b8fc53ae926",
+      "target_tree": "f2dcc20e616ed1acada1c780435a1fbd910c2464"
+    },
+    "source_commit": "13eca403876bbea3716e82cdfe6f1e6febb38754",
+    "reference_parent": "6db22d6c7a6dc914b12c0469b94eb639b6a8a146",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c\nindex 0b47acfd6a7fcb92312fc9b1be92fb63c8d4b557..c32fce6f3563ec60e54065f603e29db1abedf3b2 100644\n--- a/net/tls/tls_sw.c\n+++ b/net/tls/tls_sw.c\n@@ -196,6 +196,17 @@ static void tls_decrypt_done(void *data, int err)\n \tstruct sock *sk;\n \tint aead_size;\n \n+\t/* If requests get too backlogged crypto API returns -EBUSY and calls\n+\t * ->complete(-EINPROGRESS) immediately followed by ->complete(0)\n+\t * to make waiting for backlog to flush with crypto_wait_req() easier.\n+\t * First wait converts -EBUSY -> -EINPROGRESS, and the second one\n+\t * -EINPROGRESS -> 0.\n+\t * We have a single struct crypto_async_request per direction, this\n+\t * scheme doesn't help us, so just ignore the first ->complete().\n+\t */\n+\tif (err == -EINPROGRESS)\n+\t\treturn;\n+\n \taead_size = sizeof(*aead_req) + crypto_aead_reqsize(aead);\n \taead_size = ALIGN(aead_size, __alignof__(*dctx));\n \tdctx = (void *)((u8 *)aead_req + aead_size);\n@@ -269,6 +280,10 @@ static int tls_do_decryption(struct sock *sk,\n \t}\n \n \tret = crypto_aead_decrypt(aead_req);\n+\tif (ret == -EBUSY) {\n+\t\tret = tls_decrypt_async_wait(ctx);\n+\t\tret = ret ?: -EINPROGRESS;\n+\t}\n \tif (ret == -EINPROGRESS) {\n \t\tif (darg->async)\n \t\t\treturn 0;\n@@ -449,6 +464,9 @@ static void tls_encrypt_done(void *data, int err)\n \tstruct sk_msg *msg_en;\n \tstruct sock *sk;\n \n+\tif (err == -EINPROGRESS) /* see the comment in tls_decrypt_done() */\n+\t\treturn;\n+\n \tmsg_en = &rec->msg_encrypted;\n \n \tsk = rec->sk;\n@@ -553,6 +571,10 @@ static int tls_do_encryption(struct sock *sk,\n \tatomic_inc(&ctx->encrypt_pending);\n \n \trc = crypto_aead_encrypt(aead_req);\n+\tif (rc == -EBUSY) {\n+\t\trc = tls_encrypt_async_wait(ctx);\n+\t\trc = rc ?: -EINPROGRESS;\n+\t}\n \tif (!rc || rc != -EINPROGRESS) {\n \t\tatomic_dec(&ctx->encrypt_pending);\n \t\tsge->offset -= prot->prepend_size;\n",
+      "sha256": "d90000560e3e876d44353d9cf2c7d0aafb8cfd78d213b8f5e7eab1c1296643cc"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2024-26584\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1019-p0pf4nme/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1019-p0pf4nme/repo/.patch-port/reference.diff\nreference_fix: 13eca403876bbea3716e82cdfe6f1e6febb38754\nreference_parent: 6db22d6c7a6dc914b12c0469b94eb639b6a8a146\ntarget_ref: 2149f8a56e2ed345c7a4d022a79f6b8fc53ae926\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1019-p0pf4nme/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1019-p0pf4nme/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2024-26584"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "cd1bbca03f3c1d845ce274c0d0a66de8e5929f72",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "7fcd2220d5be689d4b77d9db753bf5fd7a6241da2848096b998ea2258b641a85",
+      "text": "diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c\nindex d53587ff9ddea560a9de17c905d6570543997ff3..e723584fc644b5a070329d5f01cb14075a022d89 100644\n--- a/net/tls/tls_sw.c\n+++ b/net/tls/tls_sw.c\n@@ -195,6 +195,17 @@ static void tls_decrypt_done(crypto_completion_data_t *data, int err)\n \tstruct sock *sk;\n \tint aead_size;\n \n+\t/* If requests get too backlogged crypto API returns -EBUSY and calls\n+\t * ->complete(-EINPROGRESS) immediately followed by ->complete(0)\n+\t * to make waiting for backlog to flush with crypto_wait_req() easier.\n+\t * First wait converts -EBUSY -> -EINPROGRESS, and the second one\n+\t * -EINPROGRESS -> 0.\n+\t * We have a single struct crypto_async_request per direction, this\n+\t * scheme doesn't help us, so just ignore the first ->complete().\n+\t */\n+\tif (err == -EINPROGRESS)\n+\t\treturn;\n+\n \taead_size = sizeof(*aead_req) + crypto_aead_reqsize(aead);\n \taead_size = ALIGN(aead_size, __alignof__(*dctx));\n \tdctx = (void *)((u8 *)aead_req + aead_size);\n@@ -268,6 +279,10 @@ static int tls_do_decryption(struct sock *sk,\n \t}\n \n \tret = crypto_aead_decrypt(aead_req);\n+\tif (ret == -EBUSY) {\n+\t\tret = tls_decrypt_async_wait(ctx);\n+\t\tret = ret ?: -EINPROGRESS;\n+\t}\n \tif (ret == -EINPROGRESS) {\n \t\tif (darg->async)\n \t\t\treturn 0;\n@@ -451,6 +466,9 @@ static void tls_encrypt_done(crypto_completion_data_t *data, int err)\n \tstruct tls_rec *rec;\n \tstruct sock *sk;\n \n+\tif (err == -EINPROGRESS) /* see the comment in tls_decrypt_done() */\n+\t\treturn;\n+\n \trec = container_of(aead_req, struct tls_rec, aead_req);\n \tmsg_en = &rec->msg_encrypted;\n \n@@ -556,6 +574,10 @@ static int tls_do_encryption(struct sock *sk,\n \tatomic_inc(&ctx->encrypt_pending);\n \n \trc = crypto_aead_encrypt(aead_req);\n+\tif (rc == -EBUSY) {\n+\t\trc = tls_encrypt_async_wait(ctx);\n+\t\trc = rc ?: -EINPROGRESS;\n+\t}\n \tif (!rc || rc != -EINPROGRESS) {\n \t\tatomic_dec(&ctx->encrypt_pending);\n \t\tsge->offset -= prot->prepend_size;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "978d82ac290e2bc113604b4970aab523b848f74e2088ca57002e5b61fac44ca0",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/01019_CVE-2024-26584/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1019,
+      "cve": "CVE-2024-26584",
+      "source_commit": "13eca403876bbea3716e82cdfe6f1e6febb38754",
+      "oracle_commit": "cd1bbca03f3c1d845ce274c0d0a66de8e5929f72"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

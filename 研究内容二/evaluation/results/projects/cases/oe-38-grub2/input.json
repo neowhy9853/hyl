@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-38-grub2",
+  "task_input": {
+    "repository": {
+      "name": "grub2",
+      "version": "2.12",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "b0fbba606bfec7cdf1aed6b5c381435e942ef337",
+      "target_tree": "3ef8a1dc115f30dd09a7b6e3281b52ff78345b95"
+    },
+    "source_commit": "86df79275d065d87f4de5c97e456973e8b4a649c",
+    "reference_parent": "0b4d01794a08efc6f6de88c5a08ff81bb52122d4",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 86df79275d065d87f4de5c97e456973e8b4a649c Mon Sep 17 00:00:00 2001\nFrom: Hector Cao <hector.cao@canonical.com>\nDate: Mon, 3 Jun 2024 23:36:25 +0200\nSubject: [PATCH] commands/efi/tpm: Re-enable measurements on confidential\n computing platforms\n\nThe measurements for confidential computing has been introduced in the\ncommit 4c76565b6 (efi/tpm: Add EFI_CC_MEASUREMENT_PROTOCOL support).\nRecently the patch 30708dfe3 (tpm: Disable the tpm verifier if the TPM\ndevice is not present) has been introduced to optimize the memory usage\nwhen a TPM device is not available on platforms. This fix prevents the\ntpm module to be loaded on confidential computing platforms, e.g. Intel\nmachines with TDX enabled, where the TPM device is not available.\n\nIn this patch, we propose to load the tpm module for this use case by\ngeneralizing the tpm feature detection in order to cover CC platforms.\nBasically, we do it by detecting the availability of the\nEFI_CC_MEASUREMENT_PROTOCOL EFI protocol.\n\nFixes: https://savannah.gnu.org/bugs/?65821\nFixes: 30708dfe3 (tpm: Disable the tpm verifier if the TPM device is not present)\n\nSigned-off-by: Hector Cao <hector.cao@canonical.com>\nReviewed-by: Daniel Kiper <daniel.kiper@oracle.com>\nReviewed-by: Kuppuswamy Sathyanarayanan <sathyanarayanan.kuppuswamy@linux.intel.com>\n---\n grub-core/commands/efi/tpm.c | 9 +++++++++\n 1 file changed, 9 insertions(+)\n\ndiff --git a/grub-core/commands/efi/tpm.c b/grub-core/commands/efi/tpm.c\nindex f250c30dbc..cbac698669 100644\n--- a/grub-core/commands/efi/tpm.c\n+++ b/grub-core/commands/efi/tpm.c\n@@ -292,6 +292,15 @@ grub_tpm_present (void)\n {\n   grub_efi_handle_t tpm_handle;\n   grub_efi_uint8_t protocol_version;\n+  grub_efi_cc_protocol_t *cc;\n+\n+  /*\n+   * When confidential computing measurement protocol is enabled\n+   * we assume the TPM is present.\n+   */\n+  cc = grub_efi_locate_protocol (&cc_measurement_guid, NULL);\n+  if (cc != NULL)\n+    return 1;\n \n   if (!grub_tpm_handle_find (&tpm_handle, &protocol_version))\n     return 0;\n-- \n2.25.1\n\n",
+      "sha256": "24a70a9b500588d00e8557ee45c22969fae61d866547875421ca44f585c5c99d"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for grub2.\ncase_id: oe-38-grub2\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 86df79275d065d87f4de5c97e456973e8b4a649c\nreference_parent: 0b4d01794a08efc6f6de88c5a08ff81bb52122d4\ntarget_ref: b0fbba606bfec7cdf1aed6b5c381435e942ef337\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "f8aeb04df4c8e68cf2beb167aebd10bd56e6ffcd8b4b805a4634fceb4514208f",
+      "text": "From 86df79275d065d87f4de5c97e456973e8b4a649c Mon Sep 17 00:00:00 2001\nFrom: Hector Cao <hector.cao@canonical.com>\nDate: Mon, 3 Jun 2024 23:36:25 +0200\nSubject: [PATCH] commands/efi/tpm: Re-enable measurements on confidential\n computing platforms\n\nThe measurements for confidential computing has been introduced in the\ncommit 4c76565b6 (efi/tpm: Add EFI_CC_MEASUREMENT_PROTOCOL support).\nRecently the patch 30708dfe3 (tpm: Disable the tpm verifier if the TPM\ndevice is not present) has been introduced to optimize the memory usage\nwhen a TPM device is not available on platforms. This fix prevents the\ntpm module to be loaded on confidential computing platforms, e.g. Intel\nmachines with TDX enabled, where the TPM device is not available.\n\nIn this patch, we propose to load the tpm module for this use case by\ngeneralizing the tpm feature detection in order to cover CC platforms.\nBasically, we do it by detecting the availability of the\nEFI_CC_MEASUREMENT_PROTOCOL EFI protocol.\n\nFixes: https://savannah.gnu.org/bugs/?65821\nFixes: 30708dfe3 (tpm: Disable the tpm verifier if the TPM device is not present)\n\nReference:https://git.savannah.gnu.org/cgit/grub.git/commit/?id=86df79275d065d87f4de5c97e456973e8b4a649c\nConflict:NA\n\nSigned-off-by: Hector Cao <hector.cao@canonical.com>\nReviewed-by: Daniel Kiper <daniel.kiper@oracle.com>\nReviewed-by: Kuppuswamy Sathyanarayanan <sathyanarayanan.kuppuswamy@linux.intel.com>\n---\n grub-core/commands/efi/tpm.c | 9 +++++++++\n 1 file changed, 9 insertions(+)\n\ndiff --git a/grub-core/commands/efi/tpm.c b/grub-core/commands/efi/tpm.c\nindex f250c30db..cbac69866 100644\n--- a/grub-core/commands/efi/tpm.c\n+++ b/grub-core/commands/efi/tpm.c\n@@ -292,6 +292,15 @@ grub_tpm_present (void)\n {\n   grub_efi_handle_t tpm_handle;\n   grub_efi_uint8_t protocol_version;\n+  grub_efi_cc_protocol_t *cc;\n+\n+  /*\n+   * When confidential computing measurement protocol is enabled\n+   * we assume the TPM is present.\n+   */\n+  cc = grub_efi_locate_protocol (&cc_measurement_guid, NULL);\n+  if (cc != NULL)\n+    return 1;\n \n   if (!grub_tpm_handle_find (&tpm_handle, &protocol_version))\n     return 0;\n-- \n2.33.0\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "c0eccad827881bb3e4fe887f650d059ba803191bcb058e2dcabf164d1563f784",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-38-grub2/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-38-grub2",
+      "package": "grub2",
+      "version": "2.12",
+      "source_commit": "86df79275d065d87f4de5c97e456973e8b4a649c",
+      "target_ref": "b0fbba606bfec7cdf1aed6b5c381435e942ef337",
+      "target_tree": "3ef8a1dc115f30dd09a7b6e3281b52ff78345b95",
+      "reference_patch": "patches/oe-38-grub2/reference.patch",
+      "reference_sha256": "24a70a9b500588d00e8557ee45c22969fae61d866547875421ca44f585c5c99d",
+      "oracle_patch": "patches/oe-38-grub2/oracle.patch",
+      "oracle_sha256": "f8aeb04df4c8e68cf2beb167aebd10bd56e6ffcd8b4b805a4634fceb4514208f"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "574",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-warning-remaining4-2341/task-workspaces/new-porter-574-detkrk7i/repo",
+      "target_ref": "ca37ab969cce230dce0d478d46c4dc7db8d3a267",
+      "target_tree": "c87fcf1ee352a731981f031678fd3e798a0e50c3"
+    },
+    "source_commit": "c0883f693187c646c0972d73e525523f9486c2e3",
+    "reference_parent": "b5f05bdfda28847305e80839477a1160ddb68b94",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/arch/x86/include/asm/svm.h b/arch/x86/include/asm/svm.h\nindex 71d630bb5e08..f8fad50502ad 100644\n--- a/arch/x86/include/asm/svm.h\n+++ b/arch/x86/include/asm/svm.h\n@@ -166,6 +166,8 @@ struct __attribute__ ((__packed__)) vmcb_control_area {\n #define V_IGN_TPR_SHIFT 20\n #define V_IGN_TPR_MASK (1 << V_IGN_TPR_SHIFT)\n \n+#define V_IRQ_INJECTION_BITS_MASK (V_IRQ_MASK | V_INTR_PRIO_MASK | V_IGN_TPR_MASK)\n+\n #define V_INTR_MASKING_SHIFT 24\n #define V_INTR_MASKING_MASK (1 << V_INTR_MASKING_SHIFT)\n \ndiff --git a/arch/x86/kvm/svm/nested.c b/arch/x86/kvm/svm/nested.c\nindex da6ce73c10bb..8a229db85302 100644\n--- a/arch/x86/kvm/svm/nested.c\n+++ b/arch/x86/kvm/svm/nested.c\n@@ -429,7 +429,10 @@ static void nested_prepare_vmcb_save(struct vcpu_svm *svm, struct vmcb *vmcb12)\n \n static void nested_prepare_vmcb_control(struct vcpu_svm *svm)\n {\n-\tconst u32 mask = V_INTR_MASKING_MASK | V_GIF_ENABLE_MASK | V_GIF_MASK;\n+\tconst u32 int_ctl_vmcb01_bits =\n+\t\tV_INTR_MASKING_MASK | V_GIF_MASK | V_GIF_ENABLE_MASK;\n+\n+\tconst u32 int_ctl_vmcb12_bits = V_TPR_MASK | V_IRQ_INJECTION_BITS_MASK;\n \n \tif (nested_npt_enabled(svm))\n \t\tnested_svm_init_mmu_context(&svm->vcpu);\n@@ -437,9 +440,9 @@ static void nested_prepare_vmcb_control(struct vcpu_svm *svm)\n \tsvm->vmcb->control.tsc_offset = svm->vcpu.arch.tsc_offset =\n \t\tsvm->vcpu.arch.l1_tsc_offset + svm->nested.ctl.tsc_offset;\n \n-\tsvm->vmcb->control.int_ctl             =\n-\t\t(svm->nested.ctl.int_ctl & ~mask) |\n-\t\t(svm->nested.hsave->control.int_ctl & mask);\n+\tsvm->vmcb->control.int_ctl =\n+\t\t(svm->nested.ctl.int_ctl & int_ctl_vmcb12_bits) |\n+\t\t(svm->nested.hsave->control.int_ctl & int_ctl_vmcb01_bits);\n \n \tsvm->vmcb->control.virt_ext            = svm->nested.ctl.virt_ext;\n \tsvm->vmcb->control.int_vector          = svm->nested.ctl.int_vector;\ndiff --git a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c\nindex 1c9226cd6cde..1c23aee3778c 100644\n--- a/arch/x86/kvm/svm/svm.c\n+++ b/arch/x86/kvm/svm/svm.c\n@@ -1486,17 +1486,17 @@ static void svm_set_vintr(struct vcpu_svm *svm)\n \n static void svm_clear_vintr(struct vcpu_svm *svm)\n {\n-\tconst u32 mask = V_TPR_MASK | V_GIF_ENABLE_MASK | V_GIF_MASK | V_INTR_MASKING_MASK;\n \tsvm_clr_intercept(svm, INTERCEPT_VINTR);\n \n \t/* Drop int_ctl fields related to VINTR injection.  */\n-\tsvm->vmcb->control.int_ctl &= mask;\n+\tsvm->vmcb->control.int_ctl &= ~V_IRQ_INJECTION_BITS_MASK;\n \tif (is_guest_mode(&svm->vcpu)) {\n-\t\tsvm->nested.hsave->control.int_ctl &= mask;\n+\t\tsvm->nested.hsave->control.int_ctl &= ~V_IRQ_INJECTION_BITS_MASK;\n \n \t\tWARN_ON((svm->vmcb->control.int_ctl & V_TPR_MASK) !=\n \t\t\t(svm->nested.ctl.int_ctl & V_TPR_MASK));\n-\t\tsvm->vmcb->control.int_ctl |= svm->nested.ctl.int_ctl & ~mask;\n+\t\tsvm->vmcb->control.int_ctl |= svm->nested.ctl.int_ctl &\n+\t\t\tV_IRQ_INJECTION_BITS_MASK;\n \t}\n \n \tvmcb_mark_dirty(svm->vmcb, VMCB_INTR);\n",
+      "sha256": "69f44816de59d8af7e23d4a94a8d9ddf401422217c1a797f57b6ff22905419de"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2021-3653\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-warning-remaining4-2341/task-workspaces/new-porter-574-detkrk7i/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-warning-remaining4-2341/task-workspaces/new-porter-574-detkrk7i/repo/.patch-port/reference.diff\nreference_fix: c0883f693187c646c0972d73e525523f9486c2e3\nreference_parent: b5f05bdfda28847305e80839477a1160ddb68b94\ntarget_ref: ca37ab969cce230dce0d478d46c4dc7db8d3a267\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-warning-remaining4-2341/task-workspaces/new-porter-574-detkrk7i/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-isolated-warning-remaining4-2341/task-workspaces/new-porter-574-detkrk7i/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2021-3653"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "29c4f674715ba8fe7a391473313e8c71f98799c4",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "28c4bfd6e0d22a4de9a8b439c1542806a5d4df1c21a97d49c54f65a5af372568",
+      "text": "diff --git a/arch/x86/include/asm/svm.h b/arch/x86/include/asm/svm.h\nindex 14824fc78f7e..509b9f3307e4 100644\n--- a/arch/x86/include/asm/svm.h\n+++ b/arch/x86/include/asm/svm.h\n@@ -113,6 +113,8 @@ struct __attribute__ ((__packed__)) vmcb_control_area {\n #define V_IGN_TPR_SHIFT 20\n #define V_IGN_TPR_MASK (1 << V_IGN_TPR_SHIFT)\n \n+#define V_IRQ_INJECTION_BITS_MASK (V_IRQ_MASK | V_INTR_PRIO_MASK | V_IGN_TPR_MASK)\n+\n #define V_INTR_MASKING_SHIFT 24\n #define V_INTR_MASKING_MASK (1 << V_INTR_MASKING_SHIFT)\n \ndiff --git a/arch/x86/kvm/svm.c b/arch/x86/kvm/svm.c\nindex cbc7f177bbd8..03fdeab057d2 100644\n--- a/arch/x86/kvm/svm.c\n+++ b/arch/x86/kvm/svm.c\n@@ -3048,7 +3048,11 @@ static bool nested_svm_vmrun(struct vcpu_svm *svm)\n \tsvm->nested.intercept            = nested_vmcb->control.intercept;\n \n \tsvm_flush_tlb(&svm->vcpu);\n-\tsvm->vmcb->control.int_ctl = nested_vmcb->control.int_ctl | V_INTR_MASKING_MASK;\n+\tsvm->vmcb->control.int_ctl = nested_vmcb->control.int_ctl &\n+\t\t\t(V_TPR_MASK | V_IRQ_INJECTION_BITS_MASK);\n+\n+\tsvm->vmcb->control.int_ctl |= V_INTR_MASKING_MASK;\n+\n \tif (nested_vmcb->control.int_ctl & V_INTR_MASKING_MASK)\n \t\tsvm->vcpu.arch.hflags |= HF_VINTR_MASK;\n \telse\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "c9df17929ff74cdbcd5f5686c032f38326797ee7e08974f5ba7a085391931534",
+    "reference_patch_source": "/data/SCA-repair/src/core-c/result/opencode_agent_robust_failed404_random20_work/00574_CVE-2021-3653/reference.diff",
+    "source_dataset_record": {
+      "case_id": 574,
+      "cve": "CVE-2021-3653",
+      "source_commit": "c0883f693187c646c0972d73e525523f9486c2e3",
+      "oracle_commit": "29c4f674715ba8fe7a391473313e8c71f98799c4"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

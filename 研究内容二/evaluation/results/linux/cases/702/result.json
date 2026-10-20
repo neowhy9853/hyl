@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "702",
+  "candidate_sha256": "de174165f6e01d0c676868897efb21219df5f46082a1a4df2e3ef943037c248d",
+  "oracle_sha256": "de174165f6e01d0c676868897efb21219df5f46082a1a4df2e3ef943037c248d",
+  "candidate_nonempty": true,
+  "target_ref": "55280d879b8810d1db6024dc38b5e3c1964d528a",
+  "baseline_tree": "91c397506b5853b0e24deefa2729dbcb64db998f",
+  "candidate_tree": "533a37c48f9fe8acc66d0b709513d0a7061b3307",
+  "oracle_tree": "533a37c48f9fe8acc66d0b709513d0a7061b3307",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/702",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "de174165f6e01d0c676868897efb21219df5f46082a1a4df2e3ef943037c248d",
+    "text": "diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c\nindex 983cce3d02a7..4785ae061b65 100644\n--- a/drivers/tty/vt/vt.c\n+++ b/drivers/tty/vt/vt.c\n@@ -760,6 +760,17 @@ static void visual_init(struct vc_data *vc, int num, int init)\n \tvc->vc_screenbuf_size = vc->vc_rows * vc->vc_size_row;\n }\n \n+static void vc_port_destruct(struct tty_port *port)\n+{\n+\tstruct vc_data *vc = container_of(port, struct vc_data, port);\n+\n+\tkfree(vc);\n+}\n+\n+static const struct tty_port_operations vc_port_ops = {\n+\t.destruct = vc_port_destruct,\n+};\n+\n int vc_allocate(unsigned int currcons)\t/* return 0 on success */\n {\n \tWARN_CONSOLE_UNLOCKED();\n@@ -785,6 +796,7 @@ int vc_allocate(unsigned int currcons)\t/* return 0 on success */\n \t\treturn -ENOMEM;\n \t    vc_cons[currcons].d = vc;\n \t    tty_port_init(&vc->port);\n+\t    vc->port.ops = &vc_port_ops;\n \t    INIT_WORK(&vc_cons[currcons].SAK_work, vc_SAK);\n \t    visual_init(vc, currcons, 1);\n \t    if (!*vc->vc_uni_pagedir_loc)\n@@ -2894,6 +2906,7 @@ static int con_install(struct tty_driver *driver, struct tty_struct *tty)\n \n \ttty->driver_data = vc;\n \tvc->port.tty = tty;\n+\ttty_port_get(&vc->port);\n \n \tif (!tty->winsize.ws_row && !tty->winsize.ws_col) {\n \t\ttty->winsize.ws_row = vc_cons[currcons].d->vc_rows;\n@@ -2929,6 +2942,13 @@ static void con_shutdown(struct tty_struct *tty)\n \tconsole_unlock();\n }\n \n+static void con_cleanup(struct tty_struct *tty)\n+{\n+\tstruct vc_data *vc = tty->driver_data;\n+\n+\ttty_port_put(&vc->port);\n+}\n+\n static int default_color           = 7; /* white */\n static int default_italic_color    = 2; // green (ASCII)\n static int default_underline_color = 3; // cyan (ASCII)\n@@ -3053,7 +3073,8 @@ static const struct tty_operations con_ops = {\n \t.throttle = con_throttle,\n \t.unthrottle = con_unthrottle,\n \t.resize = vt_resize,\n-\t.shutdown = con_shutdown\n+\t.shutdown = con_shutdown,\n+\t.cleanup = con_cleanup,\n };\n \n static struct cdev vc0_cdev;\ndiff --git a/drivers/tty/vt/vt_ioctl.c b/drivers/tty/vt/vt_ioctl.c\nindex fe19ae26fcff..cc2a0819a0dc 100644\n--- a/drivers/tty/vt/vt_ioctl.c\n+++ b/drivers/tty/vt/vt_ioctl.c\n@@ -313,10 +313,8 @@ static int vt_disallocate(unsigned int vc_num)\n \t\tvc = vc_deallocate(vc_num);\n \tconsole_unlock();\n \n-\tif (vc && vc_num >= MIN_NR_CONSOLES) {\n-\t\ttty_port_destroy(&vc->port);\n-\t\tkfree(vc);\n-\t}\n+\tif (vc && vc_num >= MIN_NR_CONSOLES)\n+\t\ttty_port_put(&vc->port);\n \n \treturn ret;\n }\n@@ -336,10 +334,8 @@ static void vt_disallocate_all(void)\n \tconsole_unlock();\n \n \tfor (i = 1; i < MAX_NR_CONSOLES; i++) {\n-\t\tif (vc[i] && i >= MIN_NR_CONSOLES) {\n-\t\t\ttty_port_destroy(&vc[i]->port);\n-\t\t\tkfree(vc[i]);\n-\t\t}\n+\t\tif (vc[i] && i >= MIN_NR_CONSOLES)\n+\t\t\ttty_port_put(&vc[i]->port);\n \t}\n }\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

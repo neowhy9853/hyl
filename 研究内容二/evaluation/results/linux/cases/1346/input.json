@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1346",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1346-wv_nx7p4/repo",
+      "target_ref": "5dcf0d9e35b2a8e312b70aae12fe6f38cb1be276",
+      "target_tree": "723fc63f69596b5847ccd70f29be5e7478c2c68d"
+    },
+    "source_commit": "3bc400bad0e003d40a0a2412411aed7cbae16f96",
+    "reference_parent": "72b44d0434c1a4688b55aaa59150d74344721306",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/ipv4/raw.c b/net/ipv4/raw.c\nindex 33b70bfd1122f08f4897ea6a68eb51e3a74bb1e5..125c1eab3eaa6d894804c3aa8918aa7fcc736ca0 100644\n--- a/net/ipv4/raw.c\n+++ b/net/ipv4/raw.c\n@@ -513,11 +513,16 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \tint err;\n \tstruct ip_options_data opt_copy;\n \tstruct raw_frag_vec rfv;\n+\tint hdrincl;\n \n \terr = -EMSGSIZE;\n \tif (len > 0xFFFF)\n \t\tgoto out;\n \n+\t/* hdrincl should be READ_ONCE(inet->hdrincl)\n+\t * but READ_ONCE() doesn't work with bit fields\n+\t */\n+\thdrincl = inet->hdrincl;\n \t/*\n \t *\tCheck the flags.\n \t */\n@@ -593,7 +598,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \t\t/* Linux does not mangle headers on raw sockets,\n \t\t * so that IP options + IP_HDRINCL is non-sense.\n \t\t */\n-\t\tif (inet->hdrincl)\n+\t\tif (hdrincl)\n \t\t\tgoto done;\n \t\tif (ipc.opt->opt.srr) {\n \t\t\tif (!daddr)\n@@ -615,12 +620,12 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \n \tflowi4_init_output(&fl4, ipc.oif, sk->sk_mark, tos,\n \t\t\t   RT_SCOPE_UNIVERSE,\n-\t\t\t   inet->hdrincl ? IPPROTO_RAW : sk->sk_protocol,\n+\t\t\t   hdrincl ? IPPROTO_RAW : sk->sk_protocol,\n \t\t\t   inet_sk_flowi_flags(sk) |\n-\t\t\t    (inet->hdrincl ? FLOWI_FLAG_KNOWN_NH : 0),\n+\t\t\t    (hdrincl ? FLOWI_FLAG_KNOWN_NH : 0),\n \t\t\t   daddr, saddr, 0, 0, sk->sk_uid);\n \n-\tif (!inet->hdrincl) {\n+\tif (!hdrincl) {\n \t\trfv.msg = msg;\n \t\trfv.hlen = 0;\n \n@@ -645,7 +650,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \t\tgoto do_confirm;\n back_from_confirm:\n \n-\tif (inet->hdrincl)\n+\tif (hdrincl)\n \t\terr = raw_send_hdrinc(sk, &fl4, msg, len,\n \t\t\t\t      &rt, msg->msg_flags, &ipc.sockc);\n \n",
+      "sha256": "f391a1222e689224026c9fea00001ec72077a126da8355738508583114286d27"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2017-17712\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1346-wv_nx7p4/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1346-wv_nx7p4/repo/.patch-port/reference.diff\nreference_fix: 3bc400bad0e003d40a0a2412411aed7cbae16f96\nreference_parent: 72b44d0434c1a4688b55aaa59150d74344721306\ntarget_ref: 5dcf0d9e35b2a8e312b70aae12fe6f38cb1be276\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1346-wv_nx7p4/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1346-wv_nx7p4/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2017-17712"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "d61b40939ebdc84dad77dbc78c3e26ad9d2da68b",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "70be90327b7d2c63786061e2d1a864352b9b156f83a97468a4e4e5667804bed8",
+      "text": "diff --git a/net/ipv4/raw.c b/net/ipv4/raw.c\nindex 9a2294d01b9de70b2819b77c866a60a0a01765d4..acf09ab17a6296ca5bdd11fc0df4ac001f1105cb 100644\n--- a/net/ipv4/raw.c\n+++ b/net/ipv4/raw.c\n@@ -496,11 +496,16 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \tint err;\n \tstruct ip_options_data opt_copy;\n \tstruct raw_frag_vec rfv;\n+\tint hdrincl;\n \n \terr = -EMSGSIZE;\n \tif (len > 0xFFFF)\n \t\tgoto out;\n \n+\t/* hdrincl should be READ_ONCE(inet->hdrincl)\n+\t * but READ_ONCE() doesn't work with bit fields\n+\t */\n+\thdrincl = inet->hdrincl;\n \t/*\n \t *\tCheck the flags.\n \t */\n@@ -575,7 +580,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \t\t/* Linux does not mangle headers on raw sockets,\n \t\t * so that IP options + IP_HDRINCL is non-sense.\n \t\t */\n-\t\tif (inet->hdrincl)\n+\t\tif (hdrincl)\n \t\t\tgoto done;\n \t\tif (ipc.opt->opt.srr) {\n \t\t\tif (!daddr)\n@@ -597,12 +602,12 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \n \tflowi4_init_output(&fl4, ipc.oif, sk->sk_mark, tos,\n \t\t\t   RT_SCOPE_UNIVERSE,\n-\t\t\t   inet->hdrincl ? IPPROTO_RAW : sk->sk_protocol,\n+\t\t\t   hdrincl ? IPPROTO_RAW : sk->sk_protocol,\n \t\t\t   inet_sk_flowi_flags(sk) |\n-\t\t\t    (inet->hdrincl ? FLOWI_FLAG_KNOWN_NH : 0),\n+\t\t\t    (hdrincl ? FLOWI_FLAG_KNOWN_NH : 0),\n \t\t\t   daddr, saddr, 0, 0);\n \n-\tif (!inet->hdrincl) {\n+\tif (!hdrincl) {\n \t\trfv.msg = msg;\n \t\trfv.hlen = 0;\n \n@@ -627,7 +632,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \t\tgoto do_confirm;\n back_from_confirm:\n \n-\tif (inet->hdrincl)\n+\tif (hdrincl)\n \t\terr = raw_send_hdrinc(sk, &fl4, msg, len,\n \t\t\t\t      &rt, msg->msg_flags);\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "271acda45a8c212addae279a12b390befa37c3bab4de6aceb4e6d43f74f8fe49",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/01346_CVE-2017-17712/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1346,
+      "cve": "CVE-2017-17712",
+      "source_commit": "3bc400bad0e003d40a0a2412411aed7cbae16f96",
+      "oracle_commit": "d61b40939ebdc84dad77dbc78c3e26ad9d2da68b"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

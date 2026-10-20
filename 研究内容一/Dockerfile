@@ -8,11 +8,13 @@ LABEL org.opencontainers.image.title="Patch Analysis Agents for OpenCode" \
       org.opencontainers.image.description="OpenCode environment with patch intent and relation analysis skills installed" \
       org.opencontainers.image.version="1.0"
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=3 update \
+    && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
         ca-certificates \
         curl \
         git \
+        ripgrep \
+        python-is-python3 \
         python3 \
         xz-utils \
     && rm -rf /var/lib/apt/lists/*
@@ -25,8 +27,8 @@ RUN set -eux; \
         *) echo "Unsupported architecture: ${architecture}" >&2; exit 1 ;; \
     esac; \
     node_archive="node-v${NODE_VERSION}-linux-${node_arch}.tar.xz"; \
-    curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${node_archive}"; \
-    curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt"; \
+    curl --retry 3 --connect-timeout 30 -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${node_archive}"; \
+    curl --retry 3 --connect-timeout 30 -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt"; \
     grep " ${node_archive}$" SHASUMS256.txt | sha256sum -c -; \
     tar -xJf "${node_archive}" -C /usr/local --strip-components=1 --no-same-owner; \
     rm -f "${node_archive}" SHASUMS256.txt; \
@@ -67,5 +69,16 @@ RUN test -f /home/node/.opencode/skills/patch-intent-analysis/SKILL.md \
         /home/node/.opencode/skills/patch-relation-analysis/scripts/relation_core.py \
     && python3 /home/node/.opencode/skills/patch-intent-analysis/scripts/install_ctags.py \
     && python3 /home/node/.opencode/skills/patch-intent-analysis/scripts/check_dependencies.py
+
+# Batch workers run as the invoking host uid with a fresh HOME. Keep immutable
+# skills and Ctags available without inheriting the image user's session/cache.
+USER root
+RUN mkdir -p /opt/patch-analysis/bin \
+    && cp /home/node/.cache/patch-intent-analysis/universal-ctags/*/*/ctags /opt/patch-analysis/bin/ctags \
+    && cp -r /home/node/.opencode/skills /opt/patch-analysis/skills \
+    && chmod -R a+rX /opt/patch-analysis
+COPY evaluation/scripts/container-entrypoint.sh /usr/local/bin/benchmark-opencode
+RUN chmod 755 /usr/local/bin/benchmark-opencode
+USER node
 
 CMD ["opencode"]

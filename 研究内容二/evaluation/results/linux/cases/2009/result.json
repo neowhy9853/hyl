@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2009",
+  "candidate_sha256": "9fc7fb796b5e46fed78737407123103001708c2dc2da1fe9e49d99f4c2317930",
+  "oracle_sha256": "54f2edde3d6c39f26240ef81eae8f9f9695766feb4c8f2c80d7ddb541bbbf47f",
+  "candidate_nonempty": true,
+  "target_ref": "c6b1616f5472e86dc1c629383f912921a0b33368",
+  "baseline_tree": "63423b2d681ba5b5ab3fd08cd3786496851bae53",
+  "candidate_tree": "49da5e64e6d535a7f1823a0f0aa6783610e26a9c",
+  "oracle_tree": "49da5e64e6d535a7f1823a0f0aa6783610e26a9c",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2009",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "9fc7fb796b5e46fed78737407123103001708c2dc2da1fe9e49d99f4c2317930",
+    "text": "diff --git a/kernel/events/core.c b/kernel/events/core.c\nindex 1b60f9c508c9..9f7c2da99299 100644\n--- a/kernel/events/core.c\n+++ b/kernel/events/core.c\n@@ -5596,11 +5596,11 @@ static void perf_pmu_output_stop(struct perf_event *event);\n static void perf_mmap_close(struct vm_area_struct *vma)\n {\n \tstruct perf_event *event = vma->vm_file->private_data;\n-\n \tstruct ring_buffer *rb = ring_buffer_get(event);\n \tstruct user_struct *mmap_user = rb->mmap_user;\n \tint mmap_locked = rb->mmap_locked;\n \tunsigned long size = perf_data_size(rb);\n+\tbool detach_rest = false;\n \n \tif (event->pmu->event_unmapped)\n \t\tevent->pmu->event_unmapped(event, vma->vm_mm);\n@@ -5631,7 +5631,8 @@ static void perf_mmap_close(struct vm_area_struct *vma)\n \t\tmutex_unlock(&event->mmap_mutex);\n \t}\n \n-\tatomic_dec(&rb->mmap_count);\n+\tif (atomic_dec_and_test(&rb->mmap_count))\n+\t\tdetach_rest = true;\n \n \tif (!atomic_dec_and_mutex_lock(&event->mmap_count, &event->mmap_mutex))\n \t\tgoto out_put;\n@@ -5640,7 +5641,7 @@ static void perf_mmap_close(struct vm_area_struct *vma)\n \tmutex_unlock(&event->mmap_mutex);\n \n \t/* If there's still other mmap()s of this buffer, we're done. */\n-\tif (atomic_read(&rb->mmap_count))\n+\tif (!detach_rest)\n \t\tgoto out_put;\n \n \t/*\n"
+  },
+  "trace_file": "trace.jsonl"
+}

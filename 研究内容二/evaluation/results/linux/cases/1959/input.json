@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1959",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1959-3ozg4bjc/repo",
+      "target_ref": "f06f7a923d1de2542cdcc5a9a157df5eb072913b",
+      "target_tree": "78a61fa241d8df92a2c64cafd0bf7473923530a5"
+    },
+    "source_commit": "f530afb974c2e82047bd6220303a2dbe30eff304",
+    "reference_parent": "4eaf2e4b5e1e50aa4debf08b2875b574f56ff1e9",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/block/blk-mq-tag.c b/block/blk-mq-tag.c\nindex 4bc701b32ce24c6ddda10fcbb266e5d07f41cd74..0861f15ec0df83cd8d75db1a65201353d050e81b 100644\n--- a/block/blk-mq-tag.c\n+++ b/block/blk-mq-tag.c\n@@ -336,6 +336,18 @@ void blk_mq_queue_tag_busy_iter(struct request_queue *q, busy_iter_fn *fn,\n \tstruct blk_mq_hw_ctx *hctx;\n \tint i;\n \n+\t/*\n+\t * __blk_mq_update_nr_hw_queues will update the nr_hw_queues and\n+\t * queue_hw_ctx after freeze the queue. So we could use q_usage_counter\n+\t * to avoid race with it. __blk_mq_update_nr_hw_queues will users\n+\t * synchronize_rcu to ensure all of the users go out of the critical\n+\t * section below and see zeroed q_usage_counter.\n+\t */\n+\trcu_read_lock();\n+\tif (percpu_ref_is_zero(&q->q_usage_counter)) {\n+\t\trcu_read_unlock();\n+\t\treturn;\n+\t}\n \n \tqueue_for_each_hw_ctx(q, hctx, i) {\n \t\tstruct blk_mq_tags *tags = hctx->tags;\n@@ -351,7 +363,7 @@ void blk_mq_queue_tag_busy_iter(struct request_queue *q, busy_iter_fn *fn,\n \t\t\tbt_for_each(hctx, &tags->breserved_tags, fn, priv, true);\n \t\tbt_for_each(hctx, &tags->bitmap_tags, fn, priv, false);\n \t}\n-\n+\trcu_read_unlock();\n }\n \n static unsigned int bt_unused_tags(const struct sbitmap_queue *bt)\ndiff --git a/block/blk-mq.c b/block/blk-mq.c\nindex 24fc09cf7f175adc5e2bb3f616798a39a39292e8..58be2eaa5aaa0dc4b8ff6915e09659776811b34c 100644\n--- a/block/blk-mq.c\n+++ b/block/blk-mq.c\n@@ -2346,6 +2346,10 @@ void blk_mq_update_nr_hw_queues(struct blk_mq_tag_set *set, int nr_hw_queues)\n \n \tlist_for_each_entry(q, &set->tag_list, tag_set_list)\n \t\tblk_mq_unfreeze_queue(q);\n+\t/*\n+\t * Sync with blk_mq_queue_tag_busy_iter.\n+\t */\n+\tsynchronize_rcu();\n }\n EXPORT_SYMBOL_GPL(blk_mq_update_nr_hw_queues);\n \n",
+      "sha256": "5bdaa5c5e4e0ed1a00f43fc4ad4789e1b0ea36c95f49520be40e03b62e158c09"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2020-0433\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1959-3ozg4bjc/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1959-3ozg4bjc/repo/.patch-port/reference.diff\nreference_fix: f530afb974c2e82047bd6220303a2dbe30eff304\nreference_parent: 4eaf2e4b5e1e50aa4debf08b2875b574f56ff1e9\ntarget_ref: f06f7a923d1de2542cdcc5a9a157df5eb072913b\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1959-3ozg4bjc/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1959-3ozg4bjc/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2020-0433"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "fa9355afd5b07707e15a5f75b854f04a9c14a798",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "a673b9bb9f5d0a5ed48b28a768b6806ba33f8f1511ecc92b6d4270eaebbca401",
+      "text": "diff --git a/block/blk-mq-tag.c b/block/blk-mq-tag.c\nindex a07ca3488d96fb7a96159fbe48c0c9e5e95391ec..bf356de30134b88b7664c21fddfbad5f427bb06f 100644\n--- a/block/blk-mq-tag.c\n+++ b/block/blk-mq-tag.c\n@@ -481,6 +481,14 @@ void blk_mq_queue_tag_busy_iter(struct request_queue *q, busy_iter_fn *fn,\n \tstruct blk_mq_hw_ctx *hctx;\n \tint i;\n \n+\t/*\n+\t * Avoid potential races with things like queue removal.\n+\t */\n+\trcu_read_lock();\n+\tif (percpu_ref_is_zero(&q->q_usage_counter)) {\n+\t\trcu_read_unlock();\n+\t\treturn;\n+\t}\n \n \tqueue_for_each_hw_ctx(q, hctx, i) {\n \t\tstruct blk_mq_tags *tags = hctx->tags;\n@@ -497,7 +505,7 @@ void blk_mq_queue_tag_busy_iter(struct request_queue *q, busy_iter_fn *fn,\n \t\tbt_for_each(hctx, &tags->bitmap_tags, tags->nr_reserved_tags, fn, priv,\n \t\t      false);\n \t}\n-\n+\trcu_read_unlock();\n }\n \n static unsigned int bt_unused_tags(struct blk_mq_bitmap_tags *bt)\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "caf87dedf53fdbcc83fda08269ac61c12fbdaa8d43406188968404f4f3745f86",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/01959_CVE-2020-0433/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1959,
+      "cve": "CVE-2020-0433",
+      "source_commit": "f530afb974c2e82047bd6220303a2dbe30eff304",
+      "oracle_commit": "fa9355afd5b07707e15a5f75b854f04a9c14a798"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

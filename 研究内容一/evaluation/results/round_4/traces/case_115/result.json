@@ -1,0 +1,47 @@
+{
+  "round": 4,
+  "case_id": "case_115",
+  "source_index": 114,
+  "repo": "kernel",
+  "commit_id": "94291b913f679e08d80d55441f5aac9e151ca1d4",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "1dd163c53704",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "修复模块卸载与 netlink 命令处理之间的竞态条件，防止空指针解引用导致的 oops。",
+    "intent_items": [
+      {
+        "target": "nbd 模块的清理函数 nbd_cleanup()",
+        "change": "将 genl_unregister_family(&nbd_genl_family) 的调用顺序提前到等待 netlink 命令完成之前",
+        "effect_or_reason": "避免模块移除时 netlink 接口已注销但仍有命令在处理，从而防止竞态导致的空指针解引用崩溃。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交前 genl_unregister_family 在 idr_destroy 之后调用，提交后将其提前到 nbd_dbg_close 之前。",
+            "提交信息描述了竞态可能导致 NULL 指针解引用和 oops。"
+          ],
+          "message_only_details": [
+            "竞态发生在模块移除与 netlink 命令处理之间，具体表现为调用栈中的 BUG。"
+          ],
+          "code_only_details": [
+            "补丁在函数开头添加了注释，说明提前注销 netlink 接口是为了等待命令完成。"
+          ]
+        },
+        "evidence": [
+          "补丁显示：在提交前，genl_unregister_family 在 idr_destroy 之后调用；提交后，该调用被移到 nbd_dbg_close 之前。",
+          "提交信息明确指出，若不调整顺序，模块移除与 netlink 命令处理之间的竞态会导致 NULL 指针解引用（oops）。"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_115",
+  "trace_status": "available"
+}

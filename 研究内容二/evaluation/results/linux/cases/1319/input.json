@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1319",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1319-aga0kf4g/repo",
+      "target_ref": "fd97de9c7b973f46a6103f4170c5efc7b8ef8797",
+      "target_tree": "3ac17aa0343264cad7b8f4bec23e1681747865f8"
+    },
+    "source_commit": "a9174077febfb1608ec3361622bf5f91e2668d7f",
+    "reference_parent": "d72c79b60d6a617cb74e964457a9cebf52e9d463",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/fuse/dev.c b/fs/fuse/dev.c\nindex 64d6c8c9f1ff2a2b614816d76e0b34fdd80171c7..ac6a8da34013935765ee0a83b96a6ff46038127f 100644\n--- a/fs/fuse/dev.c\n+++ b/fs/fuse/dev.c\n@@ -933,7 +933,17 @@ static int fuse_copy_page(struct fuse_copy_state *cs, struct page **pagep,\n \n \twhile (count) {\n \t\tif (cs->write && cs->pipebufs && page) {\n-\t\t\treturn fuse_ref_page(cs, page, offset, count);\n+\t\t\t/*\n+\t\t\t * Can't control lifetime of pipe buffers, so always\n+\t\t\t * copy user pages.\n+\t\t\t */\n+\t\t\tif (cs->req->args->user_pages) {\n+\t\t\t\terr = fuse_copy_fill(cs);\n+\t\t\t\tif (err)\n+\t\t\t\t\treturn err;\n+\t\t\t} else {\n+\t\t\t\treturn fuse_ref_page(cs, page, offset, count);\n+\t\t\t}\n \t\t} else if (!cs->len) {\n \t\t\tif (cs->move_pages && page &&\n \t\t\t    offset == 0 && count == PAGE_SIZE) {\ndiff --git a/fs/fuse/file.c b/fs/fuse/file.c\nindex 5cf13196ce69e26b7b84402a554e6f985ce9d59e..efb2a487129190c1c118c367febac0bd400a4726 100644\n--- a/fs/fuse/file.c\n+++ b/fs/fuse/file.c\n@@ -1433,6 +1433,7 @@ static int fuse_get_user_pages(struct fuse_args_pages *ap, struct iov_iter *ii,\n \t\t\t(PAGE_SIZE - ret) & (PAGE_SIZE - 1);\n \t}\n \n+\tap->args.user_pages = true;\n \tif (write)\n \t\tap->args.in_pages = 1;\n \telse\ndiff --git a/fs/fuse/fuse_i.h b/fs/fuse/fuse_i.h\nindex d878926485451ed7479d0b166d6c3464028ecd65..83c2855bc7406fd31efbbb7900c6591b10875cdd 100644\n--- a/fs/fuse/fuse_i.h\n+++ b/fs/fuse/fuse_i.h\n@@ -248,6 +248,7 @@ struct fuse_args {\n \tbool nocreds:1;\n \tbool in_pages:1;\n \tbool out_pages:1;\n+\tbool user_pages:1;\n \tbool out_argvar:1;\n \tbool page_zeroing:1;\n \tbool page_replace:1;\n",
+      "sha256": "31b55f21c9d0d671f9a8396405d7b8be45964ea4d719e9cabb15d5183986e58d"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2022-1011\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1319-aga0kf4g/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1319-aga0kf4g/repo/.patch-port/reference.diff\nreference_fix: a9174077febfb1608ec3361622bf5f91e2668d7f\nreference_parent: d72c79b60d6a617cb74e964457a9cebf52e9d463\ntarget_ref: fd97de9c7b973f46a6103f4170c5efc7b8ef8797\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1319-aga0kf4g/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1319-aga0kf4g/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2022-1011"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "b79d4d0da659a3c7bd1d5913e62188ceb9be9c49",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "4de40c4d0c50c640e53d2a92c450a6f60400f5347bf6b8e9952e78d17e56ad8e",
+      "text": "diff --git a/fs/fuse/dev.c b/fs/fuse/dev.c\nindex 585c52dbb2e395b14aea7f12b943edd2613e831d..13cf7c260a83146576c1bda518db560f0f478243 100644\n--- a/fs/fuse/dev.c\n+++ b/fs/fuse/dev.c\n@@ -992,7 +992,17 @@ static int fuse_copy_page(struct fuse_copy_state *cs, struct page **pagep,\n \n \twhile (count) {\n \t\tif (cs->write && cs->pipebufs && page) {\n-\t\t\treturn fuse_ref_page(cs, page, offset, count);\n+\t\t\t/*\n+\t\t\t * Can't control lifetime of pipe buffers, so always\n+\t\t\t * copy user pages.\n+\t\t\t */\n+\t\t\tif (cs->req->user_pages) {\n+\t\t\t\terr = fuse_copy_fill(cs);\n+\t\t\t\tif (err)\n+\t\t\t\t\treturn err;\n+\t\t\t} else {\n+\t\t\t\treturn fuse_ref_page(cs, page, offset, count);\n+\t\t\t}\n \t\t} else if (!cs->len) {\n \t\t\tif (cs->move_pages && page &&\n \t\t\t    offset == 0 && count == PAGE_SIZE) {\ndiff --git a/fs/fuse/file.c b/fs/fuse/file.c\nindex 8aef8e56eb1b69dfb0b2b4acfd2e75d3685d09a8..aa4f0d632bed4a28f886a6b898e8e6a435013e8a 100644\n--- a/fs/fuse/file.c\n+++ b/fs/fuse/file.c\n@@ -1319,6 +1319,7 @@ static int fuse_get_user_pages(struct fuse_req *req, struct iov_iter *ii,\n \t\t\t(PAGE_SIZE - ret) & (PAGE_SIZE - 1);\n \t}\n \n+\treq->user_pages = true;\n \tif (write)\n \t\treq->in.argpages = 1;\n \telse\ndiff --git a/fs/fuse/fuse_i.h b/fs/fuse/fuse_i.h\nindex 7e4b0e298bc7368bdc2668fb4b426c1c58457a47..6104534ddb7e6e77e73366e4802105d77fc187bd 100644\n--- a/fs/fuse/fuse_i.h\n+++ b/fs/fuse/fuse_i.h\n@@ -310,6 +310,8 @@ struct fuse_req {\n \t/** refcount */\n \tatomic_t count;\n \n+\tbool user_pages;\n+\n \t/** Unique ID for the interrupt request */\n \tu64 intr_unique;\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "d5c44107fd7b27a78d8b32d9fb10618896db27ac0d0e55a531f61b353c2853b4",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01319_CVE-2022-1011/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1319,
+      "cve": "CVE-2022-1011",
+      "source_commit": "a9174077febfb1608ec3361622bf5f91e2668d7f",
+      "oracle_commit": "b79d4d0da659a3c7bd1d5913e62188ceb9be9c49"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

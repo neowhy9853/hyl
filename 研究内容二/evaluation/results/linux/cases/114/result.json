@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "114",
+  "candidate_sha256": "ac3334ee004e0acbd62eed9781c70104fe51d25d391fb093c4e4453bdb5ccdd3",
+  "oracle_sha256": "a52c4f94e9bb4cb00f0e8db76cb2e0fc26f78a2716b0c73e1dcdd92b8cd82db3",
+  "candidate_nonempty": true,
+  "target_ref": "58f88d8f13a9afd3a2bacfe7f8d25104911b69fb",
+  "baseline_tree": "a820cf00754b06cb393123156b3d7d5706b90b5d",
+  "candidate_tree": "6016ecfc7546aa852a01d67d9be9624410c8d578",
+  "oracle_tree": "c9c39acb4abcf8ccdb688214a796458c51e8edd9",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/114",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "ac3334ee004e0acbd62eed9781c70104fe51d25d391fb093c4e4453bdb5ccdd3",
+    "text": "diff --git a/Documentation/arch/arm64/silicon-errata.rst b/Documentation/arch/arm64/silicon-errata.rst\nindex 0ac452333eb4..daa1e2ccc0d7 100644\n--- a/Documentation/arch/arm64/silicon-errata.rst\n+++ b/Documentation/arch/arm64/silicon-errata.rst\n@@ -63,6 +63,8 @@ stable kernels.\n +----------------+-----------------+-----------------+-----------------------------+\n | ARM            | Cortex-A510     | #1902691        | ARM64_ERRATUM_1902691       |\n +----------------+-----------------+-----------------+-----------------------------+\n+| ARM            | Cortex-A520     | #2966298        | ARM64_ERRATUM_2966298       |\n++----------------+-----------------+-----------------+-----------------------------+\n | ARM            | Cortex-A53      | #826319         | ARM64_ERRATUM_826319        |\n +----------------+-----------------+-----------------+-----------------------------+\n | ARM            | Cortex-A53      | #827319         | ARM64_ERRATUM_827319        |\ndiff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig\nindex a2511b30d0f6..64b931bd7754 100644\n--- a/arch/arm64/Kconfig\n+++ b/arch/arm64/Kconfig\n@@ -1022,6 +1022,19 @@ config ARM64_ERRATUM_2457168\n \n \t  If unsure, say Y.\n \n+config ARM64_ERRATUM_2966298\n+\tbool \"Cortex-A520: 2966298: workaround for speculatively executed unprivileged load\"\n+\tdefault y\n+\thelp\n+\t  This option adds the workaround for ARM Cortex-A520 erratum 2966298.\n+\n+\t  On an affected Cortex-A520 core, a speculatively executed unprivileged\n+\t  load might leak data from a privileged level via a cache side channel.\n+\n+\t  Work around this problem by executing a TLBI before returning to EL0.\n+\n+\t  If unsure, say Y.\n+\n config ARM64_ERRATUM_2645198\n \tbool \"Cortex-A715: 2645198: Workaround possible [ESR|FAR]_ELx corruption\"\n \tdefault y\ndiff --git a/arch/arm64/kernel/cpu_errata.c b/arch/arm64/kernel/cpu_errata.c\nindex be66e94a21bd..5706e74c5578 100644\n--- a/arch/arm64/kernel/cpu_errata.c\n+++ b/arch/arm64/kernel/cpu_errata.c\n@@ -730,6 +730,14 @@ const struct arm64_cpu_capabilities arm64_errata[] = {\n \t\t.cpu_enable = cpu_clear_bf16_from_user_emulation,\n \t},\n #endif\n+#ifdef CONFIG_ARM64_ERRATUM_2966298\n+\t{\n+\t\t.desc = \"ARM erratum 2966298\",\n+\t\t.capability = ARM64_WORKAROUND_2966298,\n+\t\t/* Cortex-A520 r0p0 - r0p1 */\n+\t\tERRATA_MIDR_REV_RANGE(MIDR_CORTEX_A520, 0, 0, 1),\n+\t},\n+#endif\n #ifdef CONFIG_AMPERE_ERRATUM_AC03_CPU_38\n \t{\n \t\t.desc = \"AmpereOne erratum AC03_CPU_38\",\ndiff --git a/arch/arm64/kernel/entry.S b/arch/arm64/kernel/entry.S\nindex 6ad61de03d0a..a6030913cd58 100644\n--- a/arch/arm64/kernel/entry.S\n+++ b/arch/arm64/kernel/entry.S\n@@ -428,6 +428,10 @@ alternative_else_nop_endif\n \tldp\tx28, x29, [sp, #16 * 14]\n \n \t.if\t\\el == 0\n+alternative_if ARM64_WORKAROUND_2966298\n+\ttlbi\tvale1, xzr\n+\tdsb\tnsh\n+alternative_else_nop_endif\n alternative_if_not ARM64_UNMAP_KERNEL_AT_EL0\n \tldr\tlr, [sp, #S_LR]\n \tadd\tsp, sp, #PT_REGS_SIZE\t\t// restore sp\ndiff --git a/arch/arm64/tools/cpucaps b/arch/arm64/tools/cpucaps\nindex c80ed4f3cbce..c28a9b995f3c 100644\n--- a/arch/arm64/tools/cpucaps\n+++ b/arch/arm64/tools/cpucaps\n@@ -83,6 +83,7 @@ WORKAROUND_2077057\n WORKAROUND_2457168\n WORKAROUND_2645198\n WORKAROUND_2658417\n+WORKAROUND_2966298\n WORKAROUND_AMPERE_AC03_CPU_38\n WORKAROUND_TRBE_OVERWRITE_FILL_MODE\n WORKAROUND_TSB_FLUSH_FAILURE\n"
+  },
+  "trace_file": "trace.jsonl"
+}

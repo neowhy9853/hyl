@@ -1,0 +1,48 @@
+{
+  "round": 2,
+  "case_id": "case_002",
+  "source_index": 1,
+  "repo": "kernel",
+  "commit_id": "f995ea2ce5668aa736264c8044ce5bd986222afb",
+  "oracle_label": "feat",
+  "predicted_label": "refactor",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "ea376788797c",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "refactor",
+    "confidence": 0.65,
+    "reason": "提交把 unpin_user_pages* 中逐页递减 head page 引用的循环改为按 compound_head 分组批量递减，属于等价替换的性能优化，无扩展能力",
+    "intent_items": [
+      {
+        "target": "mm/gup.c 中的 unpin_user_pages_dirty_lock() 与 unpin_user_pages() 及新增的 for_each_compound_head()/put_compound_head() 组合",
+        "change": "用手写循环替换为 for_each_compound_head 分组遍历，再对 head page 一次性 put_compound_head(head, ntails, FOLL_PIN)，并删除 TODO 注释",
+        "effect_or_reason": "同一 compound page 的多个子页合并为一次 head page 引用递减，减少重复操作以提升 THP/hugetlbfs 取消 pin 的性能",
+        "context_used": [
+          "git show f995ea2:mm/gup.c 中 for_each_compound_head/put_compound_head 定义与调用点"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "改为按 compound_head 分组，对 head page 单次递减引用计数"
+          ],
+          "message_only_details": [
+            "benchtop 数据：THP 约 87.6k us 降至 23.2k us"
+          ],
+          "code_only_details": [
+            "unpin_user_page() 单页路径仍保留，内部改为 put_compound_head(compound_head(page),1,FOLL_PIN)"
+          ]
+        },
+        "evidence": [
+          "patch 将 for 循环逐页 unpin_user_page() 改为 for_each_compound_head + put_compound_head(head, ntails, FOLL_PIN)，未新增接口或配置项，无外部可感知能力增量",
+          "set_page_dirty/PageDirty 判断改用 head page，语义与原逻辑等价，仅减少重复操作"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_002",
+  "trace_status": "available"
+}

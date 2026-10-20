@@ -1,0 +1,48 @@
+{
+  "round": 4,
+  "case_id": "case_100",
+  "source_index": 99,
+  "repo": "kernel",
+  "commit_id": "a823724c642bbe67ee96ef07c94ba052b8e75f79",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "4582287e0ea3",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "提交纠正了 iowait 标记逻辑，解决了特定场景下核心被误报为 100% iowait 的显示问题。",
+    "intent_items": [
+      {
+        "target": "io_uring 子系统的 io_cqring_wait_schedule 函数",
+        "change": "将无条件设置 current->in_iowait 改为仅在当前任务有 pending IO 请求时才设置",
+        "effect_or_reason": "修复了 reaper 线程等无 pending IO 的场景下，核心被错误标记为 100% iowait 的显示问题",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交前所有 cqring 等待都被标记为 iowait，导致无 pending IO 的线程也显示 iowait",
+            "提交后通过 current_pending_io() 检查来有条件地设置 in_iowait"
+          ],
+          "message_only_details": [
+            "问题表现为用户看到核心显示为 100% iowait 而感到困惑",
+            "此修复针对稳定版本 backport，并引用了 bugzilla 报告"
+          ],
+          "code_only_details": [
+            "新增了 current_pending_io() helper 函数来检查 tctx->inflight 计数"
+          ]
+        },
+        "evidence": [
+          "补丁将 io_schedule_prepare/finish 调用替换为条件设置 current->in_iowait = 1，纠正了错误标记路径",
+          "新增的 current_pending_io() 函数通过检查 inflight 计数判断是否有 pending 请求，实现了条件判断"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_100",
+  "trace_status": "available"
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "991",
+  "candidate_sha256": "ee59df36b1a29eece60a3b4ddb4eb0b5b3dd6c02e4b36e877c5b3f256e1bc342",
+  "oracle_sha256": "24d1e4399b8bab29d7d3bee8ad032c6b58407401c47bc5a210ea22439e022379",
+  "candidate_nonempty": true,
+  "target_ref": "f5bf8e3ca13edeee812c2cda6ba52d6cbf85d2b5",
+  "baseline_tree": "e219590fa35187a2f320df7d69820123f611970c",
+  "candidate_tree": "996941c533ed1c2340a972ee037d6ee7da73c1f3",
+  "oracle_tree": "996941c533ed1c2340a972ee037d6ee7da73c1f3",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/991",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "ee59df36b1a29eece60a3b4ddb4eb0b5b3dd6c02e4b36e877c5b3f256e1bc342",
+    "text": "diff --git a/net/sched/act_mirred.c b/net/sched/act_mirred.c\nindex cbcbc1d368a5..91a19460cb57 100644\n--- a/net/sched/act_mirred.c\n+++ b/net/sched/act_mirred.c\n@@ -206,12 +206,19 @@ static int tcf_mirred_init(struct net *net, struct nlattr *nla,\n \treturn err;\n }\n \n+static bool is_mirred_nested(void)\n+{\n+\treturn unlikely(__this_cpu_read(mirred_nest_level) > 1);\n+}\n+\n static int tcf_mirred_forward(bool want_ingress, struct sk_buff *skb)\n {\n \tint err;\n \n \tif (!want_ingress)\n \t\terr = dev_queue_xmit(skb);\n+\telse if (is_mirred_nested())\n+\t\terr = netif_rx(skb);\n \telse\n \t\terr = netif_receive_skb(skb);\n \ndiff --git a/tools/testing/selftests/net/forwarding/tc_actions.sh b/tools/testing/selftests/net/forwarding/tc_actions.sh\nindex d9eca227136b..1e27031288c8 100755\n--- a/tools/testing/selftests/net/forwarding/tc_actions.sh\n+++ b/tools/testing/selftests/net/forwarding/tc_actions.sh\n@@ -3,7 +3,7 @@\n \n ALL_TESTS=\"gact_drop_and_ok_test mirred_egress_redirect_test \\\n \tmirred_egress_mirror_test matchall_mirred_egress_mirror_test \\\n-\tgact_trap_test\"\n+\tgact_trap_test mirred_egress_to_ingress_tcp_test\"\n NUM_NETIFS=4\n source tc_common.sh\n source lib.sh\n@@ -153,6 +153,52 @@ gact_trap_test()\n \tlog_test \"trap ($tcflags)\"\n }\n \n+mirred_egress_to_ingress_tcp_test()\n+{\n+\tlocal tmpfile=$(mktemp) tmpfile1=$(mktemp)\n+\n+\tRET=0\n+\tdd conv=sparse status=none if=/dev/zero bs=1M count=2 of=$tmpfile\n+\ttc filter add dev $h1 protocol ip pref 100 handle 100 egress flower \\\n+\t\t$tcflags ip_proto tcp src_ip 192.0.2.1 dst_ip 192.0.2.2 \\\n+\t\t\taction ct commit nat src addr 192.0.2.2 pipe \\\n+\t\t\taction ct clear pipe \\\n+\t\t\taction ct commit nat dst addr 192.0.2.1 pipe \\\n+\t\t\taction ct clear pipe \\\n+\t\t\taction skbedit ptype host pipe \\\n+\t\t\taction mirred ingress redirect dev $h1\n+\ttc filter add dev $h1 protocol ip pref 101 handle 101 egress flower \\\n+\t\t$tcflags ip_proto icmp \\\n+\t\t\taction mirred ingress redirect dev $h1\n+\ttc filter add dev $h1 protocol ip pref 102 handle 102 ingress flower \\\n+\t\tip_proto icmp \\\n+\t\t\taction drop\n+\n+\tip vrf exec v$h1 nc --recv-only -w10 -l -p 12345 -o $tmpfile1  &\n+\tlocal rpid=$!\n+\tip vrf exec v$h1 nc -w1 --send-only 192.0.2.2 12345 <$tmpfile\n+\twait -n $rpid\n+\tcmp -s $tmpfile $tmpfile1\n+\tcheck_err $? \"server output check failed\"\n+\n+\t$MZ $h1 -c 10 -p 64 -a $h1mac -b $h1mac -A 192.0.2.1 -B 192.0.2.1 \\\n+\t\t-t icmp \"ping,id=42,seq=5\" -q\n+\ttc_check_packets \"dev $h1 egress\" 101 10\n+\tcheck_err $? \"didn't mirred redirect ICMP\"\n+\ttc_check_packets \"dev $h1 ingress\" 102 10\n+\tcheck_err $? \"didn't drop mirred ICMP\"\n+\tlocal overlimits=$(tc_rule_stats_get ${h1} 101 egress .overlimits)\n+\ttest ${overlimits} = 10\n+\tcheck_err $? \"wrong overlimits, expected 10 got ${overlimits}\"\n+\n+\ttc filter del dev $h1 egress protocol ip pref 100 handle 100 flower\n+\ttc filter del dev $h1 egress protocol ip pref 101 handle 101 flower\n+\ttc filter del dev $h1 ingress protocol ip pref 102 handle 102 flower\n+\n+\trm -f $tmpfile $tmpfile1\n+\tlog_test \"mirred_egress_to_ingress_tcp ($tcflags)\"\n+}\n+\n setup_prepare()\n {\n \th1=${NETIFS[p1]}\n"
+  },
+  "trace_file": "trace.jsonl"
+}

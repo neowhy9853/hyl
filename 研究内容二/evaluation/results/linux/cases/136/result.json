@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "136",
+  "candidate_sha256": "48ac364530c6a3ab4c7846f4726702157a6dcd7d8e7b171aabcd998a70724b38",
+  "oracle_sha256": "8244c2e10ed6ccac877319d265c15533d23f81e3a79cae9dfd0a2e1263fadfa3",
+  "candidate_nonempty": true,
+  "target_ref": "b609ecda2d767c6de520939825f1a93a4f3197a9",
+  "baseline_tree": "f17e9ab0d22e9215745e17f7bc8e8c8e7ec34485",
+  "candidate_tree": "8fb04c6d298b39fb81a54025e2c36bc2ca5ed978",
+  "oracle_tree": "8fb04c6d298b39fb81a54025e2c36bc2ca5ed978",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/136",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "48ac364530c6a3ab4c7846f4726702157a6dcd7d8e7b171aabcd998a70724b38",
+    "text": "diff --git a/net/mptcp/protocol.c b/net/mptcp/protocol.c\nindex 5f4019b1ddf1..b54951ae07aa 100644\n--- a/net/mptcp/protocol.c\n+++ b/net/mptcp/protocol.c\n@@ -3187,8 +3187,50 @@ static struct ipv6_pinfo *mptcp_inet6_sk(const struct sock *sk)\n \n \treturn (struct ipv6_pinfo *)(((u8 *)sk) + offset);\n }\n+\n+static void mptcp_copy_ip6_options(struct sock *newsk, const struct sock *sk)\n+{\n+\tconst struct ipv6_pinfo *np = inet6_sk(sk);\n+\tstruct ipv6_txoptions *opt;\n+\tstruct ipv6_pinfo *newnp;\n+\n+\tnewnp = inet6_sk(newsk);\n+\n+\trcu_read_lock();\n+\topt = rcu_dereference(np->opt);\n+\tif (opt) {\n+\t\topt = ipv6_dup_options(newsk, opt);\n+\t\tif (!opt)\n+\t\t\tnet_warn_ratelimited(\"%s: Failed to copy ip6 options\\n\", __func__);\n+\t}\n+\tRCU_INIT_POINTER(newnp->opt, opt);\n+\trcu_read_unlock();\n+}\n #endif\n \n+static void mptcp_copy_ip_options(struct sock *newsk, const struct sock *sk)\n+{\n+\tstruct ip_options_rcu *inet_opt, *newopt = NULL;\n+\tconst struct inet_sock *inet = inet_sk(sk);\n+\tstruct inet_sock *newinet;\n+\n+\tnewinet = inet_sk(newsk);\n+\n+\trcu_read_lock();\n+\tinet_opt = rcu_dereference(inet->inet_opt);\n+\tif (inet_opt) {\n+\t\tnewopt = sock_kmalloc(newsk, sizeof(*inet_opt) +\n+\t\t\t\t      inet_opt->opt.optlen, GFP_ATOMIC);\n+\t\tif (newopt)\n+\t\t\tmemcpy(newopt, inet_opt, sizeof(*inet_opt) +\n+\t\t\t       inet_opt->opt.optlen);\n+\t\telse\n+\t\t\tnet_warn_ratelimited(\"%s: Failed to copy ip options\\n\", __func__);\n+\t}\n+\tRCU_INIT_POINTER(newinet->inet_opt, newopt);\n+\trcu_read_unlock();\n+}\n+\n struct sock *mptcp_sk_clone_init(const struct sock *sk,\n \t\t\t\t const struct mptcp_options_received *mp_opt,\n \t\t\t\t struct sock *ssk,\n@@ -3209,6 +3251,13 @@ struct sock *mptcp_sk_clone_init(const struct sock *sk,\n \n \t__mptcp_init_sock(nsk);\n \n+#if IS_ENABLED(CONFIG_MPTCP_IPV6)\n+\tif (nsk->sk_family == AF_INET6)\n+\t\tmptcp_copy_ip6_options(nsk, sk);\n+\telse\n+#endif\n+\t\tmptcp_copy_ip_options(nsk, sk);\n+\n \tmsk = mptcp_sk(nsk);\n \tmsk->local_key = subflow_req->local_key;\n \tmsk->token = subflow_req->token;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

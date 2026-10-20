@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "825",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-825-l29b_hi4/repo",
+      "target_ref": "7c165d58effc19fdf68196d4ceebf940d5da777d",
+      "target_tree": "0d65326c1ef06c728d39fc5c6fac3c7e45a4c71f"
+    },
+    "source_commit": "e9d271731d21647f8f9e9a261582cf47b868589a",
+    "reference_parent": "ed423d80bb9a19a80620d758ace6a28f69a0f1e0",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c\nindex da8fc57ff5b2500956627746ae008fe7a08d81e2..71ac1da127a68e52b7b30db83f5178229d91114d 100644\n--- a/kernel/bpf/verifier.c\n+++ b/kernel/bpf/verifier.c\n@@ -10475,6 +10475,7 @@ static int adjust_insn_aux_data(struct bpf_verifier_env *env,\n {\n \tstruct bpf_insn_aux_data *new_data, *old_data = env->insn_aux_data;\n \tstruct bpf_insn *insn = new_prog->insnsi;\n+\tu32 old_seen = old_data[off].seen;\n \tu32 prog_len;\n \tint i;\n \n@@ -10495,7 +10496,8 @@ static int adjust_insn_aux_data(struct bpf_verifier_env *env,\n \tmemcpy(new_data + off + cnt - 1, old_data + off,\n \t       sizeof(struct bpf_insn_aux_data) * (prog_len - off - cnt + 1));\n \tfor (i = off; i < off + cnt - 1; i++) {\n-\t\tnew_data[i].seen = env->pass_cnt;\n+\t\t/* Expand insni[off]'s seen count to the patched range. */\n+\t\tnew_data[i].seen = old_seen;\n \t\tnew_data[i].zext_dst = insn_has_def32(env, insn + i);\n \t}\n \tenv->insn_aux_data = new_data;\n",
+      "sha256": "38b1ab241e19c860aa400e56f505f1b1f287b5f7a9d87a7e9eb87e87e146ad3d"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2021-33624\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-825-l29b_hi4/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-825-l29b_hi4/repo/.patch-port/reference.diff\nreference_fix: e9d271731d21647f8f9e9a261582cf47b868589a\nreference_parent: ed423d80bb9a19a80620d758ace6a28f69a0f1e0\ntarget_ref: 7c165d58effc19fdf68196d4ceebf940d5da777d\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-825-l29b_hi4/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-825-l29b_hi4/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2021-33624"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "0abc8c9754c953f5cd0ac7488c668ca8d53ffc90",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "19cfb0110ae86283111c75660eb4b5868a1454f664f72e08f273349d4dd7b7cc",
+      "text": "diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c\nindex 4ce032c4acd039376740c844e6e6cc8328a7dda3..70cadee591f37a95af49964b6cdcc1d0f3d5745a 100644\n--- a/kernel/bpf/verifier.c\n+++ b/kernel/bpf/verifier.c\n@@ -5690,6 +5690,7 @@ static int adjust_insn_aux_data(struct bpf_verifier_env *env, u32 prog_len,\n \t\t\t\tu32 off, u32 cnt)\n {\n \tstruct bpf_insn_aux_data *new_data, *old_data = env->insn_aux_data;\n+\tbool old_seen = old_data[off].seen;\n \tint i;\n \n \tif (cnt == 1)\n@@ -5701,8 +5702,10 @@ static int adjust_insn_aux_data(struct bpf_verifier_env *env, u32 prog_len,\n \tmemcpy(new_data, old_data, sizeof(struct bpf_insn_aux_data) * off);\n \tmemcpy(new_data + off + cnt - 1, old_data + off,\n \t       sizeof(struct bpf_insn_aux_data) * (prog_len - off - cnt + 1));\n-\tfor (i = off; i < off + cnt - 1; i++)\n-\t\tnew_data[i].seen = true;\n+\tfor (i = off; i < off + cnt - 1; i++) {\n+\t\t/* Expand insni[off]'s seen count to the patched range. */\n+\t\tnew_data[i].seen = old_seen;\n+\t}\n \tenv->insn_aux_data = new_data;\n \tvfree(old_data);\n \treturn 0;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "a1e6e4bfdb3c0d362463a9826f31241d3b33952a783ed3ad8686f033b1c27c95",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00825_CVE-2021-33624/reference.diff",
+    "source_dataset_record": {
+      "case_id": 825,
+      "cve": "CVE-2021-33624",
+      "source_commit": "e9d271731d21647f8f9e9a261582cf47b868589a",
+      "oracle_commit": "0abc8c9754c953f5cd0ac7488c668ca8d53ffc90"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

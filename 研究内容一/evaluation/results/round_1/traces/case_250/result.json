@@ -1,0 +1,50 @@
+{
+  "round": 1,
+  "case_id": "case_250",
+  "source_index": 249,
+  "repo": "kernel",
+  "commit_id": "40e2833f0dfa6b5bcfa3927e3e6d8939254f1a02",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "227720f94ac2",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.95,
+    "reason": "提交通过拆分 set_tod_clock 并新增 trylock 包装器，消除 SCK 处理路径上 vcpu lock 与 kvm lock 的反序加锁死锁，属于纠正既有错误路径。",
+    "intent_items": [
+      {
+        "target": "s390 KVM 的 TOD 时钟设置路径（kvm-s390.c / kvm-s390.h / priv.c）",
+        "change": "把加锁逻辑从 kvm_s390_set_tod_clock 抽出为 __kvm_s390_set_tod_clock，并新增 kvm_s390_try_set_tod_clock 用 mutex_trylock",
+        "effect_or_reason": "SCK 处理时不再在持有 vcpu lock 的情况下阻塞获取 kvm lock，获取失败则 kvm_s390_retry_instr 并返回 -EAGAIN",
+        "context_used": [
+          "arch/s390/kvm/priv.c 中 handle_set_clock 的调用点改动",
+          "arch/s390/kvm/kvm-s390.c 中 set_tod_clock 的锁拆分"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "SCK 处理持有 vcpu lock 时又取 kvm lock，锁序相反导致死锁"
+          ],
+          "message_only_details": [
+            "该问题在部分场景下确实触发死锁",
+            "SCK 已废弃，因此可用较慢的 trylock 路径"
+          ],
+          "code_only_details": [
+            "trylock 失败返回 0，调用方转为 kvm_s390_retry_instr 并返回 -EAGAIN"
+          ]
+        },
+        "evidence": [
+          "原代码在 kvm_s390_set_tod_clock 内直接 mutex_lock(&kvm->lock)，SCK 路径已持有 vcpu lock，形成反序加锁；补丁改为 trylock 失败即返回并重试指令",
+          "IOCTL 调用方仍走加锁的 kvm_s390_set_tod_clock，仅 SCK 路径改用 kvm_s390_try_set_tod_clock，说明目的是修正错误加锁路径而非新增用户能力"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_250",
+  "trace_status": "available"
+}

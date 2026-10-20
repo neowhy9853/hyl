@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-17-kernel",
+  "task_input": {
+    "repository": {
+      "name": "kernel",
+      "version": null,
+      "path_at_run": "/workspace/repo",
+      "target_ref": "5930fa3740c518a9f6ba688fd0c1873d6f3adbce",
+      "target_tree": "015e73c89c93ff7b6afd281bab8aad317d7558b7"
+    },
+    "source_commit": "18c4ef4e765a798b47980555ed665d78b71aeadf",
+    "reference_parent": "5f566c0ac51cd2474e47da68dbe719d3acf7d999",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 18c4ef4e765a798b47980555ed665d78b71aeadf Mon Sep 17 00:00:00 2001\nFrom: Junjie Cao <junjie.cao@intel.com>\nDate: Mon, 20 Oct 2025 21:47:01 +0800\nSubject: [PATCH] fbdev: bitblit: bound-check glyph index in bit_putcs*\n\nbit_putcs_aligned()/unaligned() derived the glyph pointer from the\ncharacter value masked by 0xff/0x1ff, which may exceed the actual font's\nglyph count and read past the end of the built-in font array.\nClamp the index to the actual glyph count before computing the address.\n\nThis fixes a global out-of-bounds read reported by syzbot.\n\nReported-by: syzbot+793cf822d213be1a74f2@syzkaller.appspotmail.com\nCloses: https://syzkaller.appspot.com/bug?extid=793cf822d213be1a74f2\nTested-by: syzbot+793cf822d213be1a74f2@syzkaller.appspotmail.com\nSigned-off-by: Junjie Cao <junjie.cao@intel.com>\nReviewed-by: Thomas Zimmermann <tzimmermann@suse.de>\nSigned-off-by: Helge Deller <deller@gmx.de>\nCc: stable@vger.kernel.org\n---\n drivers/video/fbdev/core/bitblit.c | 16 ++++++++++++----\n 1 file changed, 12 insertions(+), 4 deletions(-)\n\ndiff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitblit.c\nindex a9ec7f488522..dc5ad3fcc7be 100644\n--- a/drivers/video/fbdev/core/bitblit.c\n+++ b/drivers/video/fbdev/core/bitblit.c\n@@ -79,12 +79,16 @@ static inline void bit_putcs_aligned(struct vc_data *vc, struct fb_info *info,\n \t\t\t\t     struct fb_image *image, u8 *buf, u8 *dst)\n {\n \tu16 charmask = vc->vc_hi_font_mask ? 0x1ff : 0xff;\n+\tunsigned int charcnt = vc->vc_font.charcount;\n \tu32 idx = vc->vc_font.width >> 3;\n \tu8 *src;\n \n \twhile (cnt--) {\n-\t\tsrc = vc->vc_font.data + (scr_readw(s++)&\n-\t\t\t\t\t  charmask)*cellsize;\n+\t\tu16 ch = scr_readw(s++) & charmask;\n+\n+\t\tif (ch >= charcnt)\n+\t\t\tch = 0;\n+\t\tsrc = vc->vc_font.data + (unsigned int)ch * cellsize;\n \n \t\tif (attr) {\n \t\t\tupdate_attr(buf, src, attr, vc);\n@@ -112,14 +116,18 @@ static inline void bit_putcs_unaligned(struct vc_data *vc,\n \t\t\t\t       u8 *dst)\n {\n \tu16 charmask = vc->vc_hi_font_mask ? 0x1ff : 0xff;\n+\tunsigned int charcnt = vc->vc_font.charcount;\n \tu32 shift_low = 0, mod = vc->vc_font.width % 8;\n \tu32 shift_high = 8;\n \tu32 idx = vc->vc_font.width >> 3;\n \tu8 *src;\n \n \twhile (cnt--) {\n-\t\tsrc = vc->vc_font.data + (scr_readw(s++)&\n-\t\t\t\t\t  charmask)*cellsize;\n+\t\tu16 ch = scr_readw(s++) & charmask;\n+\n+\t\tif (ch >= charcnt)\n+\t\t\tch = 0;\n+\t\tsrc = vc->vc_font.data + (unsigned int)ch * cellsize;\n \n \t\tif (attr) {\n \t\t\tupdate_attr(buf, src, attr, vc);\n-- \n2.25.1\n\n",
+      "sha256": "3635b031987cf7ad1bf2fa07ded84fd6bfa41870047714a6cc9907a5d94a2c0e"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for kernel.\ncase_id: oe-17-kernel\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 18c4ef4e765a798b47980555ed665d78b71aeadf\nreference_parent: 5f566c0ac51cd2474e47da68dbe719d3acf7d999\ntarget_ref: 5930fa3740c518a9f6ba688fd0c1873d6f3adbce\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "2ed2607544ec0fa444407f6b153bdaf0870e3926a04735cda9215eb762dd0b47",
+      "text": "From 3e9e3250f847b1a14892070446f0aefac1616087 Mon Sep 17 00:00:00 2001\nFrom: Junjie Cao <junjie.cao@intel.com>\nDate: Thu, 11 Dec 2025 11:30:09 +0000\nSubject: [PATCH] fbdev: bitblit: bound-check glyph index in bit_putcs*\n\nstable inclusion\nfrom stable-v6.6.117\ncommit 9ba1a7802ca9a2590cef95b253e6526f4364477f\ncategory: bugfix\nbugzilla: https://gitee.com/src-openeuler/kernel/issues/IDBAJ2\nCVE: CVE-2025-40322\n\nReference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=9ba1a7802ca9a2590cef95b253e6526f4364477f\n\n----------------------------------------------------------------------\n\ncommit 18c4ef4e765a798b47980555ed665d78b71aeadf upstream.\n\nbit_putcs_aligned()/unaligned() derived the glyph pointer from the\ncharacter value masked by 0xff/0x1ff, which may exceed the actual font's\nglyph count and read past the end of the built-in font array.\nClamp the index to the actual glyph count before computing the address.\n\nThis fixes a global out-of-bounds read reported by syzbot.\n\nReported-by: syzbot+793cf822d213be1a74f2@syzkaller.appspotmail.com\nCloses: https://syzkaller.appspot.com/bug?extid=793cf822d213be1a74f2\nTested-by: syzbot+793cf822d213be1a74f2@syzkaller.appspotmail.com\nSigned-off-by: Junjie Cao <junjie.cao@intel.com>\nReviewed-by: Thomas Zimmermann <tzimmermann@suse.de>\nSigned-off-by: Helge Deller <deller@gmx.de>\nCc: stable@vger.kernel.org\nSigned-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>\nSigned-off-by: Luo Gengkun <luogengkun2@huawei.com>\n---\n drivers/video/fbdev/core/bitblit.c | 16 ++++++++++++----\n 1 file changed, 12 insertions(+), 4 deletions(-)\n\ndiff --git a/drivers/video/fbdev/core/bitblit.c b/drivers/video/fbdev/core/bitblit.c\nindex 8587c9da0670..43639f045269 100644\n--- a/drivers/video/fbdev/core/bitblit.c\n+++ b/drivers/video/fbdev/core/bitblit.c\n@@ -80,12 +80,16 @@ static inline void bit_putcs_aligned(struct vc_data *vc, struct fb_info *info,\n \t\t\t\t     struct fb_image *image, u8 *buf, u8 *dst)\n {\n \tu16 charmask = vc->vc_hi_font_mask ? 0x1ff : 0xff;\n+\tunsigned int charcnt = vc->vc_font.charcount;\n \tu32 idx = vc->vc_font.width >> 3;\n \tu8 *src;\n \n \twhile (cnt--) {\n-\t\tsrc = vc->vc_font.data + (scr_readw(s++)&\n-\t\t\t\t\t  charmask)*cellsize;\n+\t\tu16 ch = scr_readw(s++) & charmask;\n+\n+\t\tif (ch >= charcnt)\n+\t\t\tch = 0;\n+\t\tsrc = vc->vc_font.data + (unsigned int)ch * cellsize;\n \n \t\tif (attr) {\n \t\t\tupdate_attr(buf, src, attr, vc);\n@@ -113,14 +117,18 @@ static inline void bit_putcs_unaligned(struct vc_data *vc,\n \t\t\t\t       u8 *dst)\n {\n \tu16 charmask = vc->vc_hi_font_mask ? 0x1ff : 0xff;\n+\tunsigned int charcnt = vc->vc_font.charcount;\n \tu32 shift_low = 0, mod = vc->vc_font.width % 8;\n \tu32 shift_high = 8;\n \tu32 idx = vc->vc_font.width >> 3;\n \tu8 *src;\n \n \twhile (cnt--) {\n-\t\tsrc = vc->vc_font.data + (scr_readw(s++)&\n-\t\t\t\t\t  charmask)*cellsize;\n+\t\tu16 ch = scr_readw(s++) & charmask;\n+\n+\t\tif (ch >= charcnt)\n+\t\t\tch = 0;\n+\t\tsrc = vc->vc_font.data + (unsigned int)ch * cellsize;\n \n \t\tif (attr) {\n \t\t\tupdate_attr(buf, src, attr, vc);\n-- \n2.25.1\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "585783338f66c55f8e9c1763957e2235a06794f00f9d5f5aaf13e5b192fddd03",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-17-kernel/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-17-kernel",
+      "package": "kernel",
+      "source_commit": "18c4ef4e765a798b47980555ed665d78b71aeadf",
+      "target_ref": "5930fa3740c518a9f6ba688fd0c1873d6f3adbce",
+      "target_tree": "015e73c89c93ff7b6afd281bab8aad317d7558b7",
+      "reference_patch": "patches/oe-17-kernel/reference.patch",
+      "reference_sha256": "3635b031987cf7ad1bf2fa07ded84fd6bfa41870047714a6cc9907a5d94a2c0e",
+      "oracle_patch": "patches/oe-17-kernel/oracle.patch",
+      "oracle_sha256": "2ed2607544ec0fa444407f6b153bdaf0870e3926a04735cda9215eb762dd0b47"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

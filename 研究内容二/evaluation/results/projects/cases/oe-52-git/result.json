@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-52-git",
+  "candidate_sha256": "179700511a0d6fc0c952840a67a3002ad9bf6ea62e5376f647dd8a9a570d7516",
+  "oracle_sha256": "b703d1875c1395d327b317ca5a10ec2982f519afb327855097fa08720b5f28ed",
+  "candidate_nonempty": true,
+  "target_ref": "f722528f8b134e074384483ae693723643394f4c",
+  "baseline_tree": "1ee93f6b043add6ee9d38a1e8d4800fc87348cef",
+  "candidate_tree": "9166fd806cff123c9a68dcbe39ad0cc443997886",
+  "oracle_tree": "9166fd806cff123c9a68dcbe39ad0cc443997886",
+  "candidate_apply_passed": true,
+  "historical_verdict": "infrastructure_error",
+  "case_path": "cases/oe-52-git",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "179700511a0d6fc0c952840a67a3002ad9bf6ea62e5376f647dd8a9a570d7516",
+    "text": "diff --git a/path.c b/path.c\nindex 67e2690efe..b84c2d1c44 100644\n--- a/path.c\n+++ b/path.c\n@@ -846,6 +846,7 @@ const char *enter_repo(const char *path, int strict)\n \t\tif (!suffix[i])\n \t\t\treturn NULL;\n \t\tgitfile = read_gitfile(used_path.buf);\n+\t\tdie_upon_dubious_ownership(gitfile, NULL, used_path.buf);\n \t\tif (gitfile) {\n \t\t\tstrbuf_reset(&used_path);\n \t\t\tstrbuf_addstr(&used_path, gitfile);\n@@ -856,6 +857,7 @@ const char *enter_repo(const char *path, int strict)\n \t}\n \telse {\n \t\tconst char *gitfile = read_gitfile(path);\n+\t\tdie_upon_dubious_ownership(gitfile, NULL, path);\n \t\tif (gitfile)\n \t\t\tpath = gitfile;\n \t\tif (chdir(path))\ndiff --git a/setup.c b/setup.c\nindex fc592dc6dd..4d8b84a18f 100644\n--- a/setup.c\n+++ b/setup.c\n@@ -1189,6 +1189,27 @@ static int ensure_valid_ownership(const char *gitfile,\n \treturn data.is_safe;\n }\n \n+void die_upon_dubious_ownership(const char *gitfile, const char *worktree,\n+\t\t\t\tconst char *gitdir)\n+{\n+\tstruct strbuf report = STRBUF_INIT, quoted = STRBUF_INIT;\n+\tconst char *path;\n+\n+\tif (ensure_valid_ownership(gitfile, worktree, gitdir, &report))\n+\t\treturn;\n+\n+\tstrbuf_complete(&report, '\\n');\n+\tpath = gitfile ? gitfile : gitdir;\n+\tsq_quote_buf_pretty(&quoted, path);\n+\n+\tdie(_(\"detected dubious ownership in repository at '%s'\\n\"\n+\t      \"%s\"\n+\t      \"To add an exception for this directory, call:\\n\"\n+\t      \"\\n\"\n+\t      \"\\tgit config --global --add safe.directory %s\"),\n+\t    path, report.buf, quoted.buf);\n+}\n+\n static int allowed_bare_repo_cb(const char *key, const char *value,\n \t\t\t\tconst struct config_context *ctx UNUSED,\n \t\t\t\tvoid *d)\ndiff --git a/setup.h b/setup.h\nindex b48cf1c43b..1e34b59162 100644\n--- a/setup.h\n+++ b/setup.h\n@@ -41,6 +41,18 @@ const char *read_gitfile_gently(const char *path, int *return_error_code);\n const char *resolve_gitdir_gently(const char *suspect, int *return_error_code);\n #define resolve_gitdir(path) resolve_gitdir_gently((path), NULL)\n \n+/*\n+ * Check if a repository is safe and die if it is not, by verifying the\n+ * ownership of the worktree (if any), the git directory, and the gitfile (if\n+ * any).\n+ *\n+ * Exemptions for known-safe repositories can be added via `safe.directory`\n+ * config settings; for non-bare repositories, their worktree needs to be\n+ * added, for bare ones their git directory.\n+ */\n+void die_upon_dubious_ownership(const char *gitfile, const char *worktree,\n+\t\t\t\tconst char *gitdir);\n+\n void setup_work_tree(void);\n \n /*\ndiff --git a/t/t0411-clone-from-partial.sh b/t/t0411-clone-from-partial.sh\nindex fb72a0a9ff..eb3360dbca 100755\n--- a/t/t0411-clone-from-partial.sh\n+++ b/t/t0411-clone-from-partial.sh\n@@ -23,7 +23,7 @@ test_expect_success 'create evil repo' '\n \t>evil/.git/shallow\n '\n \n-test_expect_failure 'local clone must not fetch from promisor remote and execute script' '\n+test_expect_success 'local clone must not fetch from promisor remote and execute script' '\n \trm -f script-executed &&\n \ttest_must_fail git clone \\\n \t\t--upload-pack=\"GIT_TEST_ASSUME_DIFFERENT_OWNER=true git-upload-pack\" \\\n@@ -32,7 +32,7 @@ test_expect_failure 'local clone must not fetch from promisor remote and execute\n \ttest_path_is_missing script-executed\n '\n \n-test_expect_failure 'clone from file://... must not fetch from promisor remote and execute script' '\n+test_expect_success 'clone from file://... must not fetch from promisor remote and execute script' '\n \trm -f script-executed &&\n \ttest_must_fail git clone \\\n \t\t--upload-pack=\"GIT_TEST_ASSUME_DIFFERENT_OWNER=true git-upload-pack\" \\\n@@ -41,7 +41,7 @@ test_expect_failure 'clone from file://... must not fetch from promisor remote a\n \ttest_path_is_missing script-executed\n '\n \n-test_expect_failure 'fetch from file://... must not fetch from promisor remote and execute script' '\n+test_expect_success 'fetch from file://... must not fetch from promisor remote and execute script' '\n \trm -f script-executed &&\n \ttest_must_fail git fetch \\\n \t\t--upload-pack=\"GIT_TEST_ASSUME_DIFFERENT_OWNER=true git-upload-pack\" \\\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "368",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-368-d76t2nft/repo",
+      "target_ref": "b8b6a72089869dee41bd9f29e86bbcf6501e5524",
+      "target_tree": "b84c3622c8e10fd22955b1003574e9cddc6090d4"
+    },
+    "source_commit": "10037421b529bc1fc18994e94e37d745184c4ea9",
+    "reference_parent": "53a68d3f1629de82ddeb4e0882b0727fc230a6f3",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c\nindex 7cfe286e5b8af23deb0a94c812b817637a2b0044..dde03309396ac6558b19925a2ee98089c451b38c 100644\n--- a/drivers/usb/core/hub.c\n+++ b/drivers/usb/core/hub.c\n@@ -153,7 +153,7 @@ EXPORT_SYMBOL_GPL(ehci_cf_port_reset_rwsem);\n #define HUB_DEBOUNCE_STEP\t  25\n #define HUB_DEBOUNCE_STABLE\t 100\n \n-\n+static void hub_release(struct kref *kref);\n static int usb_reset_and_verify_device(struct usb_device *udev);\n \n static inline char *portspeed(struct usb_hub *hub, int portstatus)\n@@ -792,10 +792,20 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)\n \tunsigned delay;\n \n \t/* Continue a partial initialization */\n-\tif (type == HUB_INIT2)\n-\t\tgoto init2;\n-\tif (type == HUB_INIT3)\n+\tif (type == HUB_INIT2 || type == HUB_INIT3) {\n+\t\tdevice_lock(hub->intfdev);\n+\n+\t\t/* Was the hub disconnected while we were waiting? */\n+\t\tif (hub->disconnected) {\n+\t\t\tdevice_unlock(hub->intfdev);\n+\t\t\tkref_put(&hub->kref, hub_release);\n+\t\t\treturn;\n+\t\t}\n+\t\tif (type == HUB_INIT2)\n+\t\t\tgoto init2;\n \t\tgoto init3;\n+\t}\n+\tkref_get(&hub->kref);\n \n \t/* The superspeed hub except for root hub has to use Hub Depth\n \t * value as an offset into the route string to locate the bits\n@@ -984,6 +994,7 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)\n \t\t\tPREPARE_DELAYED_WORK(&hub->init_work, hub_init_func3);\n \t\t\tschedule_delayed_work(&hub->init_work,\n \t\t\t\t\tmsecs_to_jiffies(delay));\n+\t\t\tdevice_unlock(hub->intfdev);\n \t\t\treturn;\t\t/* Continues at init3: below */\n \t\t} else {\n \t\t\tmsleep(delay);\n@@ -1004,6 +1015,11 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)\n \t/* Allow autosuspend if it was suppressed */\n \tif (type <= HUB_INIT3)\n \t\tusb_autopm_put_interface_async(to_usb_interface(hub->intfdev));\n+\n+\tif (type == HUB_INIT2 || type == HUB_INIT3)\n+\t\tdevice_unlock(hub->intfdev);\n+\n+\tkref_put(&hub->kref, hub_release);\n }\n \n /* Implement the continuations for the delays above */\n",
+      "sha256": "687a0f992396855670d83904eaf21dae7a072d4ee7ed31aafa5ef13562a7fe77"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2015-8816\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-368-d76t2nft/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-368-d76t2nft/repo/.patch-port/reference.diff\nreference_fix: 10037421b529bc1fc18994e94e37d745184c4ea9\nreference_parent: 53a68d3f1629de82ddeb4e0882b0727fc230a6f3\ntarget_ref: b8b6a72089869dee41bd9f29e86bbcf6501e5524\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-368-d76t2nft/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-368-d76t2nft/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2015-8816"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "627c25d08197bafc328d9ac841dfc1a143806a71",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "9c7be5d3639fc88767135ae8605ceb76d759f218b6d1d0e6688cbdb42a715ddb",
+      "text": "diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c\nindex dcee3f09793d4df139616c263974efe12ddf4491..f46ac929ef8a61d45d721bb5c372cb4179a096ef 100644\n--- a/drivers/usb/core/hub.c\n+++ b/drivers/usb/core/hub.c\n@@ -106,6 +106,7 @@ EXPORT_SYMBOL_GPL(ehci_cf_port_reset_rwsem);\n #define HUB_DEBOUNCE_STEP\t  25\n #define HUB_DEBOUNCE_STABLE\t 100\n \n+static void hub_release(struct kref *kref);\n static int usb_reset_and_verify_device(struct usb_device *udev);\n \n static inline char *portspeed(struct usb_hub *hub, int portstatus)\n@@ -1023,10 +1024,20 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)\n \tunsigned delay;\n \n \t/* Continue a partial initialization */\n-\tif (type == HUB_INIT2)\n-\t\tgoto init2;\n-\tif (type == HUB_INIT3)\n+\tif (type == HUB_INIT2 || type == HUB_INIT3) {\n+\t\tdevice_lock(hub->intfdev);\n+\n+\t\t/* Was the hub disconnected while we were waiting? */\n+\t\tif (hub->disconnected) {\n+\t\t\tdevice_unlock(hub->intfdev);\n+\t\t\tkref_put(&hub->kref, hub_release);\n+\t\t\treturn;\n+\t\t}\n+\t\tif (type == HUB_INIT2)\n+\t\t\tgoto init2;\n \t\tgoto init3;\n+\t}\n+\tkref_get(&hub->kref);\n \n \t/* The superspeed hub except for root hub has to use Hub Depth\n \t * value as an offset into the route string to locate the bits\n@@ -1220,6 +1231,7 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)\n \t\t\tPREPARE_DELAYED_WORK(&hub->init_work, hub_init_func3);\n \t\t\tschedule_delayed_work(&hub->init_work,\n \t\t\t\t\tmsecs_to_jiffies(delay));\n+\t\t\tdevice_unlock(hub->intfdev);\n \t\t\treturn;\t\t/* Continues at init3: below */\n \t\t} else {\n \t\t\tmsleep(delay);\n@@ -1240,6 +1252,11 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)\n \t/* Allow autosuspend if it was suppressed */\n \tif (type <= HUB_INIT3)\n \t\tusb_autopm_put_interface_async(to_usb_interface(hub->intfdev));\n+\n+\tif (type == HUB_INIT2 || type == HUB_INIT3)\n+\t\tdevice_unlock(hub->intfdev);\n+\n+\tkref_put(&hub->kref, hub_release);\n }\n \n /* Implement the continuations for the delays above */\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "3111bc43395452870e2d11ed2e3c489b71862f61c93547d91d9090ed4cb09aa6",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00368_CVE-2015-8816/reference.diff",
+    "source_dataset_record": {
+      "case_id": 368,
+      "cve": "CVE-2015-8816",
+      "source_commit": "10037421b529bc1fc18994e94e37d745184c4ea9",
+      "oracle_commit": "627c25d08197bafc328d9ac841dfc1a143806a71"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

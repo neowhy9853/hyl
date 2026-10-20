@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1720",
+  "candidate_sha256": "2949c7cb46c010892090c18d0efa2649d470d452f8e7b57f8ad8a5ac635b7cb8",
+  "oracle_sha256": "858c11953df7b2da9305266fb3bb292197624cfe34363f94133c6ab6f7537a1f",
+  "candidate_nonempty": true,
+  "target_ref": "fa01206912e5bc7c48e0a89d0da820062b018854",
+  "baseline_tree": "603bd078334a46953dcf86c7cba952a563b28c98",
+  "candidate_tree": "05526efa6d717e18c2cd95b1a3f2aecfae26da5c",
+  "oracle_tree": "2167c583cc9d07876ccb5f431f779b93776b45e9",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1720",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "2949c7cb46c010892090c18d0efa2649d470d452f8e7b57f8ad8a5ac635b7cb8",
+    "text": "diff --git a/arch/ia64/include/asm/processor.h b/arch/ia64/include/asm/processor.h\nindex d9f397fae03..fba7696368d 100644\n--- a/arch/ia64/include/asm/processor.h\n+++ b/arch/ia64/include/asm/processor.h\n@@ -320,7 +320,7 @@ struct thread_struct {\n \tregs->loadrs = 0;\t\t\t\t\t\t\t\t\t\\\n \tregs->r8 = get_dumpable(current->mm);\t/* set \"don't zap registers\" flag */\t\t\\\n \tregs->r12 = new_sp - 16;\t/* allocate 16 byte scratch area */\t\t\t\\\n-\tif (unlikely(!get_dumpable(current->mm))) {\t\t\t\t\t\t\t\\\n+\tif (unlikely(get_dumpable(current->mm) != SUID_DUMP_USER)) {\t\\\n \t\t/*\t\t\t\t\t\t\t\t\t\t\\\n \t\t * Zap scratch regs to avoid leaking bits between processes with different\t\\\n \t\t * uid/privileges.\t\t\t\t\t\t\t\t\\\ndiff --git a/fs/exec.c b/fs/exec.c\nindex a2d0e51019f..78199ebce9d 100644\n--- a/fs/exec.c\n+++ b/fs/exec.c\n@@ -2032,6 +2032,12 @@ static int __get_dumpable(unsigned long mm_flags)\n \treturn (ret >= 2) ? 2 : ret;\n }\n \n+/*\n+ * This returns the actual value of the suid_dumpable flag. For things\n+ * that are using this for checking for privilege transitions, it must\n+ * test against SUID_DUMP_USER rather than treating it as a boolean\n+ * value.\n+ */\n int get_dumpable(struct mm_struct *mm)\n {\n \treturn __get_dumpable(mm->flags);\ndiff --git a/include/linux/binfmts.h b/include/linux/binfmts.h\nindex acd8d4bf161..d337419e9e3 100644\n--- a/include/linux/binfmts.h\n+++ b/include/linux/binfmts.h\n@@ -112,9 +112,6 @@ extern void setup_new_exec(struct linux_binprm * bprm);\n extern void would_dump(struct linux_binprm *, struct file *);\n \n extern int suid_dumpable;\n-#define SUID_DUMP_DISABLE\t0\t/* No setuid dumping */\n-#define SUID_DUMP_USER\t\t1\t/* Dump as user of process */\n-#define SUID_DUMP_ROOT\t\t2\t/* Dump as root */\n \n /* Stack area protections */\n #define EXSTACK_DEFAULT   0\t/* Whatever the arch defaults to */\ndiff --git a/include/linux/sched.h b/include/linux/sched.h\nindex 8204898dfed..312d047eb91 100644\n--- a/include/linux/sched.h\n+++ b/include/linux/sched.h\n@@ -403,6 +403,10 @@ static inline void arch_pick_mmap_layout(struct mm_struct *mm) {}\n extern void set_dumpable(struct mm_struct *mm, int value);\n extern int get_dumpable(struct mm_struct *mm);\n \n+#define SUID_DUMP_DISABLE\t0\t/* No setuid dumping */\n+#define SUID_DUMP_USER\t\t1\t/* Dump as user of process */\n+#define SUID_DUMP_ROOT\t\t2\t/* Dump as root */\n+\n /* mm flags */\n /* dumpable bits */\n #define MMF_DUMPABLE      0  /* core dump is permitted */\ndiff --git a/kernel/ptrace.c b/kernel/ptrace.c\nindex 67fedad2961..a428909c853 100644\n--- a/kernel/ptrace.c\n+++ b/kernel/ptrace.c\n@@ -246,7 +246,7 @@ ok:\n \tsmp_rmb();\n \tif (task->mm)\n \t\tdumpable = get_dumpable(task->mm);\n-\tif (!dumpable && !task_ns_capable(task, CAP_SYS_PTRACE))\n+\tif (dumpable != SUID_DUMP_USER && !task_ns_capable(task, CAP_SYS_PTRACE))\n \t\treturn -EPERM;\n \n \treturn security_ptrace_access_check(task, mode);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

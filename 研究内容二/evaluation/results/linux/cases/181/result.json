@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "181",
+  "candidate_sha256": "8e237200f471d22abdd256e64a48a0d909ab96ca98f114d5b4c1b3dbc14b7311",
+  "oracle_sha256": "c135f5e5a7871e84593a5b7e8f70815a43491092f4970da313a7e5a69771d240",
+  "candidate_nonempty": true,
+  "target_ref": "67cbc8865a66533fa08c1c13fe9acbaaae63c403",
+  "baseline_tree": "29980a4b69f6c2880e5dd640fce55b1e6f6da11a",
+  "candidate_tree": "15cce1cd3009bdb99b4c0536009ea51e7e52b574",
+  "oracle_tree": "d64c25639bfb238e1542c57b175d67dc370148cb",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/181",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "8e237200f471d22abdd256e64a48a0d909ab96ca98f114d5b4c1b3dbc14b7311",
+    "text": "diff --git a/fs/io_uring.c b/fs/io_uring.c\nindex b82a446d5e59..1ff5b142d2f0 100644\n--- a/fs/io_uring.c\n+++ b/fs/io_uring.c\n@@ -7318,6 +7318,7 @@ static int __io_sqe_files_scm(struct io_ring_ctx *ctx, int nr, int offset)\n \t\tfpl->max = SCM_MAX_FD;\n \t\tfpl->count = nr_files;\n \t\tUNIXCB(skb).fp = fpl;\n+\t\tskb->scm_io_uring = 1;\n \t\tskb->destructor = unix_destruct_scm;\n \t\trefcount_add(skb->truesize, &sk->sk_wmem_alloc);\n \t\tskb_queue_head(&sk->sk_receive_queue, skb);\ndiff --git a/include/linux/skbuff.h b/include/linux/skbuff.h\nindex 61fc053a4a4e..c24840384917 100644\n--- a/include/linux/skbuff.h\n+++ b/include/linux/skbuff.h\n@@ -681,6 +681,7 @@ typedef unsigned char *sk_buff_data_t;\n  *\t@csum_level: indicates the number of consecutive checksums found in\n  *\t\tthe packet minus one that have been verified as\n  *\t\tCHECKSUM_UNNECESSARY (max 3)\n+ *\t@scm_io_uring: SKB holds io_uring registered files\n  *\t@dst_pending_confirm: need to confirm neighbour\n  *\t@decrypted: Decrypted SKB\n  *\t@napi_id: id of the NAPI struct this skb came from\n@@ -835,6 +836,7 @@ struct sk_buff {\n \t__u8\t\t\tcsum_complete_sw:1;\n \t__u8\t\t\tcsum_level:2;\n \t__u8\t\t\tcsum_not_inet:1;\n+\t__u8\t\t\tscm_io_uring:1;\n \t__u8\t\t\tdst_pending_confirm:1;\n #ifdef CONFIG_IPV6_NDISC_NODETYPE\n \t__u8\t\t\tndisc_nodetype:2;\ndiff --git a/net/unix/garbage.c b/net/unix/garbage.c\nindex d45d5366115a..dc2763540393 100644\n--- a/net/unix/garbage.c\n+++ b/net/unix/garbage.c\n@@ -204,6 +204,7 @@ void wait_for_unix_gc(void)\n /* The external entry point: unix_gc() */\n void unix_gc(void)\n {\n+\tstruct sk_buff *next_skb, *skb;\n \tstruct unix_sock *u;\n \tstruct unix_sock *next;\n \tstruct sk_buff_head hitlist;\n@@ -297,11 +298,30 @@ void unix_gc(void)\n \n \tspin_unlock(&unix_gc_lock);\n \n+\t/* We need io_uring to clean its registered files, ignore all io_uring\n+\t * originated skbs. It's fine as io_uring doesn't keep references to\n+\t * other io_uring instances and so killing all other files in the cycle\n+\t * will put all io_uring references forcing it to go through normal\n+\t * release.path eventually putting registered files.\n+\t */\n+\tskb_queue_walk_safe(&hitlist, skb, next_skb) {\n+\t\tif (skb->scm_io_uring) {\n+\t\t\t__skb_unlink(skb, &hitlist);\n+\t\t\tskb_queue_tail(&skb->sk->sk_receive_queue, skb);\n+\t\t}\n+\t}\n+\n \t/* Here we are. Hitlist is filled. Die. */\n \t__skb_queue_purge(&hitlist);\n \n \tspin_lock(&unix_gc_lock);\n \n+\t/* There could be io_uring registered files, just push them back to\n+\t * the inflight list\n+\t */\n+\tlist_for_each_entry_safe(u, next, &gc_candidates, link)\n+\t\tlist_move_tail(&u->link, &gc_inflight_list);\n+\n \t/* All candidates should have been detached by now. */\n \tBUG_ON(!list_empty(&gc_candidates));\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

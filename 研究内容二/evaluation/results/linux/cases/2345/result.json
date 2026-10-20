@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2345",
+  "candidate_sha256": "2efa42da1230f25567e607f42cfc2702cfc3c09cbc26198731984af256b1ed8e",
+  "oracle_sha256": "f731b0e3a997c10f26004e240b2a65a296e5d7a055ce926a20d7b6293507b5a4",
+  "candidate_nonempty": true,
+  "target_ref": "2da11442a1e3317e7cfdda94e7ca90b9274dfe33",
+  "baseline_tree": "a15f9ba858a27eb238516f98238607f4fbc688e9",
+  "candidate_tree": "f69b3c5be5b26e59c509dc76283d496a5d02b90f",
+  "oracle_tree": "f69b3c5be5b26e59c509dc76283d496a5d02b90f",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2345",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "2efa42da1230f25567e607f42cfc2702cfc3c09cbc26198731984af256b1ed8e",
+    "text": "diff --git a/drivers/net/can/usb/usb_8dev.c b/drivers/net/can/usb/usb_8dev.c\nindex c43e98bb6e2d..b514b2eaa318 100644\n--- a/drivers/net/can/usb/usb_8dev.c\n+++ b/drivers/net/can/usb/usb_8dev.c\n@@ -670,9 +670,20 @@ static netdev_tx_t usb_8dev_start_xmit(struct sk_buff *skb,\n \tatomic_inc(&priv->active_tx_urbs);\n \n \terr = usb_submit_urb(urb, GFP_ATOMIC);\n-\tif (unlikely(err))\n-\t\tgoto failed;\n-\telse if (atomic_read(&priv->active_tx_urbs) >= MAX_TX_URBS)\n+\tif (unlikely(err)) {\n+\t\tcan_free_echo_skb(netdev, context->echo_index);\n+\n+\t\tusb_unanchor_urb(urb);\n+\t\tusb_free_coherent(priv->udev, size, buf, urb->transfer_dma);\n+\n+\t\tatomic_dec(&priv->active_tx_urbs);\n+\n+\t\tif (err == -ENODEV)\n+\t\t\tnetif_device_detach(netdev);\n+\t\telse\n+\t\t\tnetdev_warn(netdev, \"failed tx_urb %d\\n\", err);\n+\t\tstats->tx_dropped++;\n+\t} else if (atomic_read(&priv->active_tx_urbs) >= MAX_TX_URBS)\n \t\t/* Slow down tx path */\n \t\tnetif_stop_queue(netdev);\n \n@@ -691,19 +702,6 @@ static netdev_tx_t usb_8dev_start_xmit(struct sk_buff *skb,\n \n \treturn NETDEV_TX_BUSY;\n \n-failed:\n-\tcan_free_echo_skb(netdev, context->echo_index);\n-\n-\tusb_unanchor_urb(urb);\n-\tusb_free_coherent(priv->udev, size, buf, urb->transfer_dma);\n-\n-\tatomic_dec(&priv->active_tx_urbs);\n-\n-\tif (err == -ENODEV)\n-\t\tnetif_device_detach(netdev);\n-\telse\n-\t\tnetdev_warn(netdev, \"failed tx_urb %d\\n\", err);\n-\n nomembuf:\n \tusb_free_urb(urb);\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

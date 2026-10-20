@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1789",
+  "candidate_sha256": "60b50e15cc7fec2e77c854083835604ab42b3f40f132a59f22184fa9118c3bb1",
+  "oracle_sha256": "a56361eb2d6f5dfc5e49ae57e8a628226a0e0a8b142c0c6fedd26c48b4f8e1a3",
+  "candidate_nonempty": true,
+  "target_ref": "808104294597fe75680e3341e4f0642a6e55329e",
+  "baseline_tree": "ec05eacb226bac9f31937680604bdb75ed439c13",
+  "candidate_tree": "259ee3f873981524c0d96de427051144470c5487",
+  "oracle_tree": "f8341d1833e82b96ceb709cc08c8529baf7e82eb",
+  "candidate_apply_passed": true,
+  "historical_verdict": "incorrect",
+  "case_path": "cases/1789",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "60b50e15cc7fec2e77c854083835604ab42b3f40f132a59f22184fa9118c3bb1",
+    "text": "diff --git a/arch/powerpc/kernel/ptrace/ptrace-fpu.c b/arch/powerpc/kernel/ptrace/ptrace-fpu.c\nindex 5dca19361316..dadd6fd35280 100644\n--- a/arch/powerpc/kernel/ptrace/ptrace-fpu.c\n+++ b/arch/powerpc/kernel/ptrace/ptrace-fpu.c\n@@ -18,7 +18,13 @@ int ptrace_get_fpr(struct task_struct *child, int index, unsigned long *data)\n #ifdef CONFIG_PPC_FPU_REGS\n \tflush_fp_to_thread(child);\n \tif (fpidx < (PT_FPSCR - PT_FPR0))\n-\t\tmemcpy(data, &child->thread.TS_FPR(fpidx), sizeof(long));\n+\t\tif (IS_ENABLED(CONFIG_PPC32)) {\n+\t\t\t// On 32-bit the index we are passed refers to 32-bit words\n+\t\t\t*data = ((u32 *)child->thread.fp_state.fpr)[fpidx];\n+\t\t} else {\n+\t\t\tmemcpy(data, &child->thread.TS_FPR(fpidx),\n+\t\t\t       sizeof(long));\n+\t\t}\n \telse\n \t\t*data = child->thread.fp_state.fpscr;\n #else\n@@ -40,7 +46,13 @@ int ptrace_put_fpr(struct task_struct *child, int index, unsigned long data)\n #ifdef CONFIG_PPC_FPU_REGS\n \tflush_fp_to_thread(child);\n \tif (fpidx < (PT_FPSCR - PT_FPR0))\n-\t\tmemcpy(&child->thread.TS_FPR(fpidx), &data, sizeof(long));\n+\t\tif (IS_ENABLED(CONFIG_PPC32)) {\n+\t\t\t// On 32-bit the index we are passed refers to 32-bit words\n+\t\t\t((u32 *)child->thread.fp_state.fpr)[fpidx] = data;\n+\t\t} else {\n+\t\t\tmemcpy(&child->thread.TS_FPR(fpidx), &data,\n+\t\t\t       sizeof(long));\n+\t\t}\n \telse\n \t\tchild->thread.fp_state.fpscr = data;\n #endif\n"
+  },
+  "trace_file": "trace.jsonl"
+}

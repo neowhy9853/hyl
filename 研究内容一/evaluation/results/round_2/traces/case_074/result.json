@@ -1,0 +1,47 @@
+{
+  "round": 2,
+  "case_id": "case_074",
+  "source_index": 73,
+  "repo": "kernel",
+  "commit_id": "5234ecf988ae3425039dfccaf595bc6aa3de774d",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "e53d9c4c7859",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.95,
+    "reason": "该提交修复 sockmap 销毁路径中在 bh 禁用上下文调用 cancel_work_sync 导致睡眠函数告警的问题，属于明确的错误路径纠正。",
+    "intent_items": [
+      {
+        "target": "net/core/sock_map.c 中 sock_map_destroy 对 sk_psock_stop 的调用",
+        "change": "将 sk_psock_stop(psock, true) 改为 sk_psock_stop(psock, false)，跳过销毁路径里的 cancel_work_sync",
+        "effect_or_reason": "避免在 inet_csk_destroy_sock 的 teardown 上下文（bh_disable 状态）调用可睡眠函数，消除 syzbot 报告的 BUG",
+        "context_used": [
+          "git_commit_show 获取的 patch 与调用栈信息"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "销毁路径中原先会调用 cancel_work_sync，构成非法上下文睡眠"
+          ],
+          "message_only_details": [
+            "backlog 队列已在 sk_psock_stop 中清空，滞后执行仍在 sk_psock_destroy 中同步取消"
+          ],
+          "code_only_details": [
+            "实际改动仅为第二个入参 true 改为 false，一处单行修改"
+          ]
+        },
+        "evidence": [
+          "提交前：sock_map_destroy -> sk_psock_stop(,true) -> cancel_work_sync 在 bh 禁用下触发 sleeping function called from invalid context；提交后传 false 跳过该同步取消，BUG 消除"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_074",
+  "trace_status": "available"
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1186",
+  "candidate_sha256": "48a96443c9ecf7f14d368b25d98f5c7ae28dc8d38b428bd52c9bb6c030fdc62f",
+  "oracle_sha256": "067a31d5101432f1c66c73673b31c17b4acf6893997295c2e68fb353e74451d9",
+  "candidate_nonempty": true,
+  "target_ref": "87cfd54498d490a8bc460fd24f7e55b202c4cacd",
+  "baseline_tree": "ce553744d407bcaa045c049573b720ff0a669133",
+  "candidate_tree": "e7c5fbff6ef700a88070e11d39c65f4034683c67",
+  "oracle_tree": "e7c5fbff6ef700a88070e11d39c65f4034683c67",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1186",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "48a96443c9ecf7f14d368b25d98f5c7ae28dc8d38b428bd52c9bb6c030fdc62f",
+    "text": "diff --git a/arch/s390/include/asm/mmu_context.h b/arch/s390/include/asm/mmu_context.h\nindex 3815bfea1b2d..d958de53d34a 100644\n--- a/arch/s390/include/asm/mmu_context.h\n+++ b/arch/s390/include/asm/mmu_context.h\n@@ -15,16 +15,22 @@\n static inline int init_new_context(struct task_struct *tsk,\n \t\t\t\t   struct mm_struct *mm)\n {\n+\tspin_lock_init(&mm->context.list_lock);\n+\tINIT_LIST_HEAD(&mm->context.pgtable_list);\n+\tINIT_LIST_HEAD(&mm->context.gmap_list);\n \tcpumask_clear(&mm->context.cpu_attach_mask);\n \tatomic_set(&mm->context.attach_count, 0);\n \tmm->context.flush_mm = 0;\n-\tmm->context.asce_bits = _ASCE_TABLE_LENGTH | _ASCE_USER_BITS;\n-#ifdef CONFIG_64BIT\n-\tmm->context.asce_bits |= _ASCE_TYPE_REGION3;\n-#endif\n \tmm->context.has_pgste = 0;\n \tmm->context.use_skey = 0;\n-\tmm->context.asce_limit = STACK_TOP_MAX;\n+\tif (mm->context.asce_limit == 0) {\n+\t\t/* context created by exec, set asce limit to 4TB */\n+\t\tmm->context.asce_bits = _ASCE_TABLE_LENGTH | _ASCE_USER_BITS;\n+#ifdef CONFIG_64BIT\n+\t\tmm->context.asce_bits |= _ASCE_TYPE_REGION3;\n+#endif\n+\t\tmm->context.asce_limit = STACK_TOP_MAX;\n+\t}\n \tcrst_table_init((unsigned long *) mm->pgd, pgd_entry_type(mm));\n \treturn 0;\n }\n@@ -110,10 +116,6 @@ static inline void activate_mm(struct mm_struct *prev,\n static inline void arch_dup_mmap(struct mm_struct *oldmm,\n \t\t\t\t struct mm_struct *mm)\n {\n-#ifdef CONFIG_64BIT\n-\tif (oldmm->context.asce_limit < mm->context.asce_limit)\n-\t\tcrst_table_downgrade(mm, oldmm->context.asce_limit);\n-#endif\n }\n \n static inline void arch_exit_mmap(struct mm_struct *mm)\ndiff --git a/arch/s390/include/asm/pgalloc.h b/arch/s390/include/asm/pgalloc.h\nindex 9e18a61d3df3..9e0e1176a222 100644\n--- a/arch/s390/include/asm/pgalloc.h\n+++ b/arch/s390/include/asm/pgalloc.h\n@@ -124,12 +124,26 @@ static inline void pud_populate(struct mm_struct *mm, pud_t *pud, pmd_t *pmd)\n \n static inline pgd_t *pgd_alloc(struct mm_struct *mm)\n {\n-\tspin_lock_init(&mm->context.list_lock);\n-\tINIT_LIST_HEAD(&mm->context.pgtable_list);\n-\tINIT_LIST_HEAD(&mm->context.gmap_list);\n-\treturn (pgd_t *) crst_table_alloc(mm);\n+\tunsigned long *table = crst_table_alloc(mm);\n+\n+\tif (!table)\n+\t\treturn NULL;\n+\tif (mm->context.asce_limit == (1UL << 31)) {\n+\t\t/* Forking a compat process with 2 page table levels */\n+\t\tif (!pgtable_pmd_page_ctor(virt_to_page(table))) {\n+\t\t\tcrst_table_free(mm, table);\n+\t\t\treturn NULL;\n+\t\t}\n+\t}\n+\treturn (pgd_t *) table;\n+}\n+\n+static inline void pgd_free(struct mm_struct *mm, pgd_t *pgd)\n+{\n+\tif (mm->context.asce_limit == (1UL << 31))\n+\t\tpgtable_pmd_page_dtor(virt_to_page(pgd));\n+\tcrst_table_free(mm, (unsigned long *) pgd);\n }\n-#define pgd_free(mm, pgd) crst_table_free(mm, (unsigned long *) pgd)\n \n static inline void pmd_populate(struct mm_struct *mm,\n \t\t\t\tpmd_t *pmd, pgtable_t pte)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

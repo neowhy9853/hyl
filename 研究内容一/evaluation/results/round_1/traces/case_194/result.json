@@ -1,0 +1,50 @@
+{
+  "round": 1,
+  "case_id": "case_194",
+  "source_index": 193,
+  "repo": "kernel",
+  "commit_id": "c567ed5dbde1a1b25a42c96f47e51c11dd2e2c33",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "a5c4d7604fde",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.95,
+    "reason": "提交把 rdev->np_port 的 of_node_put() 从首次使用后移到退出/释放路径，纠正了后续继续使用已释放 device tree node 的 use-after-put 错误，属于错误路径纠正。",
+    "intent_items": [
+      {
+        "target": "drivers/net/ethernet/renesas/rswitch.c 中的 rswitch_device_alloc() 与 rswitch_device_free()",
+        "change": "删除 of_get_ethdev_address() 之后立即执行的 of_node_put(rdev->np_port)，改为在 out_get_params 错误出口和 rswitch_device_free() 中调用 of_node_put()",
+        "effect_or_reason": "rdev->np_port 在驱动其他位置仍被使用，提前 put 会留下悬空 node 引用；移到退出路径后引用生命周期与设备生命周期对齐",
+        "context_used": [
+          "drivers/net/ethernet/renesas/rswitch.c 目标 commit 版本 patch"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "rswitch_device 保存的 device tree node 在多处驱动逻辑中使用",
+            "of_node_put() 被移动到错误出口与设备释放路径"
+          ],
+          "message_only_details": [
+            "该提交为 stable 6.6.67 上游补丁 66b7e9f85b84 的回合"
+          ],
+          "code_only_details": [
+            "put 同时覆盖 out_get_params 错误路径与 rswitch_device_free() 正常释放路径"
+          ]
+        },
+        "evidence": [
+          "补丁删除了首次使用后的 of_node_put(rdev->np_port)，说明提交前存在对仍在使用的 node 提前释放的错误路径",
+          "补丁在 out_get_params 标签后与 rswitch_device_free() 中新增 of_node_put(rdev->np_port)，使引用在退出时被正确释放",
+          "该改动不新增任何用户可感知入口或支持范围，仅为修复既有资源生命周期错误"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_194",
+  "trace_status": "available"
+}

@@ -11,6 +11,8 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -49,12 +51,12 @@ def digest(path: Path) -> str:
     return value.hexdigest()
 
 
-def download(url: str, destination: Path) -> None:
+def download_once(url: str, destination: Path) -> None:
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https" or parsed.hostname != "github.com":
         raise RuntimeError("manifest download URL must use https://github.com")
     request = urllib.request.Request(url, headers={"User-Agent": "patch-intent-analysis-installer/1"})
-    with urllib.request.urlopen(request, timeout=60) as response:
+    with urllib.request.urlopen(request, timeout=120) as response:
         if urllib.parse.urlparse(response.geturl()).scheme != "https":
             raise RuntimeError("download redirected to a non-HTTPS URL")
         declared = response.headers.get("Content-Length")
@@ -70,6 +72,21 @@ def download(url: str, destination: Path) -> None:
                 if total > MAX_DOWNLOAD_BYTES:
                     raise RuntimeError("download exceeds size limit")
                 output.write(block)
+
+
+def download(url: str, destination: Path) -> None:
+    for attempt in range(3):
+        try:
+            download_once(url, destination)
+            return
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+            destination.unlink(missing_ok=True)
+            if isinstance(error, urllib.error.HTTPError) and error.code not in {408, 429, 500, 502, 503, 504}:
+                raise
+            if attempt == 2:
+                raise
+            print(f"Ctags download interrupted; retry {attempt + 2}/3", file=sys.stderr)
+            time.sleep(2 ** attempt)
 
 
 def extract_member(bundle: tarfile.TarFile, member_name: str, destination: Path) -> None:

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1568",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1568-9qc7wqax/repo",
+      "target_ref": "78a20804b83f9888401158fc9e22d4224b86b66d",
+      "target_tree": "47bfc95d73b75b4533e6ebed29daa1595016ca68"
+    },
+    "source_commit": "8e8836abf74a0b227c651cf76466b8d711470a76",
+    "reference_parent": "9acd41220b5addaf9d59b1e8825375d34803a375",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/mm/mlock.c b/mm/mlock.c\nindex 4f4f53bdc65de30d11c637b2bc745aa1333a16bd..39b3a7d4bd842d9cbedc451d9c7c4afd00f66f2a 100644\n--- a/mm/mlock.c\n+++ b/mm/mlock.c\n@@ -78,6 +78,7 @@ void __clear_page_mlock(struct page *page)\n  */\n void mlock_vma_page(struct page *page)\n {\n+\t/* Serialize with page migration */\n \tBUG_ON(!PageLocked(page));\n \n \tif (!TestSetPageMlocked(page)) {\n@@ -105,6 +106,7 @@ void mlock_vma_page(struct page *page)\n  */\n void munlock_vma_page(struct page *page)\n {\n+\t/* For try_to_munlock() and to serialize with page migration */\n \tBUG_ON(!PageLocked(page));\n \n \tif (TestClearPageMlocked(page)) {\ndiff --git a/mm/rmap.c b/mm/rmap.c\nindex 52a2f364f087e29a6e9e5b7da9bd6061ac71d6d6..9ac405ba91dfee674457f65b7804474f0c5b406e 100644\n--- a/mm/rmap.c\n+++ b/mm/rmap.c\n@@ -1385,9 +1385,19 @@ static int try_to_unmap_cluster(unsigned long cursor, unsigned int *mapcount,\n \t\tBUG_ON(!page || PageAnon(page));\n \n \t\tif (locked_vma) {\n-\t\t\tmlock_vma_page(page);   /* no-op if already mlocked */\n-\t\t\tif (page == check_page)\n+\t\t\tif (page == check_page) {\n+\t\t\t\t/* we know we have check_page locked */\n+\t\t\t\tmlock_vma_page(page);\n \t\t\t\tret = SWAP_MLOCK;\n+\t\t\t} else if (trylock_page(page)) {\n+\t\t\t\t/*\n+\t\t\t\t * If we can lock the page, perform mlock.\n+\t\t\t\t * Otherwise leave the page alone, it will be\n+\t\t\t\t * eventually encountered again later.\n+\t\t\t\t */\n+\t\t\t\tmlock_vma_page(page);\n+\t\t\t\tunlock_page(page);\n+\t\t\t}\n \t\t\tcontinue;\t/* don't unmap */\n \t\t}\n \n",
+      "sha256": "7851f7b699b7c21ccb1483812841c7322780e49030a80e6e6dac61ca8f0fb4f8"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2014-3122\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1568-9qc7wqax/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1568-9qc7wqax/repo/.patch-port/reference.diff\nreference_fix: 8e8836abf74a0b227c651cf76466b8d711470a76\nreference_parent: 9acd41220b5addaf9d59b1e8825375d34803a375\ntarget_ref: 78a20804b83f9888401158fc9e22d4224b86b66d\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1568-9qc7wqax/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1568-9qc7wqax/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2014-3122"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "400fc13141fe947c38e8485ee9d37066d4533363",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "5095999d8039f317e6cdadf4e933e58cde077decfe4d59b899db394f888086f6",
+      "text": "diff --git a/mm/mlock.c b/mm/mlock.c\nindex 192e6eebe4f240e4a8ece7cc0e10e902ff29f308..1b12dfad0794aee359dd3db0d4026c4fe670bd0c 100644\n--- a/mm/mlock.c\n+++ b/mm/mlock.c\n@@ -79,6 +79,7 @@ void clear_page_mlock(struct page *page)\n  */\n void mlock_vma_page(struct page *page)\n {\n+\t/* Serialize with page migration */\n \tBUG_ON(!PageLocked(page));\n \n \tif (!TestSetPageMlocked(page)) {\n@@ -153,6 +154,7 @@ unsigned int munlock_vma_page(struct page *page)\n {\n \tunsigned int nr_pages;\n \n+\t/* For try_to_munlock() and to serialize with page migration */\n \tBUG_ON(!PageLocked(page));\n \n \tif (TestClearPageMlocked(page)) {\ndiff --git a/mm/rmap.c b/mm/rmap.c\nindex b9d2222a0ecb24b403ce977dcd56f7da59378392..6e3139835e00f3ebd46e8b5b8bedcd5b821998f1 100644\n--- a/mm/rmap.c\n+++ b/mm/rmap.c\n@@ -1392,9 +1392,19 @@ static int try_to_unmap_cluster(unsigned long cursor, unsigned int *mapcount,\n \t\tBUG_ON(!page || PageAnon(page));\n \n \t\tif (locked_vma) {\n-\t\t\tmlock_vma_page(page);   /* no-op if already mlocked */\n-\t\t\tif (page == check_page)\n+\t\t\tif (page == check_page) {\n+\t\t\t\t/* we know we have check_page locked */\n+\t\t\t\tmlock_vma_page(page);\n \t\t\t\tret = SWAP_MLOCK;\n+\t\t\t} else if (trylock_page(page)) {\n+\t\t\t\t/*\n+\t\t\t\t * If we can lock the page, perform mlock.\n+\t\t\t\t * Otherwise leave the page alone, it will be\n+\t\t\t\t * eventually encountered again later.\n+\t\t\t\t */\n+\t\t\t\tmlock_vma_page(page);\n+\t\t\t\tunlock_page(page);\n+\t\t\t}\n \t\t\tcontinue;\t/* don't unmap */\n \t\t}\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "c32c1b259395131700782266e677c501358737a05e54a75e81c4c6ededd49833",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01568_CVE-2014-3122/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1568,
+      "cve": "CVE-2014-3122",
+      "source_commit": "8e8836abf74a0b227c651cf76466b8d711470a76",
+      "oracle_commit": "400fc13141fe947c38e8485ee9d37066d4533363"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1022",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1022-gp0ta2y0/repo",
+      "target_ref": "f58642c1bc7946c315d8617d61916f754d90583f",
+      "target_tree": "ace2250da3b1b1d3a23351109854f1ba61e8ca7f"
+    },
+    "source_commit": "e2546a83a7e291f412978cf6a580e43698c308bc",
+    "reference_parent": "715711560d005fd345569df6da2d199a9b113289",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/gpu/drm/i915/intel_lrc.c b/drivers/gpu/drm/i915/intel_lrc.c\nindex 7058f75c7b4291c26522491110679327326d0258..58b6d85c440a25fda32eaf647993b24fca268261 100644\n--- a/drivers/gpu/drm/i915/intel_lrc.c\n+++ b/drivers/gpu/drm/i915/intel_lrc.c\n@@ -1312,6 +1312,7 @@ static int gen9_init_indirectctx_bb(struct intel_engine_cs *ring,\n \tint ret;\n \tstruct drm_device *dev = ring->dev;\n \tuint32_t index = wa_ctx_start(wa_ctx, *offset, CACHELINE_DWORDS);\n+\tuint32_t scratch_addr;\n \n \t/* WaDisableCtxRestoreArbitration:skl,bxt */\n \tif ((IS_SKYLAKE(dev) && (INTEL_REVID(dev) <= SKL_REVID_D0)) ||\n@@ -1324,6 +1325,19 @@ static int gen9_init_indirectctx_bb(struct intel_engine_cs *ring,\n \t\treturn ret;\n \tindex = ret;\n \n+\t/* WaClearSlmSpaceAtContextSwitch:skl,bxt,kbl,glk,cfl */\n+\t/* Actual scratch location is at 128 bytes offset */\n+\tscratch_addr = ring->scratch.gtt_offset + 2 * CACHELINE_BYTES;\n+\twa_ctx_emit(batch, index, GFX_OP_PIPE_CONTROL(6));\n+\twa_ctx_emit(batch, index, (PIPE_CONTROL_FLUSH_L3 |\n+\t\t\t\t   PIPE_CONTROL_GLOBAL_GTT_IVB |\n+\t\t\t\t   PIPE_CONTROL_CS_STALL |\n+\t\t\t\t   PIPE_CONTROL_QW_WRITE));\n+\twa_ctx_emit(batch, index, scratch_addr);\n+\twa_ctx_emit(batch, index, 0);\n+\twa_ctx_emit(batch, index, 0);\n+\twa_ctx_emit(batch, index, 0);\n+\n \t/* Pad to end of cacheline */\n \twhile (index % CACHELINE_DWORDS)\n \t\twa_ctx_emit(batch, index, MI_NOOP);\n",
+      "sha256": "2b3cba96d4b1cc6763af73d0427a3f85017c84684ebb2ee2846236ad628745df"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2019-14615\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1022-gp0ta2y0/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1022-gp0ta2y0/repo/.patch-port/reference.diff\nreference_fix: e2546a83a7e291f412978cf6a580e43698c308bc\nreference_parent: 715711560d005fd345569df6da2d199a9b113289\ntarget_ref: f58642c1bc7946c315d8617d61916f754d90583f\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1022-gp0ta2y0/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1022-gp0ta2y0/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2019-14615"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "53b9bd37af59d1def99b20707536105857eb9bd0",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "88a150daf9bdea6d4add2bb6fea5005a6cbd833c7207d3b0687d7c983292782c",
+      "text": "diff --git a/drivers/gpu/drm/i915/gt/intel_lrc.c b/drivers/gpu/drm/i915/gt/intel_lrc.c\nindex 1ba31969c7d27486f4a7fdb5064104c7f2a20092..4949b5ad860fbd90113b28f2e239f62c4a88456c 100644\n--- a/drivers/gpu/drm/i915/gt/intel_lrc.c\n+++ b/drivers/gpu/drm/i915/gt/intel_lrc.c\n@@ -2132,6 +2132,14 @@ static u32 *gen9_init_indirectctx_bb(struct intel_engine_cs *engine, u32 *batch)\n \t/* WaFlushCoherentL3CacheLinesAtContextSwitch:skl,bxt,glk */\n \tbatch = gen8_emit_flush_coherentl3_wa(engine, batch);\n \n+\t/* WaClearSlmSpaceAtContextSwitch:skl,bxt,kbl,glk,cfl */\n+\tbatch = gen8_emit_pipe_control(batch,\n+\t\t\t\t       PIPE_CONTROL_FLUSH_L3 |\n+\t\t\t\t       PIPE_CONTROL_GLOBAL_GTT_IVB |\n+\t\t\t\t       PIPE_CONTROL_CS_STALL |\n+\t\t\t\t       PIPE_CONTROL_QW_WRITE,\n+\t\t\t\t       slm_offset(engine));\n+\n \tbatch = emit_lri(batch, lri, ARRAY_SIZE(lri));\n \n \t/* WaMediaPoolStateCmdInWABB:bxt,glk */\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "08630f62458c50992d6200cddd0b274c5fa9fa0729d3761355654b79e57194d2",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/01022_CVE-2019-14615/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1022,
+      "cve": "CVE-2019-14615",
+      "source_commit": "e2546a83a7e291f412978cf6a580e43698c308bc",
+      "oracle_commit": "53b9bd37af59d1def99b20707536105857eb9bd0"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

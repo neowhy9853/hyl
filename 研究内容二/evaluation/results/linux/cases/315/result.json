@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "315",
+  "candidate_sha256": "645ed1924712af8ad6a8bcd828de879e390288ca974a170024d2bd5e97ec00a6",
+  "oracle_sha256": "393d759419c30f4d631cdfb9213a7eae8ee6ecdd85f128ee43ecc8ae05b266fb",
+  "candidate_nonempty": true,
+  "target_ref": "2774edd43ab1f1c0e81c353502ccd5df59bfaeae",
+  "baseline_tree": "3df53f11e70afce56821da77e7aaa272719aa14a",
+  "candidate_tree": "5ae755c31de0b859c4e763f97bba4c2745d26c09",
+  "oracle_tree": "e7bea0bf80169a702f573218017961ac36d1f016",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/315",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "645ed1924712af8ad6a8bcd828de879e390288ca974a170024d2bd5e97ec00a6",
+    "text": "diff --git a/include/net/esp.h b/include/net/esp.h\nindex 117652eb6ea3..465e38890ee9 100644\n--- a/include/net/esp.h\n+++ b/include/net/esp.h\n@@ -4,6 +4,8 @@\n \n #include <linux/skbuff.h>\n \n+#define ESP_SKB_FRAG_MAXSIZE (PAGE_SIZE << SKB_FRAG_PAGE_ORDER)\n+\n struct ip_esp_hdr;\n \n static inline struct ip_esp_hdr *ip_esp_hdr(const struct sk_buff *skb)\ndiff --git a/include/net/sock.h b/include/net/sock.h\nindex 079b5f6f13d8..613f56c22a18 100644\n--- a/include/net/sock.h\n+++ b/include/net/sock.h\n@@ -2583,6 +2583,7 @@ extern int sysctl_optmem_max;\n extern __u32 sysctl_wmem_default;\n extern __u32 sysctl_rmem_default;\n \n+#define SKB_FRAG_PAGE_ORDER\tget_order(32768)\n DECLARE_STATIC_KEY_FALSE(net_high_order_alloc_disable_key);\n \n static inline int sk_get_wmem0(const struct sock *sk, const struct proto *proto)\ndiff --git a/net/ipv4/esp4.c b/net/ipv4/esp4.c\nindex 00210e55b4cd..ef20f550d2f8 100644\n--- a/net/ipv4/esp4.c\n+++ b/net/ipv4/esp4.c\n@@ -277,6 +277,7 @@ int esp_output_head(struct xfrm_state *x, struct sk_buff *skb, struct esp_info *\n \tstruct page *page;\n \tstruct sk_buff *trailer;\n \tint tailen = esp->tailen;\n+\tunsigned int allocsz;\n \n \t/* this is non-NULL only with UDP Encapsulation */\n \tif (x->encap) {\n@@ -286,6 +287,10 @@ int esp_output_head(struct xfrm_state *x, struct sk_buff *skb, struct esp_info *\n \t\t\treturn err;\n \t}\n \n+\tallocsz = ALIGN(skb->data_len + tailen, L1_CACHE_BYTES);\n+\tif (allocsz > ESP_SKB_FRAG_MAXSIZE)\n+\t\tgoto cow;\n+\n \tif (!skb_cloned(skb)) {\n \t\tif (tailen <= skb_tailroom(skb)) {\n \t\t\tnfrags = 1;\ndiff --git a/net/ipv6/esp6.c b/net/ipv6/esp6.c\nindex 7a739f16d82b..79f117e33b80 100644\n--- a/net/ipv6/esp6.c\n+++ b/net/ipv6/esp6.c\n@@ -230,6 +230,11 @@ int esp6_output_head(struct xfrm_state *x, struct sk_buff *skb, struct esp_info\n \tstruct page *page;\n \tstruct sk_buff *trailer;\n \tint tailen = esp->tailen;\n+\tunsigned int allocsz;\n+\n+\tallocsz = ALIGN(skb->data_len + tailen, L1_CACHE_BYTES);\n+\tif (allocsz > ESP_SKB_FRAG_MAXSIZE)\n+\t\tgoto cow;\n \n \tif (!skb_cloned(skb)) {\n \t\tif (tailen <= skb_tailroom(skb)) {\n"
+  },
+  "trace_file": "trace.jsonl"
+}

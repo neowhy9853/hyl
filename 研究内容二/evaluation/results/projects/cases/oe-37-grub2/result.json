@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-37-grub2",
+  "candidate_sha256": "8a91e5975f34b2eb6c40cd85bb218089d5fc7ff45d046e5738203408b3cadf46",
+  "oracle_sha256": "c65f8831f5aecd825cc060819fdd8ad3a060fab91d1093ce99eae7856353992c",
+  "candidate_nonempty": true,
+  "target_ref": "3f2c7fee5bc7439e81b85254dc8f7bfa7301143f",
+  "baseline_tree": "2ee12eb2ab75df4bd1a370650e56be1330940e93",
+  "candidate_tree": "36011c3b83f6ba360af9cda2f4d9ced0a760f1e7",
+  "oracle_tree": "36011c3b83f6ba360af9cda2f4d9ced0a760f1e7",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-37-grub2",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "8a91e5975f34b2eb6c40cd85bb218089d5fc7ff45d046e5738203408b3cadf46",
+    "text": "diff --git a/grub-core/disk/mdraid1x_linux.c b/grub-core/disk/mdraid1x_linux.c\nindex d33b98b96..e8ff0b534 100644\n--- a/grub-core/disk/mdraid1x_linux.c\n+++ b/grub-core/disk/mdraid1x_linux.c\n@@ -23,6 +23,7 @@\n #include <grub/err.h>\n #include <grub/misc.h>\n #include <grub/diskfilter.h>\n+#include <grub/safemath.h>\n \n GRUB_MOD_LICENSE (\"GPLv3+\");\n \n@@ -103,6 +104,9 @@ struct grub_raid_super_1x\n \n #define WriteMostly1    1\t/* Mask for writemostly flag in above devflags.  */\n \n+#define GRUB_MD_SECTOR_SHIFT\t9\t/* Follow Linux kernel v6.8. */\n+#define GRUB_MD_SECTOR_SIZE\t(1 << GRUB_MD_SECTOR_SHIFT)\n+\n static struct grub_diskfilter_vg *\n grub_mdraid_detect (grub_disk_t disk,\n \t\t    struct grub_diskfilter_pv_id *id,\n@@ -129,6 +133,7 @@ grub_mdraid_detect (grub_disk_t disk,\n       grub_uint32_t level;\n       struct grub_diskfilter_vg *array;\n       char *uuid;\n+      grub_uint64_t sb_sz, data_end, sb_end;\n \n       if (size == GRUB_DISK_SIZE_UNKNOWN && minor_version == 0)\n \tcontinue;\n@@ -154,6 +159,79 @@ grub_mdraid_detect (grub_disk_t disk,\n \t  || grub_le_to_cpu64 (sb.super_offset) != sector)\n \tcontinue;\n \n+      /*\n+       * The first check follows the Linux kernel's data_size\n+       * validation from v6.8-rc5.\n+       */\n+      if (grub_le_to_cpu64 (sb.data_size) < 10 ||\n+\t  grub_le_to_cpu64 (sb.raid_disks) > GRUB_MDRAID_MAX_DISKS)\n+\t{\n+\t  grub_dprintf (\"mdraid1x\", \"Corrupted superblock\\n\");\n+\t  return NULL;\n+\t}\n+\n+      /*\n+       * Total size of superblock: 256 bytes plus 2 bytes per device\n+       * in the array.\n+       */\n+      sb_sz = sizeof (struct grub_raid_super_1x) + grub_le_to_cpu64 (sb.raid_disks) * 2;\n+\n+      if (grub_add (grub_le_to_cpu64 (sb.super_offset),\n+\t\t    (ALIGN_UP(sb_sz, GRUB_MD_SECTOR_SIZE) >> GRUB_MD_SECTOR_SHIFT), &sb_end))\n+\t{\n+\t  grub_dprintf (\"mdraid1x\", \"Invalid superblock end.\\n\");\n+\t  return NULL;\n+\t}\n+\n+      if (grub_add (grub_le_to_cpu64 (sb.data_offset),\n+\t\t    grub_le_to_cpu64 (sb.data_size), &data_end))\n+\t{\n+\t  grub_dprintf (\"mdraid1x\", \"Invalid data end.\\n\");\n+\t  return NULL;\n+\t}\n+\n+      /* In minor versions 1 and 2, superblock is positioned before data. */\n+      if (minor_version)\n+\t{\n+\t  if (grub_le_to_cpu64 (sb.data_offset) < sb_end)\n+\t    {\n+\t      grub_dprintf (\"mdraid1x\",\n+\t\t\t    \"The superblock either overlaps with the data \"\n+\t\t\t    \"or is behind it.\\n\");\n+\t      return NULL;\n+\t    }\n+\n+\t  if (data_end > size)\n+\t    {\n+\t      grub_dprintf (\"mdraid1x\",\n+\t\t\t    \"The data region ends at %\" PRIuGRUB_UINT64_T \", \"\n+\t\t\t    \"past the end of the disk (%\" PRIuGRUB_UINT64_T \")\\n\",\n+\t\t\t    data_end, size);\n+\t      return NULL;\n+\t    }\n+\t}\n+      else\n+\t{\n+\t  /* In minor version 0, superblock is at the end of the device. */\n+\t  if (grub_le_to_cpu64 (sb.super_offset) < data_end)\n+\t    {\n+\t      grub_dprintf (\"mdraid1x\",\n+\t\t\t    \"The data either overlaps with the superblock \"\n+\t\t\t    \"or is behind it.\\n\");\n+\t      return NULL;\n+\t    }\n+\n+\t  if (sb_end > size)\n+\t    {\n+\t      grub_dprintf (\"mdraid1x\",\n+\t\t\t    \"The superblock region ends at \"\n+\t\t\t    \"%\" PRIuGRUB_UINT64_T \", past the end of \"\n+\t\t\t    \"the disk (%\" PRIuGRUB_UINT64_T \")\\n\",\n+\t\t\t    sb_end, size);\n+\t      return NULL;\n+\t    }\n+\t}\n+\n       if (sb.major_version != grub_cpu_to_le32_compile_time (1))\n \t/* Unsupported version.  */\n \treturn NULL;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

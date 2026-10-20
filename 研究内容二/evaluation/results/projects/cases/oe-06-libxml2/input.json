@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-06-libxml2",
+  "task_input": {
+    "repository": {
+      "name": "libxml2",
+      "version": "2.9.14",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "7804f3fb3af1495f2a87808d37cf39a0fc8843e9",
+      "target_tree": "d9dd6a114a0f4260245a660ce27105701c2adc98"
+    },
+    "source_commit": "858ca26c0689161a6b903a6682cc8a1cc10a0ea8",
+    "reference_parent": "245b70d7d2768572ae1b05b3668ca858b9ec4ed4",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 858ca26c0689161a6b903a6682cc8a1cc10a0ea8 Mon Sep 17 00:00:00 2001\nFrom: Nick Wellnhofer <wellnhofer@aevum.de>\nDate: Tue, 11 Feb 2025 17:30:40 +0100\nSubject: [PATCH] [CVE-2025-24928] Fix stack-buffer-overflow in\n xmlSnprintfElements\n\nFixes #847.\n---\n valid.c | 25 +++++++++++++------------\n 1 file changed, 13 insertions(+), 12 deletions(-)\n\ndiff --git a/valid.c b/valid.c\nindex 76d657d62c..abefdc50a5 100644\n--- a/valid.c\n+++ b/valid.c\n@@ -5057,25 +5057,26 @@ xmlSnprintfElements(char *buf, int size, xmlNodePtr node, int glob) {\n \t    return;\n \t}\n         switch (cur->type) {\n-            case XML_ELEMENT_NODE:\n+            case XML_ELEMENT_NODE: {\n+                int qnameLen = xmlStrlen(cur->name);\n+\n+                if ((cur->ns != NULL) && (cur->ns->prefix != NULL))\n+                    qnameLen += xmlStrlen(cur->ns->prefix) + 1;\n+                if (size - len < qnameLen + 10) {\n+                    if ((size - len > 4) && (buf[len - 1] != '.'))\n+                        strcat(buf, \" ...\");\n+                    return;\n+                }\n \t\tif ((cur->ns != NULL) && (cur->ns->prefix != NULL)) {\n-\t\t    if (size - len < xmlStrlen(cur->ns->prefix) + 10) {\n-\t\t\tif ((size - len > 4) && (buf[len - 1] != '.'))\n-\t\t\t    strcat(buf, \" ...\");\n-\t\t\treturn;\n-\t\t    }\n \t\t    strcat(buf, (char *) cur->ns->prefix);\n \t\t    strcat(buf, \":\");\n \t\t}\n-                if (size - len < xmlStrlen(cur->name) + 10) {\n-\t\t    if ((size - len > 4) && (buf[len - 1] != '.'))\n-\t\t\tstrcat(buf, \" ...\");\n-\t\t    return;\n-\t\t}\n-\t        strcat(buf, (char *) cur->name);\n+                if (cur->name != NULL)\n+\t            strcat(buf, (char *) cur->name);\n \t\tif (cur->next != NULL)\n \t\t    strcat(buf, \" \");\n \t\tbreak;\n+            }\n             case XML_TEXT_NODE:\n \t\tif (xmlIsBlankNode(cur))\n \t\t    break;\n",
+      "sha256": "5e5975d716f0d1554ff4c8ad9b1d0a4913eb0babafb799dfdb051b413cc725ad"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for libxml2.\ncase_id: oe-06-libxml2\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 858ca26c0689161a6b903a6682cc8a1cc10a0ea8\nreference_parent: 245b70d7d2768572ae1b05b3668ca858b9ec4ed4\ntarget_ref: 7804f3fb3af1495f2a87808d37cf39a0fc8843e9\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "e3585a9e59f3146a53a1091fd00378e81676a824feab037cd8d71807cea73c73",
+      "text": "From 858ca26c0689161a6b903a6682cc8a1cc10a0ea8 Mon Sep 17 00:00:00 2001\nFrom: Nick Wellnhofer <wellnhofer@aevum.de>\nDate: Tue, 11 Feb 2025 17:30:40 +0100\nSubject: [PATCH] [CVE-2025-24928] Fix stack-buffer-overflow in\n xmlSnprintfElements\n\nFixes #847.\n---\n valid.c | 25 +++++++++++++------------\n 1 file changed, 13 insertions(+), 12 deletions(-)\n\ndiff --git a/valid.c b/valid.c\nindex 76d657d62..abefdc50a 100644\n--- a/valid.c\n+++ b/valid.c\n@@ -5057,25 +5057,26 @@ xmlSnprintfElements(char *buf, int size, xmlNodePtr node, int glob) {\n \t    return;\n \t}\n         switch (cur->type) {\n-            case XML_ELEMENT_NODE:\n+            case XML_ELEMENT_NODE: {\n+                int qnameLen = xmlStrlen(cur->name);\n+\n+                if ((cur->ns != NULL) && (cur->ns->prefix != NULL))\n+                    qnameLen += xmlStrlen(cur->ns->prefix) + 1;\n+                if (size - len < qnameLen + 10) {\n+                    if ((size - len > 4) && (buf[len - 1] != '.'))\n+                        strcat(buf, \" ...\");\n+                    return;\n+                }\n \t\tif ((cur->ns != NULL) && (cur->ns->prefix != NULL)) {\n-\t\t    if (size - len < xmlStrlen(cur->ns->prefix) + 10) {\n-\t\t\tif ((size - len > 4) && (buf[len - 1] != '.'))\n-\t\t\t    strcat(buf, \" ...\");\n-\t\t\treturn;\n-\t\t    }\n \t\t    strcat(buf, (char *) cur->ns->prefix);\n \t\t    strcat(buf, \":\");\n \t\t}\n-                if (size - len < xmlStrlen(cur->name) + 10) {\n-\t\t    if ((size - len > 4) && (buf[len - 1] != '.'))\n-\t\t\tstrcat(buf, \" ...\");\n-\t\t    return;\n-\t\t}\n-\t        strcat(buf, (char *) cur->name);\n+                if (cur->name != NULL)\n+\t            strcat(buf, (char *) cur->name);\n \t\tif (cur->next != NULL)\n \t\t    strcat(buf, \" \");\n \t\tbreak;\n+            }\n             case XML_TEXT_NODE:\n \t\tif (xmlIsBlankNode(cur))\n \t\t    break;\n-- \nGitLab\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "9a1400354c0392fd509f10f406d7dbc04ce752526719374180b2d2d0bec481af",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-06-libxml2/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-06-libxml2",
+      "package": "libxml2",
+      "version": "2.9.14",
+      "source_commit": "858ca26c0689161a6b903a6682cc8a1cc10a0ea8",
+      "target_ref": "7804f3fb3af1495f2a87808d37cf39a0fc8843e9",
+      "target_tree": "d9dd6a114a0f4260245a660ce27105701c2adc98",
+      "reference_patch": "patches/oe-06-libxml2/reference.patch",
+      "reference_sha256": "5e5975d716f0d1554ff4c8ad9b1d0a4913eb0babafb799dfdb051b413cc725ad",
+      "oracle_patch": "patches/oe-06-libxml2/oracle.patch",
+      "oracle_sha256": "e3585a9e59f3146a53a1091fd00378e81676a824feab037cd8d71807cea73c73"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2061",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2061-qy14yq2c/repo",
+      "target_ref": "963d1af3e064f256e38752cb5a9bfd7a81369066",
+      "target_tree": "533127e4824d57969458e03e9a370b21df817898"
+    },
+    "source_commit": "70e923f30e0c07cf6335e0875dbcd1bd83d14fd7",
+    "reference_parent": "db49a8ac4e99fb7bb41964701335c281cff0e1e4",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/core/filter.c b/net/core/filter.c\nindex ee665720a41a08abfd21876ce1e95edafc7bc363..8e4cc25cc98e1298100ba48ed98fe195be5e4e25 100644\n--- a/net/core/filter.c\n+++ b/net/core/filter.c\n@@ -3552,11 +3552,7 @@ static int bpf_skb_net_shrink(struct sk_buff *skb, u32 off, u32 len_diff,\n \treturn 0;\n }\n \n-static u32 __bpf_skb_max_len(const struct sk_buff *skb)\n-{\n-\treturn skb->dev ? skb->dev->mtu + skb->dev->hard_header_len :\n-\t\t\t  SKB_MAX_ALLOC;\n-}\n+#define BPF_SKB_MAX_LEN SKB_MAX_ALLOC\n \n BPF_CALL_4(sk_skb_adjust_room, struct sk_buff *, skb, s32, len_diff,\n \t   u32, mode, u64, flags)\n@@ -3605,7 +3601,7 @@ BPF_CALL_4(bpf_skb_adjust_room, struct sk_buff *, skb, s32, len_diff,\n {\n \tu32 len_cur, len_diff_abs = abs(len_diff);\n \tu32 len_min = bpf_skb_net_base_len(skb);\n-\tu32 len_max = __bpf_skb_max_len(skb);\n+\tu32 len_max = BPF_SKB_MAX_LEN;\n \t__be16 proto = skb->protocol;\n \tbool shrink = len_diff < 0;\n \tu32 off;\n@@ -3688,7 +3684,7 @@ static int bpf_skb_trim_rcsum(struct sk_buff *skb, unsigned int new_len)\n static inline int __bpf_skb_change_tail(struct sk_buff *skb, u32 new_len,\n \t\t\t\t\tu64 flags)\n {\n-\tu32 max_len = __bpf_skb_max_len(skb);\n+\tu32 max_len = BPF_SKB_MAX_LEN;\n \tu32 min_len = __bpf_skb_min_len(skb);\n \tint ret;\n \n@@ -3764,7 +3760,7 @@ static const struct bpf_func_proto sk_skb_change_tail_proto = {\n static inline int __bpf_skb_change_head(struct sk_buff *skb, u32 head_room,\n \t\t\t\t\tu64 flags)\n {\n-\tu32 max_len = __bpf_skb_max_len(skb);\n+\tu32 max_len = BPF_SKB_MAX_LEN;\n \tu32 new_len = skb->len + head_room;\n \tint ret;\n \n",
+      "sha256": "09cdb298b6eb942cb5fcfda87d518bf336ce249c6f694cf101b75e8d93592799"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2021-0941\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2061-qy14yq2c/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2061-qy14yq2c/repo/.patch-port/reference.diff\nreference_fix: 70e923f30e0c07cf6335e0875dbcd1bd83d14fd7\nreference_parent: db49a8ac4e99fb7bb41964701335c281cff0e1e4\ntarget_ref: 963d1af3e064f256e38752cb5a9bfd7a81369066\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2061-qy14yq2c/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2061-qy14yq2c/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2021-0941"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "1636af9e8a8840f5696ad2c01130832411986af4",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "f26bd6c39fb71ed01cf51808a7b42473a698319df742f83d6ad20765a0203e6d",
+      "text": "diff --git a/net/core/filter.c b/net/core/filter.c\nindex e8c89d2d2bc044ded2223593cb22b893ce8d6758..94bf897485db01f1d3e67f6f7c5a4572ddf1fba3 100644\n--- a/net/core/filter.c\n+++ b/net/core/filter.c\n@@ -2120,10 +2120,7 @@ static u32 __bpf_skb_min_len(const struct sk_buff *skb)\n \treturn min_len;\n }\n \n-static u32 __bpf_skb_max_len(const struct sk_buff *skb)\n-{\n-\treturn skb->dev->mtu + skb->dev->hard_header_len;\n-}\n+#define BPF_SKB_MAX_LEN SKB_MAX_ALLOC\n \n static int bpf_skb_grow_rcsum(struct sk_buff *skb, unsigned int new_len)\n {\n@@ -2144,7 +2141,7 @@ static int bpf_skb_trim_rcsum(struct sk_buff *skb, unsigned int new_len)\n BPF_CALL_3(bpf_skb_change_tail, struct sk_buff *, skb, u32, new_len,\n \t   u64, flags)\n {\n-\tu32 max_len = __bpf_skb_max_len(skb);\n+\tu32 max_len = BPF_SKB_MAX_LEN;\n \tu32 min_len = __bpf_skb_min_len(skb);\n \tint ret;\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "cf1a431465df357f5a1c3e898b1e393c2de0da1c93ea9314621abe5b4cbb5784",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/02061_CVE-2021-0941/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2061,
+      "cve": "CVE-2021-0941",
+      "source_commit": "70e923f30e0c07cf6335e0875dbcd1bd83d14fd7",
+      "oracle_commit": "1636af9e8a8840f5696ad2c01130832411986af4"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

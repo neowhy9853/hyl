@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2160",
+  "candidate_sha256": "f86ebfce441815cdb374a1792a10a9235b0780349f28ff8c267f0c32590c38e5",
+  "oracle_sha256": "f86ebfce441815cdb374a1792a10a9235b0780349f28ff8c267f0c32590c38e5",
+  "candidate_nonempty": true,
+  "target_ref": "f63f8f3d0550496396c67f8ef7283a6db3c8bc59",
+  "baseline_tree": "b4504213d9965a55971bd04e02d7c2d0b6a00298",
+  "candidate_tree": "5f8a140c44e443402dec00f1920f357679cd27b5",
+  "oracle_tree": "5f8a140c44e443402dec00f1920f357679cd27b5",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2160",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "f86ebfce441815cdb374a1792a10a9235b0780349f28ff8c267f0c32590c38e5",
+    "text": "diff --git a/fs/aio.c b/fs/aio.c\nindex f8589caef9c1..3235d4e6cc62 100644\n--- a/fs/aio.c\n+++ b/fs/aio.c\n@@ -594,6 +594,13 @@ void kiocb_set_cancel_fn(struct kiocb *iocb, kiocb_cancel_fn *cancel)\n \tstruct kioctx *ctx = req->ki_ctx;\n \tunsigned long flags;\n \n+\t/*\n+\t * kiocb didn't come from aio or is neither a read nor a write, hence\n+\t * ignore it.\n+\t */\n+\tif (!(iocb->ki_flags & IOCB_AIO_RW))\n+\t\treturn;\n+\n \tif (WARN_ON_ONCE(!list_empty(&req->ki_list)))\n \t\treturn;\n \n@@ -1463,7 +1470,7 @@ static int aio_prep_rw(struct kiocb *req, const struct iocb *iocb)\n \treq->ki_complete = aio_complete_rw;\n \treq->private = NULL;\n \treq->ki_pos = iocb->aio_offset;\n-\treq->ki_flags = req->ki_filp->f_iocb_flags;\n+\treq->ki_flags = req->ki_filp->f_iocb_flags | IOCB_AIO_RW;\n \tif (iocb->aio_flags & IOCB_FLAG_RESFD)\n \t\treq->ki_flags |= IOCB_EVENTFD;\n \tif (iocb->aio_flags & IOCB_FLAG_IOPRIO) {\ndiff --git a/include/linux/fs.h b/include/linux/fs.h\nindex 98b7a7a8c42e..7f659c26794b 100644\n--- a/include/linux/fs.h\n+++ b/include/linux/fs.h\n@@ -352,6 +352,8 @@ enum rw_hint {\n  * unrelated IO (like cache flushing, new IO generation, etc).\n  */\n #define IOCB_DIO_CALLER_COMP\t(1 << 22)\n+/* kiocb is a read or write operation submitted by fs/aio.c. */\n+#define IOCB_AIO_RW\t\t(1 << 23)\n \n /* for use in trace events */\n #define TRACE_IOCB_STRINGS \\\n"
+  },
+  "trace_file": "trace.jsonl"
+}

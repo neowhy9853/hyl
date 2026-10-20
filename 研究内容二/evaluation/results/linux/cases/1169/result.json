@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1169",
+  "candidate_sha256": "9f02c8aefc8d7a68ce2b97f5fd5dfcaa95854952b9e9cbc18a7459796cf652c3",
+  "oracle_sha256": "24c4f4515609cc7cbcc6574f3c9a867a272855ebc84aee93eb5a87e615ab1044",
+  "candidate_nonempty": true,
+  "target_ref": "b9a3e4549676857bf4b1b5f92200fbb1740dfa2e",
+  "baseline_tree": "f313d0e659da1ba1afdf95d39f6de4ac8cf28d74",
+  "candidate_tree": "54a516b5ff98ad68a8fc48f7e059b729e454f8fd",
+  "oracle_tree": "54a516b5ff98ad68a8fc48f7e059b729e454f8fd",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1169",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "9f02c8aefc8d7a68ce2b97f5fd5dfcaa95854952b9e9cbc18a7459796cf652c3",
+    "text": "diff --git a/fs/ksmbd/connection.c b/fs/ksmbd/connection.c\nindex 9e12738a56c6..28b65a43fa39 100644\n--- a/fs/ksmbd/connection.c\n+++ b/fs/ksmbd/connection.c\n@@ -84,6 +84,8 @@ struct ksmbd_conn *ksmbd_conn_alloc(void)\n \tspin_lock_init(&conn->llist_lock);\n \tINIT_LIST_HEAD(&conn->lock_list);\n \n+\tinit_rwsem(&conn->session_lock);\n+\n \tdown_write(&conn_list_lock);\n \tlist_add(&conn->conns_list, &conn_list);\n \tup_write(&conn_list_lock);\ndiff --git a/fs/ksmbd/connection.h b/fs/ksmbd/connection.h\nindex ab2583f030ce..3c005246a32e 100644\n--- a/fs/ksmbd/connection.h\n+++ b/fs/ksmbd/connection.h\n@@ -50,6 +50,7 @@ struct ksmbd_conn {\n \tstruct nls_table\t\t*local_nls;\n \tstruct unicode_map\t\t*um;\n \tstruct list_head\t\tconns_list;\n+\tstruct rw_semaphore\t\tsession_lock;\n \t/* smb session 1 per user */\n \tstruct xarray\t\t\tsessions;\n \tunsigned long\t\t\tlast_active;\ndiff --git a/fs/ksmbd/mgmt/user_session.c b/fs/ksmbd/mgmt/user_session.c\nindex 8a5dcab05614..b8be14a96cf6 100644\n--- a/fs/ksmbd/mgmt/user_session.c\n+++ b/fs/ksmbd/mgmt/user_session.c\n@@ -174,7 +174,7 @@ static void ksmbd_expire_session(struct ksmbd_conn *conn)\n \tunsigned long id;\n \tstruct ksmbd_session *sess;\n \n-\tdown_write(&sessions_table_lock);\n+\tdown_write(&conn->session_lock);\n \txa_for_each(&conn->sessions, id, sess) {\n \t\tif (sess->state != SMB2_SESSION_VALID ||\n \t\t    time_after(jiffies,\n@@ -185,7 +185,7 @@ static void ksmbd_expire_session(struct ksmbd_conn *conn)\n \t\t\tcontinue;\n \t\t}\n \t}\n-\tup_write(&sessions_table_lock);\n+\tup_write(&conn->session_lock);\n }\n \n int ksmbd_session_register(struct ksmbd_conn *conn,\n@@ -227,7 +227,9 @@ void ksmbd_sessions_deregister(struct ksmbd_conn *conn)\n \t\t\t}\n \t\t}\n \t}\n+\tup_write(&sessions_table_lock);\n \n+\tdown_write(&conn->session_lock);\n \txa_for_each(&conn->sessions, id, sess) {\n \t\tunsigned long chann_id;\n \t\tstruct channel *chann;\n@@ -244,7 +246,7 @@ void ksmbd_sessions_deregister(struct ksmbd_conn *conn)\n \t\t\tksmbd_session_destroy(sess);\n \t\t}\n \t}\n-\tup_write(&sessions_table_lock);\n+\tup_write(&conn->session_lock);\n }\n \n struct ksmbd_session *ksmbd_session_lookup(struct ksmbd_conn *conn,\n@@ -252,9 +254,11 @@ struct ksmbd_session *ksmbd_session_lookup(struct ksmbd_conn *conn,\n {\n \tstruct ksmbd_session *sess;\n \n+\tdown_read(&conn->session_lock);\n \tsess = xa_load(&conn->sessions, id);\n \tif (sess)\n \t\tsess->last_active = jiffies;\n+\tup_read(&conn->session_lock);\n \treturn sess;\n }\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

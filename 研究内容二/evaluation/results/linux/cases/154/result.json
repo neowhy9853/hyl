@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "154",
+  "candidate_sha256": "11e81643065afe5739ea296623b8de450714448a67a30804c9795e0b93f55da0",
+  "oracle_sha256": "d4a5eb31b925f1f1b9fe25fab353818ea043789d774081ae7bce477b5bd8d8a5",
+  "candidate_nonempty": true,
+  "target_ref": "cb0eb8ed63067553cde327241019020f84832edb",
+  "baseline_tree": "57051445434ed6d70e63564ed22ac5d0c9073acc",
+  "candidate_tree": "6ae0b1b88372c7f74b8c98d2b6af50763af6c842",
+  "oracle_tree": "6ae0b1b88372c7f74b8c98d2b6af50763af6c842",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/154",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "11e81643065afe5739ea296623b8de450714448a67a30804c9795e0b93f55da0",
+    "text": "diff --git a/ipc/msg.c b/ipc/msg.c\nindex 52770bfde2a..32aaaab15c5 100644\n--- a/ipc/msg.c\n+++ b/ipc/msg.c\n@@ -202,13 +202,6 @@ static int newque(struct ipc_namespace *ns, struct ipc_params *params)\n \t\treturn retval;\n \t}\n \n-\t/* ipc_addid() locks msq upon success. */\n-\tid = ipc_addid(&msg_ids(ns), &msq->q_perm, ns->msg_ctlmni);\n-\tif (id < 0) {\n-\t\tipc_rcu_putref(msq, msg_rcu_free);\n-\t\treturn id;\n-\t}\n-\n \tmsq->q_stime = msq->q_rtime = 0;\n \tmsq->q_ctime = get_seconds();\n \tmsq->q_cbytes = msq->q_qnum = 0;\n@@ -218,6 +211,13 @@ static int newque(struct ipc_namespace *ns, struct ipc_params *params)\n \tINIT_LIST_HEAD(&msq->q_receivers);\n \tINIT_LIST_HEAD(&msq->q_senders);\n \n+\t/* ipc_addid() locks msq upon success. */\n+\tid = ipc_addid(&msg_ids(ns), &msq->q_perm, ns->msg_ctlmni);\n+\tif (id < 0) {\n+\t\tipc_rcu_putref(msq, msg_rcu_free);\n+\t\treturn id;\n+\t}\n+\n \tipc_unlock_object(&msq->q_perm);\n \trcu_read_unlock();\n \ndiff --git a/ipc/shm.c b/ipc/shm.c\nindex 623bc387711..02f7125c8a0 100644\n--- a/ipc/shm.c\n+++ b/ipc/shm.c\n@@ -545,12 +545,6 @@ static int newseg(struct ipc_namespace *ns, struct ipc_params *params)\n \tif (IS_ERR(file))\n \t\tgoto no_file;\n \n-\tid = ipc_addid(&shm_ids(ns), &shp->shm_perm, ns->shm_ctlmni);\n-\tif (id < 0) {\n-\t\terror = id;\n-\t\tgoto no_id;\n-\t}\n-\n \tshp->shm_cprid = task_tgid_vnr(current);\n \tshp->shm_lprid = 0;\n \tshp->shm_atim = shp->shm_dtim = 0;\n@@ -560,6 +554,12 @@ static int newseg(struct ipc_namespace *ns, struct ipc_params *params)\n \tshp->shm_file = file;\n \tshp->shm_creator = current;\n \n+\tid = ipc_addid(&shm_ids(ns), &shp->shm_perm, ns->shm_ctlmni);\n+\tif (id < 0) {\n+\t\terror = id;\n+\t\tgoto no_id;\n+\t}\n+\n \t/*\n \t * shmid gets reported as \"inode#\" in /proc/pid/maps.\n \t * proc-ps tools use this. Changing this will break them.\ndiff --git a/ipc/util.c b/ipc/util.c\nindex 7684f41bce7..735342570a8 100644\n--- a/ipc/util.c\n+++ b/ipc/util.c\n@@ -292,6 +292,10 @@ int ipc_addid(struct ipc_ids* ids, struct kern_ipc_perm* new, int size)\n \trcu_read_lock();\n \tspin_lock(&new->lock);\n \n+\tcurrent_euid_egid(&euid, &egid);\n+\tnew->cuid = new->uid = euid;\n+\tnew->gid = new->cgid = egid;\n+\n \tid = idr_alloc(&ids->ipcs_idr, new,\n \t\t       (next_id < 0) ? 0 : ipcid_to_idx(next_id), 0,\n \t\t       GFP_NOWAIT);\n@@ -304,10 +308,6 @@ int ipc_addid(struct ipc_ids* ids, struct kern_ipc_perm* new, int size)\n \n \tids->in_use++;\n \n-\tcurrent_euid_egid(&euid, &egid);\n-\tnew->cuid = new->uid = euid;\n-\tnew->gid = new->cgid = egid;\n-\n \tif (next_id < 0) {\n \t\tnew->seq = ids->seq++;\n \t\tif (ids->seq > ids->seq_max)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

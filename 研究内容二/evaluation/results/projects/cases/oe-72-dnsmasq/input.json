@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-72-dnsmasq",
+  "task_input": {
+    "repository": {
+      "name": "dnsmasq",
+      "version": "2.90",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "e94324f46213e8a115a4a6eef037aee6fa74b32c",
+      "target_tree": "ccbb04b04c0a1a07f64aa55d1e3c3c24121daf3e"
+    },
+    "source_commit": "f006be7842104a9f86fbf419326b7aad08ade61d",
+    "reference_parent": "b8ff4bb762948575e658580fa07932cf002433b6",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From f006be7842104a9f86fbf419326b7aad08ade61d Mon Sep 17 00:00:00 2001\nFrom: Simon Kelley <simon@thekelleys.org.uk>\nDate: Fri, 4 Oct 2024 16:59:14 +0100\nSubject: [PATCH] Fix crash when reloading DHCP config on SIGHUP.\n\nConfusion in the code to free old DHCP configuration when it's\nbeing reloaded causes invalid pointers to be followed and a crash.\n\nhttps://lists.thekelleys.org.uk/pipermail/dnsmasq-discuss/2024q4/017764.html\n\nhas a more complete explanation of the problem.\n---\n src/option.c | 10 ++++++++--\n 1 file changed, 8 insertions(+), 2 deletions(-)\n\ndiff --git a/src/option.c b/src/option.c\nindex f4ff7c01..ed0d9e1a 100644\n--- a/src/option.c\n+++ b/src/option.c\n@@ -1336,7 +1336,7 @@ static void dhcp_netid_free(struct dhcp_netid *nid)\n \n /* Parse one or more tag:s before parameters.\n  * Moves arg to the end of tags. */\n-static struct dhcp_netid * dhcp_tags(char **arg)\n+static struct dhcp_netid *dhcp_tags(char **arg)\n {\n   struct dhcp_netid *id = NULL;\n \n@@ -1360,7 +1360,13 @@ static void dhcp_netid_list_free(struct dhcp_netid_list *netid)\n     {\n       struct dhcp_netid_list *tmplist = netid;\n       netid = netid->next;\n-      dhcp_netid_free(tmplist->list);\n+      /* Note: don't use dhcp_netid_free() here, since that \n+\t frees a list linked on netid->next. Where a netid_list\n+\t is used that's because the the ->next pointers in the\n+\t netids are being used to temporarily construct \n+\t a list of valid tags. */\n+      free(tmplist->list->net);\n+      free(tmplist->list);\n       free(tmplist);\n     }\n }\n-- \n2.25.1\n\n",
+      "sha256": "8207dd42c5630ed5819eee9c4581dc7ec1f38c402150fa0301ab693099aef9ce"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for dnsmasq.\ncase_id: oe-72-dnsmasq\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: f006be7842104a9f86fbf419326b7aad08ade61d\nreference_parent: b8ff4bb762948575e658580fa07932cf002433b6\ntarget_ref: e94324f46213e8a115a4a6eef037aee6fa74b32c\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "783d2c63e7be180396e630efc6e6bc2591e8d3096c6f094c92caa562755f1f88",
+      "text": "From f006be7842104a9f86fbf419326b7aad08ade61d Mon Sep 17 00:00:00 2001\nFrom: Simon Kelley <simon@thekelleys.org.uk>\nDate: Fri, 4 Oct 2024 16:59:14 +0100\nSubject: [PATCH] Fix crash when reloading DHCP config on SIGHUP.\n \n Confusion in the code to free old DHCP configuration when it's\n being reloaded causes invalid pointers to be followed and a crash.\n \n https://lists.thekelleys.org.uk/pipermail/dnsmasq-discuss/2024q4/017764.html\n \n has a more complete explanation of the problem.\n \nConflict:NA\nReference:https://github.com/rhuijben/dnsmasq/commit/f006be7842104a9f86fbf419326b7aad08ade61d\n \n---\n src/option.c | 10 ++++++++--\n 1 file changed, 8 insertions(+), 2 deletions(-)\n \ndiff --git a/src/option.c b/src/option.c\nindex f4ff7c0..ed0d9e1 100644\n--- a/src/option.c\n+++ b/src/option.c\n@@ -1336,7 +1336,7 @@ static void dhcp_netid_free(struct dhcp_netid *nid)\n \n /* Parse one or more tag:s before parameters.\n  * Moves arg to the end of tags. */\n-static struct dhcp_netid * dhcp_tags(char **arg)\n+static struct dhcp_netid *dhcp_tags(char **arg)\n {\n   struct dhcp_netid *id = NULL;\n \n@@ -1360,7 +1360,13 @@ static void dhcp_netid_list_free(struct dhcp_netid_list *netid)\n     {\n       struct dhcp_netid_list *tmplist = netid;\n       netid = netid->next;\n-      dhcp_netid_free(tmplist->list);\n+      /* Note: don't use dhcp_netid_free() here, since that \n+\t frees a list linked on netid->next. Where a netid_list\n+\t is used that's because the the ->next pointers in the\n+\t netids are being used to temporarily construct \n+\t a list of valid tags. */\n+      free(tmplist->list->net);\n+      free(tmplist->list);\n       free(tmplist);\n     }\n }\n-- \n2.33.0\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "e85bee3c618504ff7c0b5ef27fa64f7293e1b3cf63af6c3f51de6fbfe38a4f6d",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-72-dnsmasq/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-72-dnsmasq",
+      "package": "dnsmasq",
+      "version": "2.90",
+      "source_commit": "f006be7842104a9f86fbf419326b7aad08ade61d",
+      "target_ref": "e94324f46213e8a115a4a6eef037aee6fa74b32c",
+      "target_tree": "ccbb04b04c0a1a07f64aa55d1e3c3c24121daf3e",
+      "reference_patch": "patches/oe-72-dnsmasq/reference.patch",
+      "reference_sha256": "8207dd42c5630ed5819eee9c4581dc7ec1f38c402150fa0301ab693099aef9ce",
+      "oracle_patch": "patches/oe-72-dnsmasq/oracle.patch",
+      "oracle_sha256": "783d2c63e7be180396e630efc6e6bc2591e8d3096c6f094c92caa562755f1f88"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

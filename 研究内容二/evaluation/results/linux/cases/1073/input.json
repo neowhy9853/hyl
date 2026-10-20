@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1073",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1073-u35lenax/repo",
+      "target_ref": "02e21884dcf2f1746ab686a6ea41a0a92520fe58",
+      "target_tree": "b123255f86a2e6e6a0043533c87736244a763a65"
+    },
+    "source_commit": "c12ef025add77ca3a0902e8719d552b6d47b4282",
+    "reference_parent": "cdf18e75850f4359bc36fbe41873723629ff2b74",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/iommu/intel/iommu.c b/drivers/iommu/intel/iommu.c\nindex d4b5d20bd6ddaa45ddbf3c877d15191c4959d524..5c4f5aa8e87e448e732474406f43cb9b277f3474 100644\n--- a/drivers/iommu/intel/iommu.c\n+++ b/drivers/iommu/intel/iommu.c\n@@ -3163,13 +3163,6 @@ static int iommu_suspend(void)\n \tstruct intel_iommu *iommu = NULL;\n \tunsigned long flag;\n \n-\tfor_each_active_iommu(iommu, drhd) {\n-\t\tiommu->iommu_state = kcalloc(MAX_SR_DMAR_REGS, sizeof(u32),\n-\t\t\t\t\t     GFP_KERNEL);\n-\t\tif (!iommu->iommu_state)\n-\t\t\tgoto nomem;\n-\t}\n-\n \tiommu_flush_all();\n \n \tfor_each_active_iommu(iommu, drhd) {\n@@ -3189,12 +3182,6 @@ static int iommu_suspend(void)\n \t\traw_spin_unlock_irqrestore(&iommu->register_lock, flag);\n \t}\n \treturn 0;\n-\n-nomem:\n-\tfor_each_active_iommu(iommu, drhd)\n-\t\tkfree(iommu->iommu_state);\n-\n-\treturn -ENOMEM;\n }\n \n static void iommu_resume(void)\n@@ -3226,9 +3213,6 @@ static void iommu_resume(void)\n \n \t\traw_spin_unlock_irqrestore(&iommu->register_lock, flag);\n \t}\n-\n-\tfor_each_active_iommu(iommu, drhd)\n-\t\tkfree(iommu->iommu_state);\n }\n \n static struct syscore_ops iommu_syscore_ops = {\ndiff --git a/drivers/iommu/intel/iommu.h b/drivers/iommu/intel/iommu.h\nindex db9df7c3790cd1aeeec85f6c7fb8a6598cb2268b..c99cb715bd9a282ba761794905cf1de863ae412f 100644\n--- a/drivers/iommu/intel/iommu.h\n+++ b/drivers/iommu/intel/iommu.h\n@@ -595,7 +595,7 @@ struct intel_iommu {\n \tstruct iopf_queue *iopf_queue;\n \tunsigned char iopfq_name[16];\n \tstruct q_inval  *qi;            /* Queued invalidation info */\n-\tu32 *iommu_state; /* Store iommu states between suspend and resume.*/\n+\tu32 iommu_state[MAX_SR_DMAR_REGS]; /* Store iommu states between suspend and resume.*/\n \n #ifdef CONFIG_IRQ_REMAP\n \tstruct ir_table *ir_table;\t/* Interrupt remapping info */\n",
+      "sha256": "04ce8a58c2b945236d62d4a8ce219cd7e9eee02243cdf5eb79cf0046ea9e6285"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2023-52559\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1073-u35lenax/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1073-u35lenax/repo/.patch-port/reference.diff\nreference_fix: c12ef025add77ca3a0902e8719d552b6d47b4282\nreference_parent: cdf18e75850f4359bc36fbe41873723629ff2b74\ntarget_ref: 02e21884dcf2f1746ab686a6ea41a0a92520fe58\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1073-u35lenax/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1073-u35lenax/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2023-52559"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "29298c85a81abdc512e87537515ed4b1a9601d0e",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "d217b23aace53be0164cf98a7ac84601998fd33bd713e1456b0f3606b0236909",
+      "text": "diff --git a/drivers/iommu/intel/iommu.c b/drivers/iommu/intel/iommu.c\nindex 29538471c528e718298fbe67fa195b349c97333d..b3aa6ce9d3d7d12d9e0c1dc59abee40d1009ca06 100644\n--- a/drivers/iommu/intel/iommu.c\n+++ b/drivers/iommu/intel/iommu.c\n@@ -3564,13 +3564,6 @@ static int iommu_suspend(void)\n \tstruct intel_iommu *iommu = NULL;\n \tunsigned long flag;\n \n-\tfor_each_active_iommu(iommu, drhd) {\n-\t\tiommu->iommu_state = kcalloc(MAX_SR_DMAR_REGS, sizeof(u32),\n-\t\t\t\t\t     GFP_KERNEL);\n-\t\tif (!iommu->iommu_state)\n-\t\t\tgoto nomem;\n-\t}\n-\n \tiommu_flush_all();\n \n \tfor_each_active_iommu(iommu, drhd) {\n@@ -3590,12 +3583,6 @@ static int iommu_suspend(void)\n \t\traw_spin_unlock_irqrestore(&iommu->register_lock, flag);\n \t}\n \treturn 0;\n-\n-nomem:\n-\tfor_each_active_iommu(iommu, drhd)\n-\t\tkfree(iommu->iommu_state);\n-\n-\treturn -ENOMEM;\n }\n \n static void iommu_resume(void)\n@@ -3627,9 +3614,6 @@ static void iommu_resume(void)\n \n \t\traw_spin_unlock_irqrestore(&iommu->register_lock, flag);\n \t}\n-\n-\tfor_each_active_iommu(iommu, drhd)\n-\t\tkfree(iommu->iommu_state);\n }\n \n static struct syscore_ops iommu_syscore_ops = {\ndiff --git a/include/linux/intel-iommu.h b/include/linux/intel-iommu.h\nindex 0cf00786a164fc81faa01814e2a55c790cb3be9c..e00857c4efc28aa766e3d0b31c04910580ebe3f3 100644\n--- a/include/linux/intel-iommu.h\n+++ b/include/linux/intel-iommu.h\n@@ -604,7 +604,7 @@ struct intel_iommu {\n \tstruct iopf_queue *iopf_queue;\n \tunsigned char iopfq_name[16];\n \tstruct q_inval  *qi;            /* Queued invalidation info */\n-\tu32 *iommu_state; /* Store iommu states between suspend and resume.*/\n+\tu32 iommu_state[MAX_SR_DMAR_REGS]; /* Store iommu states between suspend and resume.*/\n \n #ifdef CONFIG_IRQ_REMAP\n \tstruct ir_table *ir_table;\t/* Interrupt remapping info */\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "d45439330064ca73fab6b9f8c969278065370e60ccd48dd26cd2cf16913a0738",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01073_CVE-2023-52559/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1073,
+      "cve": "CVE-2023-52559",
+      "source_commit": "c12ef025add77ca3a0902e8719d552b6d47b4282",
+      "oracle_commit": "29298c85a81abdc512e87537515ed4b1a9601d0e"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

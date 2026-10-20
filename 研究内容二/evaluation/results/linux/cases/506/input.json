@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "506",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-506-6rf_o_lc/repo",
+      "target_ref": "08a2da50340b0f829c27800c67782566093b5543",
+      "target_tree": "48da9e51d4974e8a9dfc36e53621dd3ed4b62858"
+    },
+    "source_commit": "bb99d6796995968ca6a42b17fbfb48d073bb234c",
+    "reference_parent": "a8a2fdd030095e0dedb38c1c8dbbadb24ad89a6a",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/arch/x86/kernel/entry_32.S b/arch/x86/kernel/entry_32.S\nindex d2d488b84e2b9c698df05216f2a4c246428335fe..db090f637967c1fec1c2ff84c481a36bd31ed556 100644\n--- a/arch/x86/kernel/entry_32.S\n+++ b/arch/x86/kernel/entry_32.S\n@@ -427,9 +427,10 @@ sysenter_past_esp:\n \tjnz sysenter_audit\n sysenter_do_call:\n \tcmpl $(nr_syscalls), %eax\n-\tjae syscall_badsys\n+\tjae sysenter_badsys\n \tcall *sys_call_table(,%eax,4)\n \tmovl %eax,PT_EAX(%esp)\n+sysenter_after_call:\n \tLOCKDEP_SYS_EXIT\n \tDISABLE_INTERRUPTS(CLBR_ANY)\n \tTRACE_IRQS_OFF\n@@ -681,7 +682,12 @@ END(syscall_fault)\n \n syscall_badsys:\n \tmovl $-ENOSYS,PT_EAX(%esp)\n-\tjmp resume_userspace\n+\tjmp syscall_exit\n+END(syscall_badsys)\n+\n+sysenter_badsys:\n+\tmovl $-ENOSYS,PT_EAX(%esp)\n+\tjmp sysenter_after_call\n END(syscall_badsys)\n \tCFI_ENDPROC\n /*\n",
+      "sha256": "0fddce9653a9760d4ae79e4a3ddc133bf1ca5d65f95f044b9ee2be75e1eff0bc"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2014-4508\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-506-6rf_o_lc/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-506-6rf_o_lc/repo/.patch-port/reference.diff\nreference_fix: bb99d6796995968ca6a42b17fbfb48d073bb234c\nreference_parent: a8a2fdd030095e0dedb38c1c8dbbadb24ad89a6a\ntarget_ref: 08a2da50340b0f829c27800c67782566093b5543\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-506-6rf_o_lc/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-506-6rf_o_lc/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2014-4508"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "b83627d417975fa8681344384ac55a1c4751f55f",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "859de6d00e965cf03f809d16fdd837075b249bbb542ba1004645b1eb4e70a9c3",
+      "text": "diff --git a/arch/x86/kernel/entry_32.S b/arch/x86/kernel/entry_32.S\nindex 2780b8f3b96cb2a42678c2577853a91fcb0023f4..6491353cc9aac419ae306642fb2cf6558463e5bf 100644\n--- a/arch/x86/kernel/entry_32.S\n+++ b/arch/x86/kernel/entry_32.S\n@@ -431,9 +431,10 @@ sysenter_past_esp:\n \tjnz sysenter_audit\n sysenter_do_call:\n \tcmpl $(NR_syscalls), %eax\n-\tjae syscall_badsys\n+\tjae sysenter_badsys\n \tcall *sys_call_table(,%eax,4)\n \tmovl %eax,PT_EAX(%esp)\n+sysenter_after_call:\n \tLOCKDEP_SYS_EXIT\n \tDISABLE_INTERRUPTS(CLBR_ANY)\n \tTRACE_IRQS_OFF\n@@ -683,7 +684,12 @@ END(syscall_fault)\n \n syscall_badsys:\n \tmovl $-ENOSYS,PT_EAX(%esp)\n-\tjmp resume_userspace\n+\tjmp syscall_exit\n+END(syscall_badsys)\n+\n+sysenter_badsys:\n+\tmovl $-ENOSYS,PT_EAX(%esp)\n+\tjmp sysenter_after_call\n END(syscall_badsys)\n \tCFI_ENDPROC\n /*\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "03421e8b09baec482a666ef0b2e98bf87d9a2646a133c58865585659bdba1f11",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/00506_CVE-2014-4508/reference.diff",
+    "source_dataset_record": {
+      "case_id": 506,
+      "cve": "CVE-2014-4508",
+      "source_commit": "bb99d6796995968ca6a42b17fbfb48d073bb234c",
+      "oracle_commit": "b83627d417975fa8681344384ac55a1c4751f55f"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

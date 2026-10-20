@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "770",
+  "candidate_sha256": "f9e0c30083e544a267262194b998887af220d45e033f1dc52c92b43ea33eee9f",
+  "oracle_sha256": "c5317eb00976b33960e7c060d3a511c0acf08604462b77505d7995da61b85f5f",
+  "candidate_nonempty": true,
+  "target_ref": "9c9b899bfc53fdffa97efeffea5a0c870b4493b5",
+  "baseline_tree": "e21a6629e1057f9c02984fb8bc3b9f7bdc36c06e",
+  "candidate_tree": "9b38859f1a44b14a3af6ffa8d7f6c3724aec39be",
+  "oracle_tree": "ce603e1f8e601b10696e525473c403ded709975e",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/770",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "f9e0c30083e544a267262194b998887af220d45e033f1dc52c92b43ea33eee9f",
+    "text": "diff --git a/arch/x86/kvm/paging_tmpl.h b/arch/x86/kvm/paging_tmpl.h\nindex 47ba1e1b35f9..66cf82c4bbe6 100644\n--- a/arch/x86/kvm/paging_tmpl.h\n+++ b/arch/x86/kvm/paging_tmpl.h\n@@ -100,7 +100,7 @@ struct guest_walker {\n \tgpa_t pte_gpa[PT_MAX_FULL_LEVELS];\n \tpt_element_t __user *ptep_user[PT_MAX_FULL_LEVELS];\n \tbool pte_writable[PT_MAX_FULL_LEVELS];\n-\tunsigned pt_access;\n+\tunsigned int pt_access[PT_MAX_FULL_LEVELS];\n \tunsigned pte_access;\n \tgfn_t gfn;\n \tstruct x86_exception fault;\n@@ -380,13 +380,15 @@ static int FNAME(walk_addr_generic)(struct guest_walker *walker,\n \t\t}\n \n \t\twalker->ptes[walker->level - 1] = pte;\n+\n+\t\t/* Convert to ACC_*_MASK flags for struct guest_walker.  */\n+\t\twalker->pt_access[walker->level - 1] = FNAME(gpte_access)(vcpu, pt_access ^ walk_nx_mask);\n \t} while (!is_last_gpte(mmu, walker->level, pte));\n \n \tpte_pkey = FNAME(gpte_pkeys)(vcpu, pte);\n \taccessed_dirty = pte_access & PT_GUEST_ACCESSED_MASK;\n \n \t/* Convert to ACC_*_MASK flags for struct guest_walker.  */\n-\twalker->pt_access = FNAME(gpte_access)(vcpu, pt_access ^ walk_nx_mask);\n \twalker->pte_access = FNAME(gpte_access)(vcpu, pte_access ^ walk_nx_mask);\n \terrcode = permission_fault(vcpu, mmu, walker->pte_access, pte_pkey, access);\n \tif (unlikely(errcode))\n@@ -424,7 +426,8 @@ static int FNAME(walk_addr_generic)(struct guest_walker *walker,\n \t}\n \n \tpgprintk(\"%s: pte %llx pte_access %x pt_access %x\\n\",\n-\t\t __func__, (u64)pte, walker->pte_access, walker->pt_access);\n+\t\t __func__, (u64)pte, walker->pte_access,\n+\t\t walker->pt_access[walker->level - 1]);\n \treturn 1;\n \n error:\n@@ -586,7 +589,7 @@ static int FNAME(fetch)(struct kvm_vcpu *vcpu, gva_t addr,\n {\n \tstruct kvm_mmu_page *sp = NULL;\n \tstruct kvm_shadow_walk_iterator it;\n-\tunsigned direct_access, access = gw->pt_access;\n+\tunsigned direct_access, access;\n \tint top_level, ret;\n \tgfn_t gfn, base_gfn;\n \n@@ -618,6 +621,7 @@ static int FNAME(fetch)(struct kvm_vcpu *vcpu, gva_t addr,\n \t\tsp = NULL;\n \t\tif (!is_shadow_present_pte(*it.sptep)) {\n \t\t\ttable_gfn = gw->table_gfn[it.level - 2];\n+\t\t\taccess = gw->pt_access[it.level - 2];\n \t\t\tsp = kvm_mmu_get_page(vcpu, table_gfn, addr, it.level-1,\n \t\t\t\t\t      false, access);\n \t\t}\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-15-vim",
+  "task_input": {
+    "repository": {
+      "name": "vim",
+      "version": "9.0",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "1789f4ca7c650714397a92e5652b9b225e09dc07",
+      "target_tree": "e8739bef3682085582ca3c18ad30e5db0d93e0ea"
+    },
+    "source_commit": "f209dcd3defb95bae21b2740910e6aa7bb940531",
+    "reference_parent": "53b14578e03f93a53fd6eb21c00caf96484742ed",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From f209dcd3defb95bae21b2740910e6aa7bb940531 Mon Sep 17 00:00:00 2001\nFrom: Christian Brabandt <cb@256bit.org>\nDate: Wed, 12 Mar 2025 22:04:01 +0100\nSubject: [PATCH] patch 9.1.1198: [security]: potential data loss with zip.vim\n\nProblem:  [security]: potential data loss with zip.vim and special\n          crafted zip files (RyotaK)\nSolution: use glob '[-]' to protect filenames starting with '-'\n\nGithub Advisory:\nhttps://github.com/vim/vim/security/advisories/GHSA-693p-m996-3rmf\n\nSigned-off-by: Christian Brabandt <cb@256bit.org>\n---\n Filelist                        |   1 +\n runtime/autoload/zip.vim        |   6 ++++++\n src/testdir/samples/poc.zip     | Bin 0 -> 306 bytes\n src/testdir/test_plugin_zip.vim |  23 +++++++++++++++++++++++\n src/version.c                   |   2 ++\n 5 files changed, 32 insertions(+)\n create mode 100644 src/testdir/samples/poc.zip\n\ndiff --git a/Filelist b/Filelist\nindex c1487af57411fb..f2797efe2f0e58 100644\n--- a/Filelist\n+++ b/Filelist\n@@ -223,6 +223,7 @@ SRC_ALL =\t\\\n \t\tsrc/testdir/samples/*.html \\\n \t\tsrc/testdir/samples/*.txt \\\n \t\tsrc/testdir/samples/*.vim \\\n+\t\tsrc/testdir/samples/poc.zip \\\n \t\tsrc/testdir/samples/test000 \\\n \t\tsrc/testdir/samples/test.zip \\\n \t\tsrc/testdir/samples/test_undo.txt.undo \\\ndiff --git a/runtime/autoload/zip.vim b/runtime/autoload/zip.vim\nindex 4a53fc5f28656a..dae4ddeb9921ee 100644\n--- a/runtime/autoload/zip.vim\n+++ b/runtime/autoload/zip.vim\n@@ -14,6 +14,7 @@\n \" 2024 Aug 05 by Vim Project: clean-up and make it work with shellslash on Windows\n \" 2024 Aug 18 by Vim Project: correctly handle special globbing chars\n \" 2024 Aug 21 by Vim Project: simplify condition to detect MS-Windows\n+\" 2025 Mar 11 by Vim Project: handle filenames with leading '-' correctly\n \" License:\tVim License  (see vim's :help license)\n \" Copyright:\tCopyright (C) 2005-2019 Charles E. Campbell {{{1\n \"\t\tPermission is hereby granted to use and distribute this code,\n@@ -343,6 +344,11 @@ fun! zip#Extract()\n    return\n   endif\n   let target = fname->substitute('\\[', '[[]', 'g')\n+  \" unzip 6.0 does not support -- to denote end-of-arguments\n+  \" unzip 6.1 (2010) apparently supports, it, but hasn't been released\n+  \" so the workaround is to use glob '[-]' so that it won't be considered an argument\n+  \" else, it would be possible to use 'unzip -o <file.zip> '-d/tmp' to extract the whole archive\n+  let target = target->substitute('^-', '[&]', '')\n   if &shell =~ 'cmd' && has(\"win32\")\n     let target = target\n \t\t\\ ->substitute('[?*]', '[&]', 'g')\ndiff --git a/src/testdir/samples/poc.zip b/src/testdir/samples/poc.zip\nnew file mode 100644\nindex 0000000000000000000000000000000000000000..8b2b44b96a24366b32be72ab40f4bd0365a6a225\nGIT binary patch\nliteral 306\nzcmWIWW@h1H00E2nDN$eslwf0!VbD#{FUc(k4dG;9UVZ0S`Vk;5t>9*0WO>2NzyKx!\nz;QIN2`hUl5Ze;`N2VqvA{(|zn)D*DxSfJKCOzmI=TmjyUOmfV)oFM^s)sjXK6XqyZ\nth@&tZgfI)!Nf5Ibfu<~JbO4f22Lg=(IS|7rR***+n1FCPkZuKW7yv<XI~)K2\n\nliteral 0\nHcmV?d00001\n\ndiff --git a/src/testdir/test_plugin_zip.vim b/src/testdir/test_plugin_zip.vim\nindex e831f263456026..2050b4ce101779 100644\n--- a/src/testdir/test_plugin_zip.vim\n+++ b/src/testdir/test_plugin_zip.vim\n@@ -235,3 +235,26 @@ def Test_zip_glob_fname()\n \n   bw\n enddef\n+\n+def Test_zip_fname_leading_hyphen()\n+  CheckNotMSWindows\n+\n+  ### copy sample zip file\n+  if !filecopy(\"samples/poc.zip\", \"X.zip\")\n+    assert_report(\"Can't copy samples/poc.zip\")\n+    return\n+  endif\n+  defer delete(\"X.zip\")\n+  defer delete('-d', 'rf')\n+  defer delete('/tmp/pwned', 'rf')\n+\n+  e X.zip\n+\n+  :1\n+  var fname = '-d/tmp'\n+  search('\\V' .. fname)\n+  normal x\n+  assert_true(filereadable('-d/tmp'))\n+  assert_false(filereadable('/tmp/pwned'))\n+  bw\n+enddef\ndiff --git a/src/version.c b/src/version.c\nindex 65332f5e9a1503..265081a8350f1b 100644\n--- a/src/version.c\n+++ b/src/version.c\n@@ -704,6 +704,8 @@ static char *(features[]) =\n \n static int included_patches[] =\n {   /* Add new patch number below this line */\n+/**/\n+    1198,\n /**/\n     1197,\n /**/\n",
+      "sha256": "3c6866d0eaf9f794a2acd8d2cdac183f5b08f0fa1403f6f2cbc4b294eedfcba0"
+    },
+    "prompt": "Use security-patch-port to port the supplied fix for CVE-2025-29768.\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: f209dcd3defb95bae21b2740910e6aa7bb940531\nreference_parent: 53b14578e03f93a53fd6eb21c00caf96484742ed\ntarget_ref: 1789f4ca7c650714397a92e5652b9b225e09dc07\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nAvailable tools include a C compiler, make, ncurses headers, Vim, zip and unzip. Inspect actual\nversions. Use appropriate focused tests, including the upstream regression intent; a system Vim\nis not automatically the exact target Vim. Build the target if needed to substantiate a claim.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "27df712b7ade499c3b9ef05e81053eee39bb8c9ab05e837605297faf1d10b4be",
+      "text": "From f209dcd3defb95bae21b2740910e6aa7bb940531 Mon Sep 17 00:00:00 2001\nFrom: Christian Brabandt <cb@256bit.org>\nDate: Wed, 12 Mar 2025 22:04:01 +0100\nSubject: [PATCH] patch 9.1.1198: [security]: potential data loss with zip.vim\n\nProblem:  [security]: potential data loss with zip.vim and special\n          crafted zip files (RyotaK)\nSolution: use glob '[-]' to protect filenames starting with '-'\n\nGithub Advisory:\nhttps://github.com/vim/vim/security/advisories/GHSA-693p-m996-3rmf\n\nSigned-off-by: Christian Brabandt <cb@256bit.org>\n---\n runtime/autoload/zip.vim | 6 ++++++\n 1 file changed, 6 insertions(+)\n\ndiff --git a/runtime/autoload/zip.vim b/runtime/autoload/zip.vim\nindex 4a53fc5f28656..dae4ddeb9921e 100644\n--- a/runtime/autoload/zip.vim\n+++ b/runtime/autoload/zip.vim\n@@ -8,6 +8,7 @@\n \" 2024 Aug 04 by Vim Project: escape '[' in name of file to be extracted\n \" 2024 Aug 05 by Vim Project: workaround for the FreeBSD's unzip\n \" 2024 Aug 18 by Vim Project: correctly handle special globbing chars\n+\" 2025 Mar 11 by Vim Project: handle filenames with leading '-' correctly\n \" License:\tVim License  (see vim's :help license)\n \" Copyright:    Copyright (C) 2005-2019 Charles E. Campbell {{{1\n \"               Permission is hereby granted to use and distribute this code,\n@@ -409,6 +410,11 @@ fun! zip#Extract()\n     return\n    endif\n    let target = fname->substitute('\\[', '[[]', 'g')\n+   \" unzip 6.0 does not support -- to denote end-of-arguments\n+   \" unzip 6.1 (2010) apparently supports, it, but hasn't been released\n+   \" so the workaround is to use glob '[-]' so that it won't be considered an argument\n+   \" else, it would be possible to use 'unzip -o <file.zip> '-d/tmp' to extract the whole archive\n+   let target = target->substitute('^-', '[&]', '')\n    if &shell =~ 'cmd' && (has(\"win32\") || has(\"win64\"))\n      let target = target\n  \t\t\\ ->substitute('[?*]', '[&]', 'g')\n-- \n2.43.0\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "2dec9b8962338c6ffe19903205257b1fe0b5359660bb8dda191bcb53b15ba016",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-15-vim/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-15-vim",
+      "package": "vim",
+      "version": "9.0",
+      "source_commit": "f209dcd3defb95bae21b2740910e6aa7bb940531",
+      "target_ref": "1789f4ca7c650714397a92e5652b9b225e09dc07",
+      "target_tree": "e8739bef3682085582ca3c18ad30e5db0d93e0ea",
+      "reference_patch": "patches/oe-15-vim/reference.patch",
+      "reference_sha256": "3c6866d0eaf9f794a2acd8d2cdac183f5b08f0fa1403f6f2cbc4b294eedfcba0",
+      "oracle_patch": "patches/oe-15-vim/oracle.patch",
+      "oracle_sha256": "27df712b7ade499c3b9ef05e81053eee39bb8c9ab05e837605297faf1d10b4be"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

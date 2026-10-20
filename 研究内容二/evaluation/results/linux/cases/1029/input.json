@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1029",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1029-wrmo5gg_/repo",
+      "target_ref": "fe2292f42aa20799497099a88771b4bbf6afdc4e",
+      "target_tree": "e020582c48b1768300424f35d3c60bc260ab61ca"
+    },
+    "source_commit": "6921174cd2fb5f2d0608770fe23056ab128b6d97",
+    "reference_parent": "57e1a069b42baf7afcdd8e7c8d2bd7c95a22392a",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/xfs/xfs_super.c b/fs/xfs/xfs_super.c\nindex 0b0282d2f011c75c8ffbae8868f9f49d92a26da2..10151c9268e1d877ec692e7a7f8f53f534181805 100644\n--- a/fs/xfs/xfs_super.c\n+++ b/fs/xfs/xfs_super.c\n@@ -1715,6 +1715,7 @@ xfs_fs_fill_super(\n  out_close_devices:\n \txfs_close_devices(mp);\n  out_free_fsname:\n+\tsb->s_fs_info = NULL;\n \txfs_free_fsname(mp);\n \tkfree(mp);\n  out:\n@@ -1732,6 +1733,10 @@ xfs_fs_put_super(\n {\n \tstruct xfs_mount\t*mp = XFS_M(sb);\n \n+\t/* if ->fill_super failed, we have no mount to tear down */\n+\tif (!sb->s_fs_info)\n+\t\treturn;\n+\n \txfs_notice(mp, \"Unmounting Filesystem\");\n \txfs_filestream_unmount(mp);\n \txfs_unmountfs(mp);\n@@ -1741,6 +1746,8 @@ xfs_fs_put_super(\n \txfs_destroy_percpu_counters(mp);\n \txfs_destroy_mount_workqueues(mp);\n \txfs_close_devices(mp);\n+\n+\tsb->s_fs_info = NULL;\n \txfs_free_fsname(mp);\n \tkfree(mp);\n }\n@@ -1760,6 +1767,9 @@ xfs_fs_nr_cached_objects(\n \tstruct super_block\t*sb,\n \tstruct shrink_control\t*sc)\n {\n+\t/* Paranoia: catch incorrect calls during mount setup or teardown */\n+\tif (WARN_ON_ONCE(!sb->s_fs_info))\n+\t\treturn 0;\n \treturn xfs_reclaim_inodes_count(XFS_M(sb));\n }\n \n",
+      "sha256": "e597e4a9fc6a0e9f82366bfe513a73f84467d25dfac6ee79c4d62e8a86f9051d"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2018-20976\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1029-wrmo5gg_/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1029-wrmo5gg_/repo/.patch-port/reference.diff\nreference_fix: 6921174cd2fb5f2d0608770fe23056ab128b6d97\nreference_parent: 57e1a069b42baf7afcdd8e7c8d2bd7c95a22392a\ntarget_ref: fe2292f42aa20799497099a88771b4bbf6afdc4e\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1029-wrmo5gg_/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1029-wrmo5gg_/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2018-20976"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "bf3878994377a97143f5f6b6e60a18f9b76e0476",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "42530ede4a21707386088cf4bdd2dc73a21b6057bd95e7690de975331721d6c2",
+      "text": "diff --git a/fs/xfs/xfs_super.c b/fs/xfs/xfs_super.c\nindex 2616ddea67567e15401b615387c5a07c8ba4bfce..e5a9b5b9dc67fee4596bee83ccf882a7113cd525 100644\n--- a/fs/xfs/xfs_super.c\n+++ b/fs/xfs/xfs_super.c\n@@ -1038,6 +1038,10 @@ xfs_fs_put_super(\n {\n \tstruct xfs_mount\t*mp = XFS_M(sb);\n \n+\t/* if ->fill_super failed, we have no mount to tear down */\n+\tif (!sb->s_fs_info)\n+\t\treturn;\n+\n \txfs_filestream_unmount(mp);\n \txfs_unmountfs(mp);\n \n@@ -1045,6 +1049,8 @@ xfs_fs_put_super(\n \txfs_icsb_destroy_counters(mp);\n \txfs_destroy_mount_workqueues(mp);\n \txfs_close_devices(mp);\n+\n+\tsb->s_fs_info = NULL;\n \txfs_free_fsname(mp);\n \tkfree(mp);\n }\n@@ -1514,6 +1520,7 @@ xfs_fs_fill_super(\n  out_close_devices:\n \txfs_close_devices(mp);\n  out_free_fsname:\n+\tsb->s_fs_info = NULL;\n \txfs_free_fsname(mp);\n \tkfree(mp);\n  out:\n@@ -1540,6 +1547,9 @@ xfs_fs_nr_cached_objects(\n \tstruct super_block\t*sb,\n \tint\t\t\tnid)\n {\n+\t/* Paranoia: catch incorrect calls during mount setup or teardown */\n+\tif (WARN_ON_ONCE(!sb->s_fs_info))\n+\t\treturn 0;\n \treturn xfs_reclaim_inodes_count(XFS_M(sb));\n }\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "22eb4d941f3726901dd0713a118417f30a211767e0ece0e1322b3ca35bb7de07",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01029_CVE-2018-20976/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1029,
+      "cve": "CVE-2018-20976",
+      "source_commit": "6921174cd2fb5f2d0608770fe23056ab128b6d97",
+      "oracle_commit": "bf3878994377a97143f5f6b6e60a18f9b76e0476"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

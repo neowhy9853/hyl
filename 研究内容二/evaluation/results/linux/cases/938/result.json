@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "938",
+  "candidate_sha256": "19c24d7fb05604d69880366e0713a0ecae1c57fb2032415e2a22fbe02890de17",
+  "oracle_sha256": "19c24d7fb05604d69880366e0713a0ecae1c57fb2032415e2a22fbe02890de17",
+  "candidate_nonempty": true,
+  "target_ref": "c57c213538156bff971aa352d9d7749196dfbfd8",
+  "baseline_tree": "1d176191176a6a449c0c000350c5ee8f75ca648f",
+  "candidate_tree": "31f32d97490ff91e95cffa735a8006f40071c3d3",
+  "oracle_tree": "31f32d97490ff91e95cffa735a8006f40071c3d3",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/938",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "19c24d7fb05604d69880366e0713a0ecae1c57fb2032415e2a22fbe02890de17",
+    "text": "diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_acp.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_acp.c\nindex 71efcf38f11b..94cd8a261091 100644\n--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_acp.c\n+++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_acp.c\n@@ -276,7 +276,7 @@ static int acp_hw_init(void *handle)\n \tu32 val = 0;\n \tu32 count = 0;\n \tstruct device *dev;\n-\tstruct i2s_platform_data *i2s_pdata;\n+\tstruct i2s_platform_data *i2s_pdata = NULL;\n \n \tstruct amdgpu_device *adev = (struct amdgpu_device *)handle;\n \n@@ -317,20 +317,21 @@ static int acp_hw_init(void *handle)\n \tadev->acp.acp_cell = kcalloc(ACP_DEVS, sizeof(struct mfd_cell),\n \t\t\t\t\t\t\tGFP_KERNEL);\n \n-\tif (adev->acp.acp_cell == NULL)\n-\t\treturn -ENOMEM;\n+\tif (adev->acp.acp_cell == NULL) {\n+\t\tr = -ENOMEM;\n+\t\tgoto failure;\n+\t}\n \n \tadev->acp.acp_res = kcalloc(5, sizeof(struct resource), GFP_KERNEL);\n \tif (adev->acp.acp_res == NULL) {\n-\t\tkfree(adev->acp.acp_cell);\n-\t\treturn -ENOMEM;\n+\t\tr = -ENOMEM;\n+\t\tgoto failure;\n \t}\n \n \ti2s_pdata = kcalloc(3, sizeof(struct i2s_platform_data), GFP_KERNEL);\n \tif (i2s_pdata == NULL) {\n-\t\tkfree(adev->acp.acp_res);\n-\t\tkfree(adev->acp.acp_cell);\n-\t\treturn -ENOMEM;\n+\t\tr = -ENOMEM;\n+\t\tgoto failure;\n \t}\n \n \tswitch (adev->asic_type) {\n@@ -427,7 +428,7 @@ static int acp_hw_init(void *handle)\n \tr = mfd_add_hotplug_devices(adev->acp.parent, adev->acp.acp_cell,\n \t\t\t\t\t\t\t\tACP_DEVS);\n \tif (r)\n-\t\treturn r;\n+\t\tgoto failure;\n \n \tif (adev->asic_type != CHIP_STONEY) {\n \t\tfor (i = 0; i < ACP_DEVS ; i++) {\n@@ -435,7 +436,7 @@ static int acp_hw_init(void *handle)\n \t\t\tr = pm_genpd_add_device(&adev->acp.acp_genpd->gpd, dev);\n \t\t\tif (r) {\n \t\t\t\tdev_err(dev, \"Failed to add dev to genpd\\n\");\n-\t\t\t\treturn r;\n+\t\t\t\tgoto failure;\n \t\t\t}\n \t\t}\n \t}\n@@ -454,7 +455,8 @@ static int acp_hw_init(void *handle)\n \t\t\tbreak;\n \t\tif (--count == 0) {\n \t\t\tdev_err(&adev->pdev->dev, \"Failed to reset ACP\\n\");\n-\t\t\treturn -ETIMEDOUT;\n+\t\t\tr = -ETIMEDOUT;\n+\t\t\tgoto failure;\n \t\t}\n \t\tudelay(100);\n \t}\n@@ -471,7 +473,8 @@ static int acp_hw_init(void *handle)\n \t\t\tbreak;\n \t\tif (--count == 0) {\n \t\t\tdev_err(&adev->pdev->dev, \"Failed to reset ACP\\n\");\n-\t\t\treturn -ETIMEDOUT;\n+\t\t\tr = -ETIMEDOUT;\n+\t\t\tgoto failure;\n \t\t}\n \t\tudelay(100);\n \t}\n@@ -480,6 +483,13 @@ static int acp_hw_init(void *handle)\n \tval &= ~ACP_SOFT_RESET__SoftResetAud_MASK;\n \tcgs_write_register(adev->acp.cgs_device, mmACP_SOFT_RESET, val);\n \treturn 0;\n+\n+failure:\n+\tkfree(i2s_pdata);\n+\tkfree(adev->acp.acp_res);\n+\tkfree(adev->acp.acp_cell);\n+\tkfree(adev->acp.acp_genpd);\n+\treturn r;\n }\n \n /**\n"
+  },
+  "trace_file": "trace.jsonl"
+}

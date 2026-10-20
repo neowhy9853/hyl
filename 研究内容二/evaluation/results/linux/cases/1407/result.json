@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1407",
+  "candidate_sha256": "1dfdfc67b4cdc7d514664724c39cd1128e04d1c3e054fd0f385372dbf9ce88d3",
+  "oracle_sha256": "d4806e3667a269298991deb82b8a2692aa3419f1661d0c3b21c7cdf975398abf",
+  "candidate_nonempty": true,
+  "target_ref": "fab9b9d7d298efd742488e9dce3e06caacd8da97",
+  "baseline_tree": "c5b4ac42307c2a2bb85a55027f1c4f3bac87cf67",
+  "candidate_tree": "480c0394963e16aac68de56e0f5bee4b3e8d3af6",
+  "oracle_tree": "e774ae607e3c5f5705578291a59e92aa829e0b7c",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1407",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "1dfdfc67b4cdc7d514664724c39cd1128e04d1c3e054fd0f385372dbf9ce88d3",
+    "text": "diff --git a/net/mac80211/cfg.c b/net/mac80211/cfg.c\nindex c40e74f1c7b1..64e63448de2b 100644\n--- a/net/mac80211/cfg.c\n+++ b/net/mac80211/cfg.c\n@@ -1436,7 +1436,6 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,\n \tstruct sta_info *sta;\n \tstruct ieee80211_sub_if_data *sdata;\n \tint err;\n-\tint layer2_update;\n \n \tif (params->vlan) {\n \t\tsdata = IEEE80211_DEV_TO_SUB_IF(params->vlan);\n@@ -1481,18 +1480,12 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,\n \tif (!test_sta_flag(sta, WLAN_STA_TDLS_PEER))\n \t\trate_control_rate_init(sta);\n \n-\tlayer2_update = sdata->vif.type == NL80211_IFTYPE_AP_VLAN ||\n-\t\tsdata->vif.type == NL80211_IFTYPE_AP;\n-\n \terr = sta_info_insert_rcu(sta);\n \tif (err) {\n \t\trcu_read_unlock();\n \t\treturn err;\n \t}\n \n-\tif (layer2_update)\n-\t\tcfg80211_send_layer2_update(sta->sdata->dev, sta->sta.addr);\n-\n \trcu_read_unlock();\n \n \treturn 0;\n@@ -1596,7 +1589,9 @@ static int ieee80211_change_station(struct wiphy *wiphy,\n \t\t\t\tatomic_inc(&sta->sdata->bss->num_mcast_sta);\n \t\t}\n \n-\t\tcfg80211_send_layer2_update(sta->sdata->dev, sta->sta.addr);\n+\t\tif (test_sta_flag(sta, WLAN_STA_AUTHORIZED))\n+\t\t\tcfg80211_send_layer2_update(sta->sdata->dev,\n+\t\t\t\t\t\t    sta->sta.addr);\n \t}\n \n \terr = sta_apply_parameters(local, sta, params);\ndiff --git a/net/mac80211/sta_info.c b/net/mac80211/sta_info.c\nindex c006801f3d83..f89e76effb42 100644\n--- a/net/mac80211/sta_info.c\n+++ b/net/mac80211/sta_info.c\n@@ -1666,6 +1666,10 @@ int sta_info_move_state(struct sta_info *sta,\n \t\t\t\tatomic_inc(&sta->sdata->bss->num_mcast_sta);\n \t\t\tset_bit(WLAN_STA_AUTHORIZED, &sta->_flags);\n \t\t}\n+\t\tif (sta->sdata->vif.type == NL80211_IFTYPE_AP_VLAN ||\n+\t\t    sta->sdata->vif.type == NL80211_IFTYPE_AP)\n+\t\t\tcfg80211_send_layer2_update(sta->sdata->dev,\n+\t\t\t\t\t\t    sta->sta.addr);\n \t\tbreak;\n \tdefault:\n \t\tbreak;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

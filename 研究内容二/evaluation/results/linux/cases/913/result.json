@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "913",
+  "candidate_sha256": "d64f7e527e935426a0b37e6926c506af9de4aaa030de983b4cb06b1141fb02d3",
+  "oracle_sha256": "f63ae777d46cb3479ab90522d30088f8f99079e3d5015ccb656ad20da5433797",
+  "candidate_nonempty": true,
+  "target_ref": "247b6244d40e9962d7b41c6841985ac10e913103",
+  "baseline_tree": "c55c06d720befdb88d27e2fe1b6fff7056c7f678",
+  "candidate_tree": "f85acc9283c4f2269f31b2e73266d7667c5507e9",
+  "oracle_tree": "f85acc9283c4f2269f31b2e73266d7667c5507e9",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/913",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "d64f7e527e935426a0b37e6926c506af9de4aaa030de983b4cb06b1141fb02d3",
+    "text": "diff --git a/kernel/cgroup/cgroup-v1.c b/kernel/cgroup/cgroup-v1.c\nindex 35b920328344..87c5835b9d7b 100644\n--- a/kernel/cgroup/cgroup-v1.c\n+++ b/kernel/cgroup/cgroup-v1.c\n@@ -507,10 +507,11 @@ static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,\n \t\tgoto out_unlock;\n \n \t/*\n-\t * Even if we're attaching all tasks in the thread group, we only\n-\t * need to check permissions on one of them.\n+\t * Even if we're attaching all tasks in the thread group, we only need\n+\t * to check permissions on one of them. Check permissions using the\n+\t * credentials from file open to protect against inherited fd attacks.\n \t */\n-\tcred = current_cred();\n+\tcred = of->file->f_cred;\n \ttcred = get_task_cred(task);\n \tif (!uid_eq(cred->euid, GLOBAL_ROOT_UID) &&\n \t    !uid_eq(cred->euid, tcred->uid) &&\ndiff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c\nindex d6ea872b23aa..6622e1da2ac5 100644\n--- a/kernel/cgroup/cgroup.c\n+++ b/kernel/cgroup/cgroup.c\n@@ -4892,6 +4892,7 @@ static ssize_t __cgroup_procs_write(struct kernfs_open_file *of, char *buf,\n {\n \tstruct cgroup *src_cgrp, *dst_cgrp;\n \tstruct task_struct *task;\n+\tconst struct cred *saved_cred;\n \tssize_t ret;\n \tbool locked;\n \n@@ -4909,9 +4910,15 @@ static ssize_t __cgroup_procs_write(struct kernfs_open_file *of, char *buf,\n \tsrc_cgrp = task_cgroup_from_root(task, &cgrp_dfl_root);\n \tspin_unlock_irq(&css_set_lock);\n \n-\t/* process and thread migrations follow same delegation rule */\n+\t/*\n+\t * Process and thread migrations follow same delegation rule. Check\n+\t * permissions using the credentials from file open to protect against\n+\t * inherited fd attacks.\n+\t */\n+\tsaved_cred = override_creds(of->file->f_cred);\n \tret = cgroup_attach_permissions(src_cgrp, dst_cgrp,\n \t\t\t\t\tof->file->f_path.dentry->d_sb, threadgroup);\n+\trevert_creds(saved_cred);\n \tif (ret)\n \t\tgoto out_finish;\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

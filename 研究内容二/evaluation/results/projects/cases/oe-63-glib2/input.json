@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-63-glib2",
+  "task_input": {
+    "repository": {
+      "name": "glib2",
+      "version": "2.78.3",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "a810a263832aee525f3c0b4e2af0ac46a2d5fcdc",
+      "target_tree": "e98615605153aaf2014331899003b9b560e1bfd6"
+    },
+    "source_commit": "1909d8ea9297287f1ff6862968608dcf06e60523",
+    "reference_parent": "effe6916c555b36650d3ab5127ed995d7e717934",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 1909d8ea9297287f1ff6862968608dcf06e60523 Mon Sep 17 00:00:00 2001\nFrom: Philip Withnall <pwithnall@gnome.org>\nDate: Thu, 4 Dec 2025 16:37:19 +0000\nSubject: [PATCH] gfileattribute: Fix integer overflow calculating escaping for\n byte strings\n\nThe number of invalid characters in the byte string (characters which\nwould have to be percent-encoded) was only stored in an `int`, which\ngave the possibility of a long string largely full of invalid\ncharacters overflowing this and allowing an attacker-controlled buffer\nsize to be allocated.\n\nThis could be triggered by an attacker controlled file attribute (of\ntype `G_FILE_ATTRIBUTE_TYPE_BYTE_STRING`), such as\n`G_FILE_ATTRIBUTE_THUMBNAIL_PATH` or `G_FILE_ATTRIBUTE_STANDARD_NAME`,\nbeing read by user code.\n\nSpotted by Codean Labs.\n\nSigned-off-by: Philip Withnall <pwithnall@gnome.org>\n\nFixes: #3845\n---\n gio/gfileattribute.c | 11 +++++++++--\n 1 file changed, 9 insertions(+), 2 deletions(-)\n\ndiff --git a/gio/gfileattribute.c b/gio/gfileattribute.c\nindex c6fde60fa9..d3083e5bd8 100644\n--- a/gio/gfileattribute.c\n+++ b/gio/gfileattribute.c\n@@ -22,6 +22,7 @@\n \n #include \"config.h\"\n \n+#include <stdint.h>\n #include <string.h>\n \n #include \"gfileattribute.h\"\n@@ -166,11 +167,12 @@ valid_char (char c)\n   return c >= 32 && c <= 126 && c != '\\\\';\n }\n \n+/* Returns NULL on error */\n static char *\n escape_byte_string (const char *str)\n {\n   size_t i, len;\n-  int num_invalid;\n+  size_t num_invalid;\n   char *escaped_val, *p;\n   unsigned char c;\n   const char hex_digits[] = \"0123456789abcdef\";\n@@ -188,7 +190,12 @@ escape_byte_string (const char *str)\n     return g_strdup (str);\n   else\n     {\n-      escaped_val = g_malloc (len + num_invalid*3 + 1);\n+      /* Check for overflow. We want to check the inequality:\n+       * !(len + num_invalid * 3 + 1 > SIZE_MAX) */\n+      if (num_invalid >= (SIZE_MAX - len) / 3)\n+        return NULL;\n+\n+      escaped_val = g_malloc (len + num_invalid * 3 + 1);\n \n       p = escaped_val;\n       for (i = 0; i < len; i++)\n-- \n2.25.1\n\n",
+      "sha256": "c8c687029042b57804ce15dc69b5532e3b7b740924f04fa1d0f74f6acb503bf1"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for glib2.\ncase_id: oe-63-glib2\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 1909d8ea9297287f1ff6862968608dcf06e60523\nreference_parent: effe6916c555b36650d3ab5127ed995d7e717934\ntarget_ref: a810a263832aee525f3c0b4e2af0ac46a2d5fcdc\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "da960a2c84b71c2cc21f905e2b6f2959c6c11bbf90a184917855c4c3f41d0b16",
+      "text": "From 1909d8ea9297287f1ff6862968608dcf06e60523 Mon Sep 17 00:00:00 2001\r\nFrom: Philip Withnall <pwithnall@gnome.org>\r\nDate: Thu, 4 Dec 2025 16:37:19 +0000\r\nSubject: [PATCH] gfileattribute: Fix integer overflow calculating escaping for\r\n byte strings\r\n \r\nThe number of invalid characters in the byte string (characters which\r\nwould have to be percent-encoded) was only stored in an `int`, which\r\ngave the possibility of a long string largely full of invalid\r\ncharacters overflowing this and allowing an attacker-controlled buffer\r\nsize to be allocated.\r\n \r\nThis could be triggered by an attacker controlled file attribute (of\r\ntype `G_FILE_ATTRIBUTE_TYPE_BYTE_STRING`), such as\r\n`G_FILE_ATTRIBUTE_THUMBNAIL_PATH` or `G_FILE_ATTRIBUTE_STANDARD_NAME`,\r\nbeing read by user code.\r\n \r\nSpotted by Codean Labs.\r\n \r\nSigned-off-by: Philip Withnall <pwithnall@gnome.org>\r\n \r\nFixes: #3845\r\n---\r\n gio/gfileattribute.c | 11 +++++++++--\r\n 1 file changed, 9 insertions(+), 2 deletions(-)\r\n \r\ndiff --git a/gio/gfileattribute.c b/gio/gfileattribute.c\r\nindex c6fde60fa9..d3083e5bd8 100644\r\n--- a/gio/gfileattribute.c\r\n+++ b/gio/gfileattribute.c\r\n@@ -22,6 +22,7 @@\r\n \r\n #include \"config.h\"\r\n \r\n+#include <stdint.h>\r\n #include <string.h>\r\n \r\n #include \"gfileattribute.h\"\r\n@@ -166,11 +167,12 @@ valid_char (char c)\r\n   return c >= 32 && c <= 126 && c != '\\\\';\r\n }\r\n \r\n+/* Returns NULL on error */\r\n static char *\r\n escape_byte_string (const char *str)\r\n {\r\n   size_t i, len;\r\n-  int num_invalid;\r\n+  size_t num_invalid;\r\n   char *escaped_val, *p;\r\n   unsigned char c;\r\n   const char hex_digits[] = \"0123456789abcdef\";\r\n@@ -188,7 +190,12 @@ escape_byte_string (const char *str)\r\n     return g_strdup (str);\r\n   else\r\n     {\r\n-      escaped_val = g_malloc (len + num_invalid*3 + 1);\r\n+      /* Check for overflow. We want to check the inequality:\r\n+       * !(len + num_invalid * 3 + 1 > SIZE_MAX) */\r\n+      if (num_invalid >= (SIZE_MAX - len) / 3)\r\n+        return NULL;\r\n+\r\n+      escaped_val = g_malloc (len + num_invalid * 3 + 1);\r\n \r\n       p = escaped_val;\r\n       for (i = 0; i < len; i++)\r\n-- \r\nGitLab"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "f2004bacabcdd1bd3579b062bc889e21ae91785deb67877c14950d41d91a50dd",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-63-glib2/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-63-glib2",
+      "package": "glib2",
+      "version": "2.78.3",
+      "source_commit": "1909d8ea9297287f1ff6862968608dcf06e60523",
+      "target_ref": "a810a263832aee525f3c0b4e2af0ac46a2d5fcdc",
+      "target_tree": "e98615605153aaf2014331899003b9b560e1bfd6",
+      "reference_patch": "patches/oe-63-glib2/reference.patch",
+      "reference_sha256": "c8c687029042b57804ce15dc69b5532e3b7b740924f04fa1d0f74f6acb503bf1",
+      "oracle_patch": "patches/oe-63-glib2/oracle.patch",
+      "oracle_sha256": "da960a2c84b71c2cc21f905e2b6f2959c6c11bbf90a184917855c4c3f41d0b16"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

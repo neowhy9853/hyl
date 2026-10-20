@@ -1,0 +1,47 @@
+{
+  "round": 1,
+  "case_id": "case_119",
+  "source_index": 118,
+  "repo": "kernel",
+  "commit_id": "e8da371357abcdf1bc291557509421bb1aefd1ee",
+  "oracle_label": "feat",
+  "predicted_label": "feat",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "060118235b3c",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "feat",
+    "confidence": 0.9,
+    "reason": "扩展了硬件内存错误处理能力，使 PF_MCE_EARLY 进程在 Action Required 事件中能收到 SIGBUS 信号，增加了新的信号发送路径和用户可感知的行为支持。",
+    "intent_items": [
+      {
+        "target": "内存错误处理机制（mm/memory-failure.c 中的 kill_proc 和 task_early_kill 函数）",
+        "change": "修改了 kill_proc 函数，当 flags 包含 MF_ACTION_REQUIRED 时，对当前进程发送 BUS_MCEERR_AR 信号，对其他具有 PF_MCE_EARLY 标志的进程发送 BUS_MCEERR_AO 信号；简化了 task_early_kill 函数逻辑，移除 force_early 时的早期返回限制，允许回退到 find_early_kill_thread 查找 PF_MCE_EARLY 进程。",
+        "effect_or_reason": "使设置了 PF_MCE_EARLY 标志的进程（即使不是触发错误的当前进程）在 Action Required 内存错误事件中能提前收到 SIGBUS 信号，扩展了硬件内存错误早期通知的支持范围。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "修改了 kill_proc 函数，区分当前进程与其他进程的信号类型",
+            "调整了 task_early_kill 函数，允许查找非当前进程的 PF_MCE_EARLY 线程"
+          ],
+          "message_only_details": [
+            "该场景适用于其他共享错误页的进程希望通过 PF_MCE_EARLY 提前收到信号"
+          ],
+          "code_only_details": [
+            "在 kill_proc 中新增了条件分支，对非当前进程使用 send_sig_mceerr 发送 BUS_MCEERR_AO"
+          ]
+        },
+        "evidence": [
+          "补丁在 kill_proc 中新增了 else 分支，对非当前进程发送 BUS_MCEERR_AO 信号，扩展了信号接收范围",
+          "回退该提交将导致 PF_MCE_EARLY 进程在 Action Required 事件中无法收到早期信号，支持范围缩小"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_119",
+  "trace_status": "available"
+}

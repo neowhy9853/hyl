@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1015",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1015-3uq6_pp9/repo",
+      "target_ref": "fd2634366fca1f93e7d4cf36c8a919dfe11cd0ec",
+      "target_tree": "33501458006d37204e04e7df4e15bb821432318d"
+    },
+    "source_commit": "ff6c96461be35381399466ad58f02b8d78ab480a",
+    "reference_parent": "b88fc699a023e0ef86f647c3d48a17d7cfff1f2a",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/ext4/ext4.h b/fs/ext4/ext4.h\nindex c8ad14c697c4a72da15f147061a419aefdf09356..f5d9f82b173a05d80d9998486bfe3a5efeaddb03 100644\n--- a/fs/ext4/ext4.h\n+++ b/fs/ext4/ext4.h\n@@ -1468,11 +1468,6 @@ static inline struct timespec ext4_current_time(struct inode *inode)\n static inline int ext4_valid_inum(struct super_block *sb, unsigned long ino)\n {\n \treturn ino == EXT4_ROOT_INO ||\n-\t\tino == EXT4_USR_QUOTA_INO ||\n-\t\tino == EXT4_GRP_QUOTA_INO ||\n-\t\tino == EXT4_BOOT_LOADER_INO ||\n-\t\tino == EXT4_JOURNAL_INO ||\n-\t\tino == EXT4_RESIZE_INO ||\n \t\t(ino >= EXT4_FIRST_INO(sb) &&\n \t\t ino <= le32_to_cpu(EXT4_SB(sb)->s_es->s_inodes_count));\n }\ndiff --git a/fs/ext4/inode.c b/fs/ext4/inode.c\nindex b8f4394971c89dda4fadd9956559e97cb2a297db..b507de0e4bbf42fd287da53c657b0a3856869e77 100644\n--- a/fs/ext4/inode.c\n+++ b/fs/ext4/inode.c\n@@ -3991,7 +3991,8 @@ static int __ext4_get_inode_loc(struct inode *inode,\n \tint\t\t\tinodes_per_block, inode_offset;\n \n \tiloc->bh = NULL;\n-\tif (!ext4_valid_inum(sb, inode->i_ino))\n+\tif (inode->i_ino < EXT4_ROOT_INO ||\n+\t    inode->i_ino > le32_to_cpu(EXT4_SB(sb)->s_es->s_inodes_count))\n \t\treturn -EFSCORRUPTED;\n \n \tiloc->block_group = (inode->i_ino - 1) / EXT4_INODES_PER_GROUP(sb);\ndiff --git a/fs/ext4/super.c b/fs/ext4/super.c\nindex 4cff3ff7b9e0db5a4d70779a07e59caf98096e55..9762fde91fb587ff02a0fc26eccf17dcfd053ec8 100644\n--- a/fs/ext4/super.c\n+++ b/fs/ext4/super.c\n@@ -3549,6 +3549,11 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)\n \t} else {\n \t\tsbi->s_inode_size = le16_to_cpu(es->s_inode_size);\n \t\tsbi->s_first_ino = le32_to_cpu(es->s_first_ino);\n+\t\tif (sbi->s_first_ino < EXT4_GOOD_OLD_FIRST_INO) {\n+\t\t\text4_msg(sb, KERN_ERR, \"invalid first ino: %u\",\n+\t\t\t\t sbi->s_first_ino);\n+\t\t\tgoto failed_mount;\n+\t\t}\n \t\tif ((sbi->s_inode_size < EXT4_GOOD_OLD_INODE_SIZE) ||\n \t\t    (!is_power_of_2(sbi->s_inode_size)) ||\n \t\t    (sbi->s_inode_size > blocksize)) {\n",
+      "sha256": "1f105a2c7f4601abe317fbb27e7927ef6f110d2d03fa5def09a33280a5a98ba2"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2018-10882\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1015-3uq6_pp9/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1015-3uq6_pp9/repo/.patch-port/reference.diff\nreference_fix: ff6c96461be35381399466ad58f02b8d78ab480a\nreference_parent: b88fc699a023e0ef86f647c3d48a17d7cfff1f2a\ntarget_ref: fd2634366fca1f93e7d4cf36c8a919dfe11cd0ec\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1015-3uq6_pp9/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1015-3uq6_pp9/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2018-10882"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "292dc9673821842c0762b5d095a05e354e795392",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "d58a3572998ce73c18752fab78378814301b28865cd044ea1d7b8e867c000710",
+      "text": "diff --git a/fs/ext4/ext4.h b/fs/ext4/ext4.h\nindex bd997b3d6a6f06861beac3443fa94549bd3e18e7..beea7a33f5eed3a6a1a12828d295782b6436e9f7 100644\n--- a/fs/ext4/ext4.h\n+++ b/fs/ext4/ext4.h\n@@ -1386,11 +1386,6 @@ static inline struct timespec ext4_current_time(struct inode *inode)\n static inline int ext4_valid_inum(struct super_block *sb, unsigned long ino)\n {\n \treturn ino == EXT4_ROOT_INO ||\n-\t\tino == EXT4_USR_QUOTA_INO ||\n-\t\tino == EXT4_GRP_QUOTA_INO ||\n-\t\tino == EXT4_BOOT_LOADER_INO ||\n-\t\tino == EXT4_JOURNAL_INO ||\n-\t\tino == EXT4_RESIZE_INO ||\n \t\t(ino >= EXT4_FIRST_INO(sb) &&\n \t\t ino <= le32_to_cpu(EXT4_SB(sb)->s_es->s_inodes_count));\n }\ndiff --git a/fs/ext4/inode.c b/fs/ext4/inode.c\nindex eb06f62fa95bb211c54a5c7ff7a14c027e9850d0..75dc9da78196a481c8dac3f80759ba0669d7dee1 100644\n--- a/fs/ext4/inode.c\n+++ b/fs/ext4/inode.c\n@@ -3737,7 +3737,8 @@ static int __ext4_get_inode_loc(struct inode *inode,\n \tint\t\t\tinodes_per_block, inode_offset;\n \n \tiloc->bh = NULL;\n-\tif (!ext4_valid_inum(sb, inode->i_ino))\n+\tif (inode->i_ino < EXT4_ROOT_INO ||\n+\t    inode->i_ino > le32_to_cpu(EXT4_SB(sb)->s_es->s_inodes_count))\n \t\treturn -EIO;\n \n \tiloc->block_group = (inode->i_ino - 1) / EXT4_INODES_PER_GROUP(sb);\ndiff --git a/fs/ext4/super.c b/fs/ext4/super.c\nindex ad620f43a3049d7127edb7a085a2dffdc65c64e7..e55d36b04b50fb85ef898c8acd00f445e2f314e1 100644\n--- a/fs/ext4/super.c\n+++ b/fs/ext4/super.c\n@@ -3794,6 +3794,11 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)\n \t} else {\n \t\tsbi->s_inode_size = le16_to_cpu(es->s_inode_size);\n \t\tsbi->s_first_ino = le32_to_cpu(es->s_first_ino);\n+\t\tif (sbi->s_first_ino < EXT4_GOOD_OLD_FIRST_INO) {\n+\t\t\text4_msg(sb, KERN_ERR, \"invalid first ino: %u\",\n+\t\t\t\t sbi->s_first_ino);\n+\t\t\tgoto failed_mount;\n+\t\t}\n \t\tif ((sbi->s_inode_size < EXT4_GOOD_OLD_INODE_SIZE) ||\n \t\t    (!is_power_of_2(sbi->s_inode_size)) ||\n \t\t    (sbi->s_inode_size > blocksize)) {\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "836f0b6a2e85550c6fcdc0c7aeee1d453b6c700b6f5c285433754067f686dab2",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01015_CVE-2018-10882/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1015,
+      "cve": "CVE-2018-10882",
+      "source_commit": "ff6c96461be35381399466ad58f02b8d78ab480a",
+      "oracle_commit": "292dc9673821842c0762b5d095a05e354e795392"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

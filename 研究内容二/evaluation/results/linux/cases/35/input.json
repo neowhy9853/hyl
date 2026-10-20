@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "35",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-35-_7ooffak/repo",
+      "target_ref": "beea9ab9080cd2ef46296070bb327af066ee09d7",
+      "target_tree": "462b225dd91a130811c121da210b878c89733d3a"
+    },
+    "source_commit": "0ef9594936d1f078e8599a1cf683b052df2bec00",
+    "reference_parent": "aba23d0d4d523d8171fef02eb12a05182fa90f37",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/infiniband/hw/hfi1/sdma.c b/drivers/infiniband/hw/hfi1/sdma.c\nindex a95b654f525407cf0a973cc0552ebc1fa981fc90..8ed20392e9f0d28474e92ccc49aa1dc595cac431 100644\n--- a/drivers/infiniband/hw/hfi1/sdma.c\n+++ b/drivers/infiniband/hw/hfi1/sdma.c\n@@ -3160,8 +3160,7 @@ int _pad_sdma_tx_descs(struct hfi1_devdata *dd, struct sdma_txreq *tx)\n {\n \tint rval = 0;\n \n-\ttx->num_desc++;\n-\tif ((unlikely(tx->num_desc == tx->desc_limit))) {\n+\tif ((unlikely(tx->num_desc + 1 == tx->desc_limit))) {\n \t\trval = _extend_sdma_tx_descs(dd, tx);\n \t\tif (rval) {\n \t\t\t__sdma_txclean(dd, tx);\n@@ -3174,6 +3173,7 @@ int _pad_sdma_tx_descs(struct hfi1_devdata *dd, struct sdma_txreq *tx)\n \t\tSDMA_MAP_NONE,\n \t\tdd->sdma_pad_phys,\n \t\tsizeof(u32) - (tx->packet_len & (sizeof(u32) - 1)));\n+\ttx->num_desc++;\n \t_sdma_close_tx(dd, tx);\n \treturn rval;\n }\ndiff --git a/drivers/infiniband/hw/hfi1/sdma.h b/drivers/infiniband/hw/hfi1/sdma.h\nindex d8170fcbfbdd5b4a4ae689408fd3a8c5aca79c1a..b023fc461bd51ecb220c8a7d764f49184e3b20c9 100644\n--- a/drivers/infiniband/hw/hfi1/sdma.h\n+++ b/drivers/infiniband/hw/hfi1/sdma.h\n@@ -631,14 +631,13 @@ static inline void sdma_txclean(struct hfi1_devdata *dd, struct sdma_txreq *tx)\n static inline void _sdma_close_tx(struct hfi1_devdata *dd,\n \t\t\t\t  struct sdma_txreq *tx)\n {\n-\ttx->descp[tx->num_desc].qw[0] |=\n-\t\tSDMA_DESC0_LAST_DESC_FLAG;\n-\ttx->descp[tx->num_desc].qw[1] |=\n-\t\tdd->default_desc1;\n+\tu16 last_desc = tx->num_desc - 1;\n+\n+\ttx->descp[last_desc].qw[0] |= SDMA_DESC0_LAST_DESC_FLAG;\n+\ttx->descp[last_desc].qw[1] |= dd->default_desc1;\n \tif (tx->flags & SDMA_TXREQ_F_URGENT)\n-\t\ttx->descp[tx->num_desc].qw[1] |=\n-\t\t\t(SDMA_DESC1_HEAD_TO_HOST_FLAG |\n-\t\t\t SDMA_DESC1_INT_REQ_FLAG);\n+\t\ttx->descp[last_desc].qw[1] |= (SDMA_DESC1_HEAD_TO_HOST_FLAG |\n+\t\t\t\t\t       SDMA_DESC1_INT_REQ_FLAG);\n }\n \n static inline int _sdma_txadd_daddr(\n@@ -655,6 +654,7 @@ static inline int _sdma_txadd_daddr(\n \t\ttype,\n \t\taddr, len);\n \tWARN_ON(len > tx->tlen);\n+\ttx->num_desc++;\n \ttx->tlen -= len;\n \t/* special cases for last */\n \tif (!tx->tlen) {\n@@ -666,7 +666,6 @@ static inline int _sdma_txadd_daddr(\n \t\t\t_sdma_close_tx(dd, tx);\n \t\t}\n \t}\n-\ttx->num_desc++;\n \treturn rval;\n }\n \n",
+      "sha256": "38bbce45ced5c044a582100f811d67f7c1fcf1b382608c5663f06ff461d7773e"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2024-26766\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-35-_7ooffak/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-35-_7ooffak/repo/.patch-port/reference.diff\nreference_fix: 0ef9594936d1f078e8599a1cf683b052df2bec00\nreference_parent: aba23d0d4d523d8171fef02eb12a05182fa90f37\ntarget_ref: beea9ab9080cd2ef46296070bb327af066ee09d7\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-35-_7ooffak/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-35-_7ooffak/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2024-26766"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "9034a1bec35e9f725315a3bb6002ef39666114d9",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "5458368947c7752cb3079823e3888dc55e7ee95561ae7eb73086e1029fd9635d",
+      "text": "diff --git a/drivers/infiniband/hw/hfi1/sdma.c b/drivers/infiniband/hw/hfi1/sdma.c\nindex 6e5ac2023328a7d59d42f6532113dd9a95641b31..b67d23b1f28625c5ed7a4f15f8a07a32d074199b 100644\n--- a/drivers/infiniband/hw/hfi1/sdma.c\n+++ b/drivers/infiniband/hw/hfi1/sdma.c\n@@ -3158,7 +3158,7 @@ int _pad_sdma_tx_descs(struct hfi1_devdata *dd, struct sdma_txreq *tx)\n {\n \tint rval = 0;\n \n-\tif ((unlikely(tx->num_desc + 1 == tx->desc_limit))) {\n+\tif ((unlikely(tx->num_desc == tx->desc_limit))) {\n \t\trval = _extend_sdma_tx_descs(dd, tx);\n \t\tif (rval) {\n \t\t\t__sdma_txclean(dd, tx);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "fc0157fdeb0efb8ee6232a35f7df6cb7691b0efed88422bd2b065945b7a075a8",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/00035_CVE-2024-26766/reference.diff",
+    "source_dataset_record": {
+      "case_id": 35,
+      "cve": "CVE-2024-26766",
+      "source_commit": "0ef9594936d1f078e8599a1cf683b052df2bec00",
+      "oracle_commit": "9034a1bec35e9f725315a3bb6002ef39666114d9"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

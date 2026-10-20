@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2322",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2322-l0pku7h6/repo",
+      "target_ref": "bbcb4746a6a3300e11a8a710b9bbb5c2a31258cc",
+      "target_tree": "d84f616b490343a0c17c26d8d6d71885656837eb"
+    },
+    "source_commit": "310014f572a59b311c175321265a08c9adfced0c",
+    "reference_parent": "4a4ba4a0bd096a2e90bd0d0d1e6b238547906738",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/tipc/link.c b/net/tipc/link.c\nindex c7406c1fdc14b2063cc4bca84d42fe267f8035bb..06327f78f203237043f6c0497e50c9034902a9c3 100644\n--- a/net/tipc/link.c\n+++ b/net/tipc/link.c\n@@ -877,9 +877,8 @@ void tipc_link_reset(struct tipc_link *l)\n int tipc_link_xmit(struct tipc_link *l, struct sk_buff_head *list,\n \t\t   struct sk_buff_head *xmitq)\n {\n-\tstruct tipc_msg *hdr = buf_msg(skb_peek(list));\n \tunsigned int maxwin = l->window;\n-\tunsigned int i, imp = msg_importance(hdr);\n+\tunsigned int i;\n \tunsigned int mtu = l->mtu;\n \tu16 ack = l->rcv_nxt - 1;\n \tu16 seqno = l->snd_nxt;\n@@ -888,7 +887,13 @@ int tipc_link_xmit(struct tipc_link *l, struct sk_buff_head *list,\n \tstruct sk_buff_head *backlogq = &l->backlogq;\n \tstruct sk_buff *skb, *_skb, *bskb;\n \tint pkt_cnt = skb_queue_len(list);\n+\tstruct tipc_msg *hdr;\n+\tint imp;\n+\n+\tif (pkt_cnt <= 0)\n+\t\treturn 0;\n \n+\timp = msg_importance(hdr);\n \t/* Match msg importance against this and all higher backlog limits: */\n \tif (!skb_queue_empty(backlogq)) {\n \t\tfor (i = imp; i <= TIPC_SYSTEM_IMPORTANCE; i++) {\n@@ -896,6 +901,8 @@ int tipc_link_xmit(struct tipc_link *l, struct sk_buff_head *list,\n \t\t\t\treturn link_schedule_user(l, list);\n \t\t}\n \t}\n+\n+\thdr = buf_msg(skb_peek(list));\n \tif (unlikely(msg_size(hdr) > mtu)) {\n \t\tskb_queue_purge(list);\n \t\treturn -EMSGSIZE;\n",
+      "sha256": "c9e492a6b1d4f79d01705389974f327a455d916a95eab4fa2106bb3d17f65b66"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2023-1390\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2322-l0pku7h6/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2322-l0pku7h6/repo/.patch-port/reference.diff\nreference_fix: 310014f572a59b311c175321265a08c9adfced0c\nreference_parent: 4a4ba4a0bd096a2e90bd0d0d1e6b238547906738\ntarget_ref: bbcb4746a6a3300e11a8a710b9bbb5c2a31258cc\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2322-l0pku7h6/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2322-l0pku7h6/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2023-1390"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "60b8b4e6310b7dfc551ba68e8639eeaf70a0b2dd",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "b0ca8d5c959876f8d247b441fb51347ba3d9904769354b397a36adf5eadcc8b9",
+      "text": "diff --git a/net/tipc/link.c b/net/tipc/link.c\nindex 06b880da2a8ea29d2f887ae4ef23d5e0f51f718c..c92e6984933cb7b48b4c4fc1f779470939d80765 100644\n--- a/net/tipc/link.c\n+++ b/net/tipc/link.c\n@@ -996,7 +996,6 @@ void tipc_link_reset(struct tipc_link *l)\n int tipc_link_xmit(struct tipc_link *l, struct sk_buff_head *list,\n \t\t   struct sk_buff_head *xmitq)\n {\n-\tstruct tipc_msg *hdr = buf_msg(skb_peek(list));\n \tstruct sk_buff_head *backlogq = &l->backlogq;\n \tstruct sk_buff_head *transmq = &l->transmq;\n \tstruct sk_buff *skb, *_skb;\n@@ -1004,13 +1003,18 @@ int tipc_link_xmit(struct tipc_link *l, struct sk_buff_head *list,\n \tu16 ack = l->rcv_nxt - 1;\n \tu16 seqno = l->snd_nxt;\n \tint pkt_cnt = skb_queue_len(list);\n-\tint imp = msg_importance(hdr);\n \tunsigned int mss = tipc_link_mss(l);\n \tunsigned int cwin = l->window;\n \tunsigned int mtu = l->mtu;\n+\tstruct tipc_msg *hdr;\n \tbool new_bundle;\n \tint rc = 0;\n+\tint imp;\n+\n+\tif (pkt_cnt <= 0)\n+\t\treturn 0;\n \n+\thdr = buf_msg(skb_peek(list));\n \tif (unlikely(msg_size(hdr) > mtu)) {\n \t\tpr_warn(\"Too large msg, purging xmit list %d %d %d %d %d!\\n\",\n \t\t\tskb_queue_len(list), msg_user(hdr),\n@@ -1019,6 +1023,7 @@ int tipc_link_xmit(struct tipc_link *l, struct sk_buff_head *list,\n \t\treturn -EMSGSIZE;\n \t}\n \n+\timp = msg_importance(hdr);\n \t/* Allow oversubscription of one data msg per source at congestion */\n \tif (unlikely(l->backlog[imp].len >= l->backlog[imp].limit)) {\n \t\tif (imp == TIPC_SYSTEM_IMPORTANCE) {\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "8d54721198c02fe4280fe740c1c6bd307a1f478d795acf8a81fde81585961936",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/02322_CVE-2023-1390/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2322,
+      "cve": "CVE-2023-1390",
+      "source_commit": "310014f572a59b311c175321265a08c9adfced0c",
+      "oracle_commit": "60b8b4e6310b7dfc551ba68e8639eeaf70a0b2dd"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

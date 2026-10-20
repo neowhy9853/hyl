@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1319",
+  "candidate_sha256": "37bca3b0293657ef73cb482e50b045e37d6e8eb0d0e301333ba56bb5b6233d0e",
+  "oracle_sha256": "4de40c4d0c50c640e53d2a92c450a6f60400f5347bf6b8e9952e78d17e56ad8e",
+  "candidate_nonempty": true,
+  "target_ref": "fd97de9c7b973f46a6103f4170c5efc7b8ef8797",
+  "baseline_tree": "3ac17aa0343264cad7b8f4bec23e1681747865f8",
+  "candidate_tree": "06e00d407647493e96025d50a117f8c883383ce1",
+  "oracle_tree": "1ac02c39a3e05bad1356e96f486e7b9f0ee438e7",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1319",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "37bca3b0293657ef73cb482e50b045e37d6e8eb0d0e301333ba56bb5b6233d0e",
+    "text": "diff --git a/fs/fuse/dev.c b/fs/fuse/dev.c\nindex 585c52dbb2e3..13cf7c260a83 100644\n--- a/fs/fuse/dev.c\n+++ b/fs/fuse/dev.c\n@@ -992,7 +992,17 @@ static int fuse_copy_page(struct fuse_copy_state *cs, struct page **pagep,\n \n \twhile (count) {\n \t\tif (cs->write && cs->pipebufs && page) {\n-\t\t\treturn fuse_ref_page(cs, page, offset, count);\n+\t\t\t/*\n+\t\t\t * Can't control lifetime of pipe buffers, so always\n+\t\t\t * copy user pages.\n+\t\t\t */\n+\t\t\tif (cs->req->user_pages) {\n+\t\t\t\terr = fuse_copy_fill(cs);\n+\t\t\t\tif (err)\n+\t\t\t\t\treturn err;\n+\t\t\t} else {\n+\t\t\t\treturn fuse_ref_page(cs, page, offset, count);\n+\t\t\t}\n \t\t} else if (!cs->len) {\n \t\t\tif (cs->move_pages && page &&\n \t\t\t    offset == 0 && count == PAGE_SIZE) {\ndiff --git a/fs/fuse/file.c b/fs/fuse/file.c\nindex 8aef8e56eb1b..aa4f0d632bed 100644\n--- a/fs/fuse/file.c\n+++ b/fs/fuse/file.c\n@@ -1319,6 +1319,7 @@ static int fuse_get_user_pages(struct fuse_req *req, struct iov_iter *ii,\n \t\t\t(PAGE_SIZE - ret) & (PAGE_SIZE - 1);\n \t}\n \n+\treq->user_pages = true;\n \tif (write)\n \t\treq->in.argpages = 1;\n \telse\ndiff --git a/fs/fuse/fuse_i.h b/fs/fuse/fuse_i.h\nindex 7e4b0e298bc7..d9f96881b74f 100644\n--- a/fs/fuse/fuse_i.h\n+++ b/fs/fuse/fuse_i.h\n@@ -364,6 +364,9 @@ struct fuse_req {\n \t/** number of pages in vector */\n \tunsigned num_pages;\n \n+\t/** pages are from the user address space */\n+\tunsigned user_pages:1;\n+\n \t/** File used in the request (or NULL) */\n \tstruct fuse_file *ff;\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

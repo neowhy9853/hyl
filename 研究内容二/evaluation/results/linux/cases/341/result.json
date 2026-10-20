@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "341",
+  "candidate_sha256": "55186dee4ef0ad498902423cd557e095bf593c66b079f32b79e247ca64ebde41",
+  "oracle_sha256": "21252aa7bdf62a38d7101c4801feaa977d11d464cfe529d93275031a89b43898",
+  "candidate_nonempty": true,
+  "target_ref": "b10dd066ea063a55c1609e0c9107cfd989bec0bc",
+  "baseline_tree": "e68a5b77124257c3cfd18898f097f6a20d150294",
+  "candidate_tree": "acf9aceb11d54f1b100b3f3c24d594ee93c1273a",
+  "oracle_tree": "acf9aceb11d54f1b100b3f3c24d594ee93c1273a",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/341",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "55186dee4ef0ad498902423cd557e095bf593c66b079f32b79e247ca64ebde41",
+    "text": "diff --git a/drivers/net/usb/hso.c b/drivers/net/usb/hso.c\nindex fc1ba1e808e1..a3a3d4b40a7c 100644\n--- a/drivers/net/usb/hso.c\n+++ b/drivers/net/usb/hso.c\n@@ -2512,7 +2512,7 @@ static struct hso_device *hso_create_net_device(struct usb_interface *interface,\n \t\t\t   hso_net_init);\n \tif (!net) {\n \t\tdev_err(&interface->dev, \"Unable to create ethernet device\\n\");\n-\t\tgoto exit;\n+\t\tgoto err_hso_dev;\n \t}\n \n \thso_net = netdev_priv(net);\n@@ -2525,13 +2525,13 @@ static struct hso_device *hso_create_net_device(struct usb_interface *interface,\n \t\t\t\t      USB_DIR_IN);\n \tif (!hso_net->in_endp) {\n \t\tdev_err(&interface->dev, \"Can't find BULK IN endpoint\\n\");\n-\t\tgoto exit;\n+\t\tgoto err_net;\n \t}\n \thso_net->out_endp = hso_get_ep(interface, USB_ENDPOINT_XFER_BULK,\n \t\t\t\t       USB_DIR_OUT);\n \tif (!hso_net->out_endp) {\n \t\tdev_err(&interface->dev, \"Can't find BULK OUT endpoint\\n\");\n-\t\tgoto exit;\n+\t\tgoto err_net;\n \t}\n \tSET_NETDEV_DEV(net, &interface->dev);\n \tSET_NETDEV_DEVTYPE(net, &hso_type);\n@@ -2540,18 +2540,18 @@ static struct hso_device *hso_create_net_device(struct usb_interface *interface,\n \tfor (i = 0; i < MUX_BULK_RX_BUF_COUNT; i++) {\n \t\thso_net->mux_bulk_rx_urb_pool[i] = usb_alloc_urb(0, GFP_KERNEL);\n \t\tif (!hso_net->mux_bulk_rx_urb_pool[i])\n-\t\t\tgoto exit;\n+\t\t\tgoto err_mux_bulk_rx;\n \t\thso_net->mux_bulk_rx_buf_pool[i] = kzalloc(MUX_BULK_RX_BUF_SIZE,\n \t\t\t\t\t\t\t   GFP_KERNEL);\n \t\tif (!hso_net->mux_bulk_rx_buf_pool[i])\n-\t\t\tgoto exit;\n+\t\t\tgoto err_mux_bulk_rx;\n \t}\n \thso_net->mux_bulk_tx_urb = usb_alloc_urb(0, GFP_KERNEL);\n \tif (!hso_net->mux_bulk_tx_urb)\n-\t\tgoto exit;\n+\t\tgoto err_mux_bulk_rx;\n \thso_net->mux_bulk_tx_buf = kzalloc(MUX_BULK_TX_BUF_SIZE, GFP_KERNEL);\n \tif (!hso_net->mux_bulk_tx_buf)\n-\t\tgoto exit;\n+\t\tgoto err_free_tx_urb;\n \n \tadd_net_device(hso_dev);\n \n@@ -2559,7 +2559,7 @@ static struct hso_device *hso_create_net_device(struct usb_interface *interface,\n \tresult = register_netdev(net);\n \tif (result) {\n \t\tdev_err(&interface->dev, \"Failed to register device\\n\");\n-\t\tgoto exit;\n+\t\tgoto err_free_tx_buf;\n \t}\n \n \thso_log_port(hso_dev);\n@@ -2567,8 +2567,21 @@ static struct hso_device *hso_create_net_device(struct usb_interface *interface,\n \thso_create_rfkill(hso_dev, interface);\n \n \treturn hso_dev;\n-exit:\n-\thso_free_net_device(hso_dev);\n+\n+err_free_tx_buf:\n+\tremove_net_device(hso_dev);\n+\tkfree(hso_net->mux_bulk_tx_buf);\n+err_free_tx_urb:\n+\tusb_free_urb(hso_net->mux_bulk_tx_urb);\n+err_mux_bulk_rx:\n+\tfor (i = 0; i < MUX_BULK_RX_BUF_COUNT; i++) {\n+\t\tusb_free_urb(hso_net->mux_bulk_rx_urb_pool[i]);\n+\t\tkfree(hso_net->mux_bulk_rx_buf_pool[i]);\n+\t}\n+err_net:\n+\tfree_netdev(net);\n+err_hso_dev:\n+\tkfree(hso_dev);\n \treturn NULL;\n }\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-61-glib2",
+  "task_input": {
+    "repository": {
+      "name": "glib2",
+      "version": "2.78.3",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "48edbd271c893da088dd05fe8cf03a3a1e20cc93",
+      "target_tree": "2426d24e543ce31cad28abaf4d202b558871145a"
+    },
+    "source_commit": "987309f23ada52592bffdb5db0d8a5d58bd8097b",
+    "reference_parent": "2371bee17d85318480b3ddeeab4f5107b4889ad7",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 987309f23ada52592bffdb5db0d8a5d58bd8097b Mon Sep 17 00:00:00 2001\nFrom: Philip Withnall <pwithnall@gnome.org>\nDate: Tue, 3 Jun 2025 11:31:04 +0100\nSubject: [PATCH] gstring: Fix overflow check when expanding the string\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\nAfter commit 34b7992fd6e3894bf6d2229b8aa59cac34bcb1b5 the overflow check\nwas only done when expanding the string, but we need to do it before\nchecking whether to expand the string, otherwise that calculation could\noverflow and falsely decide that the string is big enough already.\n\nAs a concrete example, consider a `GString` which has:\n * `.len = G_MAXSIZE / 2 + 1`\n * `.allocated_len = G_MAXSIZE / 2 + 1`\nand `g_string_append()` is called on it with an input string of length\n`G_MAXSIZE / 2`.\n\nThis results in a call `g_string_maybe_expand (string, G_MAXSIZE / 2)`,\nwhich calculates `string->len + len` as `(G_MAXSIZE / 2 + 1) +\n(G_MAXSIZE / 2)` which evaluates to `1` as it overflows. This is not\ngreater than `string->allocated_len` (which is `G_MAXSIZE / 2 + 1`), so\n`g_string_expand()` is *not* called, and `g_string_maybe_expand()`\nreturns successfully. The caller then assumes that there’s enough space\nin the buffer, and happily continues to cause a buffer overflow.\n\nIt’s unlikely anyone could hit this in practice because it requires\nludicrously big strings and `GString` allocations, which likely would\nhave been blocked by other code, but if we’re going to have the overflow\nchecks in `GString` then they should be effective.\n\nSpotted by code inspection.\n\nSigned-off-by: Philip Withnall <pwithnall@gnome.org>\n---\n glib/gstring.c | 8 ++++----\n 1 file changed, 4 insertions(+), 4 deletions(-)\n\ndiff --git a/glib/gstring.c b/glib/gstring.c\nindex 2a399ee21f..8a489ca0dd 100644\n--- a/glib/gstring.c\n+++ b/glib/gstring.c\n@@ -68,10 +68,6 @@ static void\n g_string_expand (GString *string,\n                  gsize    len)\n {\n-  /* Detect potential overflow */\n-  if G_UNLIKELY ((G_MAXSIZE - string->len - 1) < len)\n-    g_error (\"adding %\" G_GSIZE_FORMAT \" to string would overflow\", len);\n-\n   string->allocated_len = g_nearest_pow (string->len + len + 1);\n   /* If the new size is bigger than G_MAXSIZE / 2, only allocate enough\n    * memory for this string and don't over-allocate.\n@@ -86,6 +82,10 @@ static inline void\n g_string_maybe_expand (GString *string,\n                        gsize    len)\n {\n+  /* Detect potential overflow */\n+  if G_UNLIKELY ((G_MAXSIZE - string->len - 1) < len)\n+    g_error (\"adding %\" G_GSIZE_FORMAT \" to string would overflow\", len);\n+\n   if (G_UNLIKELY (string->len + len >= string->allocated_len))\n     g_string_expand (string, len);\n }\n-- \n2.25.1\n\n",
+      "sha256": "bb6357c80cc1d2162af724ca6e956faa1602653cedce68bc0fbda5dd0f58c309"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for glib2.\ncase_id: oe-61-glib2\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 987309f23ada52592bffdb5db0d8a5d58bd8097b\nreference_parent: 2371bee17d85318480b3ddeeab4f5107b4889ad7\ntarget_ref: 48edbd271c893da088dd05fe8cf03a3a1e20cc93\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "cfb709310561bfc36f591801703bf5b776f716f1e74b0237b5d3e83a3cee3622",
+      "text": "From 987309f23ada52592bffdb5db0d8a5d58bd8097b Mon Sep 17 00:00:00 2001\nFrom: Philip Withnall <pwithnall@gnome.org>\nDate: Tue, 3 Jun 2025 11:31:04 +0100\nSubject: [PATCH] gstring: Fix overflow check when expanding the string\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\nAfter commit 34b7992fd6e3894bf6d2229b8aa59cac34bcb1b5 the overflow check\nwas only done when expanding the string, but we need to do it before\nchecking whether to expand the string, otherwise that calculation could\noverflow and falsely decide that the string is big enough already.\n\nAs a concrete example, consider a `GString` which has:\n * `.len = G_MAXSIZE / 2 + 1`\n * `.allocated_len = G_MAXSIZE / 2 + 1`\nand `g_string_append()` is called on it with an input string of length\n`G_MAXSIZE / 2`.\n\nThis results in a call `g_string_maybe_expand (string, G_MAXSIZE / 2)`,\nwhich calculates `string->len + len` as `(G_MAXSIZE / 2 + 1) +\n(G_MAXSIZE / 2)` which evaluates to `1` as it overflows. This is not\ngreater than `string->allocated_len` (which is `G_MAXSIZE / 2 + 1`), so\n`g_string_expand()` is *not* called, and `g_string_maybe_expand()`\nreturns successfully. The caller then assumes that there’s enough space\nin the buffer, and happily continues to cause a buffer overflow.\n\nIt’s unlikely anyone could hit this in practice because it requires\nludicrously big strings and `GString` allocations, which likely would\nhave been blocked by other code, but if we’re going to have the overflow\nchecks in `GString` then they should be effective.\n\nSpotted by code inspection.\n\nSigned-off-by: Philip Withnall <pwithnall@gnome.org>\n---\n glib/gstring.c | 8 ++++----\n 1 file changed, 4 insertions(+), 4 deletions(-)\n\ndiff --git a/glib/gstring.c b/glib/gstring.c\nindex 2a399ee21f..8a489ca0dd 100644\n--- a/glib/gstring.c\n+++ b/glib/gstring.c\n@@ -68,10 +68,6 @@ static void\n g_string_expand (GString *string,\n                  gsize    len)\n {\n-  /* Detect potential overflow */\n-  if G_UNLIKELY ((G_MAXSIZE - string->len - 1) < len)\n-    g_error (\"adding %\" G_GSIZE_FORMAT \" to string would overflow\", len);\n-\n   string->allocated_len = g_nearest_pow (string->len + len + 1);\n   /* If the new size is bigger than G_MAXSIZE / 2, only allocate enough\n    * memory for this string and don't over-allocate.\n@@ -86,6 +82,10 @@ static inline void\n g_string_maybe_expand (GString *string,\n                        gsize    len)\n {\n+  /* Detect potential overflow */\n+  if G_UNLIKELY ((G_MAXSIZE - string->len - 1) < len)\n+    g_error (\"adding %\" G_GSIZE_FORMAT \" to string would overflow\", len);\n+\n   if (G_UNLIKELY (string->len + len >= string->allocated_len))\n     g_string_expand (string, len);\n }\n-- \nGitLab\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "118930c7a5119a5b5a8e06b6f6d1e7607cd9aeb13bcc4ba48fd833eeabc581e2",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-61-glib2/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-61-glib2",
+      "package": "glib2",
+      "version": "2.78.3",
+      "source_commit": "987309f23ada52592bffdb5db0d8a5d58bd8097b",
+      "target_ref": "48edbd271c893da088dd05fe8cf03a3a1e20cc93",
+      "target_tree": "2426d24e543ce31cad28abaf4d202b558871145a",
+      "reference_patch": "patches/oe-61-glib2/reference.patch",
+      "reference_sha256": "bb6357c80cc1d2162af724ca6e956faa1602653cedce68bc0fbda5dd0f58c309",
+      "oracle_patch": "patches/oe-61-glib2/oracle.patch",
+      "oracle_sha256": "cfb709310561bfc36f591801703bf5b776f716f1e74b0237b5d3e83a3cee3622"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

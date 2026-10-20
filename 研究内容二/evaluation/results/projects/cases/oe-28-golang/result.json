@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-28-golang",
+  "candidate_sha256": "bb427af67d35134b6eed947a2c77732573045922cd1ed32d51a6f94ae64fd250",
+  "oracle_sha256": "ca4d4f12d2343c60d067b91d930b5b392c08c1fa0e46d516b04f88bcc8657cde",
+  "candidate_nonempty": true,
+  "target_ref": "ea0ca274ead9c455de646ac9765e21d9fae1cbe9",
+  "baseline_tree": "0c292ef1f644685c2b66fe7348249161b0d8f04f",
+  "candidate_tree": "e8b7ef431853f769726402a303504f31fce9ce11",
+  "oracle_tree": "5e8f6621ce257ccc8dc579ae29a26e6fd58e274d",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-28-golang",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "bb427af67d35134b6eed947a2c77732573045922cd1ed32d51a6f94ae64fd250",
+    "text": "diff --git a/src/crypto/x509/name_constraints_test.go b/src/crypto/x509/name_constraints_test.go\nindex 4c22c4cd8e..29e159401b 100644\n--- a/src/crypto/x509/name_constraints_test.go\n+++ b/src/crypto/x509/name_constraints_test.go\n@@ -1599,6 +1599,24 @@ var nameConstraintsTests = []nameConstraintsTest{\n \t\t\tcn:   \"foo.bar\",\n \t\t},\n \t},\n+\n+\t// #85: URIs with IPv6 addresses with zones and ports are rejected\n+\t{\n+\t\troots: []constraintsSpec{\n+\t\t\t{\n+\t\t\t\tok: []string{\"uri:example.com\"},\n+\t\t\t},\n+\t\t},\n+\t\tintermediates: [][]constraintsSpec{\n+\t\t\t{\n+\t\t\t\t{},\n+\t\t\t},\n+\t\t},\n+\t\tleaf: leafSpec{\n+\t\t\tsans: []string{\"uri:http://[2006:abcd::1%25.example.com]:16/\"},\n+\t\t},\n+\t\texpectedError: \"URI with IP\",\n+\t},\n }\n \n func makeConstraintsCACert(constraints constraintsSpec, name string, key *ecdsa.PrivateKey, parent *Certificate, parentKey *ecdsa.PrivateKey) (*Certificate, error) {\ndiff --git a/src/crypto/x509/verify.go b/src/crypto/x509/verify.go\nindex 56a1a1725c..1da13d8d55 100644\n--- a/src/crypto/x509/verify.go\n+++ b/src/crypto/x509/verify.go\n@@ -11,6 +11,7 @@ import (\n \t\"errors\"\n \t\"fmt\"\n \t\"net\"\n+\t\"net/netip\"\n \t\"net/url\"\n \t\"reflect\"\n \t\"runtime\"\n@@ -429,8 +430,10 @@ func matchURIConstraint(uri *url.URL, constraint string) (bool, error) {\n \t\t}\n \t}\n \n-\tif strings.HasPrefix(host, \"[\") && strings.HasSuffix(host, \"]\") ||\n-\t\tnet.ParseIP(host) != nil {\n+\t// netip.ParseAddr will reject the URI IPv6 literal form \"[...]\", so we\n+\t// check if _either_ the string parses as an IP, or if it is enclosed in\n+\t// square brackets.\n+\tif _, err := netip.ParseAddr(host); err == nil || (strings.HasPrefix(host, \"[\") && strings.HasSuffix(host, \"]\")) {\n \t\treturn false, fmt.Errorf(\"URI with IP (%q) cannot be matched against constraints\", uri.String())\n \t}\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

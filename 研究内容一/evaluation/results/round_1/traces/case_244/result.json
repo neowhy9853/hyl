@@ -1,0 +1,49 @@
+{
+  "round": 1,
+  "case_id": "case_244",
+  "source_index": 243,
+  "repo": "kernel",
+  "commit_id": "0c3a4f986962ed94da6e26ba3ec0bdf700945894",
+  "oracle_label": "feat",
+  "predicted_label": "feat",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "b0582be41cb9",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "feat",
+    "confidence": 0.62,
+    "reason": "提交为唤醒路径新增“先扫同 cluster 空闲 CPU”的放置行为，并新增 sched_cluster_active 静态键与拓扑探测，属于可感知的新行为路径与平台支持扩展，而非纠正既有错误。",
+    "intent_items": [
+      {
+        "target": "sched/fair 唤醒路径的空闲 CPU 选择逻辑",
+        "change": "select_idle_cpu 新增按 sd_cluster 域的 cluster 先行扫描，随后从 cpus 掩码中剔除该 cluster 再扫 LLC；cpus_share_cache 改为 cpus_share_lowest_cache",
+        "effect_or_reason": "在有 cluster 拓扑（如 Kunpeng920）上优先在同 cluster 内选取空闲 CPU，降低同步与共享缓存访问延迟，提升 tbench 吞吐",
+        "context_used": [
+          "kernel/sched/fair.c select_idle_cpu/select_idle_sibling",
+          "kernel/sched/topology.c build_sched_domains"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "在 cluster 内先找空闲 CPU 再扫整个 LLC 以减少延迟"
+          ],
+          "message_only_details": [
+            "Kunpeng920 上 tbench 单/双 numa 提升数据"
+          ],
+          "code_only_details": [
+            "新增 --nr<=0 边界写法与 cpus_share_lowest_cache 替换"
+          ]
+        },
+        "evidence": [
+          "patch 在 select_idle_cpu 中新增 sched_cluster_active 分支并 for_each_cpu_wrap 遍历 sched_domain_span(sdc)，回退后该 cluster 优先放置能力消失",
+          "是否会缩小支持范围：新增 sched_cluster_active 静态键与 has_cluster 探测，使有 SD_CLUSTER 的平台获得新行为路径"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_244",
+  "trace_status": "available"
+}

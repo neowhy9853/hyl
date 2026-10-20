@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "717",
+  "candidate_sha256": "c6185f8c0b3d520f6fbf1cca1cf4d0d320e19e73be794203b96d450d09e39e9b",
+  "oracle_sha256": "47b604adbad8f0e839273900dc1c63c08c0cb6523586f8f6f3c5a18ab469e868",
+  "candidate_nonempty": true,
+  "target_ref": "f7d33988bd923310934c8481a2e68b53f716df13",
+  "baseline_tree": "eba0f721920fa7ab35ef3b0e5438902944e59882",
+  "candidate_tree": "8b7779313d944e07a386771f7bafc54ec705a4ac",
+  "oracle_tree": "8b7779313d944e07a386771f7bafc54ec705a4ac",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/717",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "c6185f8c0b3d520f6fbf1cca1cf4d0d320e19e73be794203b96d450d09e39e9b",
+    "text": "diff --git a/drivers/android/binder.c b/drivers/android/binder.c\nindex a86c27948fca..96a0f940e54d 100644\n--- a/drivers/android/binder.c\n+++ b/drivers/android/binder.c\n@@ -2918,7 +2918,6 @@ static void binder_transaction(struct binder_proc *proc,\n \t\tt->buffer = NULL;\n \t\tgoto err_binder_alloc_buf_failed;\n \t}\n-\tt->buffer->allow_user_free = 0;\n \tt->buffer->debug_id = t->debug_id;\n \tt->buffer->transaction = t;\n \tt->buffer->target_node = target_node;\n@@ -3407,14 +3406,18 @@ static int binder_thread_write(struct binder_proc *proc,\n \n \t\t\tbuffer = binder_alloc_prepare_to_free(&proc->alloc,\n \t\t\t\t\t\t\t      data_ptr);\n-\t\t\tif (buffer == NULL) {\n-\t\t\t\tbinder_user_error(\"%d:%d BC_FREE_BUFFER u%016llx no match\\n\",\n-\t\t\t\t\tproc->pid, thread->pid, (u64)data_ptr);\n-\t\t\t\tbreak;\n-\t\t\t}\n-\t\t\tif (!buffer->allow_user_free) {\n-\t\t\t\tbinder_user_error(\"%d:%d BC_FREE_BUFFER u%016llx matched unreturned buffer\\n\",\n-\t\t\t\t\tproc->pid, thread->pid, (u64)data_ptr);\n+\t\t\tif (IS_ERR_OR_NULL(buffer)) {\n+\t\t\t\tif (PTR_ERR(buffer) == -EPERM) {\n+\t\t\t\t\tbinder_user_error(\n+\t\t\t\t\t\t\"%d:%d BC_FREE_BUFFER u%016llx matched unreturned or currently freeing buffer\\n\",\n+\t\t\t\t\t\tproc->pid, thread->pid,\n+\t\t\t\t\t\t(u64)data_ptr);\n+\t\t\t\t} else {\n+\t\t\t\t\tbinder_user_error(\n+\t\t\t\t\t\t\"%d:%d BC_FREE_BUFFER u%016llx no match\\n\",\n+\t\t\t\t\t\tproc->pid, thread->pid,\n+\t\t\t\t\t\t(u64)data_ptr);\n+\t\t\t\t}\n \t\t\t\tbreak;\n \t\t\t}\n \t\t\tbinder_debug(BINDER_DEBUG_FREE_BUFFER,\ndiff --git a/drivers/android/binder_alloc.c b/drivers/android/binder_alloc.c\nindex 58e4658f9dd6..b9281f2725a6 100644\n--- a/drivers/android/binder_alloc.c\n+++ b/drivers/android/binder_alloc.c\n@@ -149,14 +149,12 @@ static struct binder_buffer *binder_alloc_prepare_to_free_locked(\n \t\telse {\n \t\t\t/*\n \t\t\t * Guard against user threads attempting to\n-\t\t\t * free the buffer twice\n+\t\t\t * free the buffer when in use by kernel or\n+\t\t\t * after it's already been freed.\n \t\t\t */\n-\t\t\tif (buffer->free_in_progress) {\n-\t\t\t\tpr_err(\"%d:%d FREE_BUFFER u%016llx user freed buffer twice\\n\",\n-\t\t\t\t       alloc->pid, current->pid, (u64)user_ptr);\n-\t\t\t\treturn NULL;\n-\t\t\t}\n-\t\t\tbuffer->free_in_progress = 1;\n+\t\t\tif (!buffer->allow_user_free)\n+\t\t\t\treturn ERR_PTR(-EPERM);\n+\t\t\tbuffer->allow_user_free = 0;\n \t\t\treturn buffer;\n \t\t}\n \t}\n@@ -486,7 +484,7 @@ struct binder_buffer *binder_alloc_new_buf_locked(struct binder_alloc *alloc,\n \n \trb_erase(best_fit, &alloc->free_buffers);\n \tbuffer->free = 0;\n-\tbuffer->free_in_progress = 0;\n+\tbuffer->allow_user_free = 0;\n \tbinder_insert_allocated_buffer_locked(alloc, buffer);\n \tbinder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC,\n \t\t     \"%d: binder_alloc_buf size %zd got %pK\\n\",\ndiff --git a/drivers/android/binder_alloc.h b/drivers/android/binder_alloc.h\nindex 2dd33b6df104..a3ad7683b6f2 100644\n--- a/drivers/android/binder_alloc.h\n+++ b/drivers/android/binder_alloc.h\n@@ -50,8 +50,7 @@ struct binder_buffer {\n \tunsigned free:1;\n \tunsigned allow_user_free:1;\n \tunsigned async_transaction:1;\n-\tunsigned free_in_progress:1;\n-\tunsigned debug_id:28;\n+\tunsigned debug_id:29;\n \n \tstruct binder_transaction *transaction;\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

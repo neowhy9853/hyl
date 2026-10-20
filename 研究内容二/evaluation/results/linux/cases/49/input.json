@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "49",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-49-fk22yg9y/repo",
+      "target_ref": "bd5ab00affa19dcc491318cbb1e0891ffa49c645",
+      "target_tree": "0441814b1b76bc93263e6acc9a2afda2ede6b7db"
+    },
+    "source_commit": "9d6c5babc04522ff85b550f14563970279ab8f90",
+    "reference_parent": "80055f78a9696b7760c9f673671cb840ca9a3f46",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/ecryptfs/main.c b/fs/ecryptfs/main.c\nindex 62b8ddc2c630091ea87f71af826d94a959eeadb2..b53a97e43c91f794aab52c16fd102e379fdfafd8 100644\n--- a/fs/ecryptfs/main.c\n+++ b/fs/ecryptfs/main.c\n@@ -576,6 +576,13 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags\n \ts->s_maxbytes = path.dentry->d_sb->s_maxbytes;\n \ts->s_blocksize = path.dentry->d_sb->s_blocksize;\n \ts->s_magic = ECRYPTFS_SUPER_MAGIC;\n+\ts->s_stack_depth = path.dentry->d_sb->s_stack_depth + 1;\n+\n+\trc = -EINVAL;\n+\tif (s->s_stack_depth > FILESYSTEM_MAX_STACK_DEPTH) {\n+\t\tpr_err(\"eCryptfs: maximum fs stacking depth exceeded\\n\");\n+\t\tgoto out_free;\n+\t}\n \n \tinode = ecryptfs_get_inode(path.dentry->d_inode, s);\n \trc = PTR_ERR(inode);\ndiff --git a/include/linux/fs.h b/include/linux/fs.h\nindex 44e856ba8a7991c3e783c057885175bd6f4d7282..a509bee30c50735771e37f8a6778f6a888393eb4 100644\n--- a/include/linux/fs.h\n+++ b/include/linux/fs.h\n@@ -486,6 +486,12 @@ struct iattr {\n  */\n #include <linux/quota.h>\n \n+/*\n+ * Maximum number of layers of fs stack.  Needs to be limited to\n+ * prevent kernel stack overflow\n+ */\n+#define FILESYSTEM_MAX_STACK_DEPTH 2\n+\n /** \n  * enum positive_aop_returns - aop return codes with specific semantics\n  *\n@@ -1497,6 +1503,11 @@ struct super_block {\n \tint cleancache_poolid;\n \n \tstruct shrinker s_shrink;\t/* per-sb shrinker handle */\n+\n+\t/*\n+\t * Indicates how deep in a filesystem stack this SB is\n+\t */\n+\tint s_stack_depth;\n };\n \n /* superblock cache pruning functions */\n",
+      "sha256": "376f53083d25637edcb56f0b4c1783141aa39309e0813e32016fabf2ac24fb97"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2014-9922\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-49-fk22yg9y/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-49-fk22yg9y/repo/.patch-port/reference.diff\nreference_fix: 9d6c5babc04522ff85b550f14563970279ab8f90\nreference_parent: 80055f78a9696b7760c9f673671cb840ca9a3f46\ntarget_ref: bd5ab00affa19dcc491318cbb1e0891ffa49c645\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-49-fk22yg9y/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-49-fk22yg9y/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2014-9922"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "54c202bbeb9a00042d374561c6bf2bf5d586fc11",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "b5070b1594aac48b9904c13ab93c6df697967598cc683fcd1f1627a09dd16195",
+      "text": "diff --git a/fs/ecryptfs/main.c b/fs/ecryptfs/main.c\nindex 34eb8433d93fdb46fa0db9be9a5ca5ea8728f1c6..d9eb84bda5591a36c68c6519faf591daf7a05efa 100644\n--- a/fs/ecryptfs/main.c\n+++ b/fs/ecryptfs/main.c\n@@ -576,6 +576,13 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags\n \ts->s_maxbytes = path.dentry->d_sb->s_maxbytes;\n \ts->s_blocksize = path.dentry->d_sb->s_blocksize;\n \ts->s_magic = ECRYPTFS_SUPER_MAGIC;\n+\ts->s_stack_depth = path.dentry->d_sb->s_stack_depth + 1;\n+\n+\trc = -EINVAL;\n+\tif (s->s_stack_depth > FILESYSTEM_MAX_STACK_DEPTH) {\n+\t\tpr_err(\"eCryptfs: maximum fs stacking depth exceeded\\n\");\n+\t\tgoto out_free;\n+\t}\n \n \tinode = ecryptfs_get_inode(path.dentry->d_inode, s);\n \trc = PTR_ERR(inode);\ndiff --git a/include/linux/fs.h b/include/linux/fs.h\nindex e032a8a40c304f030949c2940299251e38c8eff5..545837db946850c03f629b2d40c86e928f25457a 100644\n--- a/include/linux/fs.h\n+++ b/include/linux/fs.h\n@@ -256,6 +256,12 @@ struct iattr {\n  */\n #include <linux/quota.h>\n \n+/*\n+ * Maximum number of layers of fs stack.  Needs to be limited to\n+ * prevent kernel stack overflow\n+ */\n+#define FILESYSTEM_MAX_STACK_DEPTH 2\n+\n /** \n  * enum positive_aop_returns - aop return codes with specific semantics\n  *\n@@ -1258,6 +1264,11 @@ struct super_block {\n \tstruct list_lru\t\ts_dentry_lru ____cacheline_aligned_in_smp;\n \tstruct list_lru\t\ts_inode_lru ____cacheline_aligned_in_smp;\n \tstruct rcu_head\t\trcu;\n+\n+\t/*\n+\t * Indicates how deep in a filesystem stack this SB is\n+\t */\n+\tint s_stack_depth;\n };\n \n extern struct timespec current_fs_time(struct super_block *sb);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "41b5d2c3d82df42ea419a39242d08f31c6de4b0f10993e71160cc74f434ba1fe",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00049_CVE-2014-9922/reference.diff",
+    "source_dataset_record": {
+      "case_id": 49,
+      "cve": "CVE-2014-9922",
+      "source_commit": "9d6c5babc04522ff85b550f14563970279ab8f90",
+      "oracle_commit": "54c202bbeb9a00042d374561c6bf2bf5d586fc11"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-22-python3",
+  "candidate_sha256": "1fa2af5a4c87625508dfcb5b13f2848a62e7efa5a404de9bf40ebf600b273a4b",
+  "oracle_sha256": "4a70a8b5880ecfa8343d737f943e54caaa0067be13da70367e551cf0bf035d49",
+  "candidate_nonempty": true,
+  "target_ref": "257e02a5af606f457baab3df008b5a44f7aa2629",
+  "baseline_tree": "f522534c894915366e8ac2da55a3e7667a03a227",
+  "candidate_tree": "778f1c9349623c6bfd02bf5d38ed7353c0d53110",
+  "oracle_tree": "ec238f80c6d7e536bdd5af545d8b12561c11f299",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-22-python3",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "1fa2af5a4c87625508dfcb5b13f2848a62e7efa5a404de9bf40ebf600b273a4b",
+    "text": "diff --git a/Modules/_ssl.c b/Modules/_ssl.c\nindex 67ce6e97af..81d36a6f11 100644\n--- a/Modules/_ssl.c\n+++ b/Modules/_ssl.c\n@@ -4529,6 +4529,50 @@ set_sni_callback(PySSLContext *self, PyObject *arg, void *c)\n     return 0;\n }\n \n+#if OPENSSL_VERSION_NUMBER < 0x30300000L\n+static X509_OBJECT *x509_object_dup(const X509_OBJECT *obj)\n+{\n+    int ok;\n+    X509_OBJECT *ret = X509_OBJECT_new();\n+    if (ret == NULL) {\n+        return NULL;\n+    }\n+    switch (X509_OBJECT_get_type(obj)) {\n+        case X509_LU_X509:\n+            ok = X509_OBJECT_set1_X509(ret, X509_OBJECT_get0_X509(obj));\n+            break;\n+        case X509_LU_CRL:\n+            /* X509_OBJECT_get0_X509_CRL was not const-correct prior to 3.0.*/\n+            ok = X509_OBJECT_set1_X509_CRL(\n+                ret, X509_OBJECT_get0_X509_CRL((X509_OBJECT *)obj));\n+            break;\n+        default:\n+            /* We cannot duplicate unrecognized types in a polyfill, but it is\n+             * safe to leave an empty object. The caller will ignore it. */\n+            ok = 1;\n+            break;\n+    }\n+    if (!ok) {\n+        X509_OBJECT_free(ret);\n+        return NULL;\n+    }\n+    return ret;\n+}\n+\n+static STACK_OF(X509_OBJECT) *\n+X509_STORE_get1_objects(X509_STORE *store)\n+{\n+    STACK_OF(X509_OBJECT) *ret;\n+    if (!X509_STORE_lock(store)) {\n+        return NULL;\n+    }\n+    ret = sk_X509_OBJECT_deep_copy(X509_STORE_get0_objects(store),\n+                                   x509_object_dup, X509_OBJECT_free);\n+    X509_STORE_unlock(store);\n+    return ret;\n+}\n+#endif\n+\n PyDoc_STRVAR(PySSLContext_sni_callback_doc,\n \"Set a callback that will be called when a server name is provided by the SSL/TLS client in the SNI extension.\\n\\\n \\n\\\n@@ -4558,7 +4602,12 @@ _ssl__SSLContext_cert_store_stats_impl(PySSLContext *self)\n     int x509 = 0, crl = 0, ca = 0, i;\n \n     store = SSL_CTX_get_cert_store(self->ctx);\n-    objs = X509_STORE_get0_objects(store);\n+    objs = X509_STORE_get1_objects(store);\n+    if (objs == NULL) {\n+        PyErr_SetString(PyExc_MemoryError, \"failed to query cert store\");\n+        return NULL;\n+    }\n+\n     for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {\n         obj = sk_X509_OBJECT_value(objs, i);\n         switch (X509_OBJECT_get_type(obj)) {\n@@ -4572,12 +4621,11 @@ _ssl__SSLContext_cert_store_stats_impl(PySSLContext *self)\n                 crl++;\n                 break;\n             default:\n-                /* Ignore X509_LU_FAIL, X509_LU_RETRY, X509_LU_PKEY.\n-                 * As far as I can tell they are internal states and never\n-                 * stored in a cert store */\n+                /* Ignore unrecognized types. */\n                 break;\n         }\n     }\n+    sk_X509_OBJECT_pop_free(objs, X509_OBJECT_free);\n     return Py_BuildValue(\"{sisisi}\", \"x509\", x509, \"crl\", crl,\n         \"x509_ca\", ca);\n }\n@@ -4609,7 +4657,12 @@ _ssl__SSLContext_get_ca_certs_impl(PySSLContext *self, int binary_form)\n     }\n \n     store = SSL_CTX_get_cert_store(self->ctx);\n-    objs = X509_STORE_get0_objects(store);\n+    objs = X509_STORE_get1_objects(store);\n+    if (objs == NULL) {\n+        PyErr_SetString(PyExc_MemoryError, \"failed to query cert store\");\n+        goto error;\n+    }\n+\n     for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {\n         X509_OBJECT *obj;\n         X509 *cert;\n@@ -4637,9 +4690,11 @@ _ssl__SSLContext_get_ca_certs_impl(PySSLContext *self, int binary_form)\n         }\n         Py_CLEAR(ci);\n     }\n+    sk_X509_OBJECT_pop_free(objs, X509_OBJECT_free);\n     return rlist;\n \n   error:\n+    sk_X509_OBJECT_pop_free(objs, X509_OBJECT_free);\n     Py_XDECREF(ci);\n     Py_XDECREF(rlist);\n     return NULL;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

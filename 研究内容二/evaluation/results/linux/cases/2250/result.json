@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2250",
+  "candidate_sha256": "16bc72c614f5a007677f1e0d838321d8f110559ba814eeb488d8c3aad6c7e1d0",
+  "oracle_sha256": "51af6e8f69fdab2f3e30b6e0afe599ca1c9b4f0f2c5c5884a7ea2073c7f1bf9c",
+  "candidate_nonempty": true,
+  "target_ref": "a62b833dd4af3c58b839317367b0586a5ca12669",
+  "baseline_tree": "2df81d98cb5f80ed093becd44103989e30f04775",
+  "candidate_tree": "9b5312a155f681d9b7e3b7b4ab7c1dbcb98c00e3",
+  "oracle_tree": "9704642dc5d7c1cc956df554835d575c8b728456",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2250",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "16bc72c614f5a007677f1e0d838321d8f110559ba814eeb488d8c3aad6c7e1d0",
+    "text": "diff --git a/arch/x86/include/uapi/asm/svm.h b/arch/x86/include/uapi/asm/svm.h\nindex b5d7640abc5..9b9202d0189 100644\n--- a/arch/x86/include/uapi/asm/svm.h\n+++ b/arch/x86/include/uapi/asm/svm.h\n@@ -101,6 +101,7 @@\n \t{ SVM_EXIT_EXCP_BASE + PF_VECTOR,       \"PF excp\" }, \\\n \t{ SVM_EXIT_EXCP_BASE + NM_VECTOR,       \"NM excp\" }, \\\n \t{ SVM_EXIT_EXCP_BASE + MC_VECTOR,       \"MC excp\" }, \\\n+\t{ SVM_EXIT_EXCP_BASE + AC_VECTOR,       \"AC excp\" }, \\\n \t{ SVM_EXIT_INTR,        \"interrupt\" }, \\\n \t{ SVM_EXIT_NMI,         \"nmi\" }, \\\n \t{ SVM_EXIT_SMI,         \"smi\" }, \\\ndiff --git a/arch/x86/kvm/svm.c b/arch/x86/kvm/svm.c\nindex f98baebfa9a..9dc0aa0dae9 100644\n--- a/arch/x86/kvm/svm.c\n+++ b/arch/x86/kvm/svm.c\n@@ -1103,6 +1103,7 @@ static void init_vmcb(struct vcpu_svm *svm)\n \tset_exception_intercept(svm, PF_VECTOR);\n \tset_exception_intercept(svm, UD_VECTOR);\n \tset_exception_intercept(svm, MC_VECTOR);\n+\tset_exception_intercept(svm, AC_VECTOR);\n \n \tset_intercept(svm, INTERCEPT_INTR);\n \tset_intercept(svm, INTERCEPT_NMI);\n@@ -1789,6 +1790,12 @@ static int ud_interception(struct vcpu_svm *svm)\n \treturn 1;\n }\n \n+static int ac_interception(struct vcpu_svm *svm)\n+{\n+\tkvm_queue_exception_e(&svm->vcpu, AC_VECTOR, 0);\n+\treturn 1;\n+}\n+\n static void svm_fpu_activate(struct kvm_vcpu *vcpu)\n {\n \tstruct vcpu_svm *svm = to_svm(vcpu);\n@@ -3350,6 +3357,7 @@ static int (*const svm_exit_handlers[])(struct vcpu_svm *svm) = {\n \t[SVM_EXIT_EXCP_BASE + PF_VECTOR]\t= pf_interception,\n \t[SVM_EXIT_EXCP_BASE + NM_VECTOR]\t= nm_interception,\n \t[SVM_EXIT_EXCP_BASE + MC_VECTOR]\t= mc_interception,\n+\t[SVM_EXIT_EXCP_BASE + AC_VECTOR]\t= ac_interception,\n \t[SVM_EXIT_INTR]\t\t\t\t= intr_interception,\n \t[SVM_EXIT_NMI]\t\t\t\t= nmi_interception,\n \t[SVM_EXIT_SMI]\t\t\t\t= nop_on_interception,\ndiff --git a/arch/x86/kvm/vmx.c b/arch/x86/kvm/vmx.c\nindex 0d7f1dcfcda..84de207a884 100644\n--- a/arch/x86/kvm/vmx.c\n+++ b/arch/x86/kvm/vmx.c\n@@ -1493,7 +1493,7 @@ static void update_exception_bitmap(struct kvm_vcpu *vcpu)\n \tu32 eb;\n \n \teb = (1u << PF_VECTOR) | (1u << UD_VECTOR) | (1u << MC_VECTOR) |\n-\t     (1u << NM_VECTOR) | (1u << DB_VECTOR);\n+\t     (1u << NM_VECTOR) | (1u << DB_VECTOR) | (1u << AC_VECTOR);\n \tif ((vcpu->guest_debug &\n \t     (KVM_GUESTDBG_ENABLE | KVM_GUESTDBG_USE_SW_BP)) ==\n \t    (KVM_GUESTDBG_ENABLE | KVM_GUESTDBG_USE_SW_BP))\n@@ -4933,6 +4933,9 @@ static int handle_exception(struct kvm_vcpu *vcpu)\n \t\treturn handle_rmode_exception(vcpu, ex_no, error_code);\n \n \tswitch (ex_no) {\n+\tcase AC_VECTOR:\n+\t\tkvm_queue_exception_e(vcpu, AC_VECTOR, error_code);\n+\t\treturn 1;\n \tcase DB_VECTOR:\n \t\tdr6 = vmcs_readl(EXIT_QUALIFICATION);\n \t\tif (!(vcpu->guest_debug &\n"
+  },
+  "trace_file": "trace.jsonl"
+}

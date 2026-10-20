@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2116",
+  "candidate_sha256": "efe5474175db8397f46fa8b744f92c6e54cf6da2697fb2df29d93ccde58c0bb4",
+  "oracle_sha256": "aede072a84aa93e29bbef747cf5222bfdee1c4b4db0e17d411bd10fe4e3e1e2c",
+  "candidate_nonempty": true,
+  "target_ref": "725e0dd2d3d036a6bfb170e307ca231228ddddd0",
+  "baseline_tree": "ad3cd042637698c323ee84e6d17c651ce7b26923",
+  "candidate_tree": "83acabc349312d8c13eb50ac4f36bee03c223dcd",
+  "oracle_tree": "213a7351376f24f60ea0f7e73b1bf1fd1924e265",
+  "candidate_apply_passed": true,
+  "historical_verdict": "incorrect",
+  "case_path": "cases/2116",
+  "generation_trace_available": true,
+  "verdict": "incorrect",
+  "correct": false,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "efe5474175db8397f46fa8b744f92c6e54cf6da2697fb2df29d93ccde58c0bb4",
+    "text": "diff --git a/include/net/net_namespace.h b/include/net/net_namespace.h\nindex f772dab65474..b3358ba51504 100644\n--- a/include/net/net_namespace.h\n+++ b/include/net/net_namespace.h\n@@ -54,6 +54,8 @@ struct net {\n #endif\n \tspinlock_t\t\trules_mod_lock;\n \n+\tu32\t\t\thash_mix;\n+\n \tstruct list_head\tlist;\t\t/* list of network namespaces */\n \tstruct list_head\tcleanup_list;\t/* namespaces on death row */\n \tstruct list_head\texit_list;\t/* Use only net_mutex */\ndiff --git a/include/net/netns/hash.h b/include/net/netns/hash.h\nindex c06ac58ca107..a347b2f9e748 100644\n--- a/include/net/netns/hash.h\n+++ b/include/net/netns/hash.h\n@@ -1,21 +1,10 @@\n #ifndef __NET_NS_HASH_H__\n #define __NET_NS_HASH_H__\n \n-#include <asm/cache.h>\n+#include <net/net_namespace.h>\n \n-struct net;\n-\n-static inline unsigned int net_hash_mix(struct net *net)\n+static inline u32 net_hash_mix(const struct net *net)\n {\n-#ifdef CONFIG_NET_NS\n-\t/*\n-\t * shift this right to eliminate bits, that are\n-\t * always zeroed\n-\t */\n-\n-\treturn (unsigned)(((unsigned long)net) >> L1_CACHE_SHIFT);\n-#else\n-\treturn 0;\n-#endif\n+\treturn net->hash_mix;\n }\n #endif\ndiff --git a/net/core/net_namespace.c b/net/core/net_namespace.c\nindex 85b62691f4f2..45ebcc039a68 100644\n--- a/net/core/net_namespace.c\n+++ b/net/core/net_namespace.c\n@@ -156,6 +156,7 @@ static __net_init int setup_net(struct net *net, struct user_namespace *user_ns)\n \n \tatomic_set(&net->count, 1);\n \tatomic_set(&net->passive, 1);\n+\tget_random_bytes(&net->hash_mix, sizeof(u32));\n \tnet->dev_base_seq = 1;\n \tnet->user_ns = user_ns;\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

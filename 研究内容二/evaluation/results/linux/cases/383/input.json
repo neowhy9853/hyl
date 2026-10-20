@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "383",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-383-b8ip9pyq/repo",
+      "target_ref": "aeeb1ad2dd4e2448b964f02af480a62aef1c6cf5",
+      "target_tree": "324e53a0a3dec8b3c587e8388e7c84feb4943389"
+    },
+    "source_commit": "7644b1a1c9a7ae8ab99175989bfc8676055edb46",
+    "reference_parent": "8b51a3956d44ea6ade962874ade14de9a7d16556",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/io_uring/fdinfo.c b/io_uring/fdinfo.c\nindex c536788754164293058b2b852493293369828124..f04a43044d917ceef45fc5a2acfb1910978dd0f3 100644\n--- a/io_uring/fdinfo.c\n+++ b/io_uring/fdinfo.c\n@@ -53,7 +53,6 @@ static __cold int io_uring_show_cred(struct seq_file *m, unsigned int id,\n __cold void io_uring_show_fdinfo(struct seq_file *m, struct file *f)\n {\n \tstruct io_ring_ctx *ctx = f->private_data;\n-\tstruct io_sq_data *sq = NULL;\n \tstruct io_overflow_cqe *ocqe;\n \tstruct io_rings *r = ctx->rings;\n \tunsigned int sq_mask = ctx->sq_entries - 1, cq_mask = ctx->cq_entries - 1;\n@@ -64,6 +63,7 @@ __cold void io_uring_show_fdinfo(struct seq_file *m, struct file *f)\n \tunsigned int cq_shift = 0;\n \tunsigned int sq_shift = 0;\n \tunsigned int sq_entries, cq_entries;\n+\tint sq_pid = -1, sq_cpu = -1;\n \tbool has_lock;\n \tunsigned int i;\n \n@@ -143,13 +143,19 @@ __cold void io_uring_show_fdinfo(struct seq_file *m, struct file *f)\n \thas_lock = mutex_trylock(&ctx->uring_lock);\n \n \tif (has_lock && (ctx->flags & IORING_SETUP_SQPOLL)) {\n-\t\tsq = ctx->sq_data;\n-\t\tif (!sq->thread)\n-\t\t\tsq = NULL;\n+\t\tstruct io_sq_data *sq = ctx->sq_data;\n+\n+\t\tif (mutex_trylock(&sq->lock)) {\n+\t\t\tif (sq->thread) {\n+\t\t\t\tsq_pid = task_pid_nr(sq->thread);\n+\t\t\t\tsq_cpu = task_cpu(sq->thread);\n+\t\t\t}\n+\t\t\tmutex_unlock(&sq->lock);\n+\t\t}\n \t}\n \n-\tseq_printf(m, \"SqThread:\\t%d\\n\", sq ? task_pid_nr(sq->thread) : -1);\n-\tseq_printf(m, \"SqThreadCpu:\\t%d\\n\", sq ? task_cpu(sq->thread) : -1);\n+\tseq_printf(m, \"SqThread:\\t%d\\n\", sq_pid);\n+\tseq_printf(m, \"SqThreadCpu:\\t%d\\n\", sq_cpu);\n \tseq_printf(m, \"UserFiles:\\t%u\\n\", ctx->nr_user_files);\n \tfor (i = 0; has_lock && i < ctx->nr_user_files; i++) {\n \t\tstruct file *f = io_file_from_index(&ctx->file_table, i);\n",
+      "sha256": "9cfe68206b94b0aa461056fed6e624aba892c9d68f004d9db6ca80a948e9be6d"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2023-46862\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-383-b8ip9pyq/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-383-b8ip9pyq/repo/.patch-port/reference.diff\nreference_fix: 7644b1a1c9a7ae8ab99175989bfc8676055edb46\nreference_parent: 8b51a3956d44ea6ade962874ade14de9a7d16556\ntarget_ref: aeeb1ad2dd4e2448b964f02af480a62aef1c6cf5\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-383-b8ip9pyq/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-383-b8ip9pyq/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2023-46862"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "c6e8af2a8a63e0957284c16003c501e4a058e8d9",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "9098b416f18a22aa95351d3e730a7819bf0cc0a8a9531eeeb3203906ee3e479b",
+      "text": "diff --git a/io_uring/io_uring.c b/io_uring/io_uring.c\nindex 800b5cc385af373d5b523884f4505e52c4fd6751..1fe05e70cc79f2c7aad80ca6dd32fe90ee263c42 100644\n--- a/io_uring/io_uring.c\n+++ b/io_uring/io_uring.c\n@@ -10238,7 +10238,7 @@ static int io_uring_show_cred(struct seq_file *m, unsigned int id,\n \n static void __io_uring_show_fdinfo(struct io_ring_ctx *ctx, struct seq_file *m)\n {\n-\tstruct io_sq_data *sq = NULL;\n+\tint sq_pid = -1, sq_cpu = -1;\n \tbool has_lock;\n \tint i;\n \n@@ -10251,13 +10251,19 @@ static void __io_uring_show_fdinfo(struct io_ring_ctx *ctx, struct seq_file *m)\n \thas_lock = mutex_trylock(&ctx->uring_lock);\n \n \tif (has_lock && (ctx->flags & IORING_SETUP_SQPOLL)) {\n-\t\tsq = ctx->sq_data;\n-\t\tif (!sq->thread)\n-\t\t\tsq = NULL;\n+\t\tstruct io_sq_data *sq = ctx->sq_data;\n+\n+\t\tif (mutex_trylock(&sq->lock)) {\n+\t\t\tif (sq->thread) {\n+\t\t\t\tsq_pid = task_pid_nr(sq->thread);\n+\t\t\t\tsq_cpu = task_cpu(sq->thread);\n+\t\t\t}\n+\t\t\tmutex_unlock(&sq->lock);\n+\t\t}\n \t}\n \n-\tseq_printf(m, \"SqThread:\\t%d\\n\", sq ? task_pid_nr(sq->thread) : -1);\n-\tseq_printf(m, \"SqThreadCpu:\\t%d\\n\", sq ? task_cpu(sq->thread) : -1);\n+\tseq_printf(m, \"SqThread:\\t%d\\n\", sq_pid);\n+\tseq_printf(m, \"SqThreadCpu:\\t%d\\n\", sq_cpu);\n \tseq_printf(m, \"UserFiles:\\t%u\\n\", ctx->nr_user_files);\n \tfor (i = 0; has_lock && i < ctx->nr_user_files; i++) {\n \t\tstruct file *f = io_file_from_index(ctx, i);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "d9cf75dc68a49536c0f9fde17e8b894dac055bf92a3fa12b0f896d9dc0d828f3",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00383_CVE-2023-46862/reference.diff",
+    "source_dataset_record": {
+      "case_id": 383,
+      "cve": "CVE-2023-46862",
+      "source_commit": "7644b1a1c9a7ae8ab99175989bfc8676055edb46",
+      "oracle_commit": "c6e8af2a8a63e0957284c16003c501e4a058e8d9"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "167",
+  "candidate_sha256": "ce7a8b53f5b0f6ff010a6b74bad572517400c345436e944f202d3abcfe2fcd56",
+  "oracle_sha256": "2c92041103d58063eeeeb70adf2f3225e66034687fdca1738c5bf0fe728164b8",
+  "candidate_nonempty": true,
+  "target_ref": "ffbd663ebac9d32bac215bdd927268b22753a21e",
+  "baseline_tree": "6fc582f778075ce5c8496416a4d5d384ca929b72",
+  "candidate_tree": "b4019e6627eff42451d3238546341a9bd4a6f4ee",
+  "oracle_tree": "b4019e6627eff42451d3238546341a9bd4a6f4ee",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/167",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "ce7a8b53f5b0f6ff010a6b74bad572517400c345436e944f202d3abcfe2fcd56",
+    "text": "diff --git a/drivers/block/xen-blkfront.c b/drivers/block/xen-blkfront.c\nindex 72902104f111..4dbb71230d6e 100644\n--- a/drivers/block/xen-blkfront.c\n+++ b/drivers/block/xen-blkfront.c\n@@ -1511,9 +1511,12 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \tunsigned long flags;\n \tstruct blkfront_ring_info *rinfo = (struct blkfront_ring_info *)dev_id;\n \tstruct blkfront_info *info = rinfo->dev_info;\n+\tunsigned int eoiflag = XEN_EOI_FLAG_SPURIOUS;\n \n-\tif (unlikely(info->connected != BLKIF_STATE_CONNECTED))\n+\tif (unlikely(info->connected != BLKIF_STATE_CONNECTED)) {\n+\t\txen_irq_lateeoi(irq, XEN_EOI_FLAG_SPURIOUS);\n \t\treturn IRQ_HANDLED;\n+\t}\n \n \tspin_lock_irqsave(&rinfo->ring_lock, flags);\n  again:\n@@ -1529,6 +1532,8 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \t\tunsigned long id;\n \t\tunsigned int op;\n \n+\t\teoiflag = 0;\n+\n \t\tRING_COPY_RESPONSE(&rinfo->ring, i, &bret);\n \t\tid = bret.id;\n \n@@ -1645,6 +1650,8 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \n \tspin_unlock_irqrestore(&rinfo->ring_lock, flags);\n \n+\txen_irq_lateeoi(irq, eoiflag);\n+\n \treturn IRQ_HANDLED;\n \n  err:\n@@ -1652,6 +1659,8 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \n \tspin_unlock_irqrestore(&rinfo->ring_lock, flags);\n \n+\t/* No EOI in order to avoid further interrupts. */\n+\n \tpr_alert(\"%s disabled for further use\\n\", info->gd->disk_name);\n \treturn IRQ_HANDLED;\n }\n@@ -1691,8 +1700,8 @@ static int setup_blkring(struct xenbus_device *dev,\n \tif (err)\n \t\tgoto fail;\n \n-\terr = bind_evtchn_to_irqhandler(rinfo->evtchn, blkif_interrupt, 0,\n-\t\t\t\t\t\"blkif\", rinfo);\n+\terr = bind_evtchn_to_irqhandler_lateeoi(rinfo->evtchn, blkif_interrupt,\n+\t\t\t\t\t\t0, \"blkif\", rinfo);\n \tif (err <= 0) {\n \t\txenbus_dev_fatal(dev, err,\n \t\t\t\t \"bind_evtchn_to_irqhandler failed\");\n"
+  },
+  "trace_file": "trace.jsonl"
+}

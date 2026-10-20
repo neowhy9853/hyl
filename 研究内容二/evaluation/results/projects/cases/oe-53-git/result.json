@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-53-git",
+  "candidate_sha256": "db3d9fdeb3d9ab5af5664c773841bbe0c8115d942f68ca2b5e7e499acc9f81e5",
+  "oracle_sha256": "03485f81cac936da89b4e2364339697dac71d688bd24cf2c568fd75172a0159b",
+  "candidate_nonempty": true,
+  "target_ref": "d8980964257bf6d52f9f9fcb94bc657f299a937b",
+  "baseline_tree": "9166fd806cff123c9a68dcbe39ad0cc443997886",
+  "candidate_tree": "b1f0116cea62bc91546bd718fdb49183f1585046",
+  "oracle_tree": "b1f0116cea62bc91546bd718fdb49183f1585046",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-53-git",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "db3d9fdeb3d9ab5af5664c773841bbe0c8115d942f68ca2b5e7e499acc9f81e5",
+    "text": "diff --git a/builtin/clone.c b/builtin/clone.c\nindex 7f888717e7..ea4b09fd7a 100644\n--- a/builtin/clone.c\n+++ b/builtin/clone.c\n@@ -328,6 +328,20 @@ static void copy_or_link_directory(struct strbuf *src, struct strbuf *dest,\n \tstruct dir_iterator *iter;\n \tint iter_status;\n \n+\t/*\n+\t * Refuse copying directories by default which aren't owned by us. The\n+\t * code that performs either the copying or hardlinking is not prepared\n+\t * to handle various edge cases where an adversary may for example\n+\t * racily swap out files for symlinks. This can cause us to\n+\t * inadvertently use the wrong source file.\n+\t *\n+\t * Furthermore, even if we were prepared to handle such races safely,\n+\t * creating hardlinks across user boundaries is an inherently unsafe\n+\t * operation as the hardlinked files can be rewritten at will by the\n+\t * potentially-untrusted user. We thus refuse to do so by default.\n+\t */\n+\tdie_upon_dubious_ownership(NULL, NULL, src_repo);\n+\n \tmkdir_if_missing(dest->buf, 0777);\n \n \titer = dir_iterator_begin(src->buf, DIR_ITERATOR_PEDANTIC);\ndiff --git a/t/t0033-safe-directory.sh b/t/t0033-safe-directory.sh\nindex dc3496897a..11c3e8f28e 100755\n--- a/t/t0033-safe-directory.sh\n+++ b/t/t0033-safe-directory.sh\n@@ -80,4 +80,28 @@ test_expect_success 'safe.directory in included file' '\n \tgit status\n '\n \n+test_expect_success 'local clone of unowned repo refused in unsafe directory' '\n+\ttest_when_finished \"rm -rf source\" &&\n+\tgit init source &&\n+\t(\n+\t\tsane_unset GIT_TEST_ASSUME_DIFFERENT_OWNER &&\n+\t\ttest_commit -C source initial\n+\t) &&\n+\ttest_must_fail git clone --local source target &&\n+\ttest_path_is_missing target\n+'\n+\n+test_expect_success 'local clone of unowned repo accepted in safe directory' '\n+\ttest_when_finished \"rm -rf source\" &&\n+\tgit init source &&\n+\t(\n+\t\tsane_unset GIT_TEST_ASSUME_DIFFERENT_OWNER &&\n+\t\ttest_commit -C source initial\n+\t) &&\n+\ttest_must_fail git clone --local source target &&\n+\tgit config --global --add safe.directory \"$(pwd)/source/.git\" &&\n+\tgit clone --local source target &&\n+\ttest_path_is_dir target\n+'\n+\n test_done\n"
+  },
+  "trace_file": "trace.jsonl"
+}

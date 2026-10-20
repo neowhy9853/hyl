@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2136",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2136-0w2sy7tn/repo",
+      "target_ref": "df4b177b48516da64b988722a22d93d257dcda9a",
+      "target_tree": "e834f4ed6924603aa14c7e1cc6dfd7537e3cb34e"
+    },
+    "source_commit": "34ced1da74eb975abdf7ef823512c7719f67601b",
+    "reference_parent": "1f16ec4c2fc9d443d505e123877d438bfe293988",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/arch/x86/kvm/mmu/mmu.c b/arch/x86/kvm/mmu/mmu.c\nindex 83e30e4db2ae0590d5500f5e47413c7a75422832..0a163ba9fa1a2038177f44c8552fdb4c09ce6eb7 100644\n--- a/arch/x86/kvm/mmu/mmu.c\n+++ b/arch/x86/kvm/mmu/mmu.c\n@@ -2431,6 +2431,7 @@ static bool __kvm_mmu_prepare_zap_page(struct kvm *kvm,\n {\n \tbool list_unstable, zapped_root = false;\n \n+\tlockdep_assert_held_write(&kvm->mmu_lock);\n \ttrace_kvm_mmu_prepare_zap_page(sp);\n \t++kvm->stat.mmu_shadow_zapped;\n \t*nr_zapped = mmu_zap_unsync_children(kvm, sp, invalid_list);\n@@ -4250,14 +4251,14 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, struct kvm_page_fault *fault\n \tif (is_page_fault_stale(vcpu, fault, mmu_seq))\n \t\tgoto out_unlock;\n \n-\tr = make_mmu_pages_available(vcpu);\n-\tif (r)\n-\t\tgoto out_unlock;\n-\n-\tif (is_tdp_mmu_fault)\n+\tif (is_tdp_mmu_fault) {\n \t\tr = kvm_tdp_mmu_map(vcpu, fault);\n-\telse\n+\t} else {\n+\t\tr = make_mmu_pages_available(vcpu);\n+\t\tif (r)\n+\t\t\tgoto out_unlock;\n \t\tr = __direct_map(vcpu, fault);\n+\t}\n \n out_unlock:\n \tif (is_tdp_mmu_fault)\n",
+      "sha256": "3c072925e8d84c559eb632b7622fd339bffc07bb97946abbe1fe8ba719e5d5a4"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2022-45869\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2136-0w2sy7tn/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2136-0w2sy7tn/repo/.patch-port/reference.diff\nreference_fix: 34ced1da74eb975abdf7ef823512c7719f67601b\nreference_parent: 1f16ec4c2fc9d443d505e123877d438bfe293988\ntarget_ref: df4b177b48516da64b988722a22d93d257dcda9a\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2136-0w2sy7tn/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2136-0w2sy7tn/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2022-45869"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "f88a6977f8b981bfb5fddd18fbaa75e57e8af293",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "feb6db0e0134f6a73160f7e0128ffd7935b0023f9003b89d9ebf692669c01322",
+      "text": "diff --git a/arch/x86/kvm/mmu/mmu.c b/arch/x86/kvm/mmu/mmu.c\nindex ba1749a770eb1ef1e8a7a65a97ce6dc7e8e0596e..4724289c8a7f80f44e02ac07c9261a12af553cf0 100644\n--- a/arch/x86/kvm/mmu/mmu.c\n+++ b/arch/x86/kvm/mmu/mmu.c\n@@ -2357,6 +2357,7 @@ static bool __kvm_mmu_prepare_zap_page(struct kvm *kvm,\n {\n \tbool list_unstable;\n \n+\tlockdep_assert_held_write(&kvm->mmu_lock);\n \ttrace_kvm_mmu_prepare_zap_page(sp);\n \t++kvm->stat.mmu_shadow_zapped;\n \t*nr_zapped = mmu_zap_unsync_children(kvm, sp, invalid_list);\n@@ -4007,16 +4008,17 @@ static int direct_page_fault(struct kvm_vcpu *vcpu, gpa_t gpa, u32 error_code,\n \n \tif (!is_noslot_pfn(pfn) && mmu_notifier_retry_hva(vcpu->kvm, mmu_seq, hva))\n \t\tgoto out_unlock;\n-\tr = make_mmu_pages_available(vcpu);\n-\tif (r)\n-\t\tgoto out_unlock;\n \n-\tif (is_tdp_mmu_fault)\n+\tif (is_tdp_mmu_fault) {\n \t\tr = kvm_tdp_mmu_map(vcpu, gpa, error_code, map_writable, max_level,\n \t\t\t\t    pfn, prefault);\n-\telse\n+\t} else {\n+\t\tr = make_mmu_pages_available(vcpu);\n+\t\tif (r)\n+\t\t\tgoto out_unlock;\n \t\tr = __direct_map(vcpu, gpa, error_code, map_writable, max_level, pfn,\n \t\t\t\t prefault, is_tdp);\n+\t}\n \n out_unlock:\n \tif (is_tdp_mmu_fault)\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "527843feaf95a2362f0474ba20a3f079ce5a9a252edc958eb2539d4ab5b8030c",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/02136_CVE-2022-45869/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2136,
+      "cve": "CVE-2022-45869",
+      "source_commit": "34ced1da74eb975abdf7ef823512c7719f67601b",
+      "oracle_commit": "f88a6977f8b981bfb5fddd18fbaa75e57e8af293"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

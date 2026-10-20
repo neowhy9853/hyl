@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1125",
+  "candidate_sha256": "706e9a98f5fb907b09e435ca2d6f54c6523516715bf323cc03c7b342a4ab0f39",
+  "oracle_sha256": "d05faff6da6f9fb5e00612687a88f6c039c878841ad2f72cec92f9c39c4a969d",
+  "candidate_nonempty": true,
+  "target_ref": "cde863587b6809fdf61ea3c5391ecf06884b5516",
+  "baseline_tree": "df48ad2774d92f58f3d9c929418c719408dffbe9",
+  "candidate_tree": "fa95a30a0187ac4b9797c3a33196b18beb05cdf1",
+  "oracle_tree": "fa95a30a0187ac4b9797c3a33196b18beb05cdf1",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1125",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "706e9a98f5fb907b09e435ca2d6f54c6523516715bf323cc03c7b342a4ab0f39",
+    "text": "diff --git a/arch/x86/kvm/emulate.c b/arch/x86/kvm/emulate.c\nindex f0b7bce7e0ba..1b8c6faa598a 100644\n--- a/arch/x86/kvm/emulate.c\n+++ b/arch/x86/kvm/emulate.c\n@@ -1439,7 +1439,6 @@ static int write_segment_descriptor(struct x86_emulate_ctxt *ctxt,\n \t\t\t\t    &ctxt->exception);\n }\n \n-/* Does not support long mode */\n static int __load_segment_descriptor(struct x86_emulate_ctxt *ctxt,\n \t\t\t\t     u16 selector, int seg, u8 cpl,\n \t\t\t\t     bool in_task_switch,\n@@ -1475,20 +1474,34 @@ static int __load_segment_descriptor(struct x86_emulate_ctxt *ctxt,\n \n \trpl = selector & 3;\n \n-\t/* NULL selector is not valid for TR, CS and SS (except for long mode) */\n-\tif ((seg == VCPU_SREG_CS\n-\t     || (seg == VCPU_SREG_SS\n-\t\t && (ctxt->mode != X86EMUL_MODE_PROT64 || rpl != cpl))\n-\t     || seg == VCPU_SREG_TR)\n-\t    && null_selector)\n-\t\tgoto exception;\n-\n \t/* TR should be in GDT only */\n \tif (seg == VCPU_SREG_TR && (selector & (1 << 2)))\n \t\tgoto exception;\n \n-\tif (null_selector) /* for NULL selector skip all following checks */\n+\t/* NULL selector is not valid for TR, CS and (except for long mode) SS */\n+\tif (null_selector) {\n+\t\tif (seg == VCPU_SREG_CS || seg == VCPU_SREG_TR)\n+\t\t\tgoto exception;\n+\n+\t\tif (seg == VCPU_SREG_SS) {\n+\t\t\tif (ctxt->mode != X86EMUL_MODE_PROT64 || rpl != cpl)\n+\t\t\t\tgoto exception;\n+\n+\t\t\t/*\n+\t\t\t * ctxt->ops->set_segment expects the CPL to be in\n+\t\t\t * SS.DPL, so fake an expand-up 32-bit data segment.\n+\t\t\t */\n+\t\t\tseg_desc.type = 3;\n+\t\t\tseg_desc.p = 1;\n+\t\t\tseg_desc.s = 1;\n+\t\t\tseg_desc.dpl = cpl;\n+\t\t\tseg_desc.d = 1;\n+\t\t\tseg_desc.g = 1;\n+\t\t}\n+\n+\t\t/* Skip all following checks */\n \t\tgoto load;\n+\t}\n \n \tret = read_segment_descriptor(ctxt, selector, &seg_desc, &desc_addr);\n \tif (ret != X86EMUL_CONTINUE)\n@@ -1584,6 +1597,21 @@ static int load_segment_descriptor(struct x86_emulate_ctxt *ctxt,\n \t\t\t\t   u16 selector, int seg)\n {\n \tu8 cpl = ctxt->ops->cpl(ctxt);\n+\n+\t/*\n+\t * None of MOV, POP and LSS can load a NULL selector in CPL=3, but\n+\t * they can load it at CPL<3 (Intel's manual says only LSS can,\n+\t * but it's wrong).\n+\t *\n+\t * However, the Intel manual says that putting IST=1/DPL=3 in\n+\t * an interrupt gate will result in SS=3 (the AMD manual instead\n+\t * says it doesn't), so allow SS=3 in __load_segment_descriptor\n+\t * and only forbid it here.\n+\t */\n+\tif (seg == VCPU_SREG_SS && selector == 3 &&\n+\t    ctxt->mode == X86EMUL_MODE_PROT64)\n+\t\treturn emulate_exception(ctxt, GP_VECTOR, 0, true);\n+\n \treturn __load_segment_descriptor(ctxt, selector, seg, cpl, false, NULL);\n }\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

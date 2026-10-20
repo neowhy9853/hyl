@@ -1,0 +1,46 @@
+{
+  "round": 3,
+  "case_id": "case_008",
+  "source_index": 7,
+  "repo": "kernel",
+  "commit_id": "b7fdcf81e05ca304d69063b744ba70a7f880ed11",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "d7c2bc0532ef",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.9,
+    "reason": "提交在 smb2_reconnect_server 中增加了对 CifsExiting 会话的状态检查，以避免在会话即将释放时收集它，从而防止潜在的 use-after-free 问题。",
+    "intent_items": [
+      {
+        "target": "fs/cifs/smb2pdu.c 中的 smb2_reconnect_server 函数",
+        "change": "在遍历 server->smb_ses_list 时，为每个会话增加了对 ses->status == CifsExiting 的检查，如果状态为 CifsExiting 则跳过该会话。",
+        "effect_or_reason": "防止收集即将退出的会话，避免在会话被释放后仍被使用，从而修复潜在的 use-after-free 问题。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交在 smb2_reconnect_server 中增加了对 CifsExiting 会话的状态检查"
+          ],
+          "message_only_details": [
+            "退出的会话会停留在 server->smb_ses_list 中，直到完成 cifs_free_ipc() 和 logoff() 后才从列表中删除"
+          ],
+          "code_only_details": [
+            "新增的检查使用了 spin_lock(&GlobalMid_Lock) 来保护对 ses->status 的访问"
+          ]
+        },
+        "evidence": [
+          "patch 显示在 list_for_each_entry(ses, &server->smb_ses_list, smb_ses_list) 循环内新增了 if (ses->status == CifsExiting) { continue; } 检查",
+          "commit message 明确指出修复目的是避免 use-after-free 问题，因为退出的会话很快会被释放"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_008",
+  "trace_status": "available"
+}

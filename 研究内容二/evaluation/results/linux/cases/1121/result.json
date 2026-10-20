@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1121",
+  "candidate_sha256": "958f8c487f7c3a4c035b95ae23a591b04817a6f094035d11754190ef39bcabe2",
+  "oracle_sha256": "bcee08fe7b78d1ab66586caac6ced6c5fe7c3cf760bbd175b60ee8e11be5d9c8",
+  "candidate_nonempty": true,
+  "target_ref": "1de7644eac41981817fb66b74e0f82ca4477dc9d",
+  "baseline_tree": "293aa945172f6b61b3621c2cd354c6f9553bdb36",
+  "candidate_tree": "0fbdfbb4f6ceb248149a4b0f987a00983497158c",
+  "oracle_tree": "8c916b36cc00e3eec8561f8d21f7edf1afac8af2",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1121",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "958f8c487f7c3a4c035b95ae23a591b04817a6f094035d11754190ef39bcabe2",
+    "text": "diff --git a/drivers/net/xen-netback/rx.c b/drivers/net/xen-netback/rx.c\nindex 04353df14726..3fd2fa6b8a6e 100644\n--- a/drivers/net/xen-netback/rx.c\n+++ b/drivers/net/xen-netback/rx.c\n@@ -88,16 +88,19 @@ void xenvif_rx_queue_tail(struct xenvif_queue *queue, struct sk_buff *skb)\n \n \tspin_lock_irqsave(&queue->rx_queue.lock, flags);\n \n-\tif (skb_queue_empty(&queue->rx_queue))\n-\t\txenvif_update_needed_slots(queue, skb);\n-\n-\t__skb_queue_tail(&queue->rx_queue, skb);\n-\n-\tqueue->rx_queue_len += skb->len;\n-\tif (queue->rx_queue_len > queue->rx_queue_max) {\n+\tif (queue->rx_queue_len >= queue->rx_queue_max) {\n \t\tstruct net_device *dev = queue->vif->dev;\n \n \t\tnetif_tx_stop_queue(netdev_get_tx_queue(dev, queue->id));\n+\t\tkfree_skb(skb);\n+\t\tdev->stats.rx_dropped++;\n+\t} else {\n+\t\tif (skb_queue_empty(&queue->rx_queue))\n+\t\t\txenvif_update_needed_slots(queue, skb);\n+\n+\t\t__skb_queue_tail(&queue->rx_queue, skb);\n+\n+\t\tqueue->rx_queue_len += skb->len;\n \t}\n \n \tspin_unlock_irqrestore(&queue->rx_queue.lock, flags);\n@@ -147,6 +150,7 @@ static void xenvif_rx_queue_drop_expired(struct xenvif_queue *queue)\n \t\t\tbreak;\n \t\txenvif_rx_dequeue(queue);\n \t\tkfree_skb(skb);\n+\t\tqueue->vif->dev->stats.rx_dropped++;\n \t}\n }\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

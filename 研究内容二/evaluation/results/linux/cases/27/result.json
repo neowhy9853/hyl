@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "27",
+  "candidate_sha256": "65a7bebd34e545bd3fd4461bd8b5b2801555a5d8b8cb64f5ded6ffa465d7e33c",
+  "oracle_sha256": "53f9b4d9e043e709faf15f3b2c25d8f4fc29eb8d99f33eb8ff4afbe54bfe8bff",
+  "candidate_nonempty": true,
+  "target_ref": "63bec9219c398a80a78608174225c16940fdf0d0",
+  "baseline_tree": "6f5439f2cf660d2c8d4e56f8aaa0dc3cd5d9088f",
+  "candidate_tree": "ed8778436d1a603358cc5c0be8e9797abbd2975f",
+  "oracle_tree": "ed8778436d1a603358cc5c0be8e9797abbd2975f",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/27",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "65a7bebd34e545bd3fd4461bd8b5b2801555a5d8b8cb64f5ded6ffa465d7e33c",
+    "text": "diff --git a/arch/x86/kvm/vmx/nested.c b/arch/x86/kvm/vmx/nested.c\nindex f014e1aeee96..7c1be5a139a7 100644\n--- a/arch/x86/kvm/vmx/nested.c\n+++ b/arch/x86/kvm/vmx/nested.c\n@@ -500,6 +500,17 @@ static void nested_vmx_disable_intercept_for_msr(unsigned long *msr_bitmap_l1,\n \t}\n }\n \n+static inline void enable_x2apic_msr_intercepts(unsigned long *msr_bitmap) {\n+\tint msr;\n+\n+\tfor (msr = 0x800; msr <= 0x8ff; msr += BITS_PER_LONG) {\n+\t\tunsigned word = msr / BITS_PER_LONG;\n+\n+\t\tmsr_bitmap[word] = ~0;\n+\t\tmsr_bitmap[word + (0x800 / sizeof(long))] = ~0;\n+\t}\n+}\n+\n /*\n  * Merge L0's and L1's MSR bitmap, return false to indicate that\n  * we do not use the hardware.\n@@ -541,39 +552,44 @@ static inline bool nested_vmx_prepare_msr_bitmap(struct kvm_vcpu *vcpu,\n \t\treturn false;\n \n \tmsr_bitmap_l1 = (unsigned long *)kmap(page);\n-\tif (nested_cpu_has_apic_reg_virt(vmcs12)) {\n-\t\t/*\n-\t\t * L0 need not intercept reads for MSRs between 0x800 and 0x8ff, it\n-\t\t * just lets the processor take the value from the virtual-APIC page;\n-\t\t * take those 256 bits directly from the L1 bitmap.\n-\t\t */\n-\t\tfor (msr = 0x800; msr <= 0x8ff; msr += BITS_PER_LONG) {\n-\t\t\tunsigned word = msr / BITS_PER_LONG;\n-\t\t\tmsr_bitmap_l0[word] = msr_bitmap_l1[word];\n-\t\t\tmsr_bitmap_l0[word + (0x800 / sizeof(long))] = ~0;\n-\t\t}\n-\t} else {\n-\t\tfor (msr = 0x800; msr <= 0x8ff; msr += BITS_PER_LONG) {\n-\t\t\tunsigned word = msr / BITS_PER_LONG;\n-\t\t\tmsr_bitmap_l0[word] = ~0;\n-\t\t\tmsr_bitmap_l0[word + (0x800 / sizeof(long))] = ~0;\n-\t\t}\n-\t}\n \n-\tnested_vmx_disable_intercept_for_msr(\n-\t\tmsr_bitmap_l1, msr_bitmap_l0,\n-\t\tX2APIC_MSR(APIC_TASKPRI),\n-\t\tMSR_TYPE_W);\n+\t/*\n+\t * To keep the control flow simple, pay eight 8-byte writes (sixteen\n+\t * 4-byte writes on 32-bit systems) up front to enable intercepts for\n+\t * the x2APIC MSR range and selectively disable them below.\n+\t */\n+\tenable_x2apic_msr_intercepts(msr_bitmap_l0);\n+\n+\tif (nested_cpu_has_virt_x2apic_mode(vmcs12)) {\n+\t\tif (nested_cpu_has_apic_reg_virt(vmcs12)) {\n+\t\t\t/*\n+\t\t\t * L0 need not intercept reads for MSRs between 0x800\n+\t\t\t * and 0x8ff, it just lets the processor take the value\n+\t\t\t * from the virtual-APIC page; take those 256 bits\n+\t\t\t * directly from the L1 bitmap.\n+\t\t\t */\n+\t\t\tfor (msr = 0x800; msr <= 0x8ff; msr += BITS_PER_LONG) {\n+\t\t\t\tunsigned word = msr / BITS_PER_LONG;\n+\n+\t\t\t\tmsr_bitmap_l0[word] = msr_bitmap_l1[word];\n+\t\t\t}\n+\t\t}\n \n-\tif (nested_cpu_has_vid(vmcs12)) {\n-\t\tnested_vmx_disable_intercept_for_msr(\n-\t\t\tmsr_bitmap_l1, msr_bitmap_l0,\n-\t\t\tX2APIC_MSR(APIC_EOI),\n-\t\t\tMSR_TYPE_W);\n \t\tnested_vmx_disable_intercept_for_msr(\n \t\t\tmsr_bitmap_l1, msr_bitmap_l0,\n-\t\t\tX2APIC_MSR(APIC_SELF_IPI),\n+\t\t\tX2APIC_MSR(APIC_TASKPRI),\n \t\t\tMSR_TYPE_W);\n+\n+\t\tif (nested_cpu_has_vid(vmcs12)) {\n+\t\t\tnested_vmx_disable_intercept_for_msr(\n+\t\t\t\tmsr_bitmap_l1, msr_bitmap_l0,\n+\t\t\t\tX2APIC_MSR(APIC_EOI),\n+\t\t\t\tMSR_TYPE_W);\n+\t\t\tnested_vmx_disable_intercept_for_msr(\n+\t\t\t\tmsr_bitmap_l1, msr_bitmap_l0,\n+\t\t\t\tX2APIC_MSR(APIC_SELF_IPI),\n+\t\t\t\tMSR_TYPE_W);\n+\t\t}\n \t}\n \n \tif (spec_ctrl)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2139",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2139-l7xzeeaj/repo",
+      "target_ref": "308246b89588040ec174a48eda49549fa2fea60d",
+      "target_tree": "94c2bba3aa3d8e8830f463619a311326d9604c1a"
+    },
+    "source_commit": "c5e16510e3454393fa8e40591bff28c190be2faa",
+    "reference_parent": "50692bdd5cde9f86d1f96f50627d2fbf266ee783",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/arch/x86/include/uapi/asm/msr-index.h b/arch/x86/include/uapi/asm/msr-index.h\nindex bb0465090ae53eb3246b5022d187dd4517bd39d0..228d95f6592abf4eac9ca5cf73f8f3c72d80a09f 100644\n--- a/arch/x86/include/uapi/asm/msr-index.h\n+++ b/arch/x86/include/uapi/asm/msr-index.h\n@@ -182,6 +182,7 @@\n #define MSR_AMD64_PATCH_LOADER\t\t0xc0010020\n #define MSR_AMD64_OSVW_ID_LENGTH\t0xc0010140\n #define MSR_AMD64_OSVW_STATUS\t\t0xc0010141\n+#define MSR_AMD64_LS_CFG\t\t0xc0011020\n #define MSR_AMD64_DC_CFG\t\t0xc0011022\n #define MSR_AMD64_BU_CFG2\t\t0xc001102a\n #define MSR_AMD64_IBSFETCHCTL\t\t0xc0011030\ndiff --git a/arch/x86/kernel/cpu/amd.c b/arch/x86/kernel/cpu/amd.c\nindex 903a264af981c5bf5991e03e0a428e9b7dd8773e..28233b9e45cc1ff0dc7e5ab5c8228572e56b9bda 100644\n--- a/arch/x86/kernel/cpu/amd.c\n+++ b/arch/x86/kernel/cpu/amd.c\n@@ -508,6 +508,16 @@ static void early_init_amd(struct cpuinfo_x86 *c)\n \t\t\tset_cpu_cap(c, X86_FEATURE_EXTD_APICID);\n \t}\n #endif\n+\n+\t/* F16h erratum 793, CVE-2013-6885 */\n+\tif (c->x86 == 0x16 && c->x86_model <= 0xf) {\n+\t\tu64 val;\n+\n+\t\trdmsrl(MSR_AMD64_LS_CFG, val);\n+\t\tif (!(val & BIT(15)))\n+\t\t\twrmsrl(MSR_AMD64_LS_CFG, val | BIT(15));\n+\t}\n+\n }\n \n static const int amd_erratum_383[];\n",
+      "sha256": "bdf36f9cafff049193b7dbc06a0bc4d3e9d179c10d8a64c49039a35a33d32a7c"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2013-6885\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2139-l7xzeeaj/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2139-l7xzeeaj/repo/.patch-port/reference.diff\nreference_fix: c5e16510e3454393fa8e40591bff28c190be2faa\nreference_parent: 50692bdd5cde9f86d1f96f50627d2fbf266ee783\ntarget_ref: 308246b89588040ec174a48eda49549fa2fea60d\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2139-l7xzeeaj/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2139-l7xzeeaj/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2013-6885"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "9ec2b3153415ca412de6471baec2e61ec89997e1",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "d6f6968789495087cdd4da4a2c02922966b3569ac2edf755f87f2001137287c9",
+      "text": "diff --git a/arch/x86/include/asm/msr-index.h b/arch/x86/include/asm/msr-index.h\nindex a6962d9161a0f23dcd2759cc30f0290305cc144c..5538b138b3df0f16f2b962937d73d5bdbfbbcf2b 100644\n--- a/arch/x86/include/asm/msr-index.h\n+++ b/arch/x86/include/asm/msr-index.h\n@@ -123,6 +123,7 @@\n #define MSR_AMD64_PATCH_LOADER\t\t0xc0010020\n #define MSR_AMD64_OSVW_ID_LENGTH\t0xc0010140\n #define MSR_AMD64_OSVW_STATUS\t\t0xc0010141\n+#define MSR_AMD64_LS_CFG\t\t0xc0011020\n #define MSR_AMD64_DC_CFG\t\t0xc0011022\n #define MSR_AMD64_IBSFETCHCTL\t\t0xc0011030\n #define MSR_AMD64_IBSFETCHLINAD\t\t0xc0011031\ndiff --git a/arch/x86/kernel/cpu/amd.c b/arch/x86/kernel/cpu/amd.c\nindex 2d44a28be0ea3afe67b2b80999ac4bf2469b6b6d..60d4c3351cdbfc1282c64c0576f690d5791ce714 100644\n--- a/arch/x86/kernel/cpu/amd.c\n+++ b/arch/x86/kernel/cpu/amd.c\n@@ -408,6 +408,16 @@ static void __cpuinit early_init_amd_mc(struct cpuinfo_x86 *c)\n \n \tc->x86_coreid_bits = bits;\n #endif\n+\n+\t/* F16h erratum 793, CVE-2013-6885 */\n+\tif (c->x86 == 0x16 && c->x86_model <= 0xf) {\n+\t\tu64 val;\n+\n+\t\tif (!rdmsrl_amd_safe(MSR_AMD64_LS_CFG, &val) &&\n+\t\t    !(val & BIT(15)))\n+\t\t\twrmsrl_amd_safe(MSR_AMD64_LS_CFG, val | BIT(15));\n+\t}\n+\n }\n \n static void __cpuinit bsp_init_amd(struct cpuinfo_x86 *c)\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "751014df3e0e04e6487b8e25edb3ddb8f8204b699e63a88de055c03b85d078a7",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/02139_CVE-2013-6885/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2139,
+      "cve": "CVE-2013-6885",
+      "source_commit": "c5e16510e3454393fa8e40591bff28c190be2faa",
+      "oracle_commit": "9ec2b3153415ca412de6471baec2e61ec89997e1"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

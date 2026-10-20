@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "282",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-282-azan3yd9/repo",
+      "target_ref": "6fe55dce9dd61c0d7a8424dc2706784183c8c91c",
+      "target_tree": "51fe9af6b2ad70ac0b13b94d39dfb921b56ed496"
+    },
+    "source_commit": "c54974ccaff73525462e278602dfe4069877cfaa",
+    "reference_parent": "7b18dea697e400dd91c2a0447cebf1f5fe9f5d1c",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/arch/x86/kvm/vmx/nested.c b/arch/x86/kvm/vmx/nested.c\nindex 91371b01eae0c5db57741b08ce1728680afd68f4..c165ddbb672fe024a7a65ba818a10dc7077ccb91 100644\n--- a/arch/x86/kvm/vmx/nested.c\n+++ b/arch/x86/kvm/vmx/nested.c\n@@ -2998,7 +2998,7 @@ static int nested_vmx_check_guest_state(struct kvm_vcpu *vcpu,\n \t\t\t\t\tstruct vmcs12 *vmcs12,\n \t\t\t\t\tenum vm_entry_failure_code *entry_failure_code)\n {\n-\tbool ia32e;\n+\tbool ia32e = !!(vmcs12->vm_entry_controls & VM_ENTRY_IA32E_MODE);\n \n \t*entry_failure_code = ENTRY_FAIL_DEFAULT;\n \n@@ -3024,6 +3024,13 @@ static int nested_vmx_check_guest_state(struct kvm_vcpu *vcpu,\n \t\t\t\t\t   vmcs12->guest_ia32_perf_global_ctrl)))\n \t\treturn -EINVAL;\n \n+\tif (CC((vmcs12->guest_cr0 & (X86_CR0_PG | X86_CR0_PE)) == X86_CR0_PG))\n+\t\treturn -EINVAL;\n+\n+\tif (CC(ia32e && !(vmcs12->guest_cr4 & X86_CR4_PAE)) ||\n+\t    CC(ia32e && !(vmcs12->guest_cr0 & X86_CR0_PG)))\n+\t\treturn -EINVAL;\n+\n \t/*\n \t * If the load IA32_EFER VM-entry control is 1, the following checks\n \t * are performed on the field for the IA32_EFER MSR:\n@@ -3035,7 +3042,6 @@ static int nested_vmx_check_guest_state(struct kvm_vcpu *vcpu,\n \t */\n \tif (to_vmx(vcpu)->nested.nested_run_pending &&\n \t    (vmcs12->vm_entry_controls & VM_ENTRY_LOAD_IA32_EFER)) {\n-\t\tia32e = (vmcs12->vm_entry_controls & VM_ENTRY_IA32E_MODE) != 0;\n \t\tif (CC(!kvm_valid_efer(vcpu, vmcs12->guest_ia32_efer)) ||\n \t\t    CC(ia32e != !!(vmcs12->guest_ia32_efer & EFER_LMA)) ||\n \t\t    CC(((vmcs12->guest_cr0 & X86_CR0_PG) &&\n",
+      "sha256": "eddf7b4df05be5e83cf4e0acb6550b0601ffa8f7bc9390b7ededa9c22ec8151c"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2023-30456\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-282-azan3yd9/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-282-azan3yd9/repo/.patch-port/reference.diff\nreference_fix: c54974ccaff73525462e278602dfe4069877cfaa\nreference_parent: 7b18dea697e400dd91c2a0447cebf1f5fe9f5d1c\ntarget_ref: 6fe55dce9dd61c0d7a8424dc2706784183c8c91c\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-282-azan3yd9/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-282-azan3yd9/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2023-30456"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "65e4c9a6d0c9a8c81ce75576869d46fff5d7964f",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "a2eab21abdc576b18709114c1ad1995952280df71e2f004ffb38582c8390e4f0",
+      "text": "diff --git a/arch/x86/kvm/vmx/nested.c b/arch/x86/kvm/vmx/nested.c\nindex d3a8ee0ef988a37647c0265242968ad79fd9b762..cd96c31fe2bb41ac82a282502f045bd4672299b1 100644\n--- a/arch/x86/kvm/vmx/nested.c\n+++ b/arch/x86/kvm/vmx/nested.c\n@@ -2779,7 +2779,7 @@ static int nested_vmx_check_guest_state(struct kvm_vcpu *vcpu,\n \t\t\t\t\tstruct vmcs12 *vmcs12,\n \t\t\t\t\tu32 *exit_qual)\n {\n-\tbool ia32e;\n+\tbool ia32e = !!(vmcs12->vm_entry_controls & VM_ENTRY_IA32E_MODE);\n \n \t*exit_qual = ENTRY_FAIL_DEFAULT;\n \n@@ -2796,6 +2796,13 @@ static int nested_vmx_check_guest_state(struct kvm_vcpu *vcpu,\n \t\treturn -EINVAL;\n \t}\n \n+\tif (CC((vmcs12->guest_cr0 & (X86_CR0_PG | X86_CR0_PE)) == X86_CR0_PG))\n+\t\treturn -EINVAL;\n+\n+\tif (CC(ia32e && !(vmcs12->guest_cr4 & X86_CR4_PAE)) ||\n+\t    CC(ia32e && !(vmcs12->guest_cr0 & X86_CR0_PG)))\n+\t\treturn -EINVAL;\n+\n \t/*\n \t * If the load IA32_EFER VM-entry control is 1, the following checks\n \t * are performed on the field for the IA32_EFER MSR:\n@@ -2807,7 +2814,6 @@ static int nested_vmx_check_guest_state(struct kvm_vcpu *vcpu,\n \t */\n \tif (to_vmx(vcpu)->nested.nested_run_pending &&\n \t    (vmcs12->vm_entry_controls & VM_ENTRY_LOAD_IA32_EFER)) {\n-\t\tia32e = (vmcs12->vm_entry_controls & VM_ENTRY_IA32E_MODE) != 0;\n \t\tif (CC(!kvm_valid_efer(vcpu, vmcs12->guest_ia32_efer)) ||\n \t\t    CC(ia32e != !!(vmcs12->guest_ia32_efer & EFER_LMA)) ||\n \t\t    CC(((vmcs12->guest_cr0 & X86_CR0_PG) &&\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "4a70cc0a3dfee919205a6cb4121e8a59b89075a6a50dd817a225cde94e157371",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00282_CVE-2023-30456/reference.diff",
+    "source_dataset_record": {
+      "case_id": 282,
+      "cve": "CVE-2023-30456",
+      "source_commit": "c54974ccaff73525462e278602dfe4069877cfaa",
+      "oracle_commit": "65e4c9a6d0c9a8c81ce75576869d46fff5d7964f"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

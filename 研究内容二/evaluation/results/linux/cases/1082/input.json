@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1082",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1082-332ctgzu/repo",
+      "target_ref": "8cb9b069fa631b613bbbd6f63887190e55cafa3c",
+      "target_tree": "718dc602c1cfab69da4e939bf38a7d8a67131bc0"
+    },
+    "source_commit": "37099d7a3e66f8a587082f04ca6405e6d674b3df",
+    "reference_parent": "3d95c52d789ca99e344061d7f6dadb2519adbcf5",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/btrfs/disk-io.c b/fs/btrfs/disk-io.c\nindex deb74a8c191a47583189dcc0cb9fc6ff4c8dac58..6d26d38a2e12c609982ea50320f51c5e5c0c4c44 100644\n--- a/fs/btrfs/disk-io.c\n+++ b/fs/btrfs/disk-io.c\n@@ -423,6 +423,16 @@ int btrfs_verify_level_key(struct extent_buffer *eb, int level,\n \t */\n \tif (btrfs_header_generation(eb) > fs_info->last_trans_committed)\n \t\treturn 0;\n+\n+\t/* We have @first_key, so this @eb must have at least one item */\n+\tif (btrfs_header_nritems(eb) == 0) {\n+\t\tbtrfs_err(fs_info,\n+\t\t\"invalid tree nritems, bytenr=%llu nritems=0 expect >0\",\n+\t\t\t  eb->start);\n+\t\tWARN_ON(IS_ENABLED(CONFIG_BTRFS_DEBUG));\n+\t\treturn -EUCLEAN;\n+\t}\n+\n \tif (found_level)\n \t\tbtrfs_node_key_to_cpu(eb, &found_key, 0);\n \telse\ndiff --git a/fs/btrfs/tree-checker.c b/fs/btrfs/tree-checker.c\nindex d83adda6c090add56744ac37b9a4702b1ef718ec..9634cae1e1b1d919ed481c7d794f7ce2d4932901 100644\n--- a/fs/btrfs/tree-checker.c\n+++ b/fs/btrfs/tree-checker.c\n@@ -991,6 +991,12 @@ static int check_leaf(struct extent_buffer *leaf, bool check_item_data)\n \t\t\t\t    owner);\n \t\t\treturn -EUCLEAN;\n \t\t}\n+\t\t/* Unknown tree */\n+\t\tif (owner == 0) {\n+\t\t\tgeneric_err(leaf, 0,\n+\t\t\t\t\"invalid owner, root 0 is not defined\");\n+\t\t\treturn -EUCLEAN;\n+\t\t}\n \t\treturn 0;\n \t}\n \n",
+      "sha256": "23b664204717a3dd079ef572fe99f0178e7e66641591617a150cd6acd731791e"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2019-19036\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1082-332ctgzu/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1082-332ctgzu/repo/.patch-port/reference.diff\nreference_fix: 37099d7a3e66f8a587082f04ca6405e6d674b3df\nreference_parent: 3d95c52d789ca99e344061d7f6dadb2519adbcf5\ntarget_ref: 8cb9b069fa631b613bbbd6f63887190e55cafa3c\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1082-332ctgzu/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1082-332ctgzu/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2019-19036"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "227af79e6cb0ee3faeb8c70be4bc0aec0b09ea25",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "2d74eb311523d67616678038da9dce18f04be02d0c878bec46e26eaec931c4d1",
+      "text": "diff --git a/fs/btrfs/disk-io.c b/fs/btrfs/disk-io.c\nindex da7a2a5306474b094605968512522c8a0c6cbffb..9740f7b5d4fb4f4030b6c45a26e9bd0d0f62c5dc 100644\n--- a/fs/btrfs/disk-io.c\n+++ b/fs/btrfs/disk-io.c\n@@ -438,6 +438,16 @@ int btrfs_verify_level_key(struct btrfs_fs_info *fs_info,\n \t */\n \tif (btrfs_header_generation(eb) > fs_info->last_trans_committed)\n \t\treturn 0;\n+\n+\t/* We have @first_key, so this @eb must have at least one item */\n+\tif (btrfs_header_nritems(eb) == 0) {\n+\t\tbtrfs_err(fs_info,\n+\t\t\"invalid tree nritems, bytenr=%llu nritems=0 expect >0\",\n+\t\t\t  eb->start);\n+\t\tWARN_ON(IS_ENABLED(CONFIG_BTRFS_DEBUG));\n+\t\treturn -EUCLEAN;\n+\t}\n+\n \tif (found_level)\n \t\tbtrfs_node_key_to_cpu(eb, &found_key, 0);\n \telse\ndiff --git a/fs/btrfs/tree-checker.c b/fs/btrfs/tree-checker.c\nindex 3ec712cba58e0d4d60f0d062b22e80ef66d74a49..235c2970b944724791d194b7a13a01fc97a960dc 100644\n--- a/fs/btrfs/tree-checker.c\n+++ b/fs/btrfs/tree-checker.c\n@@ -509,6 +509,12 @@ static int check_leaf(struct btrfs_fs_info *fs_info, struct extent_buffer *leaf,\n \t\t\t\t    owner);\n \t\t\treturn -EUCLEAN;\n \t\t}\n+\t\t/* Unknown tree */\n+\t\tif (owner == 0) {\n+\t\t\tgeneric_err(fs_info, leaf, 0,\n+\t\t\t\t\"invalid owner, root 0 is not defined\");\n+\t\t\treturn -EUCLEAN;\n+\t\t}\n \t\tkey.objectid = owner;\n \t\tkey.type = BTRFS_ROOT_ITEM_KEY;\n \t\tkey.offset = (u64)-1;\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "525b1c10867067505001e0252adf05b2c6132824cfb04a575f4cb13d3163326f",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01082_CVE-2019-19036/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1082,
+      "cve": "CVE-2019-19036",
+      "source_commit": "37099d7a3e66f8a587082f04ca6405e6d674b3df",
+      "oracle_commit": "227af79e6cb0ee3faeb8c70be4bc0aec0b09ea25"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

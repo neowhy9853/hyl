@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "317",
+  "candidate_sha256": "7e488e912950792674a6e4de52a36d55d79d64e3860b4ff1510656d64805bb4a",
+  "oracle_sha256": "98c62491ba5ec93ba9cd02ff2ed666dc942c713fb42f7a567ce0c943fdcfb3cf",
+  "candidate_nonempty": true,
+  "target_ref": "8e12976c0c19ebc14b60046b1348c516a74c25a2",
+  "baseline_tree": "5667ab64ca5b984b7b8e2a24f42a4e243396164d",
+  "candidate_tree": "4a726eb7a1b1f5eda8f0a8cd445349688846d388",
+  "oracle_tree": "af7bf59e654fc591e32034ce7e6eb174a4f26a5c",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/317",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "7e488e912950792674a6e4de52a36d55d79d64e3860b4ff1510656d64805bb4a",
+    "text": "diff --git a/include/linux/wait.h b/include/linux/wait.h\nindex 93dab0e9580f..d22cf2985b8f 100644\n--- a/include/linux/wait.h\n+++ b/include/linux/wait.h\n@@ -217,6 +217,7 @@ void __wake_up_sync_key(struct wait_queue_head *wq_head, unsigned int mode, void\n void __wake_up_locked_sync_key(struct wait_queue_head *wq_head, unsigned int mode, void *key);\n void __wake_up_locked(struct wait_queue_head *wq_head, unsigned int mode, int nr);\n void __wake_up_sync(struct wait_queue_head *wq_head, unsigned int mode);\n+void __wake_up_pollfree(struct wait_queue_head *wq_head);\n \n #define wake_up(x)\t\t\t__wake_up(x, TASK_NORMAL, 1, NULL)\n #define wake_up_nr(x, nr)\t\t__wake_up(x, TASK_NORMAL, nr, NULL)\n@@ -245,6 +246,31 @@ void __wake_up_sync(struct wait_queue_head *wq_head, unsigned int mode);\n #define wake_up_interruptible_sync_poll_locked(x, m)\t\t\t\t\\\n \t__wake_up_locked_sync_key((x), TASK_INTERRUPTIBLE, poll_to_key(m))\n \n+/**\n+ * wake_up_pollfree - signal that a polled waitqueue is going away\n+ * @wq_head: the wait queue head\n+ *\n+ * In the very rare cases where a ->poll() implementation uses a waitqueue whose\n+ * lifetime is tied to a task rather than to the 'struct file' being polled,\n+ * this function must be called before the waitqueue is freed so that\n+ * non-blocking polls (e.g. epoll) are notified that the queue is going away.\n+ *\n+ * The caller must also RCU-delay the freeing of the wait_queue_head, e.g. via\n+ * an explicit synchronize_rcu() or call_rcu(), or via SLAB_TYPESAFE_BY_RCU.\n+ */\n+static inline void wake_up_pollfree(struct wait_queue_head *wq_head)\n+{\n+\t/*\n+\t * For performance reasons, we don't always take the queue lock here.\n+\t * Therefore, we might race with someone removing the last entry from\n+\t * the queue, and proceed while they still hold the queue lock.\n+\t * However, rcu_read_lock() is required to be held in such cases, so we\n+\t * can safely proceed with an RCU-delayed free.\n+\t */\n+\tif (waitqueue_active(wq_head))\n+\t\t__wake_up_pollfree(wq_head);\n+}\n+\n #define ___wait_cond_timeout(condition)\t\t\t\t\t\t\\\n ({\t\t\t\t\t\t\t\t\t\t\\\n \tbool __cond = (condition);\t\t\t\t\t\t\\\ndiff --git a/kernel/sched/wait.c b/kernel/sched/wait.c\nindex 76577d1642a5..2a18c75e3b0b 100644\n--- a/kernel/sched/wait.c\n+++ b/kernel/sched/wait.c\n@@ -5,6 +5,7 @@\n  * (C) 2004 Nadia Yvette Chambers, Oracle\n  */\n #include \"sched.h\"\n+#include <linux/poll.h>\n \n void __init_waitqueue_head(struct wait_queue_head *wq_head, const char *name, struct lock_class_key *key)\n {\n@@ -238,6 +239,13 @@ void __wake_up_sync(struct wait_queue_head *wq_head, unsigned int mode)\n }\n EXPORT_SYMBOL_GPL(__wake_up_sync);\t/* For internal use only */\n \n+void __wake_up_pollfree(struct wait_queue_head *wq_head)\n+{\n+\t__wake_up(wq_head, TASK_NORMAL, 0, poll_to_key(POLLHUP | POLLFREE));\n+\t/* POLLFREE must have cleared the queue. */\n+\tWARN_ON_ONCE(waitqueue_active(wq_head));\n+}\n+\n /*\n  * Note: we use \"set_current_state()\" _after_ the wait-queue add,\n  * because we need a memory barrier there on SMP, so that any\n"
+  },
+  "trace_file": "trace.jsonl"
+}

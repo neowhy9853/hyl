@@ -1,0 +1,46 @@
+{
+  "round": 5,
+  "case_id": "case_186",
+  "source_index": 185,
+  "repo": "kernel",
+  "commit_id": "d50f3b352eeb7f849de8cacda4f2d6840fba837a",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "cdf88cffb869",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.95,
+    "reason": "修复了在关闭主机时 FOU GRO 处理程序中的空指针解引用问题，通过添加 NULL 检查和安全的 RCU 解引用来防止内核崩溃。",
+    "intent_items": [
+      {
+        "target": "FOU (Foo over UDP) GRO 处理程序",
+        "change": "在 fou_from_sock() 中使用 rcu_dereference_sk_user_data()，并在 fou_gro_receive() 和 gue_gro_receive() 中添加 NULL 检查",
+        "effect_or_reason": "防止在隧道拆除过程中，sk->sk_user_data 变为 NULL 时发生空指针解引用，从而修复内核崩溃。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交修复了在关闭主机时观察到的 fou_gro_receive() 中的空指针解引用。"
+          ],
+          "message_only_details": [
+            "错误发生在 sk->sk_user_data 为 NULL 且偏移量 8 对应于 struct fou 中的 protocol 字段时。"
+          ],
+          "code_only_details": [
+            "补丁修改了 net/ipv4/fou.c 和 include/net/fou.h，添加了 NULL 检查和 RCU 解引用。"
+          ]
+        },
+        "evidence": [
+          "提交前，当 fou_release() 被调用且 sk->sk_user_data 被设为 NULL 后，正在执行的 udp4_gro_receive() 可能仍会调用 FOU GRO 处理程序，导致空指针解引用。",
+          "提交后，fou_from_sock() 使用 rcu_dereference_sk_user_data() 安全地获取指针，并且 GRO 处理程序在访问前检查指针是否为 NULL，从而纠正了错误路径。"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_186",
+  "trace_status": "available"
+}

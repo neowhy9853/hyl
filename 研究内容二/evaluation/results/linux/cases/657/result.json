@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "657",
+  "candidate_sha256": "be4ff1f753ceef18fce3e59e4718cc06cd7deba962f4cdf3e8044413453f0d6c",
+  "oracle_sha256": "3b7111c2a1ba7b42704216f381100b26b05bfc7b8374d3569256226b85c8ca08",
+  "candidate_nonempty": true,
+  "target_ref": "bdffda8db8d9e0125b9a41edc420c39f9905c6ab",
+  "baseline_tree": "15799d3d59f151c0578c0c8c3b74444da867306d",
+  "candidate_tree": "a24ffd4d049fd5655f9c868cfd5dfc1193a7dcb4",
+  "oracle_tree": "a24ffd4d049fd5655f9c868cfd5dfc1193a7dcb4",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/657",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "be4ff1f753ceef18fce3e59e4718cc06cd7deba962f4cdf3e8044413453f0d6c",
+    "text": "diff --git a/fs/f2fs/data.c b/fs/f2fs/data.c\nindex fe7694ec3546..2b0b671484bd 100644\n--- a/fs/f2fs/data.c\n+++ b/fs/f2fs/data.c\n@@ -884,6 +884,9 @@ struct bio *f2fs_grab_bio(struct inode *inode, block_t blkaddr,\n \tstruct block_device *bdev = sbi->sb->s_bdev;\n \tstruct bio *bio;\n \n+\tif (!f2fs_is_valid_blkaddr(sbi, blkaddr, DATA_GENERIC))\n+\t\treturn ERR_PTR(-EFAULT);\n+\n \tif (f2fs_encrypted_inode(inode) && S_ISREG(inode->i_mode)) {\n \t\tctx = f2fs_get_crypto_ctx(inode);\n \t\tif (IS_ERR(ctx))\ndiff --git a/fs/f2fs/inode.c b/fs/f2fs/inode.c\nindex 3ac57cbee0fd..89bf8dd7758c 100644\n--- a/fs/f2fs/inode.c\n+++ b/fs/f2fs/inode.c\n@@ -50,14 +50,16 @@ static void __get_inode_rdev(struct inode *inode, struct f2fs_inode *ri)\n \t}\n }\n \n-static bool __written_first_block(struct f2fs_sb_info *sbi,\n+static int __written_first_block(struct f2fs_sb_info *sbi,\n \t\t\t\t\tstruct f2fs_inode *ri)\n {\n \tblock_t addr = le32_to_cpu(ri->i_addr[0]);\n \n-\tif (is_valid_data_blkaddr(sbi, addr))\n-\t\treturn true;\n-\treturn false;\n+\tif (!__is_valid_data_blkaddr(addr))\n+\t\treturn 1;\n+\tif (!f2fs_is_valid_blkaddr(sbi, addr, DATA_GENERIC))\n+\t\treturn -EFAULT;\n+\treturn 0;\n }\n \n static void __set_inode_rdev(struct inode *inode, struct f2fs_inode *ri)\n@@ -145,6 +147,7 @@ static int do_read_inode(struct inode *inode)\n \tstruct f2fs_inode_info *fi = F2FS_I(inode);\n \tstruct page *node_page;\n \tstruct f2fs_inode *ri;\n+\tint err;\n \n \t/* Check if ino is within scope */\n \tif (check_nid_range(sbi, inode->i_ino)) {\n@@ -199,7 +202,12 @@ static int do_read_inode(struct inode *inode)\n \t/* get rdev by using inline_info */\n \t__get_inode_rdev(inode, ri);\n \n-\tif (__written_first_block(sbi, ri))\n+\terr = __written_first_block(sbi, ri);\n+\tif (err < 0) {\n+\t\tf2fs_put_page(node_page, 1);\n+\t\treturn err;\n+\t}\n+\tif (!err)\n \t\tset_inode_flag(F2FS_I(inode), FI_FIRST_BLOCK_WRITTEN);\n \n \tf2fs_put_page(node_page, 1);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

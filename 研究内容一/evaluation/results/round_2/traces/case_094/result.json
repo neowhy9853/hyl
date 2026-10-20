@@ -1,0 +1,51 @@
+{
+  "round": 2,
+  "case_id": "case_094",
+  "source_index": 93,
+  "repo": "kernel",
+  "commit_id": "fc1efe17f376300a9463fefea637fd8e5007e3a1",
+  "oracle_label": "fix",
+  "predicted_label": "refactor",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "1ef2f3649ed0",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "refactor",
+    "confidence": 0.82,
+    "reason": "该提交把 APR 驱动从设备级抽象改造为服务级（packet_router/svc）结构，为后续加入 GPR 做准备；本次未真正新增 GPR 能力，也未修正错误路径，属于结构性重构。",
+    "intent_items": [
+      {
+        "target": "drivers/soc/qcom/apr.c 与 include/linux/soc/qcom/apr.h 中的 APR 驱动数据结构与接口",
+        "change": "将 struct apr 改为 struct packet_router 并加 type 字段，引出自 apr_device 内嵌的 svc（pkt_router_svc），svc_id/domain_id/lock 等迁移到 svc，idr 改存 svc，rx 分发按 apr->type 分支",
+        "effect_or_reason": "把 APR 逻辑从设备级提升到服务级抽象，便于复用给 GPR 等同类 packet router，无需为其新写驱动",
+        "context_used": [
+          "include/linux/soc/qcom/apr.h",
+          "drivers/soc/qcom/apr.c"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "提交说明明确目的是让 apr 代码更可复用，为添加 GPR 支持做准备",
+            "patch 将设备级结构改为带 type 的 packet_router 并增加 svc 抽象层"
+          ],
+          "message_only_details": [
+            "GPR 端口可视为动态分配的 APR 服务，包布局差异由抽象 API 屏蔽"
+          ],
+          "code_only_details": [
+            "rx 回调改为 switch (apr->type) 分发，当前仅有 PR_TYPE_APR 分支",
+            "错误日志补充了未注册的 svc_id 数值"
+          ]
+        },
+        "evidence": [
+          "apr_do_rx_callback/apr_rxwq 由直接调用改为按 apr->type 的 switch 分发，仅存在 PR_TYPE_APR 一个分支",
+          "struct apr_device 新增内嵌 svc 并新增 svc_to_apr_device 转换，svc_id 等字段迁至抽象层，外部接口语义未变"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_094",
+  "trace_status": "available"
+}

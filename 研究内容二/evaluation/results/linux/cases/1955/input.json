@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1955",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1955-gqd6tesu/repo",
+      "target_ref": "626daab3811b772086aef1bf8eed3ffe6f523eff",
+      "target_tree": "d7ecae9d106b5904a0255e96709e80a021c48864"
+    },
+    "source_commit": "a891a0621e725e85529985139cada8cb5a74a116",
+    "reference_parent": "c90746c03b3c41707f7e8518c723f0b69948a264",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/md/dm-core.h b/drivers/md/dm-core.h\nindex 3db92d9a030b9051e1337661b017a719ac998293..ff73b2c17be538a48dbe267424d3e72e404f8ae4 100644\n--- a/drivers/md/dm-core.h\n+++ b/drivers/md/dm-core.h\n@@ -19,6 +19,8 @@\n #include \"dm.h\"\n \n #define DM_RESERVED_MAX_IOS\t\t1024\n+#define DM_MAX_TARGETS\t\t\t1048576\n+#define DM_MAX_TARGET_PARAMS\t\t1024\n \n struct dm_kobject_holder {\n \tstruct kobject kobj;\ndiff --git a/drivers/md/dm-ioctl.c b/drivers/md/dm-ioctl.c\nindex 5f9b9178c647e2e64632b78c70c3538ef1513f8e..4184c8a2d49771cf95b2ed9b25650d5842d65a9e 100644\n--- a/drivers/md/dm-ioctl.c\n+++ b/drivers/md/dm-ioctl.c\n@@ -1760,7 +1760,8 @@ static int copy_params(struct dm_ioctl __user *user, struct dm_ioctl *param_kern\n \tif (copy_from_user(param_kernel, user, minimum_data_size))\n \t\treturn -EFAULT;\n \n-\tif (param_kernel->data_size < minimum_data_size)\n+\tif (unlikely(param_kernel->data_size < minimum_data_size) ||\n+\t    unlikely(param_kernel->data_size > DM_MAX_TARGETS * DM_MAX_TARGET_PARAMS))\n \t\treturn -EINVAL;\n \n \tsecure_data = param_kernel->flags & DM_SECURE_DATA_FLAG;\ndiff --git a/drivers/md/dm-table.c b/drivers/md/dm-table.c\nindex 5c590895c14c37b68fbd544ac7c92402f6a43d45..31bcdcd93c7a873e4cfaad7fe488d8537a404c39 100644\n--- a/drivers/md/dm-table.c\n+++ b/drivers/md/dm-table.c\n@@ -144,7 +144,12 @@ static int alloc_targets(struct dm_table *t, unsigned int num)\n int dm_table_create(struct dm_table **result, fmode_t mode,\n \t\t    unsigned num_targets, struct mapped_device *md)\n {\n-\tstruct dm_table *t = kzalloc(sizeof(*t), GFP_KERNEL);\n+\tstruct dm_table *t;\n+\n+\tif (num_targets > DM_MAX_TARGETS)\n+\t\treturn -EOVERFLOW;\n+\n+\tt = kzalloc(sizeof(*t), GFP_KERNEL);\n \n \tif (!t)\n \t\treturn -ENOMEM;\n@@ -158,7 +163,7 @@ int dm_table_create(struct dm_table **result, fmode_t mode,\n \n \tif (!num_targets) {\n \t\tkfree(t);\n-\t\treturn -ENOMEM;\n+\t\treturn -EOVERFLOW;\n \t}\n \n \tif (alloc_targets(t, num_targets)) {\n",
+      "sha256": "e54838140d87803298d67032baf6c4e547503caa3ef58e19115cedfa1759750d"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2024-23851\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1955-gqd6tesu/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1955-gqd6tesu/repo/.patch-port/reference.diff\nreference_fix: a891a0621e725e85529985139cada8cb5a74a116\nreference_parent: c90746c03b3c41707f7e8518c723f0b69948a264\ntarget_ref: 626daab3811b772086aef1bf8eed3ffe6f523eff\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1955-gqd6tesu/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1955-gqd6tesu/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2024-23851"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "cd70175481f63af31901dd463e44386f033c3f4c",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "c457dd04cc02957e87ad9d4bd0d86f969a699b8eb2175e2a011b5434b94ace9e",
+      "text": "diff --git a/drivers/md/dm-core.h b/drivers/md/dm-core.h\nindex 095b9b49aa8250a1f56c531883cce5f6e8a24727..e6757a30dccad1fa1a6ae060b33d41a6a120dda3 100644\n--- a/drivers/md/dm-core.h\n+++ b/drivers/md/dm-core.h\n@@ -22,6 +22,8 @@\n #include \"dm-ima.h\"\n \n #define DM_RESERVED_MAX_IOS\t\t1024\n+#define DM_MAX_TARGETS\t\t\t1048576\n+#define DM_MAX_TARGET_PARAMS\t\t1024\n \n struct dm_io;\n \ndiff --git a/drivers/md/dm-ioctl.c b/drivers/md/dm-ioctl.c\nindex e65058e0ed06ab73b9d20d26dfbf7aca55829572..3b1ad7127cb846a1b50059921241f2abe63eaf53 100644\n--- a/drivers/md/dm-ioctl.c\n+++ b/drivers/md/dm-ioctl.c\n@@ -1941,7 +1941,8 @@ static int copy_params(struct dm_ioctl __user *user, struct dm_ioctl *param_kern\n \t\t\t   minimum_data_size - sizeof(param_kernel->version)))\n \t\treturn -EFAULT;\n \n-\tif (param_kernel->data_size < minimum_data_size) {\n+\tif (unlikely(param_kernel->data_size < minimum_data_size) ||\n+\t    unlikely(param_kernel->data_size > DM_MAX_TARGETS * DM_MAX_TARGET_PARAMS)) {\n \t\tDMERR(\"Invalid data size in the ioctl structure: %u\",\n \t\t      param_kernel->data_size);\n \t\treturn -EINVAL;\ndiff --git a/drivers/md/dm-table.c b/drivers/md/dm-table.c\nindex 198d38b53322c18c76c97fe0a04874c57ed21d83..08c9c20f9c663088d99eb1fe24d8a1485ac01f85 100644\n--- a/drivers/md/dm-table.c\n+++ b/drivers/md/dm-table.c\n@@ -129,7 +129,12 @@ static int alloc_targets(struct dm_table *t, unsigned int num)\n int dm_table_create(struct dm_table **result, blk_mode_t mode,\n \t\t    unsigned int num_targets, struct mapped_device *md)\n {\n-\tstruct dm_table *t = kzalloc(sizeof(*t), GFP_KERNEL);\n+\tstruct dm_table *t;\n+\n+\tif (num_targets > DM_MAX_TARGETS)\n+\t\treturn -EOVERFLOW;\n+\n+\tt = kzalloc(sizeof(*t), GFP_KERNEL);\n \n \tif (!t)\n \t\treturn -ENOMEM;\n@@ -144,7 +149,7 @@ int dm_table_create(struct dm_table **result, blk_mode_t mode,\n \n \tif (!num_targets) {\n \t\tkfree(t);\n-\t\treturn -ENOMEM;\n+\t\treturn -EOVERFLOW;\n \t}\n \n \tif (alloc_targets(t, num_targets)) {\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "9cd13ad95d826a10e8cb9c9c64ac9b240d6f00dd5f2e13e32469947b730dbaeb",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01955_CVE-2024-23851/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1955,
+      "cve": "CVE-2024-23851",
+      "source_commit": "a891a0621e725e85529985139cada8cb5a74a116",
+      "oracle_commit": "cd70175481f63af31901dd463e44386f033c3f4c"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

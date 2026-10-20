@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "758",
+  "candidate_sha256": "c60604463eae7969305e1f935c901725fe91bc46f05b340d804b9a9ad501137e",
+  "oracle_sha256": "4a84cea0f3816e41600765c266294a70ec79ee0fcc8484f521859e9e57e7924e",
+  "candidate_nonempty": true,
+  "target_ref": "affe5a9da5fd146816a32e18fd163f1f9b19de3a",
+  "baseline_tree": "bcd3314f544bb733d9be74c4e5831062c3389198",
+  "candidate_tree": "30d16dea4991bf324836b4d635a86d88d996f606",
+  "oracle_tree": "30d16dea4991bf324836b4d635a86d88d996f606",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/758",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "c60604463eae7969305e1f935c901725fe91bc46f05b340d804b9a9ad501137e",
+    "text": "diff --git a/drivers/scsi/sg.c b/drivers/scsi/sg.c\nindex cc4e3f1c204..2cb688ba1d2 100644\n--- a/drivers/scsi/sg.c\n+++ b/drivers/scsi/sg.c\n@@ -52,6 +52,7 @@ static int sg_version_num = 30534;\t/* 2 digits for each component */\n #include <linux/blktrace_api.h>\n #include <linux/mutex.h>\n #include <linux/ratelimit.h>\n+#include <linux/cred.h> /* for sg_check_file_access() */\n \n #include \"scsi.h\"\n #include <scsi/scsi_dbg.h>\n@@ -215,6 +216,33 @@ static void sg_put_dev(Sg_device *sdp);\n #define SZ_SG_IOVEC sizeof(sg_iovec_t)\n #define SZ_SG_REQ_INFO sizeof(sg_req_info_t)\n \n+/*\n+ * The SCSI interfaces that use read() and write() as an asynchronous variant of\n+ * ioctl(..., SG_IO, ...) are fundamentally unsafe, since there are lots of ways\n+ * to trigger read() and write() calls from various contexts with elevated\n+ * privileges. This can lead to kernel memory corruption (e.g. if these\n+ * interfaces are called through splice()) and privilege escalation inside\n+ * userspace (e.g. if a process with access to such a device passes a file\n+ * descriptor to a SUID binary as stdin/stdout/stderr).\n+ *\n+ * This function provides protection for the legacy API by restricting the\n+ * calling context.\n+ */\n+static int sg_check_file_access(struct file *filp, const char *caller)\n+{\n+\tif (filp->f_cred != current_real_cred()) {\n+\t\tpr_err_once(\"%s: process %d (%s) changed security contexts after opening file descriptor, this is not allowed.\\n\",\n+\t\t\tcaller, task_tgid_vnr(current), current->comm);\n+\t\treturn -EPERM;\n+\t}\n+\tif (unlikely(segment_eq(get_fs(), KERNEL_DS))) {\n+\t\tpr_err_once(\"%s: process %d (%s) called from kernel context, this is not allowed.\\n\",\n+\t\t\tcaller, task_tgid_vnr(current), current->comm);\n+\t\treturn -EACCES;\n+\t}\n+\treturn 0;\n+}\n+\n static int sg_allow_access(struct file *filp, unsigned char *cmd)\n {\n \tstruct sg_fd *sfp = filp->private_data;\n@@ -382,6 +410,14 @@ sg_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)\n \tstruct sg_header *old_hdr = NULL;\n \tint retval = 0;\n \n+\t/*\n+\t * This could cause a response to be stranded. Close the associated\n+\t * file descriptor to free up any resources being held.\n+\t */\n+\tretval = sg_check_file_access(filp, __func__);\n+\tif (retval)\n+\t\treturn retval;\n+\n \tif ((!(sfp = (Sg_fd *) filp->private_data)) || (!(sdp = sfp->parentdp)))\n \t\treturn -ENXIO;\n \tSCSI_LOG_TIMEOUT(3, printk(\"sg_read: %s, count=%d\\n\",\n@@ -567,9 +603,11 @@ sg_write(struct file *filp, const char __user *buf, size_t count, loff_t * ppos)\n \tstruct sg_header old_hdr;\n \tsg_io_hdr_t *hp;\n \tunsigned char cmnd[MAX_COMMAND_SIZE];\n+\tint retval;\n \n-\tif (unlikely(segment_eq(get_fs(), KERNEL_DS)))\n-\t\treturn -EINVAL;\n+\tretval = sg_check_file_access(filp, __func__);\n+\tif (retval)\n+\t\treturn retval;\n \n \tif ((!(sfp = (Sg_fd *) filp->private_data)) || (!(sdp = sfp->parentdp)))\n \t\treturn -ENXIO;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

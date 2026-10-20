@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1153",
+  "candidate_sha256": "d0563aac72ce11459d7211765c8ab9d8701516a22bd801af114b7af3abfb4a19",
+  "oracle_sha256": "84b9b707d063b4c88505e159f4e8d7baad0dd56b971e90b22c6c9850b8cd0501",
+  "candidate_nonempty": true,
+  "target_ref": "5875860d7a751bfb295915a2a51e6f104ab6159f",
+  "baseline_tree": "723d7e9d81ac59abba3f80c4b886693ff1fc18df",
+  "candidate_tree": "d5553effe5e27b98e2ba0a5e95276a32898d1ace",
+  "oracle_tree": "76df4e8dc4465f5e06fc17ee0ab6d03cf85a89e1",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1153",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "d0563aac72ce11459d7211765c8ab9d8701516a22bd801af114b7af3abfb4a19",
+    "text": "diff --git a/net/tipc/core.c b/net/tipc/core.c\nindex 5cc1f0307215..79b8902e5740 100644\n--- a/net/tipc/core.c\n+++ b/net/tipc/core.c\n@@ -119,6 +119,9 @@ static void __net_exit tipc_exit_net(struct net *net)\n #ifdef CONFIG_TIPC_CRYPTO\n \ttipc_crypto_stop(&tipc_net(net)->crypto_tx);\n #endif\n+\n+\twhile (atomic_read(&tn->wq_count))\n+\t\tcond_resched();\n }\n \n static void __net_exit tipc_pernet_pre_exit(struct net *net)\ndiff --git a/net/tipc/core.h b/net/tipc/core.h\nindex 03de7b213f55..5741ae488bb5 100644\n--- a/net/tipc/core.h\n+++ b/net/tipc/core.h\n@@ -149,6 +149,8 @@ struct tipc_net {\n #endif\n \t/* Work item for net finalize */\n \tstruct tipc_net_work final_work;\n+\t/* The numbers of work queues in schedule */\n+\tatomic_t wq_count;\n };\n \n static inline struct tipc_net *tipc_net(struct net *net)\ndiff --git a/net/tipc/udp_media.c b/net/tipc/udp_media.c\nindex 21e75e28e86a..4c66e22b52f7 100644\n--- a/net/tipc/udp_media.c\n+++ b/net/tipc/udp_media.c\n@@ -812,6 +812,7 @@ static void cleanup_bearer(struct work_struct *work)\n \t\tkfree_rcu(rcast, rcu);\n \t}\n \n+\tatomic_dec(&tipc_net(sock_net(ub->ubsock->sk))->wq_count);\n \tdst_cache_destroy(&ub->rcast.dst_cache);\n \tudp_tunnel_sock_release(ub->ubsock);\n \tsynchronize_net();\n@@ -832,6 +833,7 @@ static void tipc_udp_disable(struct tipc_bearer *b)\n \tRCU_INIT_POINTER(ub->bearer, NULL);\n \n \t/* sock_release need to be done outside of rtnl lock */\n+\tatomic_inc(&tipc_net(sock_net(ub->ubsock->sk))->wq_count);\n \tINIT_WORK(&ub->work, cleanup_bearer);\n \tschedule_work(&ub->work);\n }\n"
+  },
+  "trace_file": "trace.jsonl"
+}

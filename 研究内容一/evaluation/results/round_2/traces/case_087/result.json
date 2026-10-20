@@ -1,0 +1,48 @@
+{
+  "round": 2,
+  "case_id": "case_087",
+  "source_index": 86,
+  "repo": "kernel",
+  "commit_id": "7f17757651e2c5f8abc0897d5e2ad955afbb5ee7",
+  "oracle_label": "feat",
+  "predicted_label": "fix",
+  "match": false,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "a9dcb44f86b6",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.92,
+    "reason": "提交修复 io_do_iopoll() 中已完成请求未被及时回收的问题：->iopoll() 完成后未检查完成标志，导致请求滞留在 poll_list 直到下次系统调用。",
+    "intent_items": [
+      {
+        "target": "fs/io_uring.c 的 io_do_iopoll() 轮询循环",
+        "change": "在 ->iopoll() 返回后新增 READ_ONCE(req->iopoll_completed) 检查，将已完成的请求 list_move_tail 移入 done 链表",
+        "effect_or_reason": "已完成请求不再被延迟到下一次系统调用才回收，避免完成事件滞留",
+        "context_used": [
+          "fs/io_uring.c 目标 commit 版本的 patch 上下文"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "commit message 与补丁都表明 iopoll 完成后需立即回收当前 req"
+          ],
+          "message_only_details": [
+            "req0->iopoll() 可能同时完成 req0/req1，@min<=1 时 req0 被遗留"
+          ],
+          "code_only_details": [
+            "使用 READ_ONCE 读取 iopoll_completed，并用 list_move_tail 迁至 done 链表"
+          ]
+        },
+        "evidence": [
+          "修复前：->iopoll() 完成当前 req 后循环直接继续下一个请求，当前 req 留在 poll_list 未及时回收",
+          "修复后：检测 iopoll_completed 为真即把 req 移入 done 链表，立即作为完成项返回"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_087",
+  "trace_status": "available"
+}

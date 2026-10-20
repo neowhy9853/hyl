@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1126",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1126-5bqwo68x/repo",
+      "target_ref": "9913d9ffe7bb0601dd7f083507986cdb8246b727",
+      "target_tree": "ca475c79d5c9f8765a0cf04ca3b0b634b247b69d"
+    },
+    "source_commit": "a9d0ba6aa7485aabed7b8f2ed5a3975684847e0b",
+    "reference_parent": "94b7768760e9666a08273b61e42513e12abdcf14",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/Documentation/networking/ip-sysctl.txt b/Documentation/networking/ip-sysctl.txt\nindex 21ad4f3cece8930c90e5d25410778d84494a3d7e..eac939abe6c4cc20226fc9168c83fe306e85a5b1 100644\n--- a/Documentation/networking/ip-sysctl.txt\n+++ b/Documentation/networking/ip-sysctl.txt\n@@ -868,12 +868,14 @@ icmp_ratelimit - INTEGER\n icmp_msgs_per_sec - INTEGER\n \tLimit maximal number of ICMP packets sent per second from this host.\n \tOnly messages whose type matches icmp_ratemask (see below) are\n-\tcontrolled by this limit.\n+\tcontrolled by this limit. For security reasons, the precise count\n+\tof messages per second is randomized.\n \tDefault: 1000\n \n icmp_msgs_burst - INTEGER\n \ticmp_msgs_per_sec controls number of ICMP packets sent per second,\n \twhile icmp_msgs_burst controls the burst size of these packets.\n+\tFor security reasons, the precise burst size is randomized.\n \tDefault: 50\n \n icmp_ratemask - INTEGER\ndiff --git a/net/ipv4/icmp.c b/net/ipv4/icmp.c\nindex 9a9f49b55abd75eb4e9d6f5dd097ac49f930dcf0..c16c199d9cd994ac0de033c61b62fb4002ddb729 100644\n--- a/net/ipv4/icmp.c\n+++ b/net/ipv4/icmp.c\n@@ -246,7 +246,7 @@ static struct {\n /**\n  * icmp_global_allow - Are we allowed to send one more ICMP message ?\n  *\n- * Uses a token bucket to limit our ICMP messages to sysctl_icmp_msgs_per_sec.\n+ * Uses a token bucket to limit our ICMP messages to ~sysctl_icmp_msgs_per_sec.\n  * Returns false if we reached the limit and can not send another packet.\n  * Note: called with BH disabled\n  */\n@@ -274,7 +274,10 @@ bool icmp_global_allow(void)\n \t}\n \tcredit = min_t(u32, icmp_global.credit + incr, sysctl_icmp_msgs_burst);\n \tif (credit) {\n-\t\tcredit--;\n+\t\t/* We want to use a credit of one in average, but need to randomize\n+\t\t * it for security reasons.\n+\t\t */\n+\t\tcredit = max_t(int, credit - prandom_u32_max(3), 0);\n \t\trc = true;\n \t}\n \tWRITE_ONCE(icmp_global.credit, credit);\n",
+      "sha256": "c12e32f4221a906570b00ac005853bbc29d29cfd8da263cc5df23a392408b7e9"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2020-25705\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1126-5bqwo68x/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1126-5bqwo68x/repo/.patch-port/reference.diff\nreference_fix: a9d0ba6aa7485aabed7b8f2ed5a3975684847e0b\nreference_parent: 94b7768760e9666a08273b61e42513e12abdcf14\ntarget_ref: 9913d9ffe7bb0601dd7f083507986cdb8246b727\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1126-5bqwo68x/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-1126-5bqwo68x/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2020-25705"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "7237c55005ed638b7c89703079944dbd80dee7fe",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "7481b7da840625b47305e67cb2d63a6f7ebe64b0f607b8bbbec8af4c0f403d47",
+      "text": "diff --git a/Documentation/networking/ip-sysctl.rst b/Documentation/networking/ip-sysctl.rst\nindex 837d51f9e1fab7c0999a51184f95971fb43c1b9b..25e6673a085a0f55f1f23bd3974e806ed2706f68 100644\n--- a/Documentation/networking/ip-sysctl.rst\n+++ b/Documentation/networking/ip-sysctl.rst\n@@ -1142,13 +1142,15 @@ icmp_ratelimit - INTEGER\n icmp_msgs_per_sec - INTEGER\n \tLimit maximal number of ICMP packets sent per second from this host.\n \tOnly messages whose type matches icmp_ratemask (see below) are\n-\tcontrolled by this limit.\n+\tcontrolled by this limit. For security reasons, the precise count\n+\tof messages per second is randomized.\n \n \tDefault: 1000\n \n icmp_msgs_burst - INTEGER\n \ticmp_msgs_per_sec controls number of ICMP packets sent per second,\n \twhile icmp_msgs_burst controls the burst size of these packets.\n+\tFor security reasons, the precise burst size is randomized.\n \n \tDefault: 50\n \ndiff --git a/net/ipv4/icmp.c b/net/ipv4/icmp.c\nindex cf36f955bfe628c8d5bbb71b25eab44e3d93f77d..650f0391e22a1cd32bd9c690a305d20c01afbae9 100644\n--- a/net/ipv4/icmp.c\n+++ b/net/ipv4/icmp.c\n@@ -239,7 +239,7 @@ static struct {\n /**\n  * icmp_global_allow - Are we allowed to send one more ICMP message ?\n  *\n- * Uses a token bucket to limit our ICMP messages to sysctl_icmp_msgs_per_sec.\n+ * Uses a token bucket to limit our ICMP messages to ~sysctl_icmp_msgs_per_sec.\n  * Returns false if we reached the limit and can not send another packet.\n  * Note: called with BH disabled\n  */\n@@ -267,7 +267,10 @@ bool icmp_global_allow(void)\n \t}\n \tcredit = min_t(u32, icmp_global.credit + incr, sysctl_icmp_msgs_burst);\n \tif (credit) {\n-\t\tcredit--;\n+\t\t/* We want to use a credit of one in average, but need to randomize\n+\t\t * it for security reasons.\n+\t\t */\n+\t\tcredit = max_t(int, credit - prandom_u32_max(3), 0);\n \t\trc = true;\n \t}\n \tWRITE_ONCE(icmp_global.credit, credit);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "cd1506f3f2fc17e5f5cb1b75a83cd0a2d9ae3d86adcc82dac1c9254ffb2e0830",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/01126_CVE-2020-25705/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1126,
+      "cve": "CVE-2020-25705",
+      "source_commit": "a9d0ba6aa7485aabed7b8f2ed5a3975684847e0b",
+      "oracle_commit": "7237c55005ed638b7c89703079944dbd80dee7fe"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

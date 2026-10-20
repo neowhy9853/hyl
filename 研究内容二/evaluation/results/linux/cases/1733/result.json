@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1733",
+  "candidate_sha256": "8253e9671c09ec7a534235b67c961c4b412f9ee812db43b3a91985007985a95b",
+  "oracle_sha256": "a06370bb88f8034995817d2ecfa7213022677a27132d83b7524a937f8b6db855",
+  "candidate_nonempty": true,
+  "target_ref": "f5eb337df20a24a9f9c7f96181ace9d61b590def",
+  "baseline_tree": "40e0c98b7f54e6b8c087433b7e0e755aa6a1af32",
+  "candidate_tree": "6babfd6f0af7d6695b10404a1046698f9884be42",
+  "oracle_tree": "6babfd6f0af7d6695b10404a1046698f9884be42",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1733",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "8253e9671c09ec7a534235b67c961c4b412f9ee812db43b3a91985007985a95b",
+    "text": "diff --git a/fs/exec.c b/fs/exec.c\nindex 077f85439264..680d1dbcf564 100644\n--- a/fs/exec.c\n+++ b/fs/exec.c\n@@ -1182,7 +1182,7 @@ void setup_new_exec(struct linux_binprm * bprm)\n \n \t/* An exec changes our domain. We are no longer part of the thread\n \t   group */\n-\tcurrent->self_exec_id++;\n+\tACCESS_ONCE(current->self_exec_id) = current->self_exec_id + 1;\n \tflush_signal_handlers(current, 0);\n }\n EXPORT_SYMBOL(setup_new_exec);\ndiff --git a/include/linux/sched.h b/include/linux/sched.h\nindex bcd8b1664301..182f15430cb0 100644\n--- a/include/linux/sched.h\n+++ b/include/linux/sched.h\n@@ -1427,8 +1427,8 @@ struct task_struct {\n \tstruct seccomp seccomp;\n \n /* Thread group tracking */\n-   \tu32 parent_exec_id;\n-   \tu32 self_exec_id;\n+\tu64 parent_exec_id;\n+\tu64 self_exec_id;\n /* Protection of (de-)allocation: mm, files, fs, tty, keyrings, mems_allowed,\n  * mempolicy */\n \tspinlock_t alloc_lock;\ndiff --git a/kernel/signal.c b/kernel/signal.c\nindex 6816d3ae6f46..d7b33730a2a4 100644\n--- a/kernel/signal.c\n+++ b/kernel/signal.c\n@@ -1679,7 +1679,7 @@ bool do_notify_parent(struct task_struct *tsk, int sig)\n \t\t * This is only possible if parent == real_parent.\n \t\t * Check if it has changed security domain.\n \t\t */\n-\t\tif (tsk->parent_exec_id != tsk->parent->self_exec_id)\n+\t\tif (tsk->parent_exec_id != ACCESS_ONCE(tsk->parent->self_exec_id))\n \t\t\tsig = SIGCHLD;\n \t}\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

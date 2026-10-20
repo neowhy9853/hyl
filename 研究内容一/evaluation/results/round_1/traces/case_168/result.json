@@ -1,0 +1,49 @@
+{
+  "round": 1,
+  "case_id": "case_168",
+  "source_index": 167,
+  "repo": "kernel",
+  "commit_id": "0d32604cadc2b07039e3315a260214882b346727",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "02a6737d237f",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.87,
+    "reason": "补丁把依赖 NULL msg 哨兵的指针自增 while 循环改成按 ARRAY_SIZE 的边界 for 循环，纠正 qm_log_hw_error() 在错误日志路径上的越界/循环遍历问题，主导意图是修复既有错误路径。",
+    "intent_items": [
+      {
+        "target": "drivers/crypto/hisilicon/qm.c 中的 qm_log_hw_error() 硬件报错遍历逻辑",
+        "change": "将 `while ((err++)->msg)` 改为 `for (i = 0; i < ARRAY_SIZE(qm_hw_error); i++)` 并以 `err = &qm_hw_error[i]` 取值，同时新增 int i",
+        "effect_or_reason": "提交前遍历依赖 qm_hw_error 数组的 NULL msg 结束标记，缺少有效结束项时会越过数组末尾继续读指针，形成循环/越界；改为显式数组边界后遍历必然终止",
+        "context_used": [
+          "git show 0d32604c:drivers/crypto/hisilicon/qm.c 查看 qm_log_hw_error() 改动后的完整实现"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "commit message 与补丁一致指向 qm_log_hw_error() 的循环（cycle）问题"
+          ],
+          "message_only_details": [
+            "message 标注 Feature or Bugfix:Bugfix"
+          ],
+          "code_only_details": [
+            "遍历方式由指针自增 while 改为 ARRAY_SIZE 边界 for 循环",
+            "非匹配项仍通过 `continue` 跳过，日志输出行为保持不变"
+          ]
+        },
+        "evidence": [
+          "提交前使用 `while ((err++)->msg)`，以数组内 NULL msg 作为结束条件，若无哨兵项会越界并陷入循环",
+          "提交后改为 `for (i = 0; i < ARRAY_SIZE(qm_hw_error); i++)`，遍历次数被数组长度严格约束，错误路径被纠正"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_168",
+  "trace_status": "available"
+}

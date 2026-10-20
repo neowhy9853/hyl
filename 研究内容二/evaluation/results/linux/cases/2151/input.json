@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2151",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2151-9tnfwgxb/repo",
+      "target_ref": "b1e0a6fc7f17500484c402ad1cd018c24dfc14b3",
+      "target_tree": "85aa3225f0f700a3166693e29540c7d5606afc02"
+    },
+    "source_commit": "534156dd4ed768e30a43de0036f45dca7c54818f",
+    "reference_parent": "895ca4ae1f72e0a0160ab162723e59c9f265ec93",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/net/ax25/af_ax25.c b/net/ax25/af_ax25.c\nindex 6bd097180772142bacfa09b2dd01a9eb5843db07..cf8847cfc66442d15ff9dce68fedc26c7ec38d6e 100644\n--- a/net/ax25/af_ax25.c\n+++ b/net/ax25/af_ax25.c\n@@ -98,8 +98,10 @@ static void ax25_kill_by_device(struct net_device *dev)\n \t\t\tspin_unlock_bh(&ax25_list_lock);\n \t\t\tlock_sock(sk);\n \t\t\ts->ax25_dev = NULL;\n-\t\t\tdev_put_track(ax25_dev->dev, &ax25_dev->dev_tracker);\n-\t\t\tax25_dev_put(ax25_dev);\n+\t\t\tif (sk->sk_socket) {\n+\t\t\t\tdev_put_track(ax25_dev->dev, &ax25_dev->dev_tracker);\n+\t\t\t\tax25_dev_put(ax25_dev);\n+\t\t\t}\n \t\t\tax25_disconnect(s, ENETUNREACH);\n \t\t\trelease_sock(sk);\n \t\t\tspin_lock_bh(&ax25_list_lock);\n@@ -979,14 +981,20 @@ static int ax25_release(struct socket *sock)\n {\n \tstruct sock *sk = sock->sk;\n \tax25_cb *ax25;\n+\tax25_dev *ax25_dev;\n \n \tif (sk == NULL)\n \t\treturn 0;\n \n \tsock_hold(sk);\n-\tsock_orphan(sk);\n \tlock_sock(sk);\n+\tsock_orphan(sk);\n \tax25 = sk_to_ax25(sk);\n+\tax25_dev = ax25->ax25_dev;\n+\tif (ax25_dev) {\n+\t\tdev_put_track(ax25_dev->dev, &ax25_dev->dev_tracker);\n+\t\tax25_dev_put(ax25_dev);\n+\t}\n \n \tif (sk->sk_type == SOCK_SEQPACKET) {\n \t\tswitch (ax25->state) {\n",
+      "sha256": "0ca9e69a6b1b504d962a102ca21a81c86fca7375dfa24ca75a240efd4bca8204"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2022-1204\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2151-9tnfwgxb/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2151-9tnfwgxb/repo/.patch-port/reference.diff\nreference_fix: 534156dd4ed768e30a43de0036f45dca7c54818f\nreference_parent: 895ca4ae1f72e0a0160ab162723e59c9f265ec93\ntarget_ref: b1e0a6fc7f17500484c402ad1cd018c24dfc14b3\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2151-9tnfwgxb/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-2151-9tnfwgxb/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2022-1204"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "de55a1338e6a48ff1e41ea8db1432496fbe2a62b",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "45afca161bd6785f0630c2f3fb297c3000d69e90803c73cf2e0c119d4a077c76",
+      "text": "diff --git a/net/ax25/af_ax25.c b/net/ax25/af_ax25.c\nindex d5cfbeee4777cab541fa1f9c8a32ebedf39c0b13..4c41c91227b2c9b9ea3a9c3d5502959811e6cb44 100644\n--- a/net/ax25/af_ax25.c\n+++ b/net/ax25/af_ax25.c\n@@ -101,8 +101,10 @@ static void ax25_kill_by_device(struct net_device *dev)\n \t\t\tspin_unlock_bh(&ax25_list_lock);\n \t\t\tlock_sock(sk);\n \t\t\ts->ax25_dev = NULL;\n-\t\t\tdev_put(ax25_dev->dev);\n-\t\t\tax25_dev_put(ax25_dev);\n+\t\t\tif (sk->sk_socket) {\n+\t\t\t\tdev_put(ax25_dev->dev);\n+\t\t\t\tax25_dev_put(ax25_dev);\n+\t\t\t}\n \t\t\trelease_sock(sk);\n \t\t\tax25_disconnect(s, ENETUNREACH);\n \t\t\tspin_lock_bh(&ax25_list_lock);\n@@ -981,14 +983,20 @@ static int ax25_release(struct socket *sock)\n {\n \tstruct sock *sk = sock->sk;\n \tax25_cb *ax25;\n+\tax25_dev *ax25_dev;\n \n \tif (sk == NULL)\n \t\treturn 0;\n \n \tsock_hold(sk);\n-\tsock_orphan(sk);\n \tlock_sock(sk);\n+\tsock_orphan(sk);\n \tax25 = sk_to_ax25(sk);\n+\tax25_dev = ax25->ax25_dev;\n+\tif (ax25_dev) {\n+\t\tdev_put(ax25_dev->dev);\n+\t\tax25_dev_put(ax25_dev);\n+\t}\n \n \tif (sk->sk_type == SOCK_SEQPACKET) {\n \t\tswitch (ax25->state) {\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "d4700fe03bad82663c80278edeb0134e8374c091268a194bbb29861159c99c52",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/02151_CVE-2022-1204/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2151,
+      "cve": "CVE-2022-1204",
+      "source_commit": "534156dd4ed768e30a43de0036f45dca7c54818f",
+      "oracle_commit": "de55a1338e6a48ff1e41ea8db1432496fbe2a62b"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

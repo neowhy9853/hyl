@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "308",
+  "candidate_sha256": "5f9632a62ebb7703a517cca90289204eecad0bdbdb532dc57421542639197e80",
+  "oracle_sha256": "677ae2f62dcf87707b9f4db89de6848e0b3b8574d6fdc6d03b562c56aea0285d",
+  "candidate_nonempty": true,
+  "target_ref": "7204d6c00d44924e2bd9261b1aaed9ac08d1ddc6",
+  "baseline_tree": "b6c6685c06be8867e3ab2816f331a55c140b2c0e",
+  "candidate_tree": "569e5642b9e58f9d184d6ef0451318da63185e18",
+  "oracle_tree": "7155ac62b9bca62a47cef97c2e6a2afeeb6132fa",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/308",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "5f9632a62ebb7703a517cca90289204eecad0bdbdb532dc57421542639197e80",
+    "text": "diff --git a/kernel/posix-timers.c b/kernel/posix-timers.c\nindex 77e6b83c0431..60ce5a2835f0 100644\n--- a/kernel/posix-timers.c\n+++ b/kernel/posix-timers.c\n@@ -498,17 +498,22 @@ static struct pid *good_sigevent(sigevent_t * event)\n {\n \tstruct task_struct *rtn = current->group_leader;\n \n-\tif ((event->sigev_notify & SIGEV_THREAD_ID ) &&\n-\t\t(!(rtn = find_task_by_vpid(event->sigev_notify_thread_id)) ||\n-\t\t !same_thread_group(rtn, current) ||\n-\t\t (event->sigev_notify & ~SIGEV_THREAD_ID) != SIGEV_SIGNAL))\n+\tswitch (event->sigev_notify) {\n+\tcase SIGEV_SIGNAL | SIGEV_THREAD_ID:\n+\t\trtn = find_task_by_vpid(event->sigev_notify_thread_id);\n+\t\tif (!rtn || !same_thread_group(rtn, current))\n+\t\t\treturn NULL;\n+\t\t/* FALLTHRU */\n+\tcase SIGEV_SIGNAL:\n+\tcase SIGEV_THREAD:\n+\t\tif (event->sigev_signo <= 0 || event->sigev_signo > SIGRTMAX)\n+\t\t\treturn NULL;\n+\t\t/* FALLTHRU */\n+\tcase SIGEV_NONE:\n+\t\treturn task_pid(rtn);\n+\tdefault:\n \t\treturn NULL;\n-\n-\tif (((event->sigev_notify & ~SIGEV_THREAD_ID) != SIGEV_NONE) &&\n-\t    ((event->sigev_signo <= 0) || (event->sigev_signo > SIGRTMAX)))\n-\t\treturn NULL;\n-\n-\treturn task_pid(rtn);\n+\t}\n }\n \n void posix_timers_register_clock(const clockid_t clock_id,\n@@ -737,7 +742,7 @@ common_timer_get(struct k_itimer *timr, struct itimerspec *cur_setting)\n \tif (iv.tv64)\n \t\tcur_setting->it_interval = ktime_to_timespec(iv);\n \telse if (!hrtimer_active(timer) &&\n-\t\t (timr->it_sigev_notify & ~SIGEV_THREAD_ID) != SIGEV_NONE)\n+\t\t timr->it_sigev_notify != SIGEV_NONE)\n \t\treturn;\n \n \tnow = timer->base->get_time();\n@@ -748,7 +753,7 @@ common_timer_get(struct k_itimer *timr, struct itimerspec *cur_setting)\n \t * expiry is > now.\n \t */\n \tif (iv.tv64 && (timr->it_requeue_pending & REQUEUE_PENDING ||\n-\t    (timr->it_sigev_notify & ~SIGEV_THREAD_ID) == SIGEV_NONE))\n+\t    timr->it_sigev_notify == SIGEV_NONE))\n \t\ttimr->it_overrun += (unsigned int) hrtimer_forward(timer, now, iv);\n \n \tremaining = ktime_sub(hrtimer_get_expires(timer), now);\n@@ -758,7 +763,7 @@ common_timer_get(struct k_itimer *timr, struct itimerspec *cur_setting)\n \t\t * A single shot SIGEV_NONE timer must return 0, when\n \t\t * it is expired !\n \t\t */\n-\t\tif ((timr->it_sigev_notify & ~SIGEV_THREAD_ID) != SIGEV_NONE)\n+\t\tif (timr->it_sigev_notify != SIGEV_NONE)\n \t\t\tcur_setting->it_value.tv_nsec = 1;\n \t} else\n \t\tcur_setting->it_value = ktime_to_timespec(remaining);\n@@ -856,7 +861,7 @@ common_timer_set(struct k_itimer *timr, int flags,\n \ttimr->it.real.interval = timespec_to_ktime(new_setting->it_interval);\n \n \t/* SIGEV_NONE timers are not queued ! See common_timer_get */\n-\tif (((timr->it_sigev_notify & ~SIGEV_THREAD_ID) == SIGEV_NONE)) {\n+\tif (timr->it_sigev_notify == SIGEV_NONE) {\n \t\t/* Setup correct expiry time for relative timers */\n \t\tif (mode == HRTIMER_MODE_REL) {\n \t\t\thrtimer_add_expires(timer, timer->base->get_time());\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,48 @@
+{
+  "round": 2,
+  "case_id": "case_007",
+  "source_index": 6,
+  "repo": "kernel",
+  "commit_id": "66d8a6a109f524d3b38bc827bed77e1566ad2f0b",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "999c7fb45391",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.95,
+    "reason": "提交修正 arm64 cmpxchg_double* 内联汇编的 +Q 约束仅覆盖前 8 字节导致编译器错误假设高 8 字节不变的问题，属于明确的错误路径纠正。",
+    "intent_items": [
+      {
+        "target": "arm64 的 cmpxchg_double* 内联汇编实现（atomic_ll_sc.h 与 atomic_lse.h）",
+        "change": "把 +Q 约束的指针由 unsigned long* 改为指向 __uint128_t 的指针，使 hazard 覆盖完整 16 字节",
+        "effect_or_reason": "修复编译器可假定交换变量高 8 字节未变、将 hi_old ^ hi_new 优化为常量 0 的错误代码生成",
+        "context_used": [
+          "git_commit_show 的 patch（arch/arm64/include/asm/atomic_ll_sc.h、atomic_lse.h 各 1 行改动）"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "+Q 约束基于 unsigned long* 时只对前 8 字节形成 hazard"
+          ],
+          "message_only_details": [
+            "GCC 12.1.0 将测试函数编译为返回常量 0，说明寄存器对不上（BANG 注释）"
+          ],
+          "code_only_details": [
+            "两处文件分别对应 LL/SC 与 LSE 两种实现，改动一致"
+          ]
+        },
+        "evidence": [
+          "提交前：+Q 约束指针为 unsigned long*，仅约束 8 字节，编译器可错误假设高 8 字节不变",
+          "提交后：传入 __uint128_t* 指针，hazard 覆盖整 16 字节，编译器被迫重新读取高 8 字节"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_007",
+  "trace_status": "available"
+}

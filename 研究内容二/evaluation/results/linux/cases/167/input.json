@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "167",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-167-iodjo79j/repo",
+      "target_ref": "ffbd663ebac9d32bac215bdd927268b22753a21e",
+      "target_tree": "6fc582f778075ce5c8496416a4d5d384ca929b72"
+    },
+    "source_commit": "3e04b9e6aa7d77287e70a400be83060d2b7b2cfe",
+    "reference_parent": "57871aeb2a23cff694567e17fd8903010195b3fe",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/block/xen-blkfront.c b/drivers/block/xen-blkfront.c\nindex b27917dfdcc05193944fe05e8a77dbdad20b2156..1e44b7880200d0765b59babef143a11b3b9929c8 100644\n--- a/drivers/block/xen-blkfront.c\n+++ b/drivers/block/xen-blkfront.c\n@@ -1319,11 +1319,13 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \tunsigned long flags;\n \tstruct blkfront_info *info = (struct blkfront_info *)dev_id;\n \tint error;\n+\tunsigned int eoiflag = XEN_EOI_FLAG_SPURIOUS;\n \n \tspin_lock_irqsave(&info->io_lock, flags);\n \n \tif (unlikely(info->connected != BLKIF_STATE_CONNECTED)) {\n \t\tspin_unlock_irqrestore(&info->io_lock, flags);\n+\t\txen_irq_lateeoi(irq, XEN_EOI_FLAG_SPURIOUS);\n \t\treturn IRQ_HANDLED;\n \t}\n \n@@ -1340,6 +1342,8 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \t\tunsigned long id;\n \t\tunsigned int op;\n \n+\t\teoiflag = 0;\n+\n \t\tRING_COPY_RESPONSE(&info->ring, i, &bret);\n \t\tid   = bret.id;\n \n@@ -1444,6 +1448,8 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \n \tspin_unlock_irqrestore(&info->io_lock, flags);\n \n+\txen_irq_lateeoi(irq, eoiflag);\n+\n \treturn IRQ_HANDLED;\n \n  err:\n@@ -1451,6 +1457,8 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \n \tspin_unlock_irqrestore(&info->io_lock, flags);\n \n+\t/* No EOI in order to avoid further interrupts. */\n+\n \tpr_alert(\"%s disabled for further use\\n\", info->gd->disk_name);\n \treturn IRQ_HANDLED;\n }\n@@ -1489,8 +1497,8 @@ static int setup_blkring(struct xenbus_device *dev,\n \tif (err)\n \t\tgoto fail;\n \n-\terr = bind_evtchn_to_irqhandler(info->evtchn, blkif_interrupt, 0,\n-\t\t\t\t\t\"blkif\", info);\n+\terr = bind_evtchn_to_irqhandler_lateeoi(info->evtchn, blkif_interrupt,\n+\t\t\t\t\t\t0, \"blkif\", info);\n \tif (err <= 0) {\n \t\txenbus_dev_fatal(dev, err,\n \t\t\t\t \"bind_evtchn_to_irqhandler failed\");\n",
+      "sha256": "7690ff3e7c3cb01e8f06f956b78a793f9b078d3dd34c141e41d790e1c36d09b2"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2021-28711\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-167-iodjo79j/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-167-iodjo79j/repo/.patch-port/reference.diff\nreference_fix: 3e04b9e6aa7d77287e70a400be83060d2b7b2cfe\nreference_parent: 57871aeb2a23cff694567e17fd8903010195b3fe\ntarget_ref: ffbd663ebac9d32bac215bdd927268b22753a21e\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-167-iodjo79j/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-167-iodjo79j/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2021-28711"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "caf9b51829a50590b84daea924a0fd62d32bc952",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "2c92041103d58063eeeeb70adf2f3225e66034687fdca1738c5bf0fe728164b8",
+      "text": "diff --git a/drivers/block/xen-blkfront.c b/drivers/block/xen-blkfront.c\nindex 72902104f1112fb0660b1d730be7265df6e35726..4dbb71230d6e76a8d613555921901408eb157c18 100644\n--- a/drivers/block/xen-blkfront.c\n+++ b/drivers/block/xen-blkfront.c\n@@ -1511,9 +1511,12 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \tunsigned long flags;\n \tstruct blkfront_ring_info *rinfo = (struct blkfront_ring_info *)dev_id;\n \tstruct blkfront_info *info = rinfo->dev_info;\n+\tunsigned int eoiflag = XEN_EOI_FLAG_SPURIOUS;\n \n-\tif (unlikely(info->connected != BLKIF_STATE_CONNECTED))\n+\tif (unlikely(info->connected != BLKIF_STATE_CONNECTED)) {\n+\t\txen_irq_lateeoi(irq, XEN_EOI_FLAG_SPURIOUS);\n \t\treturn IRQ_HANDLED;\n+\t}\n \n \tspin_lock_irqsave(&rinfo->ring_lock, flags);\n  again:\n@@ -1529,6 +1532,8 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \t\tunsigned long id;\n \t\tunsigned int op;\n \n+\t\teoiflag = 0;\n+\n \t\tRING_COPY_RESPONSE(&rinfo->ring, i, &bret);\n \t\tid = bret.id;\n \n@@ -1645,6 +1650,8 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \n \tspin_unlock_irqrestore(&rinfo->ring_lock, flags);\n \n+\txen_irq_lateeoi(irq, eoiflag);\n+\n \treturn IRQ_HANDLED;\n \n  err:\n@@ -1652,6 +1659,8 @@ static irqreturn_t blkif_interrupt(int irq, void *dev_id)\n \n \tspin_unlock_irqrestore(&rinfo->ring_lock, flags);\n \n+\t/* No EOI in order to avoid further interrupts. */\n+\n \tpr_alert(\"%s disabled for further use\\n\", info->gd->disk_name);\n \treturn IRQ_HANDLED;\n }\n@@ -1691,8 +1700,8 @@ static int setup_blkring(struct xenbus_device *dev,\n \tif (err)\n \t\tgoto fail;\n \n-\terr = bind_evtchn_to_irqhandler(rinfo->evtchn, blkif_interrupt, 0,\n-\t\t\t\t\t\"blkif\", rinfo);\n+\terr = bind_evtchn_to_irqhandler_lateeoi(rinfo->evtchn, blkif_interrupt,\n+\t\t\t\t\t\t0, \"blkif\", rinfo);\n \tif (err <= 0) {\n \t\txenbus_dev_fatal(dev, err,\n \t\t\t\t \"bind_evtchn_to_irqhandler failed\");\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "8c340d72042a25011493613d8462807816fce9188f17053eba34b558e8969b0f",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/00167_CVE-2021-28711/reference.diff",
+    "source_dataset_record": {
+      "case_id": 167,
+      "cve": "CVE-2021-28711",
+      "source_commit": "3e04b9e6aa7d77287e70a400be83060d2b7b2cfe",
+      "oracle_commit": "caf9b51829a50590b84daea924a0fd62d32bc952"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

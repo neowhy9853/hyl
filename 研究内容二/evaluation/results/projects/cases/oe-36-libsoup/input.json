@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-36-libsoup",
+  "task_input": {
+    "repository": {
+      "name": "libsoup",
+      "version": "2.74.3",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "a4056e91caec25607c8a2a468aed27e07967924b",
+      "target_tree": "3f9771162c8a7357041eb12cd4c9f77fc2299996"
+    },
+    "source_commit": "1f509f31b6f8420a3661c3f990424ab7b9164931",
+    "reference_parent": "c415ad0b6771992e66c70edf373566c6e247089d",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 1f509f31b6f8420a3661c3f990424ab7b9164931 Mon Sep 17 00:00:00 2001\nFrom: Patrick Griffis <pgriffis@igalia.com>\nDate: Tue, 11 Feb 2025 14:36:26 -0600\nSubject: [PATCH] headers: Handle parsing edge case\n\nThis version number is specifically crafted to pass sanity checks allowing it to go one byte out of bounds.\n---\n libsoup/soup-headers.c      |  2 +-\n tests/header-parsing-test.c | 12 ++++++++++++\n 2 files changed, 13 insertions(+), 1 deletion(-)\n\ndiff --git a/libsoup/soup-headers.c b/libsoup/soup-headers.c\nindex 85385cea..9d6d00a3 100644\n--- a/libsoup/soup-headers.c\n+++ b/libsoup/soup-headers.c\n@@ -225,7 +225,7 @@ soup_headers_parse_request (const char          *str,\n \t    !g_ascii_isdigit (version[5]))\n \t\treturn SOUP_STATUS_BAD_REQUEST;\n \tmajor_version = strtoul (version + 5, &p, 10);\n-\tif (*p != '.' || !g_ascii_isdigit (p[1]))\n+\tif (p + 1 >= str + len || *p != '.' || !g_ascii_isdigit (p[1]))\n \t\treturn SOUP_STATUS_BAD_REQUEST;\n \tminor_version = strtoul (p + 1, &p, 10);\n \tversion_end = p;\ndiff --git a/tests/header-parsing-test.c b/tests/header-parsing-test.c\nindex 07ea2866..10ddb684 100644\n--- a/tests/header-parsing-test.c\n+++ b/tests/header-parsing-test.c\n@@ -6,6 +6,10 @@ typedef struct {\n \tconst char *name, *value;\n } Header;\n \n+static char unterminated_http_version[] = {\n+        'G','E','T',' ','/',' ','H','T','T','P','/','1', '0', '0', '.'\n+};\n+\n static struct RequestTest {\n \tconst char *description;\n \tconst char *bugref;\n@@ -383,6 +387,14 @@ static struct RequestTest {\n \t  { { NULL } }\n \t},\n \n+        /* This couldn't be a C string as going one byte over would have been safe. */\n+\t{ \"Long HTTP version terminating at missing minor version\", \"https://gitlab.gnome.org/GNOME/libsoup/-/issues/404\",\n+\t  unterminated_http_version, sizeof (unterminated_http_version),\n+\t  SOUP_STATUS_BAD_REQUEST,\n+           NULL, NULL, -1,\n+\t  { { NULL } }\n+\t},\n+\n \t{ \"Non-HTTP request\", NULL,\n \t  \"GET / SOUP/1.1\\r\\nHost: example.com\\r\\n\", -1,\n \t  SOUP_STATUS_BAD_REQUEST,\n-- \n2.25.1\n\n",
+      "sha256": "c218837a33e2ac3c7ca690d73cdd28ea93dd0951ec20705545e72cd8fcd5039f"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for libsoup.\ncase_id: oe-36-libsoup\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 1f509f31b6f8420a3661c3f990424ab7b9164931\nreference_parent: c415ad0b6771992e66c70edf373566c6e247089d\ntarget_ref: a4056e91caec25607c8a2a468aed27e07967924b\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "2fb2f0d547b3fd87fe8e9685700f0ae38d3a7d1805d0f38f963844f0a5d7805e",
+      "text": "From 1f509f31b6f8420a3661c3f990424ab7b9164931 Mon Sep 17 00:00:00 2001\nFrom: Patrick Griffis <pgriffis@igalia.com>\nDate: Tue, 11 Feb 2025 14:36:26 -0600\nSubject: [PATCH] headers: Handle parsing edge case\n\nThis version number is specifically crafted to pass sanity checks allowing it to go one byte out of bounds.\r\n\r\nConflict: NA\r\nReference: https://gitlab.gnome.org/GNOME/libsoup/-/commit/1f509f31b6f8420a3661c3f990424ab7b9164931\r\n\n---\n libsoup/soup-headers.c      |  2 +-\n tests/header-parsing-test.c | 12 ++++++++++++\n 2 files changed, 13 insertions(+), 1 deletion(-)\n\ndiff --git a/libsoup/soup-headers.c b/libsoup/soup-headers.c\nindex 85385cea..9d6d00a3 100644\n--- a/libsoup/soup-headers.c\n+++ b/libsoup/soup-headers.c\n@@ -225,7 +225,7 @@ soup_headers_parse_request (const char          *str,\n \t    !g_ascii_isdigit (version[5]))\n \t\treturn SOUP_STATUS_BAD_REQUEST;\n \tmajor_version = strtoul (version + 5, &p, 10);\n-\tif (*p != '.' || !g_ascii_isdigit (p[1]))\n+\tif (p + 1 >= str + len || *p != '.' || !g_ascii_isdigit (p[1]))\n \t\treturn SOUP_STATUS_BAD_REQUEST;\n \tminor_version = strtoul (p + 1, &p, 10);\n \tversion_end = p;\ndiff --git a/tests/header-parsing-test.c b/tests/header-parsing-test.c\nindex 07ea2866..10ddb684 100644\n--- a/tests/header-parsing-test.c\n+++ b/tests/header-parsing-test.c\n@@ -6,6 +6,10 @@ typedef struct {\n \tconst char *name, *value;\n } Header;\n \n+static char unterminated_http_version[] = {\n+        'G','E','T',' ','/',' ','H','T','T','P','/','1', '0', '0', '.'\n+};\n+\n static struct RequestTest {\n \tconst char *description;\n \tconst char *bugref;\n@@ -383,6 +387,14 @@ static struct RequestTest {\n \t  { { NULL } }\n \t},\n \n+        /* This couldn't be a C string as going one byte over would have been safe. */\n+\t{ \"Long HTTP version terminating at missing minor version\", \"https://gitlab.gnome.org/GNOME/libsoup/-/issues/404\",\n+\t  unterminated_http_version, sizeof (unterminated_http_version),\n+\t  SOUP_STATUS_BAD_REQUEST,\n+           NULL, NULL, -1,\n+\t  { { NULL } }\n+\t},\n+\n \t{ \"Non-HTTP request\", NULL,\n \t  \"GET / SOUP/1.1\\r\\nHost: example.com\\r\\n\", -1,\n \t  SOUP_STATUS_BAD_REQUEST,\n-- \nGitLab\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "54b3348947a26c753c2c1e261e25be2c3a121b9579207d0c4b96405b5fadd6ab",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-36-libsoup/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-36-libsoup",
+      "package": "libsoup",
+      "version": "2.74.3",
+      "source_commit": "1f509f31b6f8420a3661c3f990424ab7b9164931",
+      "target_ref": "a4056e91caec25607c8a2a468aed27e07967924b",
+      "target_tree": "3f9771162c8a7357041eb12cd4c9f77fc2299996",
+      "reference_patch": "patches/oe-36-libsoup/reference.patch",
+      "reference_sha256": "c218837a33e2ac3c7ca690d73cdd28ea93dd0951ec20705545e72cd8fcd5039f",
+      "oracle_patch": "patches/oe-36-libsoup/oracle.patch",
+      "oracle_sha256": "2fb2f0d547b3fd87fe8e9685700f0ae38d3a7d1805d0f38f963844f0a5d7805e"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

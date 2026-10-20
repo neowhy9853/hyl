@@ -1,0 +1,49 @@
+{
+  "round": 1,
+  "case_id": "case_100",
+  "source_index": 99,
+  "repo": "kernel",
+  "commit_id": "038459e298104ce49873593e3691db2e322025bd",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "71431602614f",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.88,
+    "reason": "提交在三个 readdir 路径中新增目录项名称校验，把原本直接交给用户空间的非法名称改为返回 -EFSCORRUPTED，属于纠正既有错误行为的数据校验修复。",
+    "intent_items": [
+      {
+        "target": "fs/xfs/xfs_dir2_readdir.c 的 shortform、block、leaf 三个 getdents 路径",
+        "change": "在 dir_emit 之前调用 xfs_dir2_namecheck 校验 name/namelen，不通过则 XFS_ERROR_REPORT 并返回 -EFSCORRUPTED；block 路径新增 out_rele 标签统一释放 buffer 并返回 error",
+        "effect_or_reason": "避免把损坏的目录项名称直接暴露给用户空间，改为报告文件系统损坏并正确清理资源",
+        "context_used": [
+          "git_commit_show 给出的 fs/xfs/xfs_dir2_readdir.c 补丁"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "在把目录项名称交给用户空间前调用 namecheck 校验"
+          ],
+          "message_only_details": [
+            "该改动为 mainline-v5.5-rc1 上游 commit 04df34ac6494 的回合引入"
+          ],
+          "code_only_details": [
+            "block 路径重构为 out_rele 统一 brelse 并返回 error 而非固定 0",
+            "新增 include xfs_error.h 以使用 XFS_ERROR_REPORT"
+          ]
+        },
+        "evidence": [
+          "补丁前 dir_emit 直接输出未校验的 name/namelen，补丁后在三个路径插入 xfs_dir2_namecheck 失败即返回 -EFSCORRUPTED",
+          "xfs_dir2_block_getdents 由提前 return 0 改为 goto out_rele 并返回 error，修正了错误路径下的资源释放与错误码"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_100",
+  "trace_status": "available"
+}

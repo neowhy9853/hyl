@@ -14,7 +14,7 @@ description: 根据 Git 仓库中指定 commit 的说明和变更内容分析补
 环境中没有兼容的系统版本时，在初始化阶段安装一次固定版本的 Universal Ctags：
 
 ```bash
-python <skill目录>/scripts/install_ctags.py
+python3 <skill目录>/scripts/install_ctags.py
 ```
 
 不要在补丁分析过程中运行安装器。安装器只下载当前平台构建，验证 SHA-256 和 JSON 能力，然后保存到用户缓存。
@@ -22,7 +22,7 @@ python <skill目录>/scripts/install_ctags.py
 分析前运行：
 
 ```bash
-python <skill目录>/scripts/check_dependencies.py
+python3 <skill目录>/scripts/check_dependencies.py
 ```
 
 解析其 JSON 输出。按以下顺序选择静态分析能力：
@@ -55,7 +55,7 @@ python <skill目录>/scripts/check_dependencies.py
 7. 证据足够时立即停止。只有 patch 缺少必要符号上下文时才运行：
 
    ```bash
-   python <skill目录>/scripts/analyze_commit.py \
+   python3 <skill目录>/scripts/analyze_commit.py \
      --repo <仓库路径> \
      --commit <commit-id>
    ```

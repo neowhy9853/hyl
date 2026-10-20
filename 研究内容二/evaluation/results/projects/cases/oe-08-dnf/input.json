@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-08-dnf",
+  "task_input": {
+    "repository": {
+      "name": "dnf",
+      "version": "4.16.2",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "9cc1339ee9d21a744230a3cd97f488dbbbe38b37",
+      "target_tree": "2a4b9ef5a868150b9b9d62df21384e90f031bdfe"
+    },
+    "source_commit": "96f8d79c37e119ff56f730797865121b63241a6b",
+    "reference_parent": "ee9cc93cf4987a09f122cde07969f19aff428429",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 96f8d79c37e119ff56f730797865121b63241a6b Mon Sep 17 00:00:00 2001\nFrom: Jaroslav Mracek <jmracek@redhat.com>\nDate: Thu, 15 Feb 2024 11:28:59 +0100\nSubject: [PATCH] Add all candidates for reinstall to solver\n\nResolves: https://issues.redhat.com/browse/RHEL-25005\n---\n dnf/base.py           | 9 ++++++---\n dnf/query.py          | 5 ++++-\n tests/test_queries.py | 7 ++++++-\n 3 files changed, 16 insertions(+), 5 deletions(-)\n\ndiff --git a/dnf/base.py b/dnf/base.py\nindex 9b59b9d7e5..552d53f4c7 100644\n--- a/dnf/base.py\n+++ b/dnf/base.py\n@@ -2336,19 +2336,22 @@ def reinstall(self, pkg_spec, old_reponame=None, new_reponame=None,\n \n         if not installed_pkgs:\n             raise dnf.exceptions.PackagesNotInstalledError(\n-                'no package matched', pkg_spec, available_nevra2pkg.values())\n+                'no package matched', pkg_spec, available_q.run())\n \n         cnt = 0\n         clean_deps = self.conf.clean_requirements_on_remove\n+        strict = self.conf.strict\n         for installed_pkg in installed_pkgs:\n             try:\n-                available_pkg = available_nevra2pkg[ucd(installed_pkg)]\n+                available_pkgs = available_nevra2pkg[ucd(installed_pkg)]\n             except KeyError:\n                 if not remove_na:\n                     continue\n                 self._goal.erase(installed_pkg, clean_deps=clean_deps)\n             else:\n-                self._goal.install(available_pkg)\n+                sltr = dnf.selector.Selector(self.sack)\n+                sltr.set(pkg=available_pkgs)\n+                self._goal.install(select=sltr, optional=(not strict))\n             cnt += 1\n \n         if cnt == 0:\ndiff --git a/dnf/query.py b/dnf/query.py\nindex ab4139bf9a..02e631a6ec 100644\n--- a/dnf/query.py\n+++ b/dnf/query.py\n@@ -43,4 +43,7 @@ def _by_provides(sack, patterns, ignore_case=False, get_query=False):\n     return q.run()\n \n def _per_nevra_dict(pkg_list):\n-    return {ucd(pkg):pkg for pkg in pkg_list}\n+    nevra_dic = {}\n+    for pkg in pkg_list:\n+        nevra_dic.setdefault(ucd(pkg), []).append(pkg)\n+    return nevra_dic\ndiff --git a/tests/test_queries.py b/tests/test_queries.py\nindex cdcb7ca453..e025300879 100644\n--- a/tests/test_queries.py\n+++ b/tests/test_queries.py\n@@ -128,4 +128,9 @@ def test_per_nevra_dict(self):\n         dct = dnf.query._per_nevra_dict(pkgs)\n         self.assertCountEqual(dct.keys(),\n                               [\"lotus-3-16.x86_64\", \"lotus-3-16.i686\"])\n-        self.assertCountEqual(dct.values(), pkgs)\n+        test_list = []\n+        for list_items in dct.values():\n+            for item in list_items:\n+                test_list.append(item)\n+\n+        self.assertCountEqual(test_list, pkgs)\n",
+      "sha256": "17ad04d6480a3cb7bcb1330b48d00422ddc341d3022403c3eefb7d1d0ee1cf5b"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for dnf.\ncase_id: oe-08-dnf\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 96f8d79c37e119ff56f730797865121b63241a6b\nreference_parent: ee9cc93cf4987a09f122cde07969f19aff428429\ntarget_ref: 9cc1339ee9d21a744230a3cd97f488dbbbe38b37\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "e893d27cce681766c317dbe0cbf3834836c6d4676edee4b7b7beeabff3505663",
+      "text": "From 96f8d79c37e119ff56f730797865121b63241a6b Mon Sep 17 00:00:00 2001\nFrom: Jaroslav Mracek <jmracek@redhat.com>\nDate: Thu, 15 Feb 2024 11:28:59 +0100\nSubject: [PATCH] Add all candidates for reinstall to solver\n\nResolves: https://issues.redhat.com/browse/RHEL-25005\n\nConflict:NA\nReference:https://github.com/rpm-software-management/dnf/commit/96f8d79c37e119ff56f730797865121b63241a6b\n---\n dnf/base.py           | 9 ++++++---\n dnf/query.py          | 5 ++++-\n tests/test_queries.py | 7 ++++++-\n 3 files changed, 16 insertions(+), 5 deletions(-)\n\ndiff --git a/dnf/base.py b/dnf/base.py\nindex 9b59b9d7e5..552d53f4c7 100644\n--- a/dnf/base.py\n+++ b/dnf/base.py\n@@ -2336,19 +2336,22 @@ def reinstall(self, pkg_spec, old_reponame=None, new_reponame=None,\n \n         if not installed_pkgs:\n             raise dnf.exceptions.PackagesNotInstalledError(\n-                'no package matched', pkg_spec, available_nevra2pkg.values())\n+                'no package matched', pkg_spec, available_q.run())\n \n         cnt = 0\n         clean_deps = self.conf.clean_requirements_on_remove\n+        strict = self.conf.strict\n         for installed_pkg in installed_pkgs:\n             try:\n-                available_pkg = available_nevra2pkg[ucd(installed_pkg)]\n+                available_pkgs = available_nevra2pkg[ucd(installed_pkg)]\n             except KeyError:\n                 if not remove_na:\n                     continue\n                 self._goal.erase(installed_pkg, clean_deps=clean_deps)\n             else:\n-                self._goal.install(available_pkg)\n+                sltr = dnf.selector.Selector(self.sack)\n+                sltr.set(pkg=available_pkgs)\n+                self._goal.install(select=sltr, optional=(not strict))\n             cnt += 1\n \n         if cnt == 0:\ndiff --git a/dnf/query.py b/dnf/query.py\nindex ab4139bf9a..02e631a6ec 100644\n--- a/dnf/query.py\n+++ b/dnf/query.py\n@@ -43,4 +43,7 @@ def _by_provides(sack, patterns, ignore_case=False, get_query=False):\n     return q.run()\n \n def _per_nevra_dict(pkg_list):\n-    return {ucd(pkg):pkg for pkg in pkg_list}\n+    nevra_dic = {}\n+    for pkg in pkg_list:\n+        nevra_dic.setdefault(ucd(pkg), []).append(pkg)\n+    return nevra_dic\ndiff --git a/tests/test_queries.py b/tests/test_queries.py\nindex cdcb7ca453..e025300879 100644\n--- a/tests/test_queries.py\n+++ b/tests/test_queries.py\n@@ -128,4 +128,9 @@ def test_per_nevra_dict(self):\n         dct = dnf.query._per_nevra_dict(pkgs)\n         self.assertCountEqual(dct.keys(),\n                               [\"lotus-3-16.x86_64\", \"lotus-3-16.i686\"])\n-        self.assertCountEqual(dct.values(), pkgs)\n+        test_list = []\n+        for list_items in dct.values():\n+            for item in list_items:\n+                test_list.append(item)\n+\n+        self.assertCountEqual(test_list, pkgs)\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "7857a423dfec7c2b57a54dcba97c0dfc98209fd133be9b7fdcffba85f1a3b221",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-08-dnf/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-08-dnf",
+      "package": "dnf",
+      "version": "4.16.2",
+      "source_commit": "96f8d79c37e119ff56f730797865121b63241a6b",
+      "target_ref": "9cc1339ee9d21a744230a3cd97f488dbbbe38b37",
+      "target_tree": "2a4b9ef5a868150b9b9d62df21384e90f031bdfe",
+      "reference_patch": "patches/oe-08-dnf/reference.patch",
+      "reference_sha256": "17ad04d6480a3cb7bcb1330b48d00422ddc341d3022403c3eefb7d1d0ee1cf5b",
+      "oracle_patch": "patches/oe-08-dnf/oracle.patch",
+      "oracle_sha256": "e893d27cce681766c317dbe0cbf3834836c6d4676edee4b7b7beeabff3505663"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1353",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1353-ik6_m01_/repo",
+      "target_ref": "aba97ce870f92835fa3385861f850e3e992dc42a",
+      "target_tree": "5cea7e502eab36c47d1a76c0fe6c9397df369f5f"
+    },
+    "source_commit": "c1152f1638c53af9ec782d77f3f2e6f6c8fb9b0a",
+    "reference_parent": "a2ea4661b8d8057c116ca8773d24ba55523e0f2e",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/exec.c b/fs/exec.c\nindex 904199086490d5fdf05d0eda850d04a3ce572fa5..62175cbcc80171df25da8e8bdd07547c83515b06 100644\n--- a/fs/exec.c\n+++ b/fs/exec.c\n@@ -220,8 +220,7 @@ static struct page *get_arg_page(struct linux_binprm *bprm, unsigned long pos,\n \n \tif (write) {\n \t\tunsigned long size = bprm->vma->vm_end - bprm->vma->vm_start;\n-\t\tunsigned long ptr_size;\n-\t\tstruct rlimit *rlim;\n+\t\tunsigned long ptr_size, limit;\n \n \t\t/*\n \t\t * Since the stack will hold pointers to the strings, we\n@@ -250,14 +249,16 @@ static struct page *get_arg_page(struct linux_binprm *bprm, unsigned long pos,\n \t\t\treturn page;\n \n \t\t/*\n-\t\t * Limit to 1/4-th the stack size for the argv+env strings.\n+\t\t * Limit to 1/4 of the max stack size or 3/4 of _STK_LIM\n+\t\t * (whichever is smaller) for the argv+env strings.\n \t\t * This ensures that:\n \t\t *  - the remaining binfmt code will not run out of stack space,\n \t\t *  - the program will have a reasonable amount of stack left\n \t\t *    to work from.\n \t\t */\n-\t\trlim = current->signal->rlim;\n-\t\tif (size > READ_ONCE(rlim[RLIMIT_STACK].rlim_cur) / 4)\n+\t\tlimit = _STK_LIM / 4 * 3;\n+\t\tlimit = min(limit, rlimit(RLIMIT_STACK) / 4);\n+\t\tif (size > limit)\n \t\t\tgoto fail;\n \t}\n \n",
+      "sha256": "1d467b7fcf4c2ed19c8c586949e51796e43c67fb7778656e351552e92a2f583f"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2018-14634\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1353-ik6_m01_/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1353-ik6_m01_/repo/.patch-port/reference.diff\nreference_fix: c1152f1638c53af9ec782d77f3f2e6f6c8fb9b0a\nreference_parent: a2ea4661b8d8057c116ca8773d24ba55523e0f2e\ntarget_ref: aba97ce870f92835fa3385861f850e3e992dc42a\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1353-ik6_m01_/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1353-ik6_m01_/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2018-14634"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "3c270e64a394ea5e52be9e371f5676fa974f6deb",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "024da948a986feb7179d3c782a704072d7f87d5bb99fac835d27d9a535896253",
+      "text": "diff --git a/fs/exec.c b/fs/exec.c\nindex 70c31796a31481b67db4af98a48f45dd108d2945..2acff9b648c05c4ff1d371dd843052250834ebba 100644\n--- a/fs/exec.c\n+++ b/fs/exec.c\n@@ -206,8 +206,7 @@ static struct page *get_arg_page(struct linux_binprm *bprm, unsigned long pos,\n \n \tif (write) {\n \t\tunsigned long size = bprm->vma->vm_end - bprm->vma->vm_start;\n-\t\tunsigned long ptr_size;\n-\t\tstruct rlimit *rlim;\n+\t\tunsigned long ptr_size, limit;\n \n \t\t/*\n \t\t * Since the stack will hold pointers to the strings, we\n@@ -236,14 +235,16 @@ static struct page *get_arg_page(struct linux_binprm *bprm, unsigned long pos,\n \t\t\treturn page;\n \n \t\t/*\n-\t\t * Limit to 1/4-th the stack size for the argv+env strings.\n+\t\t * Limit to 1/4 of the max stack size or 3/4 of _STK_LIM\n+\t\t * (whichever is smaller) for the argv+env strings.\n \t\t * This ensures that:\n \t\t *  - the remaining binfmt code will not run out of stack space,\n \t\t *  - the program will have a reasonable amount of stack left\n \t\t *    to work from.\n \t\t */\n-\t\trlim = current->signal->rlim;\n-\t\tif (size > ACCESS_ONCE(rlim[RLIMIT_STACK].rlim_cur) / 4)\n+\t\tlimit = _STK_LIM / 4 * 3;\n+\t\tlimit = min(limit, rlimit(RLIMIT_STACK) / 4);\n+\t\tif (size > limit)\n \t\t\tgoto fail;\n \t}\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "71a4248bba115f646e3d54fdffee20abf1a3473fdd50acb9bf02b52ac9096b8f",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/01353_CVE-2018-14634/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1353,
+      "cve": "CVE-2018-14634",
+      "source_commit": "c1152f1638c53af9ec782d77f3f2e6f6c8fb9b0a",
+      "oracle_commit": "3c270e64a394ea5e52be9e371f5676fa974f6deb"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

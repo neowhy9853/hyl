@@ -1,0 +1,49 @@
+{
+  "round": 4,
+  "case_id": "case_032",
+  "source_index": 31,
+  "repo": "kernel",
+  "commit_id": "a31744454c28ff2bc6bbfec17fd3fb216649c000",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "9f17433f0df5",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.95,
+    "reason": "修复 flush cqe 与 destroy qp 竞争时的竞态条件错误，通过添加锁和标志位确保同步",
+    "intent_items": [
+      {
+        "target": "RDMA hns 驱动中的 QP flush cqe 和 destroy qp 操作",
+        "change": "添加 spinlock 和 STOP_FLUSH_FLAG 标志位来同步 flush cqe 和 destroy qp",
+        "effect_or_reason": "防止 flush cqe 与 destroy qp 竞争时因状态冲突而失败",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "修复 flush cqe 与 destroy qp 竞争时的错误",
+            "添加锁和标志位确保 flush cqe 工作先完成"
+          ],
+          "message_only_details": [
+            "QP 需要修改为 IB_QPS_ERROR 来触发硬件 flush cqe",
+            "从 IB_QPS_RESET 修改到 IB_QPS_ERROR 是无效的"
+          ],
+          "code_only_details": [
+            "在 hns_roce_qp 结构体中添加 flush_lock 自旋锁",
+            "在 destroy_qp 中设置 STOP_FLUSH_FLAG 并等待 flush 工作完成"
+          ]
+        },
+        "evidence": [
+          "提交前错误路径：flush cqe 与 destroy qp 竞争时，destroy qp 可能先将 QP 状态改为 IB_QPS_RESET，导致 flush cqe 失败",
+          "提交后纠正动作：添加锁保护、设置停止标志、等待 flush 工作完成后再进行 destroy qp"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_032",
+  "trace_status": "available"
+}

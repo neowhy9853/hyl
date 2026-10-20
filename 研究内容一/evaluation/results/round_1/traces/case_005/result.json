@@ -1,0 +1,48 @@
+{
+  "round": 1,
+  "case_id": "case_005",
+  "source_index": 4,
+  "repo": "kernel",
+  "commit_id": "ab3b5d5171bc46784095b3aea6e221dda786dcc0",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "f6ae3877adc3",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.93,
+    "reason": "补丁把 WAIT_AVAILABLE 也纳入注册等待回调的条件，纠正了使用该标志时线程必然睡满整个超时的错误等待路径，主导意图是修复既有缺陷。",
+    "intent_items": [
+      {
+        "target": "drivers/gpu/drm/drm_syncobj.c 中的 drm_syncobj_array_wait_timeout()",
+        "change": "两处条件判断由仅判断 WAIT_FOR_SUBMIT 改为同时判断 WAIT_FOR_SUBMIT | WAIT_AVAILABLE，从而也调用 drm_syncobj_fence_add_wait 并保持相应的 lockdep 断言",
+        "effect_or_reason": "提交前使用 WAIT_AVAILABLE 等待未提交的 timeline fence 时不会注册唤醒回调，只能睡满整个超时才返回；改动后 fence 提交即可立即唤醒线程",
+        "context_used": [
+          "git_commit_show 提供的 drm_syncobj.c 补丁上下文"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "message 与补丁一致：需在 WAIT_FOR_SUBMIT 或 WAIT_AVAILABLE 置位时调用 drm_syncobj_fence_add_wait"
+          ],
+          "message_only_details": [
+            "用户态仍会看到等待成功而非 -ETIME，只是耗时远超预期"
+          ],
+          "code_only_details": [
+            "lockdep_assert_none_held_once 的触发条件也同步扩展到 WAIT_AVAILABLE"
+          ]
+        },
+        "evidence": [
+          "提交前：条件仅检查 DRM_SYNCOBJ_WAIT_FLAGS_WAIT_FOR_SUBMIT，WAIT_AVAILABLE 路径跳过 drm_syncobj_fence_add_wait，导致无法被提前唤醒",
+          "提交后：条件加入 DRM_SYNCOBJ_WAIT_FLAGS_WAIT_AVAILABLE，fence 提交时能唤醒等待线程并立即返回；未新增用户可见能力，仅纠正错误等待行为"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_005",
+  "trace_status": "available"
+}

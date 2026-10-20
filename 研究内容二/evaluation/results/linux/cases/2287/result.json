@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2287",
+  "candidate_sha256": "1e9055bd40c2e7b70483d0609d6e0130d3206d4c5688b448083225b1e2c0e220",
+  "oracle_sha256": "9637e6dd754dd9610a767b4a45a6b47c2f3bfc276156798050d7a653d4108d33",
+  "candidate_nonempty": true,
+  "target_ref": "2b187b56d531baa0a7810e69c92427464d65fc36",
+  "baseline_tree": "5d08057ae934c7bb22057127cae8df49da39792c",
+  "candidate_tree": "0b5e703a6f4dd04af4385af4991fdaf66b0e6454",
+  "oracle_tree": "d08974f1d7fb4802f2ba6fb0235c258e3629936d",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2287",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "1e9055bd40c2e7b70483d0609d6e0130d3206d4c5688b448083225b1e2c0e220",
+    "text": "diff --git a/fs/namespace.c b/fs/namespace.c\nindex c3f1a78ba369..8cabb5f989ae 100644\n--- a/fs/namespace.c\n+++ b/fs/namespace.c\n@@ -1938,6 +1938,19 @@ void drop_collected_mounts(struct vfsmount *mnt)\n \tnamespace_unlock();\n }\n \n+static bool has_locked_children(struct mount *mnt, struct dentry *dentry)\n+{\n+\tstruct mount *child;\n+\tlist_for_each_entry(child, &mnt->mnt_mounts, mnt_child) {\n+\t\tif (!is_subdir(child->mnt_mountpoint, dentry))\n+\t\t\tcontinue;\n+\n+\t\tif (child->mnt.mnt_flags & MNT_LOCKED)\n+\t\t\treturn true;\n+\t}\n+\treturn false;\n+}\n+\n /**\n  * clone_private_mount - create a private clone of a path\n  * @path: path to clone\n@@ -1953,10 +1966,18 @@ struct vfsmount *clone_private_mount(const struct path *path)\n \tstruct mount *old_mnt = real_mount(path->mnt);\n \tstruct mount *new_mnt;\n \n+\tdown_read(&namespace_sem);\n \tif (IS_MNT_UNBINDABLE(old_mnt))\n-\t\treturn ERR_PTR(-EINVAL);\n+\t\tgoto invalid;\n+\n+\tif (!check_mnt(old_mnt))\n+\t\tgoto invalid;\n+\n+\tif (has_locked_children(old_mnt, path->dentry))\n+\t\tgoto invalid;\n \n \tnew_mnt = clone_mnt(old_mnt, path->dentry, CL_PRIVATE);\n+\tup_read(&namespace_sem);\n \tif (IS_ERR(new_mnt))\n \t\treturn ERR_CAST(new_mnt);\n \n@@ -1964,6 +1985,10 @@ struct vfsmount *clone_private_mount(const struct path *path)\n \tnew_mnt->mnt_ns = MNT_NS_INTERNAL;\n \n \treturn &new_mnt->mnt;\n+\n+invalid:\n+\tup_read(&namespace_sem);\n+\treturn ERR_PTR(-EINVAL);\n }\n EXPORT_SYMBOL_GPL(clone_private_mount);\n \n@@ -2315,19 +2340,6 @@ static int do_change_type(struct path *path, int ms_flags)\n \treturn err;\n }\n \n-static bool has_locked_children(struct mount *mnt, struct dentry *dentry)\n-{\n-\tstruct mount *child;\n-\tlist_for_each_entry(child, &mnt->mnt_mounts, mnt_child) {\n-\t\tif (!is_subdir(child->mnt_mountpoint, dentry))\n-\t\t\tcontinue;\n-\n-\t\tif (child->mnt.mnt_flags & MNT_LOCKED)\n-\t\t\treturn true;\n-\t}\n-\treturn false;\n-}\n-\n static struct mount *__do_loopback(struct path *old_path, int recurse)\n {\n \tstruct mount *mnt = ERR_PTR(-EINVAL), *old = real_mount(old_path->mnt);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

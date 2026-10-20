@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2046",
+  "candidate_sha256": "bacfe4e502ce54a59e26e9dbe2410dd3bf4a7528f7152d8612ed5bcecf5efa2b",
+  "oracle_sha256": "1572cf7ac64262ed6533b504e2ffdc523304b5aaac02c3eb7328cc2bddab4b0d",
+  "candidate_nonempty": true,
+  "target_ref": "2598fc56ed65f69e303ccee6d5fe756a56f87779",
+  "baseline_tree": "a729a83bb53ced5d28d41b3882b6b5eabbdc7d1a",
+  "candidate_tree": "33c8629b496f1f8cc279e47b229699fb06c32292",
+  "oracle_tree": "33c8629b496f1f8cc279e47b229699fb06c32292",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2046",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "bacfe4e502ce54a59e26e9dbe2410dd3bf4a7528f7152d8612ed5bcecf5efa2b",
+    "text": "diff --git a/fs/f2fs/inode.c b/fs/f2fs/inode.c\nindex 917a6c3d5649..428d502f23e8 100644\n--- a/fs/f2fs/inode.c\n+++ b/fs/f2fs/inode.c\n@@ -184,6 +184,15 @@ static bool sanity_check_inode(struct inode *inode)\n {\n \tstruct f2fs_sb_info *sbi = F2FS_I_SB(inode);\n \n+\tif (f2fs_has_extra_attr(inode) &&\n+\t\t\t!f2fs_sb_has_extra_attr(sbi->sb)) {\n+\t\tset_sbi_flag(sbi, SBI_NEED_FSCK);\n+\t\tf2fs_msg(sbi->sb, KERN_WARNING,\n+\t\t\t\"%s: inode (ino=%lx) is with extra_attr, \"\n+\t\t\t\"but extra_attr feature is off\",\n+\t\t\t__func__, inode->i_ino);\n+\t\treturn false;\n+\t}\n \treturn true;\n }\n \n@@ -233,6 +242,11 @@ static int do_read_inode(struct inode *inode)\n \n \tget_inline_info(inode, ri);\n \n+\tif (!sanity_check_inode(inode)) {\n+\t\tf2fs_put_page(node_page, 1);\n+\t\treturn -EINVAL;\n+\t}\n+\n \tfi->i_extra_isize = f2fs_has_extra_attr(inode) ?\n \t\t\t\t\tle16_to_cpu(ri->i_extra_isize) : 0;\n \n@@ -288,10 +302,6 @@ struct inode *f2fs_iget(struct super_block *sb, unsigned long ino)\n \tret = do_read_inode(inode);\n \tif (ret)\n \t\tgoto bad_inode;\n-\tif (!sanity_check_inode(inode)) {\n-\t\tret = -EINVAL;\n-\t\tgoto bad_inode;\n-\t}\n make_now:\n \tif (ino == F2FS_NODE_INO(sbi)) {\n \t\tinode->i_mapping->a_ops = &f2fs_node_aops;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

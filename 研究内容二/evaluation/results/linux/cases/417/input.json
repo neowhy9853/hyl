@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "417",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-417-vasmcybi/repo",
+      "target_ref": "cc12c0099168b416f6c3eff1cd560a771f4b7c3f",
+      "target_tree": "cc24bd8e641339b8422ade8af3d83c111bec8c9f"
+    },
+    "source_commit": "f2a4f7622d052eb987e8693633468c239c13575a",
+    "reference_parent": "38fce19d4d7bc8acfa183ee2918758d279a69c9a",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/lib/swiotlb.c b/lib/swiotlb.c\nindex 20df2fd9b150..b4c768de3344 100644\n--- a/lib/swiotlb.c\n+++ b/lib/swiotlb.c\n@@ -17,6 +17,8 @@\n  * 08/12/11 beckyb\tAdd highmem support\n  */\n \n+#define pr_fmt(fmt) \"software IO TLB: \" fmt\n+\n #include <linux/cache.h>\n #include <linux/dma-mapping.h>\n #include <linux/mm.h>\n@@ -177,20 +179,16 @@ static bool no_iotlb_memory;\n void swiotlb_print_info(void)\n {\n \tunsigned long bytes = io_tlb_nslabs << IO_TLB_SHIFT;\n-\tunsigned char *vstart, *vend;\n \n \tif (no_iotlb_memory) {\n-\t\tpr_warn(\"software IO TLB: No low mem\\n\");\n+\t\tpr_warn(\"No low mem\\n\");\n \t\treturn;\n \t}\n \n-\tvstart = phys_to_virt(io_tlb_start);\n-\tvend = phys_to_virt(io_tlb_end);\n-\n-\tprintk(KERN_INFO \"software IO TLB [mem %#010llx-%#010llx] (%luMB) mapped at [%p-%p]\\n\",\n+\tpr_info(\"mapped [mem %#010llx-%#010llx] (%luMB)\\n\",\n \t       (unsigned long long)io_tlb_start,\n \t       (unsigned long long)io_tlb_end,\n-\t       bytes >> 20, vstart, vend - 1);\n+\t       bytes >> 20);\n }\n \n /*\n@@ -290,7 +288,7 @@ swiotlb_init(int verbose)\n \tif (io_tlb_start)\n \t\tmemblock_free_early(io_tlb_start,\n \t\t\t\t    PAGE_ALIGN(io_tlb_nslabs << IO_TLB_SHIFT));\n-\tpr_warn(\"Cannot allocate SWIOTLB buffer\");\n+\tpr_warn(\"Cannot allocate buffer\");\n \tno_iotlb_memory = true;\n }\n \n@@ -332,8 +330,8 @@ swiotlb_late_init_with_default_size(size_t default_size)\n \t\treturn -ENOMEM;\n \t}\n \tif (order != get_order(bytes)) {\n-\t\tprintk(KERN_WARNING \"Warning: only able to allocate %ld MB \"\n-\t\t       \"for software IO TLB\\n\", (PAGE_SIZE << order) >> 20);\n+\t\tpr_warn(\"only able to allocate %ld MB\\n\",\n+\t\t\t(PAGE_SIZE << order) >> 20);\n \t\tio_tlb_nslabs = SLABS_PER_PAGE << order;\n \t}\n \trc = swiotlb_late_init_with_tbl(vstart, io_tlb_nslabs);\n@@ -770,7 +768,7 @@ swiotlb_alloc_coherent(struct device *hwdev, size_t size,\n \n err_warn:\n \tif (warn && printk_ratelimit()) {\n-\t\tpr_warn(\"swiotlb: coherent allocation failed for device %s size=%zu\\n\",\n+\t\tpr_warn(\"coherent allocation failed for device %s size=%zu\\n\",\n \t\t\tdev_name(hwdev), size);\n \t\tdump_stack();\n \t}\n",
+      "sha256": "1d919b13d53a356dcf38d7e27b8a34ca54b9e4a56703d3ea79af5230ca8fd58b"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2018-5953\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-417-vasmcybi/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-417-vasmcybi/repo/.patch-port/reference.diff\nreference_fix: f2a4f7622d052eb987e8693633468c239c13575a\nreference_parent: 38fce19d4d7bc8acfa183ee2918758d279a69c9a\ntarget_ref: cc12c0099168b416f6c3eff1cd560a771f4b7c3f\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-417-vasmcybi/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-417-vasmcybi/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history"
+    },
+    "cve": "CVE-2018-5953"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "9ebdc41f7115c2fb37da946dd50e531d00533ca1",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "9560e7629d84ba801e85e1a468cac4f99c1fbee41472be4d715d684a9f2b6dca",
+      "text": "diff --git a/lib/swiotlb.c b/lib/swiotlb.c\nindex 4abda074ea45..54179db71ab4 100644\n--- a/lib/swiotlb.c\n+++ b/lib/swiotlb.c\n@@ -17,6 +17,8 @@\n  * 08/12/11 beckyb\tAdd highmem support\n  */\n \n+#define pr_fmt(fmt) \"software IO TLB: \" fmt\n+\n #include <linux/cache.h>\n #include <linux/dma-mapping.h>\n #include <linux/mm.h>\n@@ -143,20 +145,16 @@ static bool no_iotlb_memory;\n void swiotlb_print_info(void)\n {\n \tunsigned long bytes = io_tlb_nslabs << IO_TLB_SHIFT;\n-\tunsigned char *vstart, *vend;\n \n \tif (no_iotlb_memory) {\n-\t\tpr_warn(\"software IO TLB: No low mem\\n\");\n+\t\tpr_warn(\"No low mem\\n\");\n \t\treturn;\n \t}\n \n-\tvstart = phys_to_virt(io_tlb_start);\n-\tvend = phys_to_virt(io_tlb_end);\n-\n-\tprintk(KERN_INFO \"software IO TLB [mem %#010llx-%#010llx] (%luMB) mapped at [%p-%p]\\n\",\n+\tpr_info(\"mapped [mem %#010llx-%#010llx] (%luMB)\\n\",\n \t       (unsigned long long)io_tlb_start,\n \t       (unsigned long long)io_tlb_end,\n-\t       bytes >> 20, vstart, vend - 1);\n+\t       bytes >> 20);\n }\n \n int __init swiotlb_init_with_tbl(char *tlb, unsigned long nslabs, int verbose)\n@@ -230,7 +228,7 @@ swiotlb_init(int verbose)\n \tif (io_tlb_start)\n \t\tmemblock_free_early(io_tlb_start,\n \t\t\t\t    PAGE_ALIGN(io_tlb_nslabs << IO_TLB_SHIFT));\n-\tpr_warn(\"Cannot allocate SWIOTLB buffer\");\n+\tpr_warn(\"Cannot allocate buffer\");\n \tno_iotlb_memory = true;\n }\n \n@@ -272,8 +270,8 @@ swiotlb_late_init_with_default_size(size_t default_size)\n \t\treturn -ENOMEM;\n \t}\n \tif (order != get_order(bytes)) {\n-\t\tprintk(KERN_WARNING \"Warning: only able to allocate %ld MB \"\n-\t\t       \"for software IO TLB\\n\", (PAGE_SIZE << order) >> 20);\n+\t\tpr_warn(\"only able to allocate %ld MB\\n\",\n+\t\t\t(PAGE_SIZE << order) >> 20);\n \t\tio_tlb_nslabs = SLABS_PER_PAGE << order;\n \t}\n \trc = swiotlb_late_init_with_tbl(vstart, io_tlb_nslabs);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "df9941ec49cea10434996d8003f4c83306b8527e49e12db3dfb8637a1bb71561",
+    "reference_patch_source": "/data/SCA-repair/src/core-c/result/opencode_agent_robust_failed404_random20_work/00417_CVE-2018-5953/reference.diff",
+    "source_dataset_record": {
+      "case_id": 417,
+      "cve": "CVE-2018-5953",
+      "source_commit": "f2a4f7622d052eb987e8693633468c239c13575a",
+      "oracle_commit": "9ebdc41f7115c2fb37da946dd50e531d00533ca1"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

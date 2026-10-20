@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1273",
+  "candidate_sha256": "824e5b507cc0350946bafc8abea23420abcffe63f9c19db8e9db3cdd0bafccd8",
+  "oracle_sha256": "00d1a3ceb90bed0ee8a9cc72033054db0656a65e2cb4cb4c0bb514b79228d7c0",
+  "candidate_nonempty": true,
+  "target_ref": "e90210bb658d391aeeab597e647e130062b675dd",
+  "baseline_tree": "fa6a30e0a2f15f2fffc38ac1ea0d3850acb26901",
+  "candidate_tree": "5ec5d86273ebbdd7c27a76c8e1109f59a0c5b615",
+  "oracle_tree": "bb29a68aeabad28b3f55254f8c8b9359b6c40bc6",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1273",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "824e5b507cc0350946bafc8abea23420abcffe63f9c19db8e9db3cdd0bafccd8",
+    "text": "diff --git a/fs/xfs/xfs_aops.c b/fs/xfs/xfs_aops.c\nindex 3fc699ea7ba0..169291e57c23 100644\n--- a/fs/xfs/xfs_aops.c\n+++ b/fs/xfs/xfs_aops.c\n@@ -1300,6 +1300,26 @@ __xfs_get_blocks(\n \tif (error)\n \t\tgoto out_unlock;\n \n+\t/*\n+\t * The only time we can ever safely find delalloc blocks on direct I/O\n+\t * is a dio write to post-eof speculative preallocation. All other\n+\t * scenarios are indicative of a problem or misuse (such as mixing\n+\t * direct and mapped I/O).\n+\t *\n+\t * The file may be unmapped by the time we get here so we cannot\n+\t * reliably fail the I/O based on mapping. Instead, fail the I/O if this\n+\t * is a read or a write within eof. Otherwise, carry on but warn as a\n+\t * precuation if the file happens to be mapped.\n+\t */\n+\tif (direct && imap.br_startblock == DELAYSTARTBLOCK) {\n+\t\tif (!create || offset < i_size_read(VFS_I(ip))) {\n+\t\t\tWARN_ON_ONCE(1);\n+\t\t\terror = XFS_ERROR(EIO);\n+\t\t\tgoto out_unlock;\n+\t\t}\n+\t\tWARN_ON_ONCE(mapping_mapped(VFS_I(ip)->i_mapping));\n+\t}\n+\n \tif (create &&\n \t    (!nimaps ||\n \t     (imap.br_startblock == HOLESTARTBLOCK ||\n@@ -1383,7 +1403,6 @@ __xfs_get_blocks(\n \t\tset_buffer_new(bh_result);\n \n \tif (imap.br_startblock == DELAYSTARTBLOCK) {\n-\t\tBUG_ON(direct);\n \t\tif (create) {\n \t\t\tset_buffer_uptodate(bh_result);\n \t\t\tset_buffer_mapped(bh_result);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

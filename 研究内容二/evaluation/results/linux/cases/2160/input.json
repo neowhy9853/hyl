@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2160",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-2160-35k9n92b/repo",
+      "target_ref": "f63f8f3d0550496396c67f8ef7283a6db3c8bc59",
+      "target_tree": "b4504213d9965a55971bd04e02d7c2d0b6a00298"
+    },
+    "source_commit": "337b543e274fe7a8f47df3c8293cc6686ffa620f",
+    "reference_parent": "e7908309867e8132b57e16a6bcc949991b643501",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/fs/aio.c b/fs/aio.c\nindex 1bd934eccbf6..8ad748dd3e48 100644\n--- a/fs/aio.c\n+++ b/fs/aio.c\n@@ -566,6 +566,13 @@ void kiocb_set_cancel_fn(struct kiocb *iocb, kiocb_cancel_fn *cancel)\n \tstruct kioctx *ctx = req->ki_ctx;\n \tunsigned long flags;\n \n+\t/*\n+\t * kiocb didn't come from aio or is neither a read nor a write, hence\n+\t * ignore it.\n+\t */\n+\tif (!(iocb->ki_flags & IOCB_AIO_RW))\n+\t\treturn;\n+\n \tif (WARN_ON_ONCE(!list_empty(&req->ki_list)))\n \t\treturn;\n \n@@ -1446,7 +1453,7 @@ static int aio_prep_rw(struct kiocb *req, const struct iocb *iocb)\n \treq->ki_complete = aio_complete_rw;\n \treq->private = NULL;\n \treq->ki_pos = iocb->aio_offset;\n-\treq->ki_flags = iocb_flags(req->ki_filp);\n+\treq->ki_flags = iocb_flags(req->ki_filp) | IOCB_AIO_RW;\n \tif (iocb->aio_flags & IOCB_FLAG_RESFD)\n \t\treq->ki_flags |= IOCB_EVENTFD;\n \treq->ki_hint = ki_hint_validate(file_write_hint(req->ki_filp));\ndiff --git a/include/linux/fs.h b/include/linux/fs.h\nindex f89748aac8c3..e2c87c056742 100644\n--- a/include/linux/fs.h\n+++ b/include/linux/fs.h\n@@ -304,6 +304,8 @@ enum rw_hint {\n #define IOCB_SYNC\t\t(1 << 5)\n #define IOCB_WRITE\t\t(1 << 6)\n #define IOCB_NOWAIT\t\t(1 << 7)\n+/* kiocb is a read or write operation submitted by fs/aio.c. */\n+#define IOCB_AIO_RW\t\t(1 << 23)\n \n struct kiocb {\n \tstruct file\t\t*ki_filp;\n",
+      "sha256": "746c23f59ba2d672dc2e4690a3442d676edcc34276a11960becb543f636a8a46"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2024-26764\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-2160-35k9n92b/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-2160-35k9n92b/repo/.patch-port/reference.diff\nreference_fix: 337b543e274fe7a8f47df3c8293cc6686ffa620f\nreference_parent: e7908309867e8132b57e16a6bcc949991b643501\ntarget_ref: f63f8f3d0550496396c67f8ef7283a6db3c8bc59\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-2160-35k9n92b/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-13-full-history-45-parallel45-024950/task-workspaces/new-porter-2160-35k9n92b/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history"
+    },
+    "cve": "CVE-2024-26764"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "1dc7d74fe456944a9b1c57bd776280249f441ac6",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "f86ebfce441815cdb374a1792a10a9235b0780349f28ff8c267f0c32590c38e5",
+      "text": "diff --git a/fs/aio.c b/fs/aio.c\nindex f8589caef9c1..3235d4e6cc62 100644\n--- a/fs/aio.c\n+++ b/fs/aio.c\n@@ -594,6 +594,13 @@ void kiocb_set_cancel_fn(struct kiocb *iocb, kiocb_cancel_fn *cancel)\n \tstruct kioctx *ctx = req->ki_ctx;\n \tunsigned long flags;\n \n+\t/*\n+\t * kiocb didn't come from aio or is neither a read nor a write, hence\n+\t * ignore it.\n+\t */\n+\tif (!(iocb->ki_flags & IOCB_AIO_RW))\n+\t\treturn;\n+\n \tif (WARN_ON_ONCE(!list_empty(&req->ki_list)))\n \t\treturn;\n \n@@ -1463,7 +1470,7 @@ static int aio_prep_rw(struct kiocb *req, const struct iocb *iocb)\n \treq->ki_complete = aio_complete_rw;\n \treq->private = NULL;\n \treq->ki_pos = iocb->aio_offset;\n-\treq->ki_flags = req->ki_filp->f_iocb_flags;\n+\treq->ki_flags = req->ki_filp->f_iocb_flags | IOCB_AIO_RW;\n \tif (iocb->aio_flags & IOCB_FLAG_RESFD)\n \t\treq->ki_flags |= IOCB_EVENTFD;\n \tif (iocb->aio_flags & IOCB_FLAG_IOPRIO) {\ndiff --git a/include/linux/fs.h b/include/linux/fs.h\nindex 98b7a7a8c42e..7f659c26794b 100644\n--- a/include/linux/fs.h\n+++ b/include/linux/fs.h\n@@ -352,6 +352,8 @@ enum rw_hint {\n  * unrelated IO (like cache flushing, new IO generation, etc).\n  */\n #define IOCB_DIO_CALLER_COMP\t(1 << 22)\n+/* kiocb is a read or write operation submitted by fs/aio.c. */\n+#define IOCB_AIO_RW\t\t(1 << 23)\n \n /* for use in trace events */\n #define TRACE_IOCB_STRINGS \\\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "0d96abc633852e8d56fa84ac40b3f50688263b735978c8ca8ff3f71da618cf7e",
+    "reference_patch_source": "/data/SCA-repair/src/core-c/result/opencode_agent_robust_failed404_random40_more_work/02160_CVE-2024-26764/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2160,
+      "cve": "CVE-2024-26764",
+      "source_commit": "337b543e274fe7a8f47df3c8293cc6686ffa620f",
+      "oracle_commit": "1dc7d74fe456944a9b1c57bd776280249f441ac6"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

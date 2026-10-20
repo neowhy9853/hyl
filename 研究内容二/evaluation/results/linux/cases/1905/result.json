@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1905",
+  "candidate_sha256": "7a160a5a6e4f0537bffdfa76e21deca024596f0ba1bfd1c29d8c4e0174feefac",
+  "oracle_sha256": "99ee59102e554c7d283e1f9a8e204c85d0e0804a677114e6af4f7983409f8053",
+  "candidate_nonempty": true,
+  "target_ref": "df3d6afcee7919d5c282dbddc780bb72e396dbec",
+  "baseline_tree": "388f328e765a336eb8781451c374856e34589f99",
+  "candidate_tree": "d626f8ac69249624bcb21f64e633f105c4494418",
+  "oracle_tree": "d626f8ac69249624bcb21f64e633f105c4494418",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1905",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "7a160a5a6e4f0537bffdfa76e21deca024596f0ba1bfd1c29d8c4e0174feefac",
+    "text": "diff --git a/net/ipv4/ip_output.c b/net/ipv4/ip_output.c\nindex 3d2f66fad32..d813da85bda 100644\n--- a/net/ipv4/ip_output.c\n+++ b/net/ipv4/ip_output.c\n@@ -885,10 +885,12 @@ static int __ip_append_data(struct sock *sk,\n \t\tcsummode = CHECKSUM_PARTIAL;\n \n \tcork->length += length;\n-\tif (((length > mtu) || (skb && skb_is_gso(skb))) &&\n+\tif ((skb && skb_is_gso(skb)) ||\n+\t    ((length > mtu) &&\n+\t    (skb_queue_len(queue) <= 1) &&\n \t    (sk->sk_protocol == IPPROTO_UDP) &&\n \t    (rt->dst.dev->features & NETIF_F_UFO) && !dst_xfrm(&rt->dst) &&\n-\t    (sk->sk_type == SOCK_DGRAM)) {\n+\t    (sk->sk_type == SOCK_DGRAM))) {\n \t\terr = ip_ufo_append_data(sk, queue, getfrag, from, length,\n \t\t\t\t\t hh_len, fragheaderlen, transhdrlen,\n \t\t\t\t\t maxfraglen, flags);\n@@ -1203,6 +1205,7 @@ ssize_t\tip_append_page(struct sock *sk, struct flowi4 *fl4, struct page *page,\n \n \tcork->length += size;\n \tif ((size + skb->len > mtu) &&\n+\t    (skb_queue_len(&sk->sk_write_queue) == 1) &&\n \t    (sk->sk_protocol == IPPROTO_UDP) &&\n \t    (rt->dst.dev->features & NETIF_F_UFO)) {\n \t\tskb_shinfo(skb)->gso_size = mtu - fragheaderlen;\ndiff --git a/net/ipv4/udp.c b/net/ipv4/udp.c\nindex 59ddab1fce2..0a9aaab17e0 100644\n--- a/net/ipv4/udp.c\n+++ b/net/ipv4/udp.c\n@@ -824,7 +824,7 @@ static int udp_send_skb(struct sk_buff *skb, struct flowi4 *fl4)\n \tif (is_udplite)  \t\t\t\t /*     UDP-Lite      */\n \t\tcsum = udplite_csum(skb);\n \n-\telse if (sk->sk_no_check_tx) {   /* UDP csum disabled */\n+\telse if (sk->sk_no_check_tx && !skb_is_gso(skb)) {   /* UDP csum off */\n \n \t\tskb->ip_summed = CHECKSUM_NONE;\n \t\tgoto send;\ndiff --git a/net/ipv6/ip6_output.c b/net/ipv6/ip6_output.c\nindex 2594140897c..89da95f2b4b 100644\n--- a/net/ipv6/ip6_output.c\n+++ b/net/ipv6/ip6_output.c\n@@ -1291,11 +1291,12 @@ emsgsize:\n \n \tskb = skb_peek_tail(&sk->sk_write_queue);\n \tcork->length += length;\n-\tif ((((length + fragheaderlen) > mtu) ||\n-\t     (skb && skb_is_gso(skb))) &&\n+\tif ((skb && skb_is_gso(skb)) ||\n+\t    (((length + fragheaderlen) > mtu) &&\n+\t    (skb_queue_len(&sk->sk_write_queue) <= 1) &&\n \t    (sk->sk_protocol == IPPROTO_UDP) &&\n \t    (rt->dst.dev->features & NETIF_F_UFO) && !dst_xfrm(&rt->dst) &&\n-\t    (sk->sk_type == SOCK_DGRAM)) {\n+\t    (sk->sk_type == SOCK_DGRAM))) {\n \t\terr = ip6_ufo_append_data(sk, getfrag, from, length,\n \t\t\t\t\t  hh_len, fragheaderlen, exthdrlen,\n \t\t\t\t\t  transhdrlen, mtu, flags, rt);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

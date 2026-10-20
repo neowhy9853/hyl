@@ -1,0 +1,51 @@
+{
+  "round": 4,
+  "case_id": "case_138",
+  "source_index": 137,
+  "repo": "glib",
+  "commit_id": "afc08836522c84c6d04a81b971d58434711f0666",
+  "oracle_label": "test",
+  "predicted_label": "test",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "3bb96dc487ee",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "test",
+    "confidence": 0.92,
+    "reason": "补丁仅修改测试文件 glib/tests/thread-pool-slow.c，用计数等待替代固定 1 秒睡眠，消除测试竞态；无产品代码行为变化，故判 test。",
+    "intent_items": [
+      {
+        "target": "glib/tests/thread-pool-slow.c 中的 test_thread_stop_unused 测试",
+        "change": "新增 thread_wait_func 计数函数，用原子计数轮询等待全部 100 个任务执行完，替代原先固定 g_usleep(G_USEC_PER_SEC) 等待",
+        "effect_or_reason": "避免重载机器上任务尚未全部入队就调用 stop_unused_threads 导致断言 (9 == 0) 失败",
+        "context_used": [
+          "git_commit_show 提供的 patch 与 CI 失败日志"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "改动集中在 thread-pool-slow 测试的等待逻辑",
+            "以原子计数确认任务全部执行后再停止空闲线程"
+          ],
+          "message_only_details": [
+            "该断言在 CI 机器上以 (9 == 0) 失败",
+            "本地无法复现，推测为 1 秒等待不足以完成全部入队"
+          ],
+          "code_only_details": [
+            "新增 GPOINTER_TO_UINT 传参控制每个任务睡眠 1000ms",
+            "等待循环每 100us 检查一次原子计数"
+          ]
+        },
+        "evidence": [
+          "patch 只修改 glib/tests/thread-pool-slow.c，未触及 glib 库实现代码，属测试侧稳定性修复",
+          "原先固定 g_usleep (G_USEC_PER_SEC) 被 while 轮询 n_threads_executed < limit 取代，直接消除了时序竞态"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_138",
+  "trace_status": "available"
+}

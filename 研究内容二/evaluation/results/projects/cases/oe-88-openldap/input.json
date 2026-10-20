@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-88-openldap",
+  "task_input": {
+    "repository": {
+      "name": "openldap",
+      "version": "2.6.5",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "2a9831941ae39178e4a71de8cd60b922afa62f77",
+      "target_tree": "f508bc14911d43a05ce3cc9f2a8fc0e9ff1ecc0c"
+    },
+    "source_commit": "729a604192edd2943e1464de998626c76b808ebd",
+    "reference_parent": "3b6e772c6643ac4e4dc63d541ce1adecdf44989f",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 729a604192edd2943e1464de998626c76b808ebd Mon Sep 17 00:00:00 2001\nFrom: Nadezhda Ivanova <nivanova@symas.com>\nDate: Tue, 2 Apr 2024 13:34:07 +0300\nSubject: [PATCH] ITS#10193 Asyncmeta starts more than one timeout loop per\n database and slaptest crashes\n\n---\n servers/slapd/back-asyncmeta/config.c | 9 ++++++---\n servers/slapd/back-asyncmeta/init.c   | 2 +-\n 2 files changed, 7 insertions(+), 4 deletions(-)\n\ndiff --git a/servers/slapd/back-asyncmeta/config.c b/servers/slapd/back-asyncmeta/config.c\nindex fbc9681418..aae054ab0a 100644\n--- a/servers/slapd/back-asyncmeta/config.c\n+++ b/servers/slapd/back-asyncmeta/config.c\n@@ -497,7 +497,8 @@ asyncmeta_cfadd( Operation *op, SlapReply *rs, Entry *p, ConfigArgs *c )\n static int\n asyncmeta_back_new_target(\n \ta_metatarget_t\t**mtp,\n-\ta_metainfo_t     *mi )\n+\ta_metainfo_t     *mi,\n+\tBackendDB        *db )\n {\n \ta_metatarget_t\t\t*mt;\n \n@@ -516,7 +517,9 @@ asyncmeta_back_new_target(\n \tmt->mt_idassert_flags = LDAP_BACK_AUTH_PRESCRIPTIVE;\n \n \t*mtp = mt;\n-\n+\tif ( !SLAP_DBOPEN(db) || !(slapMode & SLAP_SERVER_MODE)) {\n+\t\treturn 0;\n+\t}\n \tfor ( i = 0; i < mi->mi_num_conns; i++ ) {\n \t\ta_metaconn_t *mc = &mi->mi_conns[i];\n \t\tmc->mc_conns = ch_realloc( mc->mc_conns, sizeof( a_metasingleconn_t ) * mi->mi_ntargets);\n@@ -1907,7 +1910,7 @@ asyncmeta_back_cf_gen( ConfigArgs *c )\n \t\t\treturn 1;\n \t\t}\n \n-\t\tif ( asyncmeta_back_new_target( &mi->mi_targets[ i ], mi ) != 0 ) {\n+\t\tif ( asyncmeta_back_new_target( &mi->mi_targets[ i ], mi, c->be ) != 0 ) {\n \t\t\tsnprintf( c->cr_msg, sizeof( c->cr_msg ),\n \t\t\t\t\"unable to init server\"\n \t\t\t\t\" in \\\"%s <protocol>://<server>[:port]/<naming context>\\\"\",\ndiff --git a/servers/slapd/back-asyncmeta/init.c b/servers/slapd/back-asyncmeta/init.c\nindex 5c8016fb2b..45fccf03ec 100644\n--- a/servers/slapd/back-asyncmeta/init.c\n+++ b/servers/slapd/back-asyncmeta/init.c\n@@ -275,7 +275,7 @@ asyncmeta_back_db_open(\n \t\n \tber_dupbv ( &mi->mi_suffix, &be->be_suffix[0] );\n \n-\tif ( mi->mi_ntargets > 0 ) {\n+\tif ( ( slapMode & SLAP_SERVER_MODE ) && mi->mi_ntargets > 0 ) {\n \t\tldap_pvt_thread_mutex_lock( &slapd_rq.rq_mutex );\n \t\tmi->mi_task = ldap_pvt_runqueue_insert( &slapd_rq, 1,\n \t\t\t\t\t\t\tasyncmeta_timeout_loop, mi, \"asyncmeta_timeout_loop\", mi->mi_suffix.bv_val );\n-- \n2.25.1\n\n",
+      "sha256": "44df52333098ba1bd737abc932cefb79cdd82f4770b44f9ebb9137e8f7c25de4"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for openldap.\ncase_id: oe-88-openldap\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 729a604192edd2943e1464de998626c76b808ebd\nreference_parent: 3b6e772c6643ac4e4dc63d541ce1adecdf44989f\ntarget_ref: 2a9831941ae39178e4a71de8cd60b922afa62f77\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "dda4f7f79682ea8cbd6d9041b036fa320385cadbb238019c4cd5a25248a31774",
+      "text": "From 729a604192edd2943e1464de998626c76b808ebd Mon Sep 17 00:00:00 2001\nFrom: Nadezhda Ivanova <nivanova@symas.com>\nDate: Tue, 2 Apr 2024 13:34:07 +0300\nSubject: [PATCH 1/1] ITS#10193 Asyncmeta starts more than one timeout loop per\n database and slaptest crashes\n\nReference:https://git.openldap.org/openldap/openldap/-/commit/729a604192edd2943e1464de998626c76b808ebd\nConflict:NA\n\n---\n servers/slapd/back-asyncmeta/config.c | 9 ++++++---\n servers/slapd/back-asyncmeta/init.c   | 2 +-\n 2 files changed, 7 insertions(+), 4 deletions(-)\n\ndiff --git a/servers/slapd/back-asyncmeta/config.c b/servers/slapd/back-asyncmeta/config.c\nindex fbc9681418..aae054ab0a 100644\n--- a/servers/slapd/back-asyncmeta/config.c\n+++ b/servers/slapd/back-asyncmeta/config.c\n@@ -497,7 +497,8 @@ asyncmeta_cfadd( Operation *op, SlapReply *rs, Entry *p, ConfigArgs *c )\n static int\n asyncmeta_back_new_target(\n \ta_metatarget_t\t**mtp,\n-\ta_metainfo_t     *mi )\n+\ta_metainfo_t     *mi,\n+\tBackendDB        *db )\n {\n \ta_metatarget_t\t\t*mt;\n \n@@ -516,7 +517,9 @@ asyncmeta_back_new_target(\n \tmt->mt_idassert_flags = LDAP_BACK_AUTH_PRESCRIPTIVE;\n \n \t*mtp = mt;\n-\n+\tif ( !SLAP_DBOPEN(db) || !(slapMode & SLAP_SERVER_MODE)) {\n+\t\treturn 0;\n+\t}\n \tfor ( i = 0; i < mi->mi_num_conns; i++ ) {\n \t\ta_metaconn_t *mc = &mi->mi_conns[i];\n \t\tmc->mc_conns = ch_realloc( mc->mc_conns, sizeof( a_metasingleconn_t ) * mi->mi_ntargets);\n@@ -1907,7 +1910,7 @@ asyncmeta_back_cf_gen( ConfigArgs *c )\n \t\t\treturn 1;\n \t\t}\n \n-\t\tif ( asyncmeta_back_new_target( &mi->mi_targets[ i ], mi ) != 0 ) {\n+\t\tif ( asyncmeta_back_new_target( &mi->mi_targets[ i ], mi, c->be ) != 0 ) {\n \t\t\tsnprintf( c->cr_msg, sizeof( c->cr_msg ),\n \t\t\t\t\"unable to init server\"\n \t\t\t\t\" in \\\"%s <protocol>://<server>[:port]/<naming context>\\\"\",\ndiff --git a/servers/slapd/back-asyncmeta/init.c b/servers/slapd/back-asyncmeta/init.c\nindex 5c8016fb2b..45fccf03ec 100644\n--- a/servers/slapd/back-asyncmeta/init.c\n+++ b/servers/slapd/back-asyncmeta/init.c\n@@ -275,7 +275,7 @@ asyncmeta_back_db_open(\n \t\n \tber_dupbv ( &mi->mi_suffix, &be->be_suffix[0] );\n \n-\tif ( mi->mi_ntargets > 0 ) {\n+\tif ( ( slapMode & SLAP_SERVER_MODE ) && mi->mi_ntargets > 0 ) {\n \t\tldap_pvt_thread_mutex_lock( &slapd_rq.rq_mutex );\n \t\tmi->mi_task = ldap_pvt_runqueue_insert( &slapd_rq, 1,\n \t\t\t\t\t\t\tasyncmeta_timeout_loop, mi, \"asyncmeta_timeout_loop\", mi->mi_suffix.bv_val );\n-- \n2.33.0\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "301d880fdbe7647763180794db838fba3b4887e7c2c4d7b611ed9542f86831c7",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-88-openldap/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-88-openldap",
+      "package": "openldap",
+      "version": "2.6.5",
+      "source_commit": "729a604192edd2943e1464de998626c76b808ebd",
+      "target_ref": "2a9831941ae39178e4a71de8cd60b922afa62f77",
+      "target_tree": "f508bc14911d43a05ce3cc9f2a8fc0e9ff1ecc0c",
+      "reference_patch": "patches/oe-88-openldap/reference.patch",
+      "reference_sha256": "44df52333098ba1bd737abc932cefb79cdd82f4770b44f9ebb9137e8f7c25de4",
+      "oracle_patch": "patches/oe-88-openldap/oracle.patch",
+      "oracle_sha256": "dda4f7f79682ea8cbd6d9041b036fa320385cadbb238019c4cd5a25248a31774"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1346",
+  "candidate_sha256": "e8bf4dbb2f0bd71c5d8606185f96f3b2b6ec1fd5f4439145f82a8ced75d5ae49",
+  "oracle_sha256": "70be90327b7d2c63786061e2d1a864352b9b156f83a97468a4e4e5667804bed8",
+  "candidate_nonempty": true,
+  "target_ref": "5dcf0d9e35b2a8e312b70aae12fe6f38cb1be276",
+  "baseline_tree": "723fc63f69596b5847ccd70f29be5e7478c2c68d",
+  "candidate_tree": "9a860054c504ba15319c3e4b199c12b297875bf5",
+  "oracle_tree": "9a860054c504ba15319c3e4b199c12b297875bf5",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1346",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "e8bf4dbb2f0bd71c5d8606185f96f3b2b6ec1fd5f4439145f82a8ced75d5ae49",
+    "text": "diff --git a/net/ipv4/raw.c b/net/ipv4/raw.c\nindex 9a2294d01b9d..acf09ab17a62 100644\n--- a/net/ipv4/raw.c\n+++ b/net/ipv4/raw.c\n@@ -496,11 +496,16 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \tint err;\n \tstruct ip_options_data opt_copy;\n \tstruct raw_frag_vec rfv;\n+\tint hdrincl;\n \n \terr = -EMSGSIZE;\n \tif (len > 0xFFFF)\n \t\tgoto out;\n \n+\t/* hdrincl should be READ_ONCE(inet->hdrincl)\n+\t * but READ_ONCE() doesn't work with bit fields\n+\t */\n+\thdrincl = inet->hdrincl;\n \t/*\n \t *\tCheck the flags.\n \t */\n@@ -575,7 +580,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \t\t/* Linux does not mangle headers on raw sockets,\n \t\t * so that IP options + IP_HDRINCL is non-sense.\n \t\t */\n-\t\tif (inet->hdrincl)\n+\t\tif (hdrincl)\n \t\t\tgoto done;\n \t\tif (ipc.opt->opt.srr) {\n \t\t\tif (!daddr)\n@@ -597,12 +602,12 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \n \tflowi4_init_output(&fl4, ipc.oif, sk->sk_mark, tos,\n \t\t\t   RT_SCOPE_UNIVERSE,\n-\t\t\t   inet->hdrincl ? IPPROTO_RAW : sk->sk_protocol,\n+\t\t\t   hdrincl ? IPPROTO_RAW : sk->sk_protocol,\n \t\t\t   inet_sk_flowi_flags(sk) |\n-\t\t\t    (inet->hdrincl ? FLOWI_FLAG_KNOWN_NH : 0),\n+\t\t\t    (hdrincl ? FLOWI_FLAG_KNOWN_NH : 0),\n \t\t\t   daddr, saddr, 0, 0);\n \n-\tif (!inet->hdrincl) {\n+\tif (!hdrincl) {\n \t\trfv.msg = msg;\n \t\trfv.hlen = 0;\n \n@@ -627,7 +632,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)\n \t\tgoto do_confirm;\n back_from_confirm:\n \n-\tif (inet->hdrincl)\n+\tif (hdrincl)\n \t\terr = raw_send_hdrinc(sk, &fl4, msg, len,\n \t\t\t\t      &rt, msg->msg_flags);\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

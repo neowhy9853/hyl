@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "92",
+  "candidate_sha256": "4ba5148379b097345052ba50c65841f1cae87f4c400fb0d0b2ba9859aa01d1a9",
+  "oracle_sha256": "d07195f17ae52d3d0d2769faa8a6de20e6edb466e944d3ded49fdca46fa86370",
+  "candidate_nonempty": true,
+  "target_ref": "083ecdde0e861bed1189be90d83b0297f4135e78",
+  "baseline_tree": "933b693f325613bd0d57bbd8ec60d0da3db76f0a",
+  "candidate_tree": "252d02f4dc9f7a0e6275bf0d7e8196f43e72eedc",
+  "oracle_tree": "252d02f4dc9f7a0e6275bf0d7e8196f43e72eedc",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/92",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "4ba5148379b097345052ba50c65841f1cae87f4c400fb0d0b2ba9859aa01d1a9",
+    "text": "diff --git a/net/mac80211/ieee80211_i.h b/net/mac80211/ieee80211_i.h\nindex ecda126a7026..d7eeacdcd9ee 100644\n--- a/net/mac80211/ieee80211_i.h\n+++ b/net/mac80211/ieee80211_i.h\n@@ -97,6 +97,7 @@ struct ieee80211_fragment_entry {\n \tu8 rx_queue;\n \tbool check_sequential_pn; /* needed for CCMP/GCMP */\n \tu8 last_pn[6]; /* PN of the last fragment if CCMP was used */\n+\tunsigned int key_color;\n };\n \n \ndiff --git a/net/mac80211/key.c b/net/mac80211/key.c\nindex 56c068cb49c4..f695fc80088b 100644\n--- a/net/mac80211/key.c\n+++ b/net/mac80211/key.c\n@@ -799,6 +799,7 @@ int ieee80211_key_link(struct ieee80211_key *key,\n \t\t       struct ieee80211_sub_if_data *sdata,\n \t\t       struct sta_info *sta)\n {\n+\tstatic atomic_t key_color = ATOMIC_INIT(0);\n \tstruct ieee80211_key *old_key;\n \tint idx = key->conf.keyidx;\n \tbool pairwise = key->conf.flags & IEEE80211_KEY_FLAG_PAIRWISE;\n@@ -850,6 +851,12 @@ int ieee80211_key_link(struct ieee80211_key *key,\n \tkey->sdata = sdata;\n \tkey->sta = sta;\n \n+\t/*\n+\t * Assign a unique ID to every key so we can easily prevent mixed\n+\t * key and fragment cache attacks.\n+\t */\n+\tkey->color = atomic_inc_return(&key_color);\n+\n \tincrement_tailroom_need_count(sdata);\n \n \tret = ieee80211_key_replace(sdata, sta, pairwise, old_key, key);\ndiff --git a/net/mac80211/key.h b/net/mac80211/key.h\nindex 7ad72e9b4991..1e326c89d721 100644\n--- a/net/mac80211/key.h\n+++ b/net/mac80211/key.h\n@@ -128,6 +128,8 @@ struct ieee80211_key {\n \t} debugfs;\n #endif\n \n+\tunsigned int color;\n+\n \t/*\n \t * key config, must be last because it contains key\n \t * material as variable length member\ndiff --git a/net/mac80211/rx.c b/net/mac80211/rx.c\nindex 4fdc29aa9f8c..76d5de240094 100644\n--- a/net/mac80211/rx.c\n+++ b/net/mac80211/rx.c\n@@ -2254,6 +2254,7 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)\n \t\t\t * next fragment has a sequential PN value.\n \t\t\t */\n \t\t\tentry->check_sequential_pn = true;\n+\t\t\tentry->key_color = rx->key->color;\n \t\t\tmemcpy(entry->last_pn,\n \t\t\t       rx->key->u.ccmp.rx_pn[queue],\n \t\t\t       IEEE80211_CCMP_PN_LEN);\n@@ -2291,6 +2292,11 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)\n \n \t\tif (!requires_sequential_pn(rx, fc))\n \t\t\treturn RX_DROP_UNUSABLE;\n+\n+\t\t/* Prevent mixed key and fragment cache attacks */\n+\t\tif (entry->key_color != rx->key->color)\n+\t\t\treturn RX_DROP_UNUSABLE;\n+\n \t\tmemcpy(pn, entry->last_pn, IEEE80211_CCMP_PN_LEN);\n \t\tfor (i = IEEE80211_CCMP_PN_LEN - 1; i >= 0; i--) {\n \t\t\tpn[i]++;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

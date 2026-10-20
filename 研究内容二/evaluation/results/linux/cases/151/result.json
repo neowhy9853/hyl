@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "151",
+  "candidate_sha256": "6798224979feb91544cffd228f509a159e92a7ee33601808c73647280861e124",
+  "oracle_sha256": "3d9d578a1e184511bb7f7baafca28ade401fb5922b265d531263056e2747d835",
+  "candidate_nonempty": true,
+  "target_ref": "9b77be65d82958ebbb7cfe60dbbda6165fe9b3f4",
+  "baseline_tree": "aa0980b94912ddc315b3574328aba0c3002cc243",
+  "candidate_tree": "f10c13d36c4ccf2e295fe0db1251dbd3b2fe9fe7",
+  "oracle_tree": "2715b4ea7980f026556d91c16c95574159ec5bb2",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/151",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "6798224979feb91544cffd228f509a159e92a7ee33601808c73647280861e124",
+    "text": "diff --git a/drivers/staging/speakup/spk_ttyio.c b/drivers/staging/speakup/spk_ttyio.c\nindex fe1bb0284fe3..ba3b889ea411 100644\n--- a/drivers/staging/speakup/spk_ttyio.c\n+++ b/drivers/staging/speakup/spk_ttyio.c\n@@ -46,28 +46,22 @@ static int spk_ttyio_ldisc_open(struct tty_struct *tty)\n {\n \tstruct spk_ldisc_data *ldisc_data;\n \n+\tif (tty != speakup_tty)\n+\t\t/* Somebody tried to use this line discipline outside speakup */\n+\t\treturn -ENODEV;\n+\n \tif (tty->ops->write == NULL)\n \t\treturn -EOPNOTSUPP;\n \n-\tmutex_lock(&speakup_tty_mutex);\n-\tif (speakup_tty) {\n-\t\tmutex_unlock(&speakup_tty_mutex);\n-\t\treturn -EBUSY;\n-\t}\n-\tspeakup_tty = tty;\n-\n \tldisc_data = kmalloc(sizeof(struct spk_ldisc_data), GFP_KERNEL);\n \tif (!ldisc_data) {\n-\t\tspeakup_tty = NULL;\n-\t\tmutex_unlock(&speakup_tty_mutex);\n \t\tpr_err(\"speakup: Failed to allocate ldisc_data.\\n\");\n \t\treturn -ENOMEM;\n \t}\n \n \tsema_init(&ldisc_data->sem, 0);\n \tldisc_data->buf_free = true;\n-\tspeakup_tty->disc_data = ldisc_data;\n-\tmutex_unlock(&speakup_tty_mutex);\n+\ttty->disc_data = ldisc_data;\n \n \treturn 0;\n }\n@@ -184,9 +178,25 @@ static int spk_ttyio_initialise_ldisc(struct spk_synth *synth)\n \n \ttty_unlock(tty);\n \n+\tmutex_lock(&speakup_tty_mutex);\n+\tspeakup_tty = tty;\n \tret = tty_set_ldisc(tty, N_SPEAKUP);\n \tif (ret)\n-\t\tpr_err(\"speakup: Failed to set N_SPEAKUP on tty\\n\");\n+\t\tspeakup_tty = NULL;\n+\tmutex_unlock(&speakup_tty_mutex);\n+\n+\tif (!ret)\n+\t\t/* Success */\n+\t\treturn 0;\n+\n+\tpr_err(\"speakup: Failed to set N_SPEAKUP on tty\\n\");\n+\n+\ttty_lock(tty);\n+\tif (tty->ops->close)\n+\t\ttty->ops->close(tty, NULL);\n+\ttty_unlock(tty);\n+\n+\ttty_kclose(tty);\n \n \treturn ret;\n }\n"
+  },
+  "trace_file": "trace.jsonl"
+}

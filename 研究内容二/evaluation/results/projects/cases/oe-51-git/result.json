@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-51-git",
+  "candidate_sha256": "87422cd14eac4b8b3ded90767682666ca3030b01003ba24dfaaecb6583d54597",
+  "oracle_sha256": "ef26377b9c41d327b485c3b57386c76f5935b49278bbd029cdce35d95e5af40d",
+  "candidate_nonempty": true,
+  "target_ref": "b206d6ee3ba539b4e1275238eeafbb37a57c163b",
+  "baseline_tree": "47757a310310e7b12bbac6549f9e9b1c09b5f1bf",
+  "candidate_tree": "4d8dddee35f36c0f9ec1446c4da2d02b64eaf9e0",
+  "oracle_tree": "4d8dddee35f36c0f9ec1446c4da2d02b64eaf9e0",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-51-git",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "87422cd14eac4b8b3ded90767682666ca3030b01003ba24dfaaecb6583d54597",
+    "text": "diff --git a/builtin/clone.c b/builtin/clone.c\nindex 8bb854b48f..7f888717e7 100644\n--- a/builtin/clone.c\n+++ b/builtin/clone.c\n@@ -374,8 +374,27 @@ static void copy_or_link_directory(struct strbuf *src, struct strbuf *dest,\n \t\tif (unlink(dest->buf) && errno != ENOENT)\n \t\t\tdie_errno(_(\"failed to unlink '%s'\"), dest->buf);\n \t\tif (!option_no_hardlinks) {\n-\t\t\tif (!link(src->buf, dest->buf))\n+\t\t\tif (!link(src->buf, dest->buf)) {\n+\t\t\t\tstruct stat st;\n+\n+\t\t\t\t/*\n+\t\t\t\t * Sanity-check whether the created hardlink\n+\t\t\t\t * actually links to the expected file now. This\n+\t\t\t\t * catches time-of-check-time-of-use bugs in\n+\t\t\t\t * case the source file was meanwhile swapped.\n+\t\t\t\t */\n+\t\t\t\tif (lstat(dest->buf, &st))\n+\t\t\t\t\tdie(_(\"hardlink cannot be checked at '%s'\"), dest->buf);\n+\t\t\t\tif (st.st_mode != iter->st.st_mode ||\n+\t\t\t\t    st.st_ino != iter->st.st_ino ||\n+\t\t\t\t    st.st_dev != iter->st.st_dev ||\n+\t\t\t\t    st.st_size != iter->st.st_size ||\n+\t\t\t\t    st.st_uid != iter->st.st_uid ||\n+\t\t\t\t    st.st_gid != iter->st.st_gid)\n+\t\t\t\t\tdie(_(\"hardlink different from source at '%s'\"), dest->buf);\n+\n \t\t\t\tcontinue;\n+\t\t\t}\n \t\t\tif (option_local > 0)\n \t\t\t\tdie_errno(_(\"failed to create link '%s'\"), dest->buf);\n \t\t\toption_no_hardlinks = 1;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1266",
+  "candidate_sha256": "20cd6fe2253bd76be528123d872e1e3c2729220b825dacbfb83cef7d286284e8",
+  "oracle_sha256": "d1c1eb0d96451d3b7bac105cddc32b6ce0d2dfa138a0aba56a82d9b1f8fb4220",
+  "candidate_nonempty": true,
+  "target_ref": "fbdbac7bd9def21be7ac4e680c25d880661c10d9",
+  "baseline_tree": "65e9322effca1c2947bc66e7b9f6d90003bbc08c",
+  "candidate_tree": "71fcfeaf6be7c9b3418243f3169d53953fe9c99e",
+  "oracle_tree": "71fcfeaf6be7c9b3418243f3169d53953fe9c99e",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1266",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "20cd6fe2253bd76be528123d872e1e3c2729220b825dacbfb83cef7d286284e8",
+    "text": "diff --git a/arch/x86/vdso/vma.c b/arch/x86/vdso/vma.c\nindex 153407c35b7..0ff881559ac 100644\n--- a/arch/x86/vdso/vma.c\n+++ b/arch/x86/vdso/vma.c\n@@ -72,30 +72,43 @@ subsys_initcall(init_vdso);\n \n struct linux_binprm;\n \n-/* Put the vdso above the (randomized) stack with another randomized offset.\n-   This way there is no hole in the middle of address space.\n-   To save memory make sure it is still in the same PTE as the stack top.\n-   This doesn't give that many random bits */\n+/*\n+ * Put the vdso above the (randomized) stack with another randomized\n+ * offset.  This way there is no hole in the middle of address space.\n+ * To save memory make sure it is still in the same PTE as the stack\n+ * top.  This doesn't give that many random bits.\n+ *\n+ * Note that this algorithm is imperfect: the distribution of the vdso\n+ * start address within a PMD is biased toward the end.\n+ */\n static unsigned long vdso_addr(unsigned long start, unsigned len)\n {\n \tunsigned long addr, end;\n \tunsigned offset;\n-\tend = (start + PMD_SIZE - 1) & PMD_MASK;\n+\n+\t/*\n+\t * Round up the start address.  It can start out unaligned as a result\n+\t * of stack start randomization.\n+\t */\n+\tstart = PAGE_ALIGN(start);\n+\n+\t/* Round the lowest possible end address up to a PMD boundary. */\n+\tend = (start + len + PMD_SIZE - 1) & PMD_MASK;\n \tif (end >= TASK_SIZE_MAX)\n \t\tend = TASK_SIZE_MAX;\n \tend -= len;\n-\t/* This loses some more bits than a modulo, but is cheaper */\n-\toffset = get_random_int() & (PTRS_PER_PTE - 1);\n-\taddr = start + (offset << PAGE_SHIFT);\n-\tif (addr >= end)\n-\t\taddr = end;\n+\n+\tif (end > start) {\n+\t\toffset = get_random_int() % (((end - start) >> PAGE_SHIFT) + 1);\n+\t\taddr = start + (offset << PAGE_SHIFT);\n+\t} else {\n+\t\taddr = start;\n+\t}\n \n \t/*\n-\t * page-align it here so that get_unmapped_area doesn't\n-\t * align it wrongfully again to the next page. addr can come in 4K\n-\t * unaligned here as a result of stack start randomization.\n+\t * Forcibly align the final address in case we have a hardware\n+\t * issue that requires alignment for performance reasons.\n \t */\n-\taddr = PAGE_ALIGN(addr);\n \taddr = align_addr(addr, NULL, ALIGN_VDSO);\n \n \treturn addr;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

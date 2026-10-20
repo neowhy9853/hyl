@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "336",
+  "candidate_sha256": "5f8b96833b95049d813d1bb4c9b9f7bec14e1e486314a56e8c3c3178ff87e422",
+  "oracle_sha256": "3163eb1608248b5ab7cc1318c420c8e06c95374fb99fe4f063cdb6e6c03b0359",
+  "candidate_nonempty": true,
+  "target_ref": "b4d4f6be3761fdcbc3aebf0cdf993ac85371a76c",
+  "baseline_tree": "a6fba4cec3548e6b20da8ede8f5b3d2c15dc0cb8",
+  "candidate_tree": "57a3a2ddb219829c0bdee618e5a86b166026b575",
+  "oracle_tree": "aabf0fb6e81e5c157a86dc20794450d036747765",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/336",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "5f8b96833b95049d813d1bb4c9b9f7bec14e1e486314a56e8c3c3178ff87e422",
+    "text": "diff --git a/drivers/pinctrl/devicetree.c b/drivers/pinctrl/devicetree.c\nindex 54dad89fc9bf..f85b72f8616d 100644\n--- a/drivers/pinctrl/devicetree.c\n+++ b/drivers/pinctrl/devicetree.c\n@@ -40,6 +40,13 @@ struct pinctrl_dt_map {\n static void dt_free_map(struct pinctrl_dev *pctldev,\n \t\t     struct pinctrl_map *map, unsigned num_maps)\n {\n+\tint i;\n+\n+\tfor (i = 0; i < num_maps; ++i) {\n+\t\tkfree_const(map[i].dev_name);\n+\t\tmap[i].dev_name = NULL;\n+\t}\n+\n \tif (pctldev) {\n \t\tconst struct pinctrl_ops *ops = pctldev->desc->pctlops;\n \t\tops->dt_free_map(pctldev, map, num_maps);\n@@ -73,7 +80,13 @@ static int dt_remember_or_free_map(struct pinctrl *p, const char *statename,\n \n \t/* Initialize common mapping table entry fields */\n \tfor (i = 0; i < num_maps; i++) {\n-\t\tmap[i].dev_name = dev_name(p->dev);\n+\t\tconst char *devname;\n+\n+\t\tdevname = kstrdup_const(dev_name(p->dev), GFP_KERNEL);\n+\t\tif (!devname)\n+\t\t\tgoto err_free_map;\n+\n+\t\tmap[i].dev_name = devname;\n \t\tmap[i].name = statename;\n \t\tif (pctldev)\n \t\t\tmap[i].ctrl_dev_name = dev_name(pctldev->dev);\n@@ -83,8 +96,7 @@ static int dt_remember_or_free_map(struct pinctrl *p, const char *statename,\n \tdt_map = kzalloc(sizeof(*dt_map), GFP_KERNEL);\n \tif (!dt_map) {\n \t\tdev_err(p->dev, \"failed to alloc struct pinctrl_dt_map\\n\");\n-\t\tdt_free_map(pctldev, map, num_maps);\n-\t\treturn -ENOMEM;\n+\t\tgoto err_free_map;\n \t}\n \n \tdt_map->pctldev = pctldev;\n@@ -93,6 +105,10 @@ static int dt_remember_or_free_map(struct pinctrl *p, const char *statename,\n \tlist_add_tail(&dt_map->node, &p->dt_maps);\n \n \treturn pinctrl_register_map(map, num_maps, false);\n+\n+err_free_map:\n+\tdt_free_map(pctldev, map, num_maps);\n+\treturn -ENOMEM;\n }\n \n struct pinctrl_dev *of_pinctrl_get(struct device_node *np)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

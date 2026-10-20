@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "931",
+  "candidate_sha256": "d20cd16f6c481932cb27670362b4be4b90576272f7c584fa698074b8b32a1176",
+  "oracle_sha256": "6220aab1bd51a396047097886c45fa6055a84012677cdd44167cb1e2cdf59450",
+  "candidate_nonempty": true,
+  "target_ref": "640bfcf232a93bdd446552f5417c52a0ad300e8b",
+  "baseline_tree": "da40b4f4e1a39b97dd19935c18ff844612ce839c",
+  "candidate_tree": "c4e0d10377091a4833337354e6cb383ddb2d7cb2",
+  "oracle_tree": "c4e0d10377091a4833337354e6cb383ddb2d7cb2",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/931",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "d20cd16f6c481932cb27670362b4be4b90576272f7c584fa698074b8b32a1176",
+    "text": "diff --git a/net/ipv6/ip6_offload.c b/net/ipv6/ip6_offload.c\nindex 225f5f7f26ba..9a2247cfafbf 100644\n--- a/net/ipv6/ip6_offload.c\n+++ b/net/ipv6/ip6_offload.c\n@@ -122,6 +122,8 @@ static struct sk_buff *ipv6_gso_segment(struct sk_buff *skb,\n \n \t\tif (udpfrag) {\n \t\t\tunfrag_ip6hlen = ip6_find_1stfragopt(skb, &prevhdr);\n+\t\t\tif (unfrag_ip6hlen < 0)\n+\t\t\t\treturn ERR_PTR(unfrag_ip6hlen);\n \t\t\tfptr = (struct frag_hdr *)((u8 *)ipv6h + unfrag_ip6hlen);\n \t\t\tfptr->frag_off = htons(offset);\n \t\t\tif (skb->next)\ndiff --git a/net/ipv6/ip6_output.c b/net/ipv6/ip6_output.c\nindex 8004532fa882..7a3a29cc033b 100644\n--- a/net/ipv6/ip6_output.c\n+++ b/net/ipv6/ip6_output.c\n@@ -572,6 +572,10 @@ int ip6_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,\n \tu8 *prevhdr, nexthdr = 0;\n \n \thlen = ip6_find_1stfragopt(skb, &prevhdr);\n+\tif (hlen < 0) {\n+\t\terr = hlen;\n+\t\tgoto fail;\n+\t}\n \tnexthdr = *prevhdr;\n \n \tmtu = ip6_skb_dst_mtu(skb);\ndiff --git a/net/ipv6/output_core.c b/net/ipv6/output_core.c\nindex 1d184322a7b1..8b56c5240429 100644\n--- a/net/ipv6/output_core.c\n+++ b/net/ipv6/output_core.c\n@@ -79,14 +79,13 @@ EXPORT_SYMBOL(ipv6_select_ident);\n int ip6_find_1stfragopt(struct sk_buff *skb, u8 **nexthdr)\n {\n \tu16 offset = sizeof(struct ipv6hdr);\n-\tstruct ipv6_opt_hdr *exthdr =\n-\t\t\t\t(struct ipv6_opt_hdr *)(ipv6_hdr(skb) + 1);\n \tunsigned int packet_len = skb_tail_pointer(skb) -\n \t\tskb_network_header(skb);\n \tint found_rhdr = 0;\n \t*nexthdr = &ipv6_hdr(skb)->nexthdr;\n \n-\twhile (offset + 1 <= packet_len) {\n+\twhile (offset <= packet_len) {\n+\t\tstruct ipv6_opt_hdr *exthdr;\n \n \t\tswitch (**nexthdr) {\n \n@@ -107,13 +106,16 @@ int ip6_find_1stfragopt(struct sk_buff *skb, u8 **nexthdr)\n \t\t\treturn offset;\n \t\t}\n \n-\t\toffset += ipv6_optlen(exthdr);\n-\t\t*nexthdr = &exthdr->nexthdr;\n+\t\tif (offset + sizeof(struct ipv6_opt_hdr) > packet_len)\n+\t\t\treturn -EINVAL;\n+\n \t\texthdr = (struct ipv6_opt_hdr *)(skb_network_header(skb) +\n \t\t\t\t\t\t offset);\n+\t\toffset += ipv6_optlen(exthdr);\n+\t\t*nexthdr = &exthdr->nexthdr;\n \t}\n \n-\treturn offset;\n+\treturn -EINVAL;\n }\n EXPORT_SYMBOL(ip6_find_1stfragopt);\n \ndiff --git a/net/ipv6/udp_offload.c b/net/ipv6/udp_offload.c\nindex 7441e1e63893..04ed91da6cc9 100644\n--- a/net/ipv6/udp_offload.c\n+++ b/net/ipv6/udp_offload.c\n@@ -98,6 +98,8 @@ static struct sk_buff *udp6_ufo_fragment(struct sk_buff *skb,\n \t\t * bytes to insert fragment header.\n \t\t */\n \t\tunfrag_ip6hlen = ip6_find_1stfragopt(skb, &prevhdr);\n+\t\tif (unfrag_ip6hlen < 0)\n+\t\t\treturn ERR_PTR(unfrag_ip6hlen);\n \t\tnexthdr = *prevhdr;\n \t\t*prevhdr = NEXTHDR_FRAGMENT;\n \t\tunfrag_len = (skb_network_header(skb) - skb_mac_header(skb)) +\n"
+  },
+  "trace_file": "trace.jsonl"
+}

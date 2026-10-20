@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "595",
+  "candidate_sha256": "652f7d093b74a5688edf1f0a8e201c676f0a60d2592e1814bc97b47403d68606",
+  "oracle_sha256": "59d4eea67946f7baa8f40567fdd01d88d6eb6b9c2db9f91efa14fc2ee8b25f88",
+  "candidate_nonempty": true,
+  "target_ref": "77fcddb6be7ca0c8d2e36b78442e993cdbbf6608",
+  "baseline_tree": "e327bad8ee8c155d06d0bd42c06eddb18e34b28c",
+  "candidate_tree": "50531df9fa2d8226482417adb3aa956b001fc04a",
+  "oracle_tree": "50531df9fa2d8226482417adb3aa956b001fc04a",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/595",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "652f7d093b74a5688edf1f0a8e201c676f0a60d2592e1814bc97b47403d68606",
+    "text": "diff --git a/net/sched/act_ct.c b/net/sched/act_ct.c\nindex f69c47945175..3d50215985d5 100644\n--- a/net/sched/act_ct.c\n+++ b/net/sched/act_ct.c\n@@ -850,7 +850,6 @@ static int tcf_ct_handle_fragments(struct net *net, struct sk_buff *skb,\n \tif (err || !frag)\n \t\treturn err;\n \n-\tskb_get(skb);\n \terr = nf_ct_handle_fragments(net, skb, zone, family, &proto, &mru);\n \tif (err)\n \t\treturn err;\n@@ -999,12 +998,8 @@ TC_INDIRECT_SCOPE int tcf_ct_act(struct sk_buff *skb, const struct tc_action *a,\n \tnh_ofs = skb_network_offset(skb);\n \tskb_pull_rcsum(skb, nh_ofs);\n \terr = tcf_ct_handle_fragments(net, skb, family, p->zone, &defrag);\n-\tif (err == -EINPROGRESS) {\n-\t\tretval = TC_ACT_STOLEN;\n-\t\tgoto out_clear;\n-\t}\n \tif (err)\n-\t\tgoto drop;\n+\t\tgoto out_frag;\n \n \terr = nf_ct_skb_network_trim(skb, family);\n \tif (err)\n@@ -1091,6 +1086,11 @@ TC_INDIRECT_SCOPE int tcf_ct_act(struct sk_buff *skb, const struct tc_action *a,\n \t\tqdisc_skb_cb(skb)->pkt_len = skb->len;\n \treturn retval;\n \n+out_frag:\n+\tif (err != -EINPROGRESS)\n+\t\ttcf_action_inc_drop_qstats(&c->common);\n+\treturn TC_ACT_CONSUMED;\n+\n drop:\n \ttcf_action_inc_drop_qstats(&c->common);\n \treturn TC_ACT_SHOT;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

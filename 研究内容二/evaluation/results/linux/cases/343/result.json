@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "343",
+  "candidate_sha256": "969aa528375c2083d99ae1951527966c398b4e95105e88f318383a384bbbe13e",
+  "oracle_sha256": "5c5656ac90b21a863e5e07d5aca3b666dfa95131b6b572af0759d1315a060945",
+  "candidate_nonempty": true,
+  "target_ref": "ac17ab9b37774017674d11fc3a9f01f815c230e9",
+  "baseline_tree": "6b82274d7e96be4dcb7bbac9dcc5e85884dc86f4",
+  "candidate_tree": "9cc49c8655eafeb376ac9653bc7575e7d79d89f8",
+  "oracle_tree": "9cc49c8655eafeb376ac9653bc7575e7d79d89f8",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/343",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "969aa528375c2083d99ae1951527966c398b4e95105e88f318383a384bbbe13e",
+    "text": "diff --git a/fs/ocfs2/file.c b/fs/ocfs2/file.c\nindex 7fe30f655aa..35f54bc9651 100644\n--- a/fs/ocfs2/file.c\n+++ b/fs/ocfs2/file.c\n@@ -2478,9 +2478,7 @@ static ssize_t ocfs2_file_splice_write(struct pipe_inode_info *pipe,\n \tstruct address_space *mapping = out->f_mapping;\n \tstruct inode *inode = mapping->host;\n \tstruct splice_desc sd = {\n-\t\t.total_len = len,\n \t\t.flags = flags,\n-\t\t.pos = *ppos,\n \t\t.u.file = out,\n \t};\n \n@@ -2490,6 +2488,12 @@ static ssize_t ocfs2_file_splice_write(struct pipe_inode_info *pipe,\n \t\t\tout->f_path.dentry->d_name.len,\n \t\t\tout->f_path.dentry->d_name.name, len);\n \n+\tret = generic_write_checks(out, ppos, &len, 0);\n+\tif (ret)\n+\t\treturn ret;\n+\tsd.total_len = len;\n+\tsd.pos = *ppos;\n+\n \tpipe_lock(pipe);\n \n \tsplice_from_pipe_begin(&sd);\ndiff --git a/fs/splice.c b/fs/splice.c\nindex 12028fa41de..f345d53f94d 100644\n--- a/fs/splice.c\n+++ b/fs/splice.c\n@@ -1012,13 +1012,17 @@ generic_file_splice_write(struct pipe_inode_info *pipe, struct file *out,\n \tstruct address_space *mapping = out->f_mapping;\n \tstruct inode *inode = mapping->host;\n \tstruct splice_desc sd = {\n-\t\t.total_len = len,\n \t\t.flags = flags,\n-\t\t.pos = *ppos,\n \t\t.u.file = out,\n \t};\n \tssize_t ret;\n \n+\tret = generic_write_checks(out, ppos, &len, S_ISBLK(inode->i_mode));\n+\tif (ret)\n+\t\treturn ret;\n+\tsd.total_len = len;\n+\tsd.pos = *ppos;\n+\n \tpipe_lock(pipe);\n \n \tsplice_from_pipe_begin(&sd);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

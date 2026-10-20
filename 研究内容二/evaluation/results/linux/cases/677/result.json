@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "677",
+  "candidate_sha256": "af3e9e6a28de7873e34b897d9abce8a93cfcabab797896584e7d043359771415",
+  "oracle_sha256": "1e620d8ddafe5ffcf2472a91c42552edc2ac2511d71b1c24f0c8fedb353c2b3a",
+  "candidate_nonempty": true,
+  "target_ref": "c017fbf1059649fb5aa1edaa208eda1e326146fc",
+  "baseline_tree": "c6c90d0497bfce8af8d0182af60758728401a486",
+  "candidate_tree": "eb5d00c764b9dde3ea9dd44d344d0b4012adcdfb",
+  "oracle_tree": "f01b4b569f90c640b3fa84139d0e06e817092904",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/677",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "af3e9e6a28de7873e34b897d9abce8a93cfcabab797896584e7d043359771415",
+    "text": "diff --git a/arch/x86/kernel/fpu/signal.c b/arch/x86/kernel/fpu/signal.c\nindex 7f76cb099e66..086e41958613 100644\n--- a/arch/x86/kernel/fpu/signal.c\n+++ b/arch/x86/kernel/fpu/signal.c\n@@ -246,12 +246,13 @@ static int __restore_fpregs_from_user(void __user *buf, u64 xrestore,\n  * Attempt to restore the FPU registers directly from user memory.\n  * Pagefaults are handled and any errors returned are fatal.\n  */\n-static int restore_fpregs_from_user(void __user *buf, u64 xrestore,\n-\t\t\t\t    bool fx_only, unsigned int size)\n+static int restore_fpregs_from_user(void __user *buf, u64 xrestore, bool fx_only)\n {\n \tstruct fpu *fpu = &current->thread.fpu;\n \tint ret;\n \n+\t/* Restore enabled features only. */\n+\txrestore &= xfeatures_mask_uabi();\n retry:\n \tfpregs_lock();\n \tpagefault_disable();\n@@ -278,7 +279,7 @@ static int restore_fpregs_from_user(void __user *buf, u64 xrestore,\n \t\tif (ret != -EFAULT)\n \t\t\treturn -EINVAL;\n \n-\t\tif (!fault_in_readable(buf, size))\n+\t\tif (!fault_in_readable(buf, fpu_user_xstate_size))\n \t\t\tgoto retry;\n \t\treturn -EFAULT;\n \t}\n@@ -303,7 +304,6 @@ static int restore_fpregs_from_user(void __user *buf, u64 xrestore,\n static int __fpu_restore_sig(void __user *buf, void __user *buf_fx,\n \t\t\t     bool ia32_fxstate)\n {\n-\tint state_size = fpu_kernel_xstate_size;\n \tstruct task_struct *tsk = current;\n \tstruct fpu *fpu = &tsk->thread.fpu;\n \tstruct user_i387_ia32_struct env;\n@@ -319,7 +319,6 @@ static int __fpu_restore_sig(void __user *buf, void __user *buf_fx,\n \t\t\treturn ret;\n \n \t\tfx_only = !fx_sw_user.magic1;\n-\t\tstate_size = fx_sw_user.xstate_size;\n \t\tuser_xfeatures = fx_sw_user.xfeatures;\n \t} else {\n \t\tuser_xfeatures = XFEATURE_MASK_FPSSE;\n@@ -332,8 +331,7 @@ static int __fpu_restore_sig(void __user *buf, void __user *buf_fx,\n \t\t * faults. If it does, fall back to the slow path below, going\n \t\t * through the kernel buffer with the enabled pagefault handler.\n \t\t */\n-\t\treturn restore_fpregs_from_user(buf_fx, user_xfeatures, fx_only,\n-\t\t\t\t\t\tstate_size);\n+\t\treturn restore_fpregs_from_user(buf_fx, user_xfeatures, fx_only);\n \t}\n \n \t/*\n"
+  },
+  "trace_file": "trace.jsonl"
+}

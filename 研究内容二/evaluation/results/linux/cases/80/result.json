@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "80",
+  "candidate_sha256": "4ab5e3791a00b2d408f9fcadbb714225264e5607211af13856bc0d331b872be9",
+  "oracle_sha256": "ff442e37519f3c22762e5b7e871df00b821f613488ae7f79bf5958d62c02fe8e",
+  "candidate_nonempty": true,
+  "target_ref": "dc97a907bc76b71c08e7e99a5b1b30ef4d5e4a85",
+  "baseline_tree": "42592e3d830a9618386625fc5c22c3dc7c3e781c",
+  "candidate_tree": "c95855e1a6bb533dbe38c32c1f40d2bf4973c3d0",
+  "oracle_tree": "3cd3aadabd8db2681ca2ea460fb850bbd33c56a9",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/80",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "4ab5e3791a00b2d408f9fcadbb714225264e5607211af13856bc0d331b872be9",
+    "text": "diff --git a/Documentation/networking/ip-sysctl.txt b/Documentation/networking/ip-sysctl.txt\nindex 36aa39eee48f..6020d179e56f 100644\n--- a/Documentation/networking/ip-sysctl.txt\n+++ b/Documentation/networking/ip-sysctl.txt\n@@ -210,6 +210,14 @@ tcp_base_mss - INTEGER\n \tPath MTU discovery (MTU probing).  If MTU probing is enabled,\n \tthis is the initial MSS used by the connection.\n \n+tcp_min_snd_mss - INTEGER\n+\tTCP SYN and SYNACK messages usually advertise an ADVMSS option,\n+\tas described in RFC 1122 and RFC 6691.\n+\tIf this ADVMSS option is smaller than tcp_min_snd_mss,\n+\tit is silently capped to tcp_min_snd_mss.\n+\n+\tDefault : 48 (at least 8 bytes of payload per segment)\n+\n tcp_congestion_control - STRING\n \tSet the congestion control algorithm to be used for new\n \tconnections. The algorithm \"reno\" is always available, but\ndiff --git a/include/net/tcp.h b/include/net/tcp.h\nindex 21c68c2c52a8..79762b662de3 100644\n--- a/include/net/tcp.h\n+++ b/include/net/tcp.h\n@@ -270,6 +270,7 @@ extern int sysctl_tcp_moderate_rcvbuf;\n extern int sysctl_tcp_tso_win_divisor;\n extern int sysctl_tcp_mtu_probing;\n extern int sysctl_tcp_base_mss;\n+extern int sysctl_tcp_min_snd_mss;\n extern int sysctl_tcp_workaround_signed_windows;\n extern int sysctl_tcp_slow_start_after_idle;\n extern int sysctl_tcp_thin_linear_timeouts;\ndiff --git a/net/ipv4/sysctl_net_ipv4.c b/net/ipv4/sysctl_net_ipv4.c\nindex e1ceafe68cb1..b5b59bcafd13 100644\n--- a/net/ipv4/sysctl_net_ipv4.c\n+++ b/net/ipv4/sysctl_net_ipv4.c\n@@ -35,6 +35,8 @@ static int ip_local_port_range_min[] = { 1, 1 };\n static int ip_local_port_range_max[] = { 65535, 65535 };\n static int tcp_adv_win_scale_min = -31;\n static int tcp_adv_win_scale_max = 31;\n+static int tcp_min_snd_mss_min = TCP_MIN_SND_MSS;\n+static int tcp_min_snd_mss_max = 65535;\n static int ip_ttl_min = 1;\n static int ip_ttl_max = 255;\n static int tcp_syn_retries_min = 1;\n@@ -607,6 +609,15 @@ static struct ctl_table ipv4_table[] = {\n \t\t.mode\t\t= 0644,\n \t\t.proc_handler\t= proc_dointvec,\n \t},\n+\t{\n+\t\t.procname\t= \"tcp_min_snd_mss\",\n+\t\t.data\t\t= &sysctl_tcp_min_snd_mss,\n+\t\t.maxlen\t\t= sizeof(int),\n+\t\t.mode\t\t= 0644,\n+\t\t.proc_handler\t= proc_dointvec_minmax,\n+\t\t.extra1\t\t= &tcp_min_snd_mss_min,\n+\t\t.extra2\t\t= &tcp_min_snd_mss_max,\n+\t},\n \t{\n \t\t.procname\t= \"tcp_workaround_signed_windows\",\n \t\t.data\t\t= &sysctl_tcp_workaround_signed_windows,\ndiff --git a/net/ipv4/tcp_output.c b/net/ipv4/tcp_output.c\nindex e760a1ad1956..4a64bebd360d 100644\n--- a/net/ipv4/tcp_output.c\n+++ b/net/ipv4/tcp_output.c\n@@ -61,6 +61,7 @@ int sysctl_tcp_tso_win_divisor __read_mostly = 3;\n \n int sysctl_tcp_mtu_probing __read_mostly = 0;\n int sysctl_tcp_base_mss __read_mostly = TCP_BASE_MSS;\n+int sysctl_tcp_min_snd_mss __read_mostly = TCP_MIN_SND_MSS;\n \n /* By default, RFC2861 behavior.  */\n int sysctl_tcp_slow_start_after_idle __read_mostly = 1;\n@@ -1259,8 +1260,7 @@ static inline int __tcp_mtu_to_mss(struct sock *sk, int pmtu)\n \tmss_now -= icsk->icsk_ext_hdr_len;\n \n \t/* Then reserve room for full set of TCP options and 8 bytes of data */\n-\tif (mss_now < TCP_MIN_SND_MSS)\n-\t\tmss_now = TCP_MIN_SND_MSS;\n+\tmss_now = max(mss_now, sysctl_tcp_min_snd_mss);\n \treturn mss_now;\n }\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

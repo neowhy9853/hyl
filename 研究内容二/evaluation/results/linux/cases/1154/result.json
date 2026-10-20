@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1154",
+  "candidate_sha256": "20b4707f8a7aea77f29d068ba91dc6a8f67c4af9c7c0058dc7e99099f615d634",
+  "oracle_sha256": "20b4707f8a7aea77f29d068ba91dc6a8f67c4af9c7c0058dc7e99099f615d634",
+  "candidate_nonempty": true,
+  "target_ref": "dbe7cfbfd6f71222858ba206a615923961df5481",
+  "baseline_tree": "21f406c9866ac44d6dac22c00a154150b9af8d59",
+  "candidate_tree": "3f54873281b50ef665a6051f3be1f5c855c94f3e",
+  "oracle_tree": "3f54873281b50ef665a6051f3be1f5c855c94f3e",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1154",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "20b4707f8a7aea77f29d068ba91dc6a8f67c4af9c7c0058dc7e99099f615d634",
+    "text": "diff --git a/drivers/net/tun.c b/drivers/net/tun.c\nindex 09c444d3b496..d84a09172ddb 100644\n--- a/drivers/net/tun.c\n+++ b/drivers/net/tun.c\n@@ -1870,8 +1870,11 @@ static ssize_t tun_get_user(struct tun_struct *tun, struct tun_file *tfile,\n \t\tskb->dev = tun->dev;\n \t\tbreak;\n \tcase IFF_TAP:\n-\t\tif (!frags)\n-\t\t\tskb->protocol = eth_type_trans(skb, tun->dev);\n+\t\tif (frags && !pskb_may_pull(skb, ETH_HLEN)) {\n+\t\t\terr = -ENOMEM;\n+\t\t\tgoto drop;\n+\t\t}\n+\t\tskb->protocol = eth_type_trans(skb, tun->dev);\n \t\tbreak;\n \t}\n \n@@ -1927,8 +1930,11 @@ static ssize_t tun_get_user(struct tun_struct *tun, struct tun_file *tfile,\n \t}\n \n \tif (frags) {\n+\t\tu32 headlen;\n+\n \t\t/* Exercise flow dissector code path. */\n-\t\tu32 headlen = eth_get_headlen(skb->data, skb_headlen(skb));\n+\t\tskb_push(skb, ETH_HLEN);\n+\t\theadlen = eth_get_headlen(skb->data, skb_headlen(skb));\n \n \t\tif (unlikely(headlen > skb_headlen(skb))) {\n \t\t\tthis_cpu_inc(tun->pcpu_stats->rx_dropped);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

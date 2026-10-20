@@ -1,0 +1,67 @@
+{
+  "round": 1,
+  "case_id": "case_049",
+  "source_index": 48,
+  "repo": "dnf",
+  "commit_id": "75a4221f387ae323ef320903ae8e1ddbdaf7d78a",
+  "oracle_label": "refactor",
+  "predicted_label": "refactor",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "4d80174199bb",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "refactor",
+    "confidence": 0.8,
+    "reason": "提交把清理逻辑从 dnf/base.py 与 dnf/cli/cli.py 迁移到 dnf/cli/commands/clean.py，主导意图是结构重组与职责归位，外部 clean 行为基本不变。",
+    "intent_items": [
+      {
+        "target": "dnf.base.Base、dnf.cli.cli.BaseCli 与 dnf.cli.commands.clean 模块",
+        "change": "删除 Base 中的 cleanPackages/cleanMetadata/clean_binary_cache/cleanExpireCache/cleanRpmDB 及辅助方法，删除 BaseCli.cleanCli，改在 clean.py 中以模块级函数实现",
+        "effect_or_reason": "清理逻辑集中到 clean 命令模块，减少基类堆积的缓存清理职责",
+        "context_used": [
+          "git show 75a4221 -- dnf/cli/commands/clean.py",
+          "git show 75a4221 -- dnf/cli/cli.py"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "commit message 表明是移动到 dnf.cli.commands.clean",
+            "patch 中方法从 Base/BaseCli 删除并在 clean.py 重新实现"
+          ],
+          "message_only_details": [],
+          "code_only_details": [
+            "cli.py 中的 refresh_metadata 改为调用 clean_expire_cache(self.base.repos)"
+          ]
+        },
+        "evidence": [
+          "Base.cleanPackages 等方法整体被移除，clean.py 新增 clean_packages/clean_metadata 等函数，未新增用户可用入口，能力边界未扩展"
+        ]
+      },
+      {
+        "target": "_check_args 与新增测试",
+        "change": "参数缺失时改为 logger.critical 加 raise dnf.cli.CliError，并新增 tests/cli/commands/test_clean.py、调整 tests/test_base.py",
+        "effect_or_reason": "让 clean 缺参时明确失败，并为迁移后的函数补充测试覆盖",
+        "context_used": [
+          "git show 75a4221 -- tests/cli/commands/test_clean.py"
+        ],
+        "source_breakdown": {
+          "shared_support": [
+            "patch 为迁移后的清理函数新增单元测试"
+          ],
+          "message_only_details": [],
+          "code_only_details": [
+            "_check_args 在无参数时由仅记录错误改为抛出 CliError"
+          ]
+        },
+        "evidence": [
+          "测试文件为新增，主要验证迁移后 clean 函数的删除行为，属重构配套改动"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_049",
+  "trace_status": "available"
+}

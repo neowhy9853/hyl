@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1276",
+  "candidate_sha256": "b833857709cee2605110b9ad4313806af834abe27ec294cd1a9149efe3dd170e",
+  "oracle_sha256": "609214c339b9f9ed232db51aa1ee75a00290738646caddb318d954ab088dccd2",
+  "candidate_nonempty": true,
+  "target_ref": "67eb69ec167ac7feb03162c7bc909a4747dca1de",
+  "baseline_tree": "81827c28df39c1b92e3c4a975bdf1081af4a2d83",
+  "candidate_tree": "f1052f483311c4f051c2015b7f950e34f82e5a11",
+  "oracle_tree": "f1052f483311c4f051c2015b7f950e34f82e5a11",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1276",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "b833857709cee2605110b9ad4313806af834abe27ec294cd1a9149efe3dd170e",
+    "text": "diff --git a/drivers/infiniband/ulp/srpt/ib_srpt.c b/drivers/infiniband/ulp/srpt/ib_srpt.c\nindex 1ed08cc2e190..201b604f6371 100644\n--- a/drivers/infiniband/ulp/srpt/ib_srpt.c\n+++ b/drivers/infiniband/ulp/srpt/ib_srpt.c\n@@ -1754,47 +1754,6 @@ send_sense:\n \treturn -1;\n }\n \n-/**\n- * srpt_rx_mgmt_fn_tag() - Process a task management function by tag.\n- * @ch: RDMA channel of the task management request.\n- * @fn: Task management function to perform.\n- * @req_tag: Tag of the SRP task management request.\n- * @mgmt_ioctx: I/O context of the task management request.\n- *\n- * Returns zero if the target core will process the task management\n- * request asynchronously.\n- *\n- * Note: It is assumed that the initiator serializes tag-based task management\n- * requests.\n- */\n-static int srpt_rx_mgmt_fn_tag(struct srpt_send_ioctx *ioctx, u64 tag)\n-{\n-\tstruct srpt_device *sdev;\n-\tstruct srpt_rdma_ch *ch;\n-\tstruct srpt_send_ioctx *target;\n-\tint ret, i;\n-\n-\tret = -EINVAL;\n-\tch = ioctx->ch;\n-\tBUG_ON(!ch);\n-\tBUG_ON(!ch->sport);\n-\tsdev = ch->sport->sdev;\n-\tBUG_ON(!sdev);\n-\tspin_lock_irq(&sdev->spinlock);\n-\tfor (i = 0; i < ch->rq_size; ++i) {\n-\t\ttarget = ch->ioctx_ring[i];\n-\t\tif (target->cmd.se_lun == ioctx->cmd.se_lun &&\n-\t\t    target->tag == tag &&\n-\t\t    srpt_get_cmd_state(target) != SRPT_STATE_DONE) {\n-\t\t\tret = 0;\n-\t\t\t/* now let the target core abort &target->cmd; */\n-\t\t\tbreak;\n-\t\t}\n-\t}\n-\tspin_unlock_irq(&sdev->spinlock);\n-\treturn ret;\n-}\n-\n static int srp_tmr_to_tcm(int fn)\n {\n \tswitch (fn) {\n@@ -1829,7 +1788,6 @@ static void srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,\n \tstruct se_cmd *cmd;\n \tstruct se_session *sess = ch->sess;\n \tuint64_t unpacked_lun;\n-\tuint32_t tag = 0;\n \tint tcm_tmr;\n \tint rc;\n \n@@ -1845,25 +1803,10 @@ static void srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,\n \tsrpt_set_cmd_state(send_ioctx, SRPT_STATE_MGMT);\n \tsend_ioctx->tag = srp_tsk->tag;\n \ttcm_tmr = srp_tmr_to_tcm(srp_tsk->tsk_mgmt_func);\n-\tif (tcm_tmr < 0) {\n-\t\tsend_ioctx->cmd.se_tmr_req->response =\n-\t\t\tTMR_TASK_MGMT_FUNCTION_NOT_SUPPORTED;\n-\t\tgoto fail;\n-\t}\n \tunpacked_lun = srpt_unpack_lun((uint8_t *)&srp_tsk->lun,\n \t\t\t\t       sizeof(srp_tsk->lun));\n-\n-\tif (srp_tsk->tsk_mgmt_func == SRP_TSK_ABORT_TASK) {\n-\t\trc = srpt_rx_mgmt_fn_tag(send_ioctx, srp_tsk->task_tag);\n-\t\tif (rc < 0) {\n-\t\t\tsend_ioctx->cmd.se_tmr_req->response =\n-\t\t\t\t\tTMR_TASK_DOES_NOT_EXIST;\n-\t\t\tgoto fail;\n-\t\t}\n-\t\ttag = srp_tsk->task_tag;\n-\t}\n \trc = target_submit_tmr(&send_ioctx->cmd, sess, NULL, unpacked_lun,\n-\t\t\t\tsrp_tsk, tcm_tmr, GFP_KERNEL, tag,\n+\t\t\t\tsrp_tsk, tcm_tmr, GFP_KERNEL, srp_tsk->task_tag,\n \t\t\t\tTARGET_SCF_ACK_KREF);\n \tif (rc != 0) {\n \t\tsend_ioctx->cmd.se_tmr_req->response = TMR_FUNCTION_REJECTED;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

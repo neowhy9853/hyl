@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-79-rsyslog",
+  "candidate_sha256": "9b413ceca097c5b14a6c33e293df6c50a01349a43448c2c207aa9f170dc3b433",
+  "oracle_sha256": "93de7a7d02be7b06e8933cbeab6624ee6903122edd3d280f39c94440ae8ed130",
+  "candidate_nonempty": true,
+  "target_ref": "0cff91662a0921e1ae07a9de7cd7357073dc0a19",
+  "baseline_tree": "e73deff16a1e49d856b58073cde3fb5520d1360e",
+  "candidate_tree": "88c0b53020bedbe86b92f71a8062cd3559117566",
+  "oracle_tree": "88c0b53020bedbe86b92f71a8062cd3559117566",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-79-rsyslog",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "9b413ceca097c5b14a6c33e293df6c50a01349a43448c2c207aa9f170dc3b433",
+    "text": "diff --git a/tools/omfile.c b/tools/omfile.c\nindex 1702a3039..cf464cd1c 100644\n--- a/tools/omfile.c\n+++ b/tools/omfile.c\n@@ -17,7 +17,7 @@\n  * pipes. These have been moved to ompipe, to reduced the entanglement\n  * between the two different functionalities. -- rgerhards\n  *\n- * Copyright 2007-2023 Adiscon GmbH.\n+ * Copyright 2007-2024 Adiscon GmbH.\n  *\n  * This file is part of rsyslog.\n  *\n@@ -139,6 +139,7 @@ typedef struct _instanceData {\n \tstrm_t\t*pStrm;\t\t/* our output stream */\n \tshort nInactive;\t/* number of minutes not writen (STATIC files only) */\n \tchar\tbDynamicName;\t/* 0 - static name, 1 - dynamic name (with properties) */\n+\tint\tisDevNull;\t/* do we \"write\" to /dev/null? - if so, do nothing */\n \tint\tfCreateMode;\t/* file creation mode for open() */\n \tint\tfDirCreateMode;\t/* creation mode for mkdir() */\n \tint\tbCreateDirs;\t/* auto-create directories? */\n@@ -1081,6 +1082,11 @@ BEGINcommitTransaction\n \tinstanceData *__restrict__ const pData = pWrkrData->pData;\n \tunsigned i;\n CODESTARTcommitTransaction\n+\n+\tif(pData->isDevNull) {\n+\t\tgoto terminate;\n+\t}\n+\n \tpthread_mutex_lock(&pData->mutWrite);\n \n \tfor(i = 0 ; i < nParams ; ++i) {\n@@ -1105,6 +1111,8 @@ finalize_it:\n \t\tiRet = (pData->bDynamicName && runModConf->bDynafileDoNotSuspend) ?\n \t\t\tRS_RET_OK : RS_RET_SUSPENDED;\n \t}\n+\n+terminate:\n ENDcommitTransaction\n \n \n@@ -1135,6 +1143,7 @@ setInstParamDefaults(instanceData *__restrict__ const pData)\n \tpData->useCryprov = 0;\n \tpData->iCloseTimeout = -1;\n \tpData->iSizeLimit = 0;\n+\tpData->isDevNull = 0;\n \tpData->pszSizeLimitCmd = NULL;\n }\n \n@@ -1378,6 +1387,10 @@ CODESTARTnewActInst\n \t\tABORT_FINALIZE(RS_RET_MISSING_CNFPARAMS);\n \t}\n \n+\tif(!strcmp((const char*) pData->fname, \"/dev/null\")) {\n+\t\tpData->isDevNull = 1;\n+\t}\n+\n \tif(pData->sigprovName != NULL) {\n \t\tinitSigprov(pData, lst);\n \t}\n"
+  },
+  "trace_file": "trace.jsonl"
+}

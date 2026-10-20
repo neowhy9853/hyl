@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1702",
+  "candidate_sha256": "6580b97ab6ae1dfaeecb41f7edc8cf2f84cc4f66d21812a17a2ddbfd7463c893",
+  "oracle_sha256": "e67b4ab226e36d57156c3dc78bf8f83169654d25e57f47f23b9707ffae588090",
+  "candidate_nonempty": true,
+  "target_ref": "bed86e750bb02981a5efe110b7e9ae3d989a2e73",
+  "baseline_tree": "c6a95a7a11bb4ad237a695d841359885d7c4f46a",
+  "candidate_tree": "5d111cc07fca83cf762789119bff96e63530ece2",
+  "oracle_tree": "5d111cc07fca83cf762789119bff96e63530ece2",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1702",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "6580b97ab6ae1dfaeecb41f7edc8cf2f84cc4f66d21812a17a2ddbfd7463c893",
+    "text": "diff --git a/arch/x86/kernel/cpu/common.c b/arch/x86/kernel/cpu/common.c\nindex a706ecbd4799..09fc036907f5 100644\n--- a/arch/x86/kernel/cpu/common.c\n+++ b/arch/x86/kernel/cpu/common.c\n@@ -872,9 +872,9 @@ static const __initconst struct x86_cpu_id cpu_vuln_whitelist[] = {\n \t{}\n };\n \n-static bool __init cpu_matches(unsigned long which)\n+static bool __init cpu_matches(const struct x86_cpu_id *table, unsigned long which)\n {\n-\tconst struct x86_cpu_id *m = x86_match_cpu(cpu_vuln_whitelist);\n+\tconst struct x86_cpu_id *m = x86_match_cpu(table);\n \n \treturn m && !!(m->driver_data & which);\n }\n@@ -894,29 +894,32 @@ static void __init cpu_set_bug_bits(struct cpuinfo_x86 *c)\n \tu64 ia32_cap = x86_read_arch_cap_msr();\n \n \t/* Set ITLB_MULTIHIT bug if cpu is not in the whitelist and not mitigated */\n-\tif (!cpu_matches(NO_ITLB_MULTIHIT) && !(ia32_cap & ARCH_CAP_PSCHANGE_MC_NO))\n+\tif (!cpu_matches(cpu_vuln_whitelist, NO_ITLB_MULTIHIT) &&\n+\t    !(ia32_cap & ARCH_CAP_PSCHANGE_MC_NO))\n \t\tsetup_force_cpu_bug(X86_BUG_ITLB_MULTIHIT);\n \n-\tif (cpu_matches(NO_SPECULATION))\n+\tif (cpu_matches(cpu_vuln_whitelist, NO_SPECULATION))\n \t\treturn;\n \n \tsetup_force_cpu_bug(X86_BUG_SPECTRE_V1);\n \tsetup_force_cpu_bug(X86_BUG_SPECTRE_V2);\n \n-\tif (!cpu_matches(NO_SSB) && !(ia32_cap & ARCH_CAP_SSB_NO) &&\n+\tif (!cpu_matches(cpu_vuln_whitelist, NO_SSB) &&\n+\t    !(ia32_cap & ARCH_CAP_SSB_NO) &&\n \t   !cpu_has(c, X86_FEATURE_AMD_SSB_NO))\n \t\tsetup_force_cpu_bug(X86_BUG_SPEC_STORE_BYPASS);\n \n \tif (ia32_cap & ARCH_CAP_IBRS_ALL)\n \t\tsetup_force_cpu_cap(X86_FEATURE_IBRS_ENHANCED);\n \n-\tif (!cpu_matches(NO_MDS) && !(ia32_cap & ARCH_CAP_MDS_NO)) {\n+\tif (!cpu_matches(cpu_vuln_whitelist, NO_MDS) &&\n+\t    !(ia32_cap & ARCH_CAP_MDS_NO)) {\n \t\tsetup_force_cpu_bug(X86_BUG_MDS);\n-\t\tif (cpu_matches(MSBDS_ONLY))\n+\t\tif (cpu_matches(cpu_vuln_whitelist, MSBDS_ONLY))\n \t\t\tsetup_force_cpu_bug(X86_BUG_MSBDS_ONLY);\n \t}\n \n-\tif (!cpu_matches(NO_SWAPGS))\n+\tif (!cpu_matches(cpu_vuln_whitelist, NO_SWAPGS))\n \t\tsetup_force_cpu_bug(X86_BUG_SWAPGS);\n \n \t/*\n@@ -934,7 +937,7 @@ static void __init cpu_set_bug_bits(struct cpuinfo_x86 *c)\n \t     (ia32_cap & ARCH_CAP_TSX_CTRL_MSR)))\n \t\tsetup_force_cpu_bug(X86_BUG_TAA);\n \n-\tif (cpu_matches(NO_MELTDOWN))\n+\tif (cpu_matches(cpu_vuln_whitelist, NO_MELTDOWN))\n \t\treturn;\n \n \t/* Rogue Data Cache Load? No! */\n@@ -943,7 +946,7 @@ static void __init cpu_set_bug_bits(struct cpuinfo_x86 *c)\n \n \tsetup_force_cpu_bug(X86_BUG_CPU_MELTDOWN);\n \n-\tif (cpu_matches(NO_L1TF))\n+\tif (cpu_matches(cpu_vuln_whitelist, NO_L1TF))\n \t\treturn;\n \n \tsetup_force_cpu_bug(X86_BUG_L1TF);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

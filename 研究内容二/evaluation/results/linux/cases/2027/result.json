@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2027",
+  "candidate_sha256": "f9e08a3e354e049946a4f9ea12ce9407cb394a3ff403e7f3e8593c6b6347b328",
+  "oracle_sha256": "1aa2632f7d9a82c0a0d54a853784e1eda4f50674167f2f781f856872416c3389",
+  "candidate_nonempty": true,
+  "target_ref": "24f8bb89456419da6a5907b262afd1d0934c3bc9",
+  "baseline_tree": "80e37a47afdd0cadf88fab04acaf04bad6a60e31",
+  "candidate_tree": "fc340313f0769dfb7ce6ac64b0c5cbdc1e8e8d44",
+  "oracle_tree": "fc340313f0769dfb7ce6ac64b0c5cbdc1e8e8d44",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2027",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "f9e08a3e354e049946a4f9ea12ce9407cb394a3ff403e7f3e8593c6b6347b328",
+    "text": "diff --git a/fs/f2fs/inode.c b/fs/f2fs/inode.c\nindex 0f49638d2a5d..f22bcd0be7e0 100644\n--- a/fs/f2fs/inode.c\n+++ b/fs/f2fs/inode.c\n@@ -95,9 +95,30 @@ static void __recover_inline_status(struct inode *inode, struct page *ipage)\n \treturn;\n }\n \n-static bool sanity_check_inode(struct inode *inode)\n+static bool sanity_check_inode(struct inode *inode, struct page *node_page)\n {\n \tstruct f2fs_sb_info *sbi = F2FS_I_SB(inode);\n+\tunsigned long long iblocks;\n+\n+\tiblocks = le64_to_cpu(F2FS_INODE(node_page)->i_blocks);\n+\tif (!iblocks) {\n+\t\tset_sbi_flag(sbi, SBI_NEED_FSCK);\n+\t\tf2fs_msg(sbi->sb, KERN_WARNING,\n+\t\t\t\"%s: corrupted inode i_blocks i_ino=%lx iblocks=%llu, \"\n+\t\t\t\"run fsck to fix.\",\n+\t\t\t__func__, inode->i_ino, iblocks);\n+\t\treturn false;\n+\t}\n+\n+\tif (ino_of_node(node_page) != nid_of_node(node_page)) {\n+\t\tset_sbi_flag(sbi, SBI_NEED_FSCK);\n+\t\tf2fs_msg(sbi->sb, KERN_WARNING,\n+\t\t\t\"%s: corrupted inode footer i_ino=%lx, ino,nid: \"\n+\t\t\t\"[%u, %u] run fsck to fix.\",\n+\t\t\t__func__, inode->i_ino,\n+\t\t\tino_of_node(node_page), nid_of_node(node_page));\n+\t\treturn false;\n+\t}\n \n \treturn true;\n }\n@@ -150,7 +171,7 @@ static int do_read_inode(struct inode *inode)\n \n \tget_inline_info(fi, ri);\n \n-\tif (!sanity_check_inode(inode)) {\n+\tif (!sanity_check_inode(inode, node_page)) {\n \t\tf2fs_put_page(node_page, 1);\n \t\treturn -EINVAL;\n \t}\n"
+  },
+  "trace_file": "trace.jsonl"
+}

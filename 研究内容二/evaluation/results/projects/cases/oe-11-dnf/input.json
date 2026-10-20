@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-11-dnf",
+  "task_input": {
+    "repository": {
+      "name": "dnf",
+      "version": "4.16.2",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "335521e417d775df25238799144275847fbb3e7e",
+      "target_tree": "f6726c7099bb8b46f85d535973493e6f323cfab7"
+    },
+    "source_commit": "dee3952a8c19d733b7c5b1d854b1ccde947d770d",
+    "reference_parent": "b06dca11f0a389685819cf7f3f598ac3a4b62a81",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From dee3952a8c19d733b7c5b1d854b1ccde947d770d Mon Sep 17 00:00:00 2001\nFrom: Nic <138107617+nicbadiu@users.noreply.github.com>\nDate: Fri, 28 Jun 2024 12:56:34 +0300\nSubject: [PATCH] Allow local downloads to same `downloaddir`\n\nCurrently when `dnf download --downloaddir <dir> <package>` sources`<package>` from `<dir>` it triggers a `shutil.SameFileError` exception and aborts the entire download process.\n\nThis goes against the current flow which marks locally present RPMs that match a remote RPM as `[SKIPPED] <package>.rpm: Already downloaded`.\n\nThis change allows downloads of locally sourced packages to the same file, treating it as a no-op.\n---\n dnf/base.py | 5 ++++-\n 1 file changed, 4 insertions(+), 1 deletion(-)\n\ndiff --git a/dnf/base.py b/dnf/base.py\nindex dac3cefd7a..c1affc8cba 100644\n--- a/dnf/base.py\n+++ b/dnf/base.py\n@@ -1320,7 +1320,10 @@ def download_packages(self, pkglist, progress=None, callback_total=None):\n                                             pkg.location.lstrip(\"/\"))\n                 else:\n                     location = os.path.join(pkg.repo.pkgdir, pkg.location.lstrip(\"/\"))\n-                shutil.copy(location, self.conf.destdir)\n+                try:\n+                    shutil.copy(location, self.conf.destdir)\n+                except shutil.SameFileError:\n+                    pass\n \n     def add_remote_rpms(self, path_list, strict=True, progress=None):\n         # :api\n",
+      "sha256": "cb805753dafb576ef5189903f7add63a2ab9a96b9d8085dca1256f2cf0cdf18e"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for dnf.\ncase_id: oe-11-dnf\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: dee3952a8c19d733b7c5b1d854b1ccde947d770d\nreference_parent: b06dca11f0a389685819cf7f3f598ac3a4b62a81\ntarget_ref: 335521e417d775df25238799144275847fbb3e7e\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "85874631e7c1a73486a6867b8f15b0f14b7cf2cf421131ab706345727cdbd217",
+      "text": "From dee3952a8c19d733b7c5b1d854b1ccde947d770d Mon Sep 17 00:00:00 2001\nFrom: Nic <138107617+nicbadiu@users.noreply.github.com>\nDate: Fri, 28 Jun 2024 12:56:34 +0300\nSubject: [PATCH] Allow local downloads to same `downloaddir`\n\nCurrently when `dnf download --downloaddir <dir> <package>` sources`<package>` from `<dir>` it triggers a `shutil.SameFileError` exception and aborts the entire download process.\n\nThis goes against the current flow which marks locally present RPMs that match a remote RPM as `[SKIPPED] <package>.rpm: Already downloaded`.\n\nThis change allows downloads of locally sourced packages to the same file, treating it as a no-op.\n---\n dnf/base.py | 5 ++++-\n 1 file changed, 4 insertions(+), 1 deletion(-)\n\ndiff --git a/dnf/base.py b/dnf/base.py\nindex dac3cefd..c1affc8c 100644\n--- a/dnf/base.py\n+++ b/dnf/base.py\n@@ -1320,7 +1320,10 @@ class Base(object):\n                                             pkg.location.lstrip(\"/\"))\n                 else:\n                     location = os.path.join(pkg.repo.pkgdir, pkg.location.lstrip(\"/\"))\n-                shutil.copy(location, self.conf.destdir)\n+                try:\n+                    shutil.copy(location, self.conf.destdir)\n+                except shutil.SameFileError:\n+                    pass\n \n     def add_remote_rpms(self, path_list, strict=True, progress=None):\n         # :api\n-- \n2.27.0\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "5132bf6caacc1ac3384bf68d8d8a5c2297c88b86ac28fc9e140b2965631a652c",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-11-dnf/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-11-dnf",
+      "package": "dnf",
+      "version": "4.16.2",
+      "source_commit": "dee3952a8c19d733b7c5b1d854b1ccde947d770d",
+      "target_ref": "335521e417d775df25238799144275847fbb3e7e",
+      "target_tree": "f6726c7099bb8b46f85d535973493e6f323cfab7",
+      "reference_patch": "patches/oe-11-dnf/reference.patch",
+      "reference_sha256": "cb805753dafb576ef5189903f7add63a2ab9a96b9d8085dca1256f2cf0cdf18e",
+      "oracle_patch": "patches/oe-11-dnf/oracle.patch",
+      "oracle_sha256": "85874631e7c1a73486a6867b8f15b0f14b7cf2cf421131ab706345727cdbd217"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

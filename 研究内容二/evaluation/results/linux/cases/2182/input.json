@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "2182",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2182-9r3ey3tv/repo",
+      "target_ref": "d835f9c4ede2403582a159794e49dc6e5c4e9711",
+      "target_tree": "b0bd7f0f1a9a707f6c8e3fe707248a91b3934c68"
+    },
+    "source_commit": "bb84f2e119accfc65d5fa6ebe31751cdc3bca9fb",
+    "reference_parent": "2d39dcd734d8a0a6cc418fc6651cfdeb5cf636a9",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/gpu/drm/i915/gvt/gtt.c b/drivers/gpu/drm/i915/gvt/gtt.c\nindex ce0eb03709c3f6fa7ef30fa8a6f2049d0db41159..80c60754a5c1c25a30920ca5987d67542f7553f5 100644\n--- a/drivers/gpu/drm/i915/gvt/gtt.c\n+++ b/drivers/gpu/drm/i915/gvt/gtt.c\n@@ -1214,10 +1214,8 @@ static int split_2MB_gtt_entry(struct intel_vgpu *vgpu,\n \tfor_each_shadow_entry(sub_spt, &sub_se, sub_index) {\n \t\tret = intel_gvt_dma_map_guest_page(vgpu, start_gfn + sub_index,\n \t\t\t\t\t\t   PAGE_SIZE, &dma_addr);\n-\t\tif (ret) {\n-\t\t\tppgtt_invalidate_spt(spt);\n-\t\t\treturn ret;\n-\t\t}\n+\t\tif (ret)\n+\t\t\tgoto err;\n \t\tsub_se.val64 = se->val64;\n \n \t\t/* Copy the PAT field from PDE. */\n@@ -1236,6 +1234,17 @@ static int split_2MB_gtt_entry(struct intel_vgpu *vgpu,\n \tops->set_pfn(se, sub_spt->shadow_page.mfn);\n \tppgtt_set_shadow_entry(spt, se, index);\n \treturn 0;\n+err:\n+\t/* Cancel the existing addess mappings of DMA addr. */\n+\tfor_each_present_shadow_entry(sub_spt, &sub_se, sub_index) {\n+\t\tgvt_vdbg_mm(\"invalidate 4K entry\\n\");\n+\t\tppgtt_invalidate_pte(sub_spt, &sub_se);\n+\t}\n+\t/* Release the new allocated spt. */\n+\ttrace_spt_change(sub_spt->vgpu->id, \"release\", sub_spt,\n+\t\tsub_spt->guest_page.gfn, sub_spt->shadow_page.type);\n+\tppgtt_free_spt(sub_spt);\n+\treturn ret;\n }\n \n static int split_64KB_gtt_entry(struct intel_vgpu *vgpu,\n",
+      "sha256": "0de7a2e1d684b5bdb104ad833e3fe43998ea32bcab54467b8b4480bfda5f2f94"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2022-3707\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2182-9r3ey3tv/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2182-9r3ey3tv/repo/.patch-port/reference.diff\nreference_fix: bb84f2e119accfc65d5fa6ebe31751cdc3bca9fb\nreference_parent: 2d39dcd734d8a0a6cc418fc6651cfdeb5cf636a9\ntarget_ref: d835f9c4ede2403582a159794e49dc6e5c4e9711\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2182-9r3ey3tv/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-2182-9r3ey3tv/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2022-3707"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "0d3d5099a50badadad6837edda00e42149b2f657",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "bb9cd1882f36d259607283e161ed94b6a70c18ba1020ed6d7ab4fc9f6cd60824",
+      "text": "diff --git a/drivers/gpu/drm/i915/gvt/gtt.c b/drivers/gpu/drm/i915/gvt/gtt.c\nindex e5c2fdfc20e33c5b83ce6cd50b3606b978a8e671..7ea7abef6143f53b793886f132f0216f00988a57 100644\n--- a/drivers/gpu/drm/i915/gvt/gtt.c\n+++ b/drivers/gpu/drm/i915/gvt/gtt.c\n@@ -1195,10 +1195,8 @@ static int split_2MB_gtt_entry(struct intel_vgpu *vgpu,\n \tfor_each_shadow_entry(sub_spt, &sub_se, sub_index) {\n \t\tret = intel_gvt_hypervisor_dma_map_guest_page(vgpu,\n \t\t\t\tstart_gfn + sub_index, PAGE_SIZE, &dma_addr);\n-\t\tif (ret) {\n-\t\t\tppgtt_invalidate_spt(spt);\n-\t\t\treturn ret;\n-\t\t}\n+\t\tif (ret)\n+\t\t\tgoto err;\n \t\tsub_se.val64 = se->val64;\n \n \t\t/* Copy the PAT field from PDE. */\n@@ -1217,6 +1215,17 @@ static int split_2MB_gtt_entry(struct intel_vgpu *vgpu,\n \tops->set_pfn(se, sub_spt->shadow_page.mfn);\n \tppgtt_set_shadow_entry(spt, se, index);\n \treturn 0;\n+err:\n+\t/* Cancel the existing addess mappings of DMA addr. */\n+\tfor_each_present_shadow_entry(sub_spt, &sub_se, sub_index) {\n+\t\tgvt_vdbg_mm(\"invalidate 4K entry\\n\");\n+\t\tppgtt_invalidate_pte(sub_spt, &sub_se);\n+\t}\n+\t/* Release the new allocated spt. */\n+\ttrace_spt_change(sub_spt->vgpu->id, \"release\", sub_spt,\n+\t\tsub_spt->guest_page.gfn, sub_spt->shadow_page.type);\n+\tppgtt_free_spt(sub_spt);\n+\treturn ret;\n }\n \n static int split_64KB_gtt_entry(struct intel_vgpu *vgpu,\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "d1186f0f1054c2bcd309cf01469f00b91278feb78fe111184ceaccaa4d8c846e",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/02182_CVE-2022-3707/reference.diff",
+    "source_dataset_record": {
+      "case_id": 2182,
+      "cve": "CVE-2022-3707",
+      "source_commit": "bb84f2e119accfc65d5fa6ebe31751cdc3bca9fb",
+      "oracle_commit": "0d3d5099a50badadad6837edda00e42149b2f657"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

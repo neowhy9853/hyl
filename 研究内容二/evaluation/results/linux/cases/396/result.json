@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "396",
+  "candidate_sha256": "68e80696b90921a38edd356e30c3d80c5f89d28a9761ba8d07b3f836a8b34e53",
+  "oracle_sha256": "68e80696b90921a38edd356e30c3d80c5f89d28a9761ba8d07b3f836a8b34e53",
+  "candidate_nonempty": true,
+  "target_ref": "a4418e11cf9b617b0d433ec9507291dc785d3501",
+  "baseline_tree": "66292cdb8628fa6a37a4c9bb780a2083f2964568",
+  "candidate_tree": "b1c45acfc0b60e19b003377647c3022898d969d3",
+  "oracle_tree": "b1c45acfc0b60e19b003377647c3022898d969d3",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/396",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "68e80696b90921a38edd356e30c3d80c5f89d28a9761ba8d07b3f836a8b34e53",
+    "text": "diff --git a/fs/io_uring.c b/fs/io_uring.c\nindex e42c7583ee5e..0918fae6270c 100644\n--- a/fs/io_uring.c\n+++ b/fs/io_uring.c\n@@ -4140,6 +4140,8 @@ static int __io_async_wake(struct io_kiocb *req, struct io_poll_iocb *poll,\n \ttsk = req->task;\n \treq->result = mask;\n \tinit_task_work(&req->task_work, func);\n+\tpercpu_ref_get(&req->ctx->refs);\n+\n \t/*\n \t * If this fails, then the task is exiting. When a task exits, the\n \t * work gets canceled, so just cancel this request as well instead\n@@ -4239,6 +4241,7 @@ static void io_poll_task_handler(struct io_kiocb *req, struct io_kiocb **nxt)\n static void io_poll_task_func(struct callback_head *cb)\n {\n \tstruct io_kiocb *req = container_of(cb, struct io_kiocb, task_work);\n+\tstruct io_ring_ctx *ctx = req->ctx;\n \tstruct io_kiocb *nxt = NULL;\n \n \tio_poll_task_handler(req, &nxt);\n@@ -4249,6 +4252,7 @@ static void io_poll_task_func(struct callback_head *cb)\n \t\t__io_queue_sqe(nxt, NULL);\n \t\tmutex_unlock(&ctx->uring_lock);\n \t}\n+\tpercpu_ref_put(&ctx->refs);\n }\n \n static int io_poll_double_wake(struct wait_queue_entry *wait, unsigned mode,\n@@ -4365,6 +4369,7 @@ static void io_async_task_func(struct callback_head *cb)\n \n \tif (io_poll_rewait(req, &apoll->poll)) {\n \t\tspin_unlock_irq(&ctx->completion_lock);\n+\t\tpercpu_ref_put(&ctx->refs);\n \t\treturn;\n \t}\n \n@@ -4402,6 +4407,7 @@ static void io_async_task_func(struct callback_head *cb)\n \t\treq_set_fail_links(req);\n \t\tio_double_put_req(req);\n \t}\n+\tpercpu_ref_put(&ctx->refs);\n }\n \n static int io_async_wake(struct wait_queue_entry *wait, unsigned mode, int sync,\n"
+  },
+  "trace_file": "trace.jsonl"
+}

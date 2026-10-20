@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1236",
+  "candidate_sha256": "b150a1f61209cb967bcc81f4952484c3056d59ba658deafaf34c7be32a71f79a",
+  "oracle_sha256": "c3be5246c6f7a52cf3fab3a71889326eff846b8ec9a54b733f5d45de209a611a",
+  "candidate_nonempty": true,
+  "target_ref": "7130a87ca32396eb9bf48b71a2d42259ae44c6c7",
+  "baseline_tree": "2b1de6e314e9d301569b8ab77fd48276a5fa8ab3",
+  "candidate_tree": "1f0cda4c4aa8092e3d77ecdf9b5217038596e083",
+  "oracle_tree": "1f0cda4c4aa8092e3d77ecdf9b5217038596e083",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1236",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "b150a1f61209cb967bcc81f4952484c3056d59ba658deafaf34c7be32a71f79a",
+    "text": "diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c\nindex 16e2500e8590..78b268bd7f01 100644\n--- a/net/netfilter/nf_tables_api.c\n+++ b/net/netfilter/nf_tables_api.c\n@@ -1268,7 +1268,7 @@ static int nft_flush_table(struct nft_ctx *ctx)\n \t\tif (!nft_is_active_next(ctx->net, chain))\n \t\t\tcontinue;\n \n-\t\tif (nft_chain_is_bound(chain))\n+\t\tif (nft_chain_binding(chain))\n \t\t\tcontinue;\n \n \t\tctx->chain = chain;\n@@ -1312,7 +1312,7 @@ static int nft_flush_table(struct nft_ctx *ctx)\n \t\tif (!nft_is_active_next(ctx->net, chain))\n \t\t\tcontinue;\n \n-\t\tif (nft_chain_is_bound(chain))\n+\t\tif (nft_chain_binding(chain))\n \t\t\tcontinue;\n \n \t\tctx->chain = chain;\n@@ -2599,6 +2599,9 @@ static int nf_tables_delchain(struct net *net, struct sock *nlsk,\n \t\treturn PTR_ERR(chain);\n \t}\n \n+\tif (nft_chain_binding(chain))\n+\t\treturn -EOPNOTSUPP;\n+\n \tif (nlh->nlmsg_flags & NLM_F_NONREC &&\n \t    chain->use > 0)\n \t\treturn -EBUSY;\n@@ -3498,6 +3501,11 @@ static int nf_tables_newrule(struct net *net, struct sock *nlsk,\n \t}\n \n \tif (nlh->nlmsg_flags & NLM_F_REPLACE) {\n+\t\tif (nft_chain_binding(chain)) {\n+\t\t\terr = -EOPNOTSUPP;\n+\t\t\tgoto err_destroy_flow_rule;\n+\t\t}\n+\n \t\ttrans = nft_trans_rule_add(&ctx, NFT_MSG_NEWRULE, rule);\n \t\tif (trans == NULL) {\n \t\t\terr = -ENOMEM;\n@@ -3606,7 +3614,7 @@ static int nf_tables_delrule(struct net *net, struct sock *nlsk,\n \t\t\tNL_SET_BAD_ATTR(extack, nla[NFTA_RULE_CHAIN]);\n \t\t\treturn PTR_ERR(chain);\n \t\t}\n-\t\tif (nft_chain_is_bound(chain))\n+\t\tif (nft_chain_binding(chain))\n \t\t\treturn -EOPNOTSUPP;\n \t}\n \n@@ -3636,7 +3644,7 @@ static int nf_tables_delrule(struct net *net, struct sock *nlsk,\n \t\tlist_for_each_entry(chain, &table->chains, list) {\n \t\t\tif (!nft_is_active_next(net, chain))\n \t\t\t\tcontinue;\n-\t\t\tif (nft_chain_is_bound(chain))\n+\t\t\tif (nft_chain_binding(chain))\n \t\t\t\tcontinue;\n \n \t\t\tctx.chain = chain;\n@@ -9529,7 +9537,7 @@ static void __nft_release_table(struct net *net, struct nft_table *table)\n \tctx.family = table->family;\n \tctx.table = table;\n \tlist_for_each_entry(chain, &table->chains, list) {\n-\t\tif (nft_chain_is_bound(chain))\n+\t\tif (nft_chain_binding(chain))\n \t\t\tcontinue;\n \n \t\tctx.chain = chain;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "987",
+  "candidate_sha256": "954d442082c69381519007b3d57c8965921c907058e8cec3ef34b73f8b52cdb7",
+  "oracle_sha256": "6030d260958ae9b2a179c6bf74b1f4882bdcb04f4b481d64d387fec1f46108cb",
+  "candidate_nonempty": true,
+  "target_ref": "5a7957491e31c5d6bbffa2e5d471402e931f14ca",
+  "baseline_tree": "bc1c49e9b3973b17a3dbc0910676fae1a6ed8f78",
+  "candidate_tree": "f53ee78b45c10773d4f6984894f1cc4bb5e271c7",
+  "oracle_tree": "283b2703403042ea454512fe637a9fa48158155e",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/987",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "954d442082c69381519007b3d57c8965921c907058e8cec3ef34b73f8b52cdb7",
+    "text": "diff --git a/mm/khugepaged.c b/mm/khugepaged.c\nindex ff389d970b68..9d8ac5c4f883 100644\n--- a/mm/khugepaged.c\n+++ b/mm/khugepaged.c\n@@ -443,21 +443,25 @@ static bool hugepage_vma_check(struct vm_area_struct *vma,\n \tif (!transhuge_vma_enabled(vma, vm_flags))\n \t\treturn false;\n \n+\tif (vma->vm_file && !IS_ALIGNED((vma->vm_start >> PAGE_SHIFT) -\n+\t\t\t\tvma->vm_pgoff, HPAGE_PMD_NR))\n+\t\treturn false;\n+\n \t/* Enabled via shmem mount options or sysfs settings. */\n-\tif (shmem_file(vma->vm_file) && shmem_huge_enabled(vma)) {\n-\t\treturn IS_ALIGNED((vma->vm_start >> PAGE_SHIFT) - vma->vm_pgoff,\n-\t\t\t\tHPAGE_PMD_NR);\n-\t}\n+\tif (shmem_file(vma->vm_file))\n+\t\treturn shmem_huge_enabled(vma);\n \n \t/* THP settings require madvise. */\n \tif (!(vm_flags & VM_HUGEPAGE) && !khugepaged_always())\n \t\treturn false;\n \n-\t/* Read-only file mappings need to be aligned for THP to work. */\n+\t/* Only regular file is valid */\n \tif (IS_ENABLED(CONFIG_READ_ONLY_THP_FOR_FS) && vma->vm_file &&\n \t    (vm_flags & VM_DENYWRITE)) {\n-\t\treturn IS_ALIGNED((vma->vm_start >> PAGE_SHIFT) - vma->vm_pgoff,\n-\t\t\t\tHPAGE_PMD_NR);\n+\t\tstruct inode *inode = vma->vm_file->f_inode;\n+\n+\t\treturn !inode_is_open_for_write(inode) &&\n+\t\t\tS_ISREG(inode->i_mode);\n \t}\n \n \tif (!vma->anon_vma || vma->vm_ops)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

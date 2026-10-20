@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2182",
+  "candidate_sha256": "5786d093b24f3128246258ce86b88467f3152f34d69e8064820e1f9b2849b0a2",
+  "oracle_sha256": "bb9cd1882f36d259607283e161ed94b6a70c18ba1020ed6d7ab4fc9f6cd60824",
+  "candidate_nonempty": true,
+  "target_ref": "d835f9c4ede2403582a159794e49dc6e5c4e9711",
+  "baseline_tree": "b0bd7f0f1a9a707f6c8e3fe707248a91b3934c68",
+  "candidate_tree": "47fbc2981ab537f3df9593c295adc7a32875373b",
+  "oracle_tree": "47fbc2981ab537f3df9593c295adc7a32875373b",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2182",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "5786d093b24f3128246258ce86b88467f3152f34d69e8064820e1f9b2849b0a2",
+    "text": "diff --git a/drivers/gpu/drm/i915/gvt/gtt.c b/drivers/gpu/drm/i915/gvt/gtt.c\nindex e5c2fdfc20e3..7ea7abef6143 100644\n--- a/drivers/gpu/drm/i915/gvt/gtt.c\n+++ b/drivers/gpu/drm/i915/gvt/gtt.c\n@@ -1195,10 +1195,8 @@ static int split_2MB_gtt_entry(struct intel_vgpu *vgpu,\n \tfor_each_shadow_entry(sub_spt, &sub_se, sub_index) {\n \t\tret = intel_gvt_hypervisor_dma_map_guest_page(vgpu,\n \t\t\t\tstart_gfn + sub_index, PAGE_SIZE, &dma_addr);\n-\t\tif (ret) {\n-\t\t\tppgtt_invalidate_spt(spt);\n-\t\t\treturn ret;\n-\t\t}\n+\t\tif (ret)\n+\t\t\tgoto err;\n \t\tsub_se.val64 = se->val64;\n \n \t\t/* Copy the PAT field from PDE. */\n@@ -1217,6 +1215,17 @@ static int split_2MB_gtt_entry(struct intel_vgpu *vgpu,\n \tops->set_pfn(se, sub_spt->shadow_page.mfn);\n \tppgtt_set_shadow_entry(spt, se, index);\n \treturn 0;\n+err:\n+\t/* Cancel the existing addess mappings of DMA addr. */\n+\tfor_each_present_shadow_entry(sub_spt, &sub_se, sub_index) {\n+\t\tgvt_vdbg_mm(\"invalidate 4K entry\\n\");\n+\t\tppgtt_invalidate_pte(sub_spt, &sub_se);\n+\t}\n+\t/* Release the new allocated spt. */\n+\ttrace_spt_change(sub_spt->vgpu->id, \"release\", sub_spt,\n+\t\tsub_spt->guest_page.gfn, sub_spt->shadow_page.type);\n+\tppgtt_free_spt(sub_spt);\n+\treturn ret;\n }\n \n static int split_64KB_gtt_entry(struct intel_vgpu *vgpu,\n"
+  },
+  "trace_file": "trace.jsonl"
+}

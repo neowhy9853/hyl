@@ -1,0 +1,47 @@
+{
+  "round": 1,
+  "case_id": "case_050",
+  "source_index": 49,
+  "repo": "kernel",
+  "commit_id": "a950b115ff837f0ddce747ee3878a4c86e6b91a3",
+  "oracle_label": "fix",
+  "predicted_label": "fix",
+  "match": true,
+  "eval_status": "ok",
+  "run_status": "finished",
+  "session_id": "2d10e2885e14",
+  "repair_session_id": "",
+  "parse_error": "",
+  "run_error": "",
+  "parsed_candidate": {
+    "primary_label": "fix",
+    "confidence": 0.95,
+    "reason": "提交纠正了 hugetlb 映射在特定操作序列下不支持 softdirty 跟踪的错误，导致 SIGBUS 或错误映射匿名页。补丁修改了 vma_wants_writenotify 函数，添加了对 VM_HUGETLB 的判断，修复了错误路径。",
+    "intent_items": [
+      {
+        "target": "mm/mmap.c 中的 vma_wants_writenotify 函数",
+        "change": "在函数中添加了对 VM_HUGETLB 标志的检查，当 vma 是 hugetlb 映射时，返回 false，避免移除 VM_SHARED 标志。",
+        "effect_or_reason": "修复了 hugetlb 共享映射在 mprotect 和 clear_refs 操作后不支持 softdirty 跟踪的问题，防止了 SIGBUS 崩溃和错误的匿名页映射。",
+        "context_used": [],
+        "source_breakdown": {
+          "shared_support": [
+            "提交修复了 hugetlb 不支持 softdirty 跟踪的问题。",
+            "补丁在 vma_wants_writenotify 中添加了 VM_HUGETLB 检查。"
+          ],
+          "message_only_details": [
+            "问题表现为特定测试程序在单 free hugetlb 页时触发 SIGBUS，在多页时错误映射匿名页并破坏 MAP_SHARED 语义。"
+          ],
+          "code_only_details": [
+            "具体改动是在 vma_wants_writenotify 的条件中增加 `!(vma->vm_flags & VM_HUGETLB)`。"
+          ]
+        },
+        "evidence": [
+          "提交前错误路径：vma_wants_writenotify 对 hugetlb 映射返回 true，导致 vma_set_page_prot 移除 VM_SHARED，映射为写保护，后续写操作失败或映射错误页面。",
+          "提交后纠正：添加 VM_HUGETLB 检查，使 hugetlb 映射返回 false，保留 VM_SHARED，映射保持可写，支持正确的写操作。"
+        ]
+      }
+    ]
+  },
+  "trace_path": "traces/case_050",
+  "trace_status": "available"
+}

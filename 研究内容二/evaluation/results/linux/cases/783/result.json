@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "783",
+  "candidate_sha256": "4b49a289616dcdb66d9ff474066c13f3f31baf561b21b163d5cfd4c0aa3d8a29",
+  "oracle_sha256": "11e08ba0823777d8eca76ecac005ffbda2f11570a9b34992a25d3a9f2f54806c",
+  "candidate_nonempty": true,
+  "target_ref": "3a63b718200be5b1997f6eb28e5e688ec58ec41b",
+  "baseline_tree": "8998ddf82e28a659048379a00441231046ace755",
+  "candidate_tree": "80fbbd94dcb8817d03d14c763b9a362ca1fb73a6",
+  "oracle_tree": "7252f129cf760d147811d2826642c499397e1954",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/783",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "4b49a289616dcdb66d9ff474066c13f3f31baf561b21b163d5cfd4c0aa3d8a29",
+    "text": "diff --git a/kernel/cgroup/cgroup-v1.c b/kernel/cgroup/cgroup-v1.c\nindex 41e0837a5a0b..0701bff84114 100644\n--- a/kernel/cgroup/cgroup-v1.c\n+++ b/kernel/cgroup/cgroup-v1.c\n@@ -549,6 +549,14 @@ static ssize_t cgroup_release_agent_write(struct kernfs_open_file *of,\n \n \tBUILD_BUG_ON(sizeof(cgrp->root->release_agent_path) < PATH_MAX);\n \n+\t/*\n+\t * Release agent gets called with all capabilities,\n+\t * require capabilities to set release agent.\n+\t */\n+\tif ((of->file->f_cred->user_ns != &init_user_ns) ||\n+\t    !capable(CAP_SYS_ADMIN))\n+\t\treturn -EPERM;\n+\n \tcgrp = cgroup_kn_lock_live(of->kn, false);\n \tif (!cgrp)\n \t\treturn -ENODEV;\n@@ -1058,6 +1066,16 @@ int cgroup1_reconfigure(struct fs_context *fc)\n \t\tpr_warn(\"option changes via remount are deprecated (pid=%d comm=%s)\\n\",\n \t\t\ttask_tgid_nr(current), current->comm);\n \n+\t/*\n+\t * Release agent gets called with all capabilities,\n+\t * require capabilities to set release agent.\n+\t */\n+\tif (ctx->release_agent &&\n+\t    ((ctx->ns->user_ns != &init_user_ns) || !capable(CAP_SYS_ADMIN))) {\n+\t\tret = -EINVAL;\n+\t\tgoto out_unlock;\n+\t}\n+\n \tadded_mask = ctx->subsys_mask & ~root->subsys_mask;\n \tremoved_mask = root->subsys_mask & ~ctx->subsys_mask;\n \n@@ -1187,6 +1205,14 @@ static int cgroup1_root_to_use(struct fs_context *fc)\n \tif (ctx->ns != &init_cgroup_ns)\n \t\treturn -EPERM;\n \n+\t/*\n+\t * Release agent gets called with all capabilities,\n+\t * require capabilities to set release agent.\n+\t */\n+\tif (ctx->release_agent &&\n+\t    ((ctx->ns->user_ns != &init_user_ns) || !capable(CAP_SYS_ADMIN)))\n+\t\treturn -EINVAL;\n+\n \troot = kzalloc(sizeof(*root), GFP_KERNEL);\n \tif (!root)\n \t\treturn -ENOMEM;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

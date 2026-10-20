@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "1712",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1712-2fldwgro/repo",
+      "target_ref": "a88f5ccd2ac9798c046609a8aec18c3f522a6334",
+      "target_tree": "deaa52e4ccdce318d0ec1dc5071174f8a91acc31"
+    },
+    "source_commit": "b5e2f339865fb443107e5b10603e53bbc92dc054",
+    "reference_parent": "f856567b930dfcdbc3323261bf77240ccdde01f5",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/drivers/staging/wlags49_h2/wl_priv.c b/drivers/staging/wlags49_h2/wl_priv.c\nindex c97e0e154d285d8b638dc5adb7a1bd4ac764d586..7e10dcdc3090085460918be8dfa9261df14eaa13 100644\n--- a/drivers/staging/wlags49_h2/wl_priv.c\n+++ b/drivers/staging/wlags49_h2/wl_priv.c\n@@ -570,6 +570,7 @@ int wvlan_uil_put_info(struct uilreq *urq, struct wl_private *lp)\n \tltv_t                   *pLtv;\n \tbool_t                  ltvAllocated = FALSE;\n \tENCSTRCT                sEncryption;\n+\tsize_t\t\t\tlen;\n \n #ifdef USE_WDS\n \thcf_16                  hcfPort  = HCF_PORT_0;\n@@ -686,7 +687,8 @@ int wvlan_uil_put_info(struct uilreq *urq, struct wl_private *lp)\n \t\t\t\t\tbreak;\n \t\t\t\tcase CFG_CNF_OWN_NAME:\n \t\t\t\t\tmemset(lp->StationName, 0, sizeof(lp->StationName));\n-\t\t\t\t\tmemcpy((void *)lp->StationName, (void *)&pLtv->u.u8[2], (size_t)pLtv->u.u16[0]);\n+\t\t\t\t\tlen = min_t(size_t, pLtv->u.u16[0], sizeof(lp->StationName));\n+\t\t\t\t\tstrlcpy(lp->StationName, &pLtv->u.u8[2], len);\n \t\t\t\t\tpLtv->u.u16[0] = CNV_INT_TO_LITTLE(pLtv->u.u16[0]);\n \t\t\t\t\tbreak;\n \t\t\t\tcase CFG_CNF_LOAD_BALANCING:\n@@ -1783,6 +1785,7 @@ int wvlan_set_station_nickname(struct net_device *dev,\n {\n \tstruct wl_private *lp = wl_priv(dev);\n \tunsigned long flags;\n+\tsize_t len;\n \tint         ret = 0;\n \t/*------------------------------------------------------------------------*/\n \n@@ -1793,8 +1796,8 @@ int wvlan_set_station_nickname(struct net_device *dev,\n \twl_lock(lp, &flags);\n \n \tmemset(lp->StationName, 0, sizeof(lp->StationName));\n-\n-\tmemcpy(lp->StationName, extra, wrqu->data.length);\n+\tlen = min_t(size_t, wrqu->data.length, sizeof(lp->StationName));\n+\tstrlcpy(lp->StationName, extra, len);\n \n \t/* Commit the adapter parameters */\n \twl_apply(lp);\n",
+      "sha256": "f966dc9c3307508566bc2bd99ce756653f20ad2dc418795179db0dbb0e720280"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2013-4514\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1712-2fldwgro/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1712-2fldwgro/repo/.patch-port/reference.diff\nreference_fix: b5e2f339865fb443107e5b10603e53bbc92dc054\nreference_parent: f856567b930dfcdbc3323261bf77240ccdde01f5\ntarget_ref: a88f5ccd2ac9798c046609a8aec18c3f522a6334\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1712-2fldwgro/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-unseen140-parallel30/task-workspaces/new-porter-1712-2fldwgro/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2013-4514"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "840834b578803d8153b6fd8526d23e615916208b",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "13e824ff6e476a3c95905e617dda786093c34dacc31c8f7241bd801677da40da",
+      "text": "diff --git a/drivers/staging/wlags49_h2/wl_priv.c b/drivers/staging/wlags49_h2/wl_priv.c\nindex 260d4f0d47b427a8506835752fe94f9c4713f40f..b3d2e179c4e5a325aa774286f5987879b1eba5c8 100644\n--- a/drivers/staging/wlags49_h2/wl_priv.c\n+++ b/drivers/staging/wlags49_h2/wl_priv.c\n@@ -570,6 +570,7 @@ int wvlan_uil_put_info( struct uilreq *urq, struct wl_private *lp )\n \tltv_t                   *pLtv;\n \tbool_t                  ltvAllocated = FALSE;\n \tENCSTRCT                sEncryption;\n+\tsize_t\t\t\tlen;\n \n #ifdef USE_WDS\n \thcf_16                  hcfPort  = HCF_PORT_0;\n@@ -686,7 +687,8 @@ int wvlan_uil_put_info( struct uilreq *urq, struct wl_private *lp )\n \t\t\t\t\tbreak;\n \t\t\t\tcase CFG_CNF_OWN_NAME:\n \t\t\t\t\tmemset( lp->StationName, 0, sizeof( lp->StationName ));\n-\t\t\t\t\tmemcpy( (void *)lp->StationName, (void *)&pLtv->u.u8[2], (size_t)pLtv->u.u16[0]);\n+\t\t\t\t\tlen = min_t(size_t, pLtv->u.u16[0], sizeof(lp->StationName));\n+\t\t\t\t\tstrlcpy(lp->StationName, &pLtv->u.u8[2], len);\n \t\t\t\t\tpLtv->u.u16[0] = CNV_INT_TO_LITTLE( pLtv->u.u16[0] );\n \t\t\t\t\tbreak;\n \t\t\t\tcase CFG_CNF_LOAD_BALANCING:\n@@ -1800,6 +1802,7 @@ int wvlan_set_station_nickname(struct net_device *dev,\n {\n         struct wl_private *lp = wl_priv(dev);\n         unsigned long flags;\n+\tsize_t len;\n         int         ret = 0;\n \t/*------------------------------------------------------------------------*/\n \n@@ -1810,8 +1813,8 @@ int wvlan_set_station_nickname(struct net_device *dev,\n         wl_lock(lp, &flags);\n \n         memset( lp->StationName, 0, sizeof( lp->StationName ));\n-\n-        memcpy( lp->StationName, extra, wrqu->data.length);\n+\tlen = min_t(size_t, wrqu->data.length, sizeof(lp->StationName));\n+\tstrlcpy(lp->StationName, extra, len);\n \n         /* Commit the adapter parameters */\n         wl_apply( lp );\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "3cfda19aa14377f37cb6c4ad66e0922bd301661ce05189fd4afea1abe28f0fdf",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-unseen140-parallel30/prepared-inputs/01712_CVE-2013-4514/reference.diff",
+    "source_dataset_record": {
+      "case_id": 1712,
+      "cve": "CVE-2013-4514",
+      "source_commit": "b5e2f339865fb443107e5b10603e53bbc92dc054",
+      "oracle_commit": "840834b578803d8153b6fd8526d23e615916208b"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

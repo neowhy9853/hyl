@@ -1,0 +1,25 @@
+{
+  "dataset": "projects",
+  "case_id": "oe-08-dnf",
+  "candidate_sha256": "e080d21eeec56da4d06f318213cd763aaa6cb49ff77b536861d7e1777ade7965",
+  "oracle_sha256": "e893d27cce681766c317dbe0cbf3834836c6d4676edee4b7b7beeabff3505663",
+  "candidate_nonempty": true,
+  "target_ref": "9cc1339ee9d21a744230a3cd97f488dbbbe38b37",
+  "baseline_tree": "2a4b9ef5a868150b9b9d62df21384e90f031bdfe",
+  "candidate_tree": "0022cdea5e4ef2086d02de8836f39f3a5a2a37ad",
+  "oracle_tree": "0022cdea5e4ef2086d02de8836f39f3a5a2a37ad",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/oe-08-dnf",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "e080d21eeec56da4d06f318213cd763aaa6cb49ff77b536861d7e1777ade7965",
+    "text": "diff --git a/dnf/base.py b/dnf/base.py\nindex 7e97e212..114beb9a 100644\n--- a/dnf/base.py\n+++ b/dnf/base.py\n@@ -2320,19 +2320,22 @@ class Base(object):\n \n         if not installed_pkgs:\n             raise dnf.exceptions.PackagesNotInstalledError(\n-                'no package matched', pkg_spec, available_nevra2pkg.values())\n+                'no package matched', pkg_spec, available_q.run())\n \n         cnt = 0\n         clean_deps = self.conf.clean_requirements_on_remove\n+        strict = self.conf.strict\n         for installed_pkg in installed_pkgs:\n             try:\n-                available_pkg = available_nevra2pkg[ucd(installed_pkg)]\n+                available_pkgs = available_nevra2pkg[ucd(installed_pkg)]\n             except KeyError:\n                 if not remove_na:\n                     continue\n                 self._goal.erase(installed_pkg, clean_deps=clean_deps)\n             else:\n-                self._goal.install(available_pkg)\n+                sltr = dnf.selector.Selector(self.sack)\n+                sltr.set(pkg=available_pkgs)\n+                self._goal.install(select=sltr, optional=(not strict))\n             cnt += 1\n \n         if cnt == 0:\ndiff --git a/dnf/query.py b/dnf/query.py\nindex ab4139bf..02e631a6 100644\n--- a/dnf/query.py\n+++ b/dnf/query.py\n@@ -43,4 +43,7 @@ def _by_provides(sack, patterns, ignore_case=False, get_query=False):\n     return q.run()\n \n def _per_nevra_dict(pkg_list):\n-    return {ucd(pkg):pkg for pkg in pkg_list}\n+    nevra_dic = {}\n+    for pkg in pkg_list:\n+        nevra_dic.setdefault(ucd(pkg), []).append(pkg)\n+    return nevra_dic\ndiff --git a/tests/test_queries.py b/tests/test_queries.py\nindex cdcb7ca4..e0253008 100644\n--- a/tests/test_queries.py\n+++ b/tests/test_queries.py\n@@ -128,4 +128,9 @@ class DictsTest(tests.support.TestCase):\n         dct = dnf.query._per_nevra_dict(pkgs)\n         self.assertCountEqual(dct.keys(),\n                               [\"lotus-3-16.x86_64\", \"lotus-3-16.i686\"])\n-        self.assertCountEqual(dct.values(), pkgs)\n+        test_list = []\n+        for list_items in dct.values():\n+            for item in list_items:\n+                test_list.append(item)\n+\n+        self.assertCountEqual(test_list, pkgs)\n"
+  },
+  "trace_file": "trace.jsonl"
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "449",
+  "candidate_sha256": "87e0046a65aefdfd464f1ddbf34da28f97eabf47cdef1ecd1bc55e7afb8c7fa4",
+  "oracle_sha256": "851b367791ee5004687dd74816df443f4c7dee14bfe43b77ee2a4b9ea424707c",
+  "candidate_nonempty": true,
+  "target_ref": "e0d9031feb2f899705f64b2f1c2de7926cee33cc",
+  "baseline_tree": "8e825769a51fb79b5b2f47a41e2076208d2d91e5",
+  "candidate_tree": "9fb9457ec836cd530c1a84b6cdb8a887288383a2",
+  "oracle_tree": "9fb9457ec836cd530c1a84b6cdb8a887288383a2",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/449",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "87e0046a65aefdfd464f1ddbf34da28f97eabf47cdef1ecd1bc55e7afb8c7fa4",
+    "text": "diff --git a/drivers/vfio/vfio_iommu_type1.c b/drivers/vfio/vfio_iommu_type1.c\nindex 2fa280671c1e..875634d0d020 100644\n--- a/drivers/vfio/vfio_iommu_type1.c\n+++ b/drivers/vfio/vfio_iommu_type1.c\n@@ -53,10 +53,16 @@ module_param_named(disable_hugepages,\n MODULE_PARM_DESC(disable_hugepages,\n \t\t \"Disable VFIO IOMMU support for IOMMU hugepages.\");\n \n+static unsigned int dma_entry_limit __read_mostly = U16_MAX;\n+module_param_named(dma_entry_limit, dma_entry_limit, uint, 0644);\n+MODULE_PARM_DESC(dma_entry_limit,\n+\t\t \"Maximum number of user DMA mappings per container (65535).\");\n+\n struct vfio_iommu {\n \tstruct list_head\tdomain_list;\n \tstruct mutex\t\tlock;\n \tstruct rb_root\t\tdma_list;\n+\tunsigned int\t\tdma_avail;\n \tbool\t\t\tv2;\n \tbool\t\t\tnesting;\n };\n@@ -382,6 +388,7 @@ static void vfio_remove_dma(struct vfio_iommu *iommu, struct vfio_dma *dma)\n \tvfio_unmap_unpin(iommu, dma);\n \tvfio_unlink_dma(iommu, dma);\n \tkfree(dma);\n+\tiommu->dma_avail++;\n }\n \n static unsigned long vfio_pgsize_bitmap(struct vfio_iommu *iommu)\n@@ -582,12 +589,18 @@ static int vfio_dma_do_map(struct vfio_iommu *iommu,\n \t\treturn -EEXIST;\n \t}\n \n+\tif (!iommu->dma_avail) {\n+\t\tmutex_unlock(&iommu->lock);\n+\t\treturn -ENOSPC;\n+\t}\n+\n \tdma = kzalloc(sizeof(*dma), GFP_KERNEL);\n \tif (!dma) {\n \t\tmutex_unlock(&iommu->lock);\n \t\treturn -ENOMEM;\n \t}\n \n+\tiommu->dma_avail--;\n \tdma->iova = iova;\n \tdma->vaddr = vaddr;\n \tdma->prot = prot;\n@@ -903,6 +916,7 @@ static void *vfio_iommu_type1_open(unsigned long arg)\n \n \tINIT_LIST_HEAD(&iommu->domain_list);\n \tiommu->dma_list = RB_ROOT;\n+\tiommu->dma_avail = dma_entry_limit;\n \tmutex_init(&iommu->lock);\n \n \treturn iommu;\n"
+  },
+  "trace_file": "trace.jsonl"
+}

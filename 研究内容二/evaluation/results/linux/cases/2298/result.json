@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2298",
+  "candidate_sha256": "b5c3a20a5d2e2cba676974e042e8785325b21428578d428edf90497fa85ffe37",
+  "oracle_sha256": "59f0c4459ceffde49a55eb2107896946b20a71b2d9b2e8d8a79ffdd562dac05c",
+  "candidate_nonempty": true,
+  "target_ref": "a93a63333dbdb182b87e8cc99df8b4474f867acb",
+  "baseline_tree": "f2ec8a3289ecc1a75eef86d4eb6e2a5be93454ce",
+  "candidate_tree": "e58c81c4c34073c1c21aed4e6de39bc46c5fd674",
+  "oracle_tree": "e58c81c4c34073c1c21aed4e6de39bc46c5fd674",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2298",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "b5c3a20a5d2e2cba676974e042e8785325b21428578d428edf90497fa85ffe37",
+    "text": "diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c\nindex 4a3735a795d0..3fa2da53400d 100644\n--- a/fs/ext4/inode.c\n+++ b/fs/ext4/inode.c\n@@ -701,6 +701,20 @@ has_zeroout:\n \t\tint ret = check_block_validity(inode, map);\n \t\tif (ret != 0)\n \t\t\treturn ret;\n+\n+\t\t/*\n+\t\t * Inodes with freshly allocated blocks where contents will be\n+\t\t * visible after transaction commit must be on transaction's\n+\t\t * ordered data list.\n+\t\t */\n+\t\tif (map->m_flags & EXT4_MAP_NEW &&\n+\t\t    !(map->m_flags & EXT4_MAP_UNWRITTEN) &&\n+\t\t    !IS_NOQUOTA(inode) &&\n+\t\t    ext4_should_order_data(inode)) {\n+\t\t\tret = ext4_jbd2_file_inode(handle, inode);\n+\t\t\tif (ret)\n+\t\t\t\treturn ret;\n+\t\t}\n \t}\n \treturn retval;\n }\n@@ -1065,15 +1079,6 @@ static int ext4_write_end(struct file *file,\n \tint i_size_changed = 0;\n \n \ttrace_ext4_write_end(inode, pos, len, copied);\n-\tif (ext4_test_inode_state(inode, EXT4_STATE_ORDERED_MODE)) {\n-\t\tret = ext4_jbd2_file_inode(handle, inode);\n-\t\tif (ret) {\n-\t\t\tunlock_page(page);\n-\t\t\tpage_cache_release(page);\n-\t\t\tgoto errout;\n-\t\t}\n-\t}\n-\n \tif (ext4_has_inline_data(inode)) {\n \t\tret = ext4_write_inline_data_end(inode, pos, len,\n \t\t\t\t\t\t copied, page);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

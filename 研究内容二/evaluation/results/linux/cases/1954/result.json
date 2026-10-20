@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1954",
+  "candidate_sha256": "eb224b74bc4f97fd9cff1da7072115b6e1ae595bba0a474d860e3c914ce67629",
+  "oracle_sha256": "546efed59902c941870a4fc8f3490d6f21f143266be3106ff998e6bdd631db24",
+  "candidate_nonempty": true,
+  "target_ref": "4edf04a3a307195be345f8189e37501ac247f68b",
+  "baseline_tree": "0d33b2adc56ca8876f97ec5ff603d09175d03028",
+  "candidate_tree": "650a5db03c5557cc2f50d23eea78ae796ab323e6",
+  "oracle_tree": "ad5af7340ac35c2f7dbd583d739e3b3d8a2cf92d",
+  "candidate_apply_passed": true,
+  "historical_verdict": "incorrect",
+  "case_path": "cases/1954",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "eb224b74bc4f97fd9cff1da7072115b6e1ae595bba0a474d860e3c914ce67629",
+    "text": "diff --git a/include/linux/mm.h b/include/linux/mm.h\nindex 6b85ec64d302..c9348e38417b 100644\n--- a/include/linux/mm.h\n+++ b/include/linux/mm.h\n@@ -2064,6 +2064,7 @@ static inline struct page *follow_page(struct vm_area_struct *vma,\n #define FOLL_NUMA\t0x200\t/* force NUMA hinting page fault */\n #define FOLL_MIGRATION\t0x400\t/* wait for page to replace migration entry */\n #define FOLL_TRIED\t0x800\t/* a retry, previous pass started an IO */\n+#define FOLL_COW\t0x1000\t/* internal GUP flag */\n \n typedef int (*pte_fn_t)(pte_t *pte, pgtable_t token, unsigned long addr,\n \t\t\tvoid *data);\ndiff --git a/mm/gup.c b/mm/gup.c\nindex 6297f6bccfb1..8d4e575acc75 100644\n--- a/mm/gup.c\n+++ b/mm/gup.c\n@@ -32,6 +32,16 @@ static struct page *no_page_table(struct vm_area_struct *vma,\n \treturn NULL;\n }\n \n+/*\n+ * FOLL_FORCE can write to even unwritable pte's, but only\n+ * after we've gone through a COW cycle and they are dirty.\n+ */\n+static inline bool can_follow_write_pte(pte_t pte, unsigned int flags)\n+{\n+\treturn pte_write(pte) ||\n+\t\t((flags & FOLL_FORCE) && (flags & FOLL_COW) && pte_dirty(pte));\n+}\n+\n static struct page *follow_page_pte(struct vm_area_struct *vma,\n \t\tunsigned long address, pmd_t *pmd, unsigned int flags)\n {\n@@ -66,7 +76,7 @@ retry:\n \t}\n \tif ((flags & FOLL_NUMA) && pte_protnone(pte))\n \t\tgoto no_page;\n-\tif ((flags & FOLL_WRITE) && !pte_write(pte)) {\n+\tif ((flags & FOLL_WRITE) && !can_follow_write_pte(pte, flags)) {\n \t\tpte_unmap_unlock(ptep, ptl);\n \t\treturn NULL;\n \t}\n@@ -315,7 +325,7 @@ static int faultin_page(struct task_struct *tsk, struct vm_area_struct *vma,\n \t * reCOWed by userspace write).\n \t */\n \tif ((ret & VM_FAULT_WRITE) && !(vma->vm_flags & VM_WRITE))\n-\t\t*flags &= ~FOLL_WRITE;\n+\t\t*flags |= FOLL_COW;\n \treturn 0;\n }\n \n"
+  },
+  "trace_file": "trace.jsonl"
+}

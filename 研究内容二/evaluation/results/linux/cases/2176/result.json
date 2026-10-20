@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "2176",
+  "candidate_sha256": "d9ddc4e0914111118b26a1f9b7342b3ea2eeaafd03765287328a34816f7c0abc",
+  "oracle_sha256": "1e51c709239122b8c0a0c1ad597737aab2888cae3a7cffbfa194c9b9aec22e10",
+  "candidate_nonempty": true,
+  "target_ref": "68edcec690a62dfc46c4061dab83c08573427e6b",
+  "baseline_tree": "2e3ba68633db9be715da2e951c57845daef5c7e6",
+  "candidate_tree": "f5c9ea58612727e8280d5a6aaa54d6293d855030",
+  "oracle_tree": "f5c9ea58612727e8280d5a6aaa54d6293d855030",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/2176",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "d9ddc4e0914111118b26a1f9b7342b3ea2eeaafd03765287328a34816f7c0abc",
+    "text": "diff --git a/arch/x86/include/asm/vmx.h b/arch/x86/include/asm/vmx.h\nindex 7004d21e6219..b4348fb451ab 100644\n--- a/arch/x86/include/asm/vmx.h\n+++ b/arch/x86/include/asm/vmx.h\n@@ -296,6 +296,7 @@ enum vmcs_field {\n #define INTR_TYPE_NMI_INTR\t\t(2 << 8) /* NMI */\n #define INTR_TYPE_HARD_EXCEPTION\t(3 << 8) /* processor exception */\n #define INTR_TYPE_SOFT_INTR             (4 << 8) /* software interrupt */\n+#define INTR_TYPE_PRIV_SW_EXCEPTION\t(5 << 8) /* ICE breakpoint - undocumented */\n #define INTR_TYPE_SOFT_EXCEPTION\t(6 << 8) /* software exception */\n \n /* GUEST_INTERRUPTIBILITY_INFO flags. */\ndiff --git a/arch/x86/kvm/vmx.c b/arch/x86/kvm/vmx.c\nindex 300ca8d07d9c..0a32bc7a510d 100644\n--- a/arch/x86/kvm/vmx.c\n+++ b/arch/x86/kvm/vmx.c\n@@ -868,6 +868,13 @@ static inline bool is_machine_check(u32 intr_info)\n \t\t(INTR_TYPE_HARD_EXCEPTION | MC_VECTOR | INTR_INFO_VALID_MASK);\n }\n \n+/* Undocumented: icebp/int1 */\n+static inline bool is_icebp(u32 intr_info)\n+{\n+\treturn (intr_info & (INTR_INFO_INTR_TYPE_MASK | INTR_INFO_VALID_MASK))\n+\t\t== (INTR_TYPE_PRIV_SW_EXCEPTION | INTR_INFO_VALID_MASK);\n+}\n+\n static inline bool cpu_has_vmx_msr_bitmap(void)\n {\n \treturn vmcs_config.cpu_based_exec_ctrl & CPU_BASED_USE_MSR_BITMAPS;\n@@ -4915,7 +4922,7 @@ static int handle_exception(struct kvm_vcpu *vcpu)\n \t\t      (KVM_GUESTDBG_SINGLESTEP | KVM_GUESTDBG_USE_HW_BP))) {\n \t\t\tvcpu->arch.dr6 &= ~15;\n \t\t\tvcpu->arch.dr6 |= dr6;\n-\t\t\tif (!(dr6 & ~DR6_RESERVED)) /* icebp */\n+\t\t\tif (is_icebp(intr_info))\n \t\t\t\tskip_emulated_instruction(vcpu);\n \n \t\t\tkvm_queue_exception(vcpu, DB_VECTOR);\n"
+  },
+  "trace_file": "trace.jsonl"
+}

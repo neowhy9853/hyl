@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-74-dnsmasq",
+  "task_input": {
+    "repository": {
+      "name": "dnsmasq",
+      "version": "2.90",
+      "path_at_run": "/workspace/repo",
+      "target_ref": "b17a60a5942496e1ac18a82a00a55fa21add208a",
+      "target_tree": "55e7ac06061d77564ae182f6f85448fec9eabc4e"
+    },
+    "source_commit": "ae85ea38581e97445622d2dad79cd09775cb201a",
+    "reference_parent": "b087cf4a6c3dd4c323a099770a44c24812381bf4",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From ae85ea38581e97445622d2dad79cd09775cb201a Mon Sep 17 00:00:00 2001\nFrom: Simon Kelley <simon@thekelleys.org.uk>\nDate: Thu, 21 Nov 2024 15:42:49 +0000\nSubject: [PATCH] Fix buffer overflow when configured lease-change script name\n is too long.\n\nThanks to Daniel Rhea for finding this one.\n---\n CHANGELOG   | 4 ++++\n src/lease.c | 4 ++++\n 2 files changed, 8 insertions(+)\n\ndiff --git a/CHANGELOG b/CHANGELOG\nindex 90817f1c..ef9756d7 100644\n--- a/CHANGELOG\n+++ b/CHANGELOG\n@@ -11,6 +11,10 @@ version 2.91\n \twhich is clearly rare in the wild, but if it did exist it could\n \tprovoke a SIGSEV. Thanks to Daniel Rhea for fuzzing this one.\n \n+\tFix buffer overflow when configured lease-change script name\n+\tis too long.\n+\tThanks to Daniel Rhea for finding this one.\n+\n version 2.90\n \tFix reversion in --rev-server introduced in 2.88 which\n \tcaused breakage if the prefix length is not exactly divisible\ndiff --git a/src/lease.c b/src/lease.c\nindex 55e8443b..a1330214 100644\n--- a/src/lease.c\n+++ b/src/lease.c\n@@ -150,6 +150,10 @@ void lease_init(time_t now)\n #ifdef HAVE_SCRIPT\n       if (daemon->lease_change_command)\n \t{\n+\t  /* 6 == strlen(\" init\") plus terminator */\n+\t  if (strlen(daemon->lease_change_command) + 6 > DHCP_BUFF_SZ)\n+\t    die(_(\"lease-change script name is too long\"), NULL, EC_FILE);\n+\t  \n \t  strcpy(daemon->dhcp_buff, daemon->lease_change_command);\n \t  strcat(daemon->dhcp_buff, \" init\");\n \t  leasestream = popen(daemon->dhcp_buff, \"r\");\n-- \n2.25.1\n\n",
+      "sha256": "02f949d3984af4f8acc56aa5ccb2206667303c790ee47c76c3dbbc020c1cdaa6"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for dnsmasq.\ncase_id: oe-74-dnsmasq\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: ae85ea38581e97445622d2dad79cd09775cb201a\nreference_parent: b087cf4a6c3dd4c323a099770a44c24812381bf4\ntarget_ref: b17a60a5942496e1ac18a82a00a55fa21add208a\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "f2a968b61304f27ccc8b588ea0f90a20f36401846ea3134728544b89bce3f8f8",
+      "text": "From ae85ea38581e97445622d2dad79cd09775cb201a Mon Sep 17 00:00:00 2001\nFrom: Simon Kelley <simon@thekelleys.org.uk>\nDate: Thu, 21 Nov 2024 15:42:49 +0000\nSubject: [PATCH] Fix buffer overflow when configured lease-change script name\n is too long.\n \nThanks to Daniel Rhea for finding this one.\n \nReference:https://thekelleys.org.uk/gitweb/?p=dnsmasq.git;a=patch;h=ae85ea38581e97445622d2dad79cd09775cb201a\nConflict:NA\n---\n src/lease.c | 4 ++++\n 1 file changed, 4 insertions(+)\n \ndiff --git a/src/lease.c b/src/lease.c\nindex 1a9f1c6..a944fbb 100644\n--- a/src/lease.c\n+++ b/src/lease.c\n@@ -155,6 +155,10 @@ void lease_init(time_t now)\n #ifdef HAVE_SCRIPT\n       if (daemon->lease_change_command)\n \t{\n+\t  /* 6 == strlen(\" init\") plus terminator */\n+\t  if (strlen(daemon->lease_change_command) + 6 > DHCP_BUFF_SZ)\n+\t    die(_(\"lease-change script name is too long\"), NULL, EC_FILE);\n+\t  \n \t  strcpy(daemon->dhcp_buff, daemon->lease_change_command);\n \t  strcat(daemon->dhcp_buff, \" init\");\n \t  leasestream = popen(daemon->dhcp_buff, \"r\");\n-- \n2.33.0\n \n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": "review/attempts/initial/agent-review/task.json"
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "d39148076577dbe81a60c0f64e78e7b4169d64bbcaad2be984c8bdd5c5121f40",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-74-dnsmasq/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-74-dnsmasq",
+      "package": "dnsmasq",
+      "version": "2.90",
+      "source_commit": "ae85ea38581e97445622d2dad79cd09775cb201a",
+      "target_ref": "b17a60a5942496e1ac18a82a00a55fa21add208a",
+      "target_tree": "55e7ac06061d77564ae182f6f85448fec9eabc4e",
+      "reference_patch": "patches/oe-74-dnsmasq/reference.patch",
+      "reference_sha256": "02f949d3984af4f8acc56aa5ccb2206667303c790ee47c76c3dbbc020c1cdaa6",
+      "oracle_patch": "patches/oe-74-dnsmasq/oracle.patch",
+      "oracle_sha256": "f2a968b61304f27ccc8b588ea0f90a20f36401846ea3134728544b89bce3f8f8"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

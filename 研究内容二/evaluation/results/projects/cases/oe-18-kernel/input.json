@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "projects",
+  "case_id": "oe-18-kernel",
+  "task_input": {
+    "repository": {
+      "name": "kernel",
+      "version": null,
+      "path_at_run": "/workspace/repo",
+      "target_ref": "f3072e528ba53a76e66a34613ecc7b86dc96816d",
+      "target_tree": "40a05790121fe8ebda7b7b2cc0c8700a20b2c220"
+    },
+    "source_commit": "01d3c8417b9c1b884a8a981a3b886da556512f36",
+    "reference_parent": "5a40f8af2ba1b9bdf46e2db10e8c9710538fbc63",
+    "port_mode": "history",
+    "reference_patch": {
+      "text": "From 01d3c8417b9c1b884a8a981a3b886da556512f36 Mon Sep 17 00:00:00 2001\nFrom: Quang Le <quanglex97@gmail.com>\nDate: Fri, 1 Aug 2025 13:54:16 -0400\nSubject: [PATCH] net/packet: fix a race in packet_set_ring() and\n packet_notifier()\n\nWhen packet_set_ring() releases po->bind_lock, another thread can\nrun packet_notifier() and process an NETDEV_UP event.\n\nThis race and the fix are both similar to that of commit 15fe076edea7\n(\"net/packet: fix a race in packet_bind() and packet_notifier()\").\n\nThere too the packet_notifier NETDEV_UP event managed to run while a\npo->bind_lock critical section had to be temporarily released. And\nthe fix was similarly to temporarily set po->num to zero to keep\nthe socket unhooked until the lock is retaken.\n\nThe po->bind_lock in packet_set_ring and packet_notifier precede the\nintroduction of git history.\n\nFixes: 1da177e4c3f4 (\"Linux-2.6.12-rc2\")\nCc: stable@vger.kernel.org\nSigned-off-by: Quang Le <quanglex97@gmail.com>\nSigned-off-by: Willem de Bruijn <willemb@google.com>\nLink: https://patch.msgid.link/20250801175423.2970334-1-willemdebruijn.kernel@gmail.com\nSigned-off-by: Jakub Kicinski <kuba@kernel.org>\n---\n net/packet/af_packet.c | 12 ++++++------\n 1 file changed, 6 insertions(+), 6 deletions(-)\n\ndiff --git a/net/packet/af_packet.c b/net/packet/af_packet.c\nindex bc438d0d96a7..a7017d7f0927 100644\n--- a/net/packet/af_packet.c\n+++ b/net/packet/af_packet.c\n@@ -4573,10 +4573,10 @@ static int packet_set_ring(struct sock *sk, union tpacket_req_u *req_u,\n \tspin_lock(&po->bind_lock);\n \twas_running = packet_sock_flag(po, PACKET_SOCK_RUNNING);\n \tnum = po->num;\n-\tif (was_running) {\n-\t\tWRITE_ONCE(po->num, 0);\n+\tWRITE_ONCE(po->num, 0);\n+\tif (was_running)\n \t\t__unregister_prot_hook(sk, false);\n-\t}\n+\n \tspin_unlock(&po->bind_lock);\n \n \tsynchronize_net();\n@@ -4608,10 +4608,10 @@ static int packet_set_ring(struct sock *sk, union tpacket_req_u *req_u,\n \tmutex_unlock(&po->pg_vec_lock);\n \n \tspin_lock(&po->bind_lock);\n-\tif (was_running) {\n-\t\tWRITE_ONCE(po->num, num);\n+\tWRITE_ONCE(po->num, num);\n+\tif (was_running)\n \t\tregister_prot_hook(sk);\n-\t}\n+\n \tspin_unlock(&po->bind_lock);\n \tif (pg_vec && (po->tp_version > TPACKET_V2)) {\n \t\t/* Because we don't support block-based V3 on tx-ring */\n-- \n2.25.1\n\n",
+      "sha256": "e8dfbdf69c6062d1b06c0479bb8e878bad53303488dc079ac1cc3c36577f85df"
+    },
+    "prompt": "Use security-patch-port to port the supplied upstream fix for kernel.\ncase_id: oe-18-kernel\nrepo: /workspace/repo\nreference_patch: /workspace/repo/.patch-port/reference.diff\nreference_fix: 01d3c8417b9c1b884a8a981a3b886da556512f36\nreference_parent: 5a40f8af2ba1b9bdf46e2db10e8c9710538fbc63\ntarget_ref: f3072e528ba53a76e66a34613ecc7b86dc96816d\noutput_dir: /workspace/repo/.patch-port/results\nport_mode: history\n\nLoad the coordinator and its three child Skills using the skill tool in this same primary\nAgent session. No task subagent is required. Follow their analysis, application and validation\ngates and read their references. Do not modify installed Skills or skip a failed gate.\nThe output directory and all candidate worktrees must stay inside the supplied repository,\nbut outside the candidate diff. Preserve analysis-evidence.json, port-analysis.json,\ngenerated.patch, application-evidence.json, application.json, validation-evidence.json,\nvalidation.json, VALIDATION_REPORT.md and final.json as applicable.\n\nRead .patch-port/repository-scope.json. The complete allowed upstream history is real;\ncommits marked PREPARED explicitly reproduce the release archive and prior downstream patches.\nThey are not original upstream commits. All tracked target files are supplied; locate code\nand select context yourself. Use model-led queries, not analyze_port.py as an automatic locator.\nUse the installed candidate_workspace.py and validate_candidate.py for implementation and replay.\nInspect the installed build tools, libraries and Python modules and their actual versions.\nUse appropriate focused tests, including the upstream regression intent. A system-installed\npackage is not automatically the target: compile or import code from the supplied target and\nrecord which executable/module/runtime was used. Build the target if needed to substantiate a claim.\nUse at most two parallel build jobs in this container. Keep fixtures local; local loopback test\nservers are permitted, but never send test traffic to external systems. Run focused regression\nchecks on a clean replay of the candidate and, where feasible, the unpatched baseline.\nDo not claim unavailable tests passed. A missing important check must remain partial/blocked.\n\nOnly investigate this repository and this task's outputs. No external source searches,\nnetwork retrieval, other cases, saved answers, runtime credentials or runtime databases may\nbe consulted. The target oracle and dataset preparation reports are not mounted in this container.\nDo not commit, push, install packages or edit system/runtime configuration.\nOn a blocker, save the concrete evidence and the structured final result.\n",
+    "run_configuration": {}
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": null,
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "77df6ddd3255fd2689d8d95695bb42c6a19939b301a5710ad6fede4a15550194",
+      "text": "From 4022d4c5f4ec48cc0312acea5fb57d2cdab0b506 Mon Sep 17 00:00:00 2001\nFrom: Quang Le <quanglex97@gmail.com>\nDate: Wed, 10 Dec 2025 09:28:15 +0800\nSubject: [PATCH] net/packet: fix a race in packet_set_ring() and\n packet_notifier()\n\nstable inclusion\nfrom stable-v6.6.102\ncommit 88caf46db8239e6471413d28aabaa6b8bd552805\ncategory: bugfix\nbugzilla: https://gitee.com/src-openeuler/kernel/issues/ICUC4S\nCVE: CVE-2025-38617\n\nReference: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=88caf46db8239e6471413d28aabaa6b8bd552805\n\n--------------------------------\n\ncommit 01d3c8417b9c1b884a8a981a3b886da556512f36 upstream.\n\nWhen packet_set_ring() releases po->bind_lock, another thread can\nrun packet_notifier() and process an NETDEV_UP event.\n\nThis race and the fix are both similar to that of commit 15fe076edea7\n(\"net/packet: fix a race in packet_bind() and packet_notifier()\").\n\nThere too the packet_notifier NETDEV_UP event managed to run while a\npo->bind_lock critical section had to be temporarily released. And\nthe fix was similarly to temporarily set po->num to zero to keep\nthe socket unhooked until the lock is retaken.\n\nThe po->bind_lock in packet_set_ring and packet_notifier precede the\nintroduction of git history.\n\nFixes: 1da177e4c3f4 (\"Linux-2.6.12-rc2\")\nCc: stable@vger.kernel.org\nSigned-off-by: Quang Le <quanglex97@gmail.com>\nSigned-off-by: Willem de Bruijn <willemb@google.com>\nLink: https://patch.msgid.link/20250801175423.2970334-1-willemdebruijn.kernel@gmail.com\nSigned-off-by: Jakub Kicinski <kuba@kernel.org>\nSigned-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>\nSigned-off-by: Wang Liang <wangliang74@huawei.com>\n---\n net/packet/af_packet.c | 12 ++++++------\n 1 file changed, 6 insertions(+), 6 deletions(-)\n\ndiff --git a/net/packet/af_packet.c b/net/packet/af_packet.c\nindex 4abf7e9ac4f2..677d3190479f 100644\n--- a/net/packet/af_packet.c\n+++ b/net/packet/af_packet.c\n@@ -4567,10 +4567,10 @@ static int packet_set_ring(struct sock *sk, union tpacket_req_u *req_u,\n \tspin_lock(&po->bind_lock);\n \twas_running = packet_sock_flag(po, PACKET_SOCK_RUNNING);\n \tnum = po->num;\n-\tif (was_running) {\n-\t\tWRITE_ONCE(po->num, 0);\n+\tWRITE_ONCE(po->num, 0);\n+\tif (was_running)\n \t\t__unregister_prot_hook(sk, false);\n-\t}\n+\n \tspin_unlock(&po->bind_lock);\n \n \tsynchronize_net();\n@@ -4602,10 +4602,10 @@ static int packet_set_ring(struct sock *sk, union tpacket_req_u *req_u,\n \tmutex_unlock(&po->pg_vec_lock);\n \n \tspin_lock(&po->bind_lock);\n-\tif (was_running) {\n-\t\tWRITE_ONCE(po->num, num);\n+\tWRITE_ONCE(po->num, num);\n+\tif (was_running)\n \t\tregister_prot_hook(sk);\n-\t}\n+\n \tspin_unlock(&po->bind_lock);\n \tif (pg_vec && (po->tp_version > TPACKET_V2)) {\n \t\t/* Because we don't support block-based V3 on tx-ring */\n-- \n2.25.1\n\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/feishu92.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "a7ee3e3999c10673d46eaf3bed12da08273ed733f4ff5a9aaf5fd8de855be21b",
+    "reference_patch_source": "/data/huyanglin/hyl/研究内容二/evaluation/patches/oe-18-kernel/reference.patch",
+    "source_dataset_record": {
+      "case_id": "oe-18-kernel",
+      "package": "kernel",
+      "source_commit": "01d3c8417b9c1b884a8a981a3b886da556512f36",
+      "target_ref": "f3072e528ba53a76e66a34613ecc7b86dc96816d",
+      "target_tree": "40a05790121fe8ebda7b7b2cc0c8700a20b2c220",
+      "reference_patch": "patches/oe-18-kernel/reference.patch",
+      "reference_sha256": "e8dfbdf69c6062d1b06c0479bb8e878bad53303488dc079ac1cc3c36577f85df",
+      "oracle_patch": "patches/oe-18-kernel/oracle.patch",
+      "oracle_sha256": "77df6ddd3255fd2689d8d95695bb42c6a19939b301a5710ad6fede4a15550194"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "task_type": "security_patch_port",
+  "dataset": "linux",
+  "case_id": "326",
+  "task_input": {
+    "repository": {
+      "name": "linux",
+      "version": null,
+      "path_at_run": "/data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-326-wgwu8e4r/repo",
+      "target_ref": "786f9eb0c5de4ac73da92b244d726886ab6414cd",
+      "target_tree": "f7ed2a8fabe861eba9ead0f22d7ee9d7dd251a8d"
+    },
+    "source_commit": "2d08921c8da26bdce3d8848ef6f32068f594d7d4",
+    "reference_parent": "8736711f4e55a50e0ec89edd366256f8edb5f9c3",
+    "port_mode": null,
+    "reference_patch": {
+      "text": "diff --git a/include/linux/skbuff.h b/include/linux/skbuff.h\nindex b048d3d3b32795d0c484d83e614e2d5dbf749dfb..1f207dd2275756300237a67e23397327e2783673 100644\n--- a/include/linux/skbuff.h\n+++ b/include/linux/skbuff.h\n@@ -2982,6 +2982,8 @@ static inline int __skb_grow_rcsum(struct sk_buff *skb, unsigned int len)\n \treturn __skb_grow(skb, len);\n }\n \n+#define rb_to_skb(rb) rb_entry_safe(rb, struct sk_buff, rbnode)\n+\n #define skb_queue_walk(queue, skb) \\\n \t\tfor (skb = (queue)->next;\t\t\t\t\t\\\n \t\t     skb != (struct sk_buff *)(queue);\t\t\t\t\\\ndiff --git a/net/ipv4/tcp_input.c b/net/ipv4/tcp_input.c\nindex 71f2b0958c4ffe26410c4d32a022198a5b4f0412..2eabf219b71d25339fde3c7a7f6917a0da5e0c5c 100644\n--- a/net/ipv4/tcp_input.c\n+++ b/net/ipv4/tcp_input.c\n@@ -4965,6 +4965,7 @@ static void tcp_collapse_ofo_queue(struct sock *sk)\n  * 2) not add too big latencies if thousands of packets sit there.\n  *    (But if application shrinks SO_RCVBUF, we could still end up\n  *     freeing whole queue here)\n+ * 3) Drop at least 12.5 % of sk_rcvbuf to avoid malicious attacks.\n  *\n  * Return true if queue has shrunk.\n  */\n@@ -4972,20 +4973,26 @@ static bool tcp_prune_ofo_queue(struct sock *sk)\n {\n \tstruct tcp_sock *tp = tcp_sk(sk);\n \tstruct rb_node *node, *prev;\n+\tint goal;\n \n \tif (RB_EMPTY_ROOT(&tp->out_of_order_queue))\n \t\treturn false;\n \n \tNET_INC_STATS(sock_net(sk), LINUX_MIB_OFOPRUNED);\n+\tgoal = sk->sk_rcvbuf >> 3;\n \tnode = &tp->ooo_last_skb->rbnode;\n \tdo {\n \t\tprev = rb_prev(node);\n \t\trb_erase(node, &tp->out_of_order_queue);\n+\t\tgoal -= rb_to_skb(node)->truesize;\n \t\ttcp_drop(sk, rb_entry(node, struct sk_buff, rbnode));\n-\t\tsk_mem_reclaim(sk);\n-\t\tif (atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf &&\n-\t\t    !tcp_under_memory_pressure(sk))\n-\t\t\tbreak;\n+\t\tif (!prev || goal <= 0) {\n+\t\t\tsk_mem_reclaim(sk);\n+\t\t\tif (atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf &&\n+\t\t\t    !tcp_under_memory_pressure(sk))\n+\t\t\t\tbreak;\n+\t\t\tgoal = sk->sk_rcvbuf >> 3;\n+\t\t}\n \t\tnode = prev;\n \t} while (node);\n \ttp->ooo_last_skb = rb_entry(prev, struct sk_buff, rbnode);\n",
+      "sha256": "bff83a1ede3f2d1ad8a664534901c02c829d2ec0f77286715a9526888c200836"
+    },
+    "prompt": "Use the security-patch-port Skill to port this supplied security fix.\nCVE: CVE-2018-5390\nrepo: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-326-wgwu8e4r/repo\nreference_patch: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-326-wgwu8e4r/repo/.patch-port/reference.diff\nreference_fix: 2d08921c8da26bdce3d8848ef6f32068f594d7d4\nreference_parent: 8736711f4e55a50e0ec89edd366256f8edb5f9c3\ntarget_ref: 786f9eb0c5de4ac73da92b244d726886ab6414cd\noutput_dir: /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-326-wgwu8e4r/repo/.patch-port/results\n\nLoad security-patch-port and then its three child Skills using the skill tool in this\nsame primary Agent session. This Harness supports loading Skills directly; no task\nsubagent is needed. Execute the four Skills and their scripts as installed. Run analysis,\nthen apply only if its gate permits, then independent validation. Read their references.\nScripts live under /data/huyanglin/hyl/研究内容二/evaluation/runs/2026-09-14-remaining204-parallel30/task-workspaces/new-porter-326-wgwu8e4r/repo/.opencode/skills/<skill-name>/scripts/.\nThe output directory is intentionally INSIDE the repository so it is writable under the\noriginal Agent external-directory policy; candidate worktrees must be under output_dir.\nKeep task outputs outside the candidate diff. Use candidate_workspace.py and validate_candidate.py\nwhere their preconditions hold. If a script fails, record the failure and use ordinary Git\ntools to collect missing evidence according to the Skill; do not edit installed scripts.\nIf mapping is unresolved, inspect each transition and supply actual code evidence before\nchanging its status. Report missing build infrastructure as not_run/partial, never passed.\nRequired deliverables: analysis-evidence.json, port-analysis.json, generated.patch,\napplication-evidence.json, application.json, validation-evidence.json, validation.json,\nVALIDATION_REPORT.md and final.json in output_dir as applicable. Preserve the uncommitted\ncandidate worktree. final.json must use the orchestrator output contract.\nNo network searches, external source repositories, other cases, saved old candidates or\nevaluation results may be consulted. The designated target oracle commit is excluded from\nthis workspace. Perform a fresh port based exclusively on these supplied inputs.\nDo not commit or push. When blocked, save the structured artifacts and concrete reason.\n\nRepository mode: full-history. All tracked files at the exact target and reference\nversions are available, with original commit SHAs, parent edges, merges and full ancestry\nof the two allowed endpoints. No source-path filtering or synthetic history is used.\nLocate renamed, moved, split or merged implementations yourself using Git history and\ntarget-wide searches. Read target declarations, callers, Makefiles and tests as needed.\nSearch the supplied repository, not external source locations. Absence from the reference\npatch paths is not a missing-context condition. Read repository-scope.json and inspect\nactual files before claiming build infrastructure is absent. Installed toolchains and\nexternal/submodule dependencies still need separate verification. Do not execute large\nunbounded whole-tree reads; use incremental queries and focused context.\n\nAnalysis mode: model-led. Start by reading the reference patch and pre-fix code.\nYou choose each Git/code query, interpret each relevant transition, update anchors, and\nchoose subsequent context. Use ordinary Git/read/search tools; do not call analyze_port.py\nor porter_core.analyze_port/trace_history as a precomputed locator or automatic continuation.\nHandle rewrites at the current edge, retain all relevant split branches, then continue\ninvestigating later history until the exact target. Do not jump from a resolved breakpoint\nstraight to declaring the whole mapping complete. Cite evidence for skipped intervals.\nMaintain analysis-evidence.json with actual observations/output references and write\nport-analysis.json with analysis_mode=model-led and schema_version=2.0. Do not fabricate\ntool logs or semantic confirmations. trace-evidence.json is not required.\nRead repository-scope.json. This runner has no live context-request response service:\nrecord missing_context with concrete requested evidence and stop blocked if it is needed.\nDo not search outside the supplied repository or claim the missing code is not affected.\n",
+    "run_configuration": {
+      "agent": "patch-port",
+      "model": "deepseek/deepseek-v4-flash",
+      "analysis_mode": "model-led",
+      "repository_mode": "full-history",
+      "runtime_mode": "isolated"
+    },
+    "cve": "CVE-2018-5390"
+  },
+  "evaluation_reference": {
+    "purpose": "independent_review_only_not_generator_input",
+    "oracle_commit": "db11182a1e38e7149804962111622b15bd9aeff2",
+    "oracle_patch": {
+      "file": "oracle.patch",
+      "sha256": "a259f40054b71c21e3c31cd1e4acd1ed10594fea7bf1ed10156a297874bb4af9",
+      "text": "diff --git a/net/ipv4/tcp_input.c b/net/ipv4/tcp_input.c\nindex ba358b7369c455f84880eae36e14fc50b7a19aca..650bd2e6c60f1a5db1886a0a81d94e87a8f3eb10 100644\n--- a/net/ipv4/tcp_input.c\n+++ b/net/ipv4/tcp_input.c\n@@ -4874,6 +4874,7 @@ static void tcp_collapse_ofo_queue(struct sock *sk)\n  * 2) not add too big latencies if thousands of packets sit there.\n  *    (But if application shrinks SO_RCVBUF, we could still end up\n  *     freeing whole queue here)\n+ * 3) Drop at least 12.5 % of sk_rcvbuf to avoid malicious attacks.\n  *\n  * Return true if queue has shrunk.\n  */\n@@ -4881,20 +4882,26 @@ static bool tcp_prune_ofo_queue(struct sock *sk)\n {\n \tstruct tcp_sock *tp = tcp_sk(sk);\n \tstruct rb_node *node, *prev;\n+\tint goal;\n \n \tif (RB_EMPTY_ROOT(&tp->out_of_order_queue))\n \t\treturn false;\n \n \tNET_INC_STATS(sock_net(sk), LINUX_MIB_OFOPRUNED);\n+\tgoal = sk->sk_rcvbuf >> 3;\n \tnode = &tp->ooo_last_skb->rbnode;\n \tdo {\n \t\tprev = rb_prev(node);\n \t\trb_erase(node, &tp->out_of_order_queue);\n+\t\tgoal -= rb_to_skb(node)->truesize;\n \t\ttcp_drop(sk, rb_to_skb(node));\n-\t\tsk_mem_reclaim(sk);\n-\t\tif (atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf &&\n-\t\t    !tcp_under_memory_pressure(sk))\n-\t\t\tbreak;\n+\t\tif (!prev || goal <= 0) {\n+\t\t\tsk_mem_reclaim(sk);\n+\t\t\tif (atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf &&\n+\t\t\t    !tcp_under_memory_pressure(sk))\n+\t\t\t\tbreak;\n+\t\t\tgoal = sk->sk_rcvbuf >> 3;\n+\t\t}\n \t\tnode = prev;\n \t} while (node);\n \ttp->ooo_last_skb = rb_to_skb(prev);\n"
+    },
+    "candidate_file": "candidate.patch",
+    "selected_review_task": null
+  },
+  "provenance": {
+    "dataset_file": "inputs/linux404.jsonl",
+    "dataset_path_base": "results_directory",
+    "prompt_source": "generation/prompt.txt",
+    "prompt_sha256": "bb400dacc5b622044161381feefd09275d2aa7ec6bbfd9fbd235f51da19ed0bf",
+    "reference_patch_source": "/data/huyanglin/unused/research2-release-private-20260915/legacy-artifacts/evaluation/runs/2026-09-14-remaining204-parallel30/prepared-inputs/00326_CVE-2018-5390/reference.diff",
+    "source_dataset_record": {
+      "case_id": 326,
+      "cve": "CVE-2018-5390",
+      "source_commit": "2d08921c8da26bdce3d8848ef6f32068f594d7d4",
+      "oracle_commit": "db11182a1e38e7149804962111622b15bd9aeff2"
+    }
+  },
+  "usage_note": "task_input groups the original generation prompt, target identity and reference fix. evaluation_reference and provenance.source_dataset_record contain scoring-only oracle information: do not send the full input.json to the generator. Historical runtime paths are preserved; a matching source repository is still required."
+}

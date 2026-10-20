@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1014",
+  "candidate_sha256": "46abd813052b2f5e965a80c03d00d32135fdbdeeb18930d3090150b38a4269c7",
+  "oracle_sha256": "4d7a1d547983418fcc743cfcd95cd20d056343a9629a7b42bd24deb7a346c8a6",
+  "candidate_nonempty": true,
+  "target_ref": "4748a404df64c684505af382ab9d8d6607289be3",
+  "baseline_tree": "76791580e71c15f53368d65ca8f5b8e3168a2833",
+  "candidate_tree": "02c2af50ffca6ef0c8ad2ccba3e30687faf15133",
+  "oracle_tree": "2ffc75a9a0e753664037e56786b7d08fe965f424",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1014",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "agent_semantic_review",
+  "review_trace_available": true,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "46abd813052b2f5e965a80c03d00d32135fdbdeeb18930d3090150b38a4269c7",
+    "text": "diff --git a/arch/x86/kvm/vmx.c b/arch/x86/kvm/vmx.c\nindex de426887b35..d6dc507c004 100644\n--- a/arch/x86/kvm/vmx.c\n+++ b/arch/x86/kvm/vmx.c\n@@ -441,6 +441,7 @@ struct vcpu_vmx {\n #endif\n \t\tint           gs_ldt_reload_needed;\n \t\tint           fs_reload_needed;\n+\t\tunsigned long vmcs_host_cr4;\t/* May not match real cr4 */\n \t} host_state;\n \tstruct {\n \t\tint vm86_active;\n@@ -4165,11 +4166,16 @@ static void vmx_set_constant_host_state(struct vcpu_vmx *vmx)\n \tu32 low32, high32;\n \tunsigned long tmpl;\n \tstruct desc_ptr dt;\n+\tunsigned long cr4;\n \n \tvmcs_writel(HOST_CR0, read_cr0() & ~X86_CR0_TS);  /* 22.2.3 */\n-\tvmcs_writel(HOST_CR4, read_cr4());  /* 22.2.3, 22.2.5 */\n \tvmcs_writel(HOST_CR3, read_cr3());  /* 22.2.3  FIXME: shadow tables */\n \n+\t/* Save the most likely value for this task's CR4 in the VMCS. */\n+\tcr4 = read_cr4();\n+\tvmcs_writel(HOST_CR4, cr4);\t\t\t/* 22.2.3, 22.2.5 */\n+\tvmx->host_state.vmcs_host_cr4 = cr4;\n+\n \tvmcs_write16(HOST_CS_SELECTOR, __KERNEL_CS);  /* 22.2.4 */\n #ifdef CONFIG_X86_64\n \t/*\n@@ -7196,7 +7202,7 @@ static void atomic_switch_perf_msrs(struct vcpu_vmx *vmx)\n static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)\n {\n \tstruct vcpu_vmx *vmx = to_vmx(vcpu);\n-\tunsigned long debugctlmsr;\n+\tunsigned long debugctlmsr, cr4;\n \n \t/* Record the guest's net vcpu time for enforced NMI injections. */\n \tif (unlikely(!cpu_has_virtual_nmis() && vmx->soft_vnmi_blocked))\n@@ -7217,6 +7223,12 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)\n \tif (test_bit(VCPU_REGS_RIP, (unsigned long *)&vcpu->arch.regs_dirty))\n \t\tvmcs_writel(GUEST_RIP, vcpu->arch.regs[VCPU_REGS_RIP]);\n \n+\tcr4 = read_cr4();\n+\tif (unlikely(cr4 != vmx->host_state.vmcs_host_cr4)) {\n+\t\tvmcs_writel(HOST_CR4, cr4);\n+\t\tvmx->host_state.vmcs_host_cr4 = cr4;\n+\t}\n+\n \t/* When single-stepping over STI and MOV SS, we must clear the\n \t * corresponding interruptibility bits in the guest state. Otherwise\n \t * vmentry fails as it then expects bit 14 (BS) in pending debug\n"
+  },
+  "trace_file": "trace.jsonl"
+}

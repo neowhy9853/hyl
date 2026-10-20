@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1710",
+  "candidate_sha256": "385257b8bee934ebe571d2f5b26df0b46f188980ffbcec1aea89a0d5bab0df86",
+  "oracle_sha256": "385257b8bee934ebe571d2f5b26df0b46f188980ffbcec1aea89a0d5bab0df86",
+  "candidate_nonempty": true,
+  "target_ref": "67f386f75637f25df714d57a48f6c94b83573631",
+  "baseline_tree": "a49e5d4567062341f9ecf0c7afb2eb5f80bca71a",
+  "candidate_tree": "1dd765db8cf6e26c69733493236cc486a9ab3dd7",
+  "oracle_tree": "1dd765db8cf6e26c69733493236cc486a9ab3dd7",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1710",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "385257b8bee934ebe571d2f5b26df0b46f188980ffbcec1aea89a0d5bab0df86",
+    "text": "diff --git a/include/net/netfilter/nf_tables.h b/include/net/netfilter/nf_tables.h\nindex 2237657514e1..2da11d8c0f45 100644\n--- a/include/net/netfilter/nf_tables.h\n+++ b/include/net/netfilter/nf_tables.h\n@@ -142,9 +142,9 @@ static inline u16 nft_reg_load16(const u32 *sreg)\n \treturn *(u16 *)sreg;\n }\n \n-static inline void nft_reg_store64(u32 *dreg, u64 val)\n+static inline void nft_reg_store64(u64 *dreg, u64 val)\n {\n-\tput_unaligned(val, (u64 *)dreg);\n+\tput_unaligned(val, dreg);\n }\n \n static inline u64 nft_reg_load64(const u32 *sreg)\ndiff --git a/net/netfilter/nft_byteorder.c b/net/netfilter/nft_byteorder.c\nindex 7b0b8fecb220..9d250bd60bb8 100644\n--- a/net/netfilter/nft_byteorder.c\n+++ b/net/netfilter/nft_byteorder.c\n@@ -38,20 +38,21 @@ void nft_byteorder_eval(const struct nft_expr *expr,\n \n \tswitch (priv->size) {\n \tcase 8: {\n+\t\tu64 *dst64 = (void *)dst;\n \t\tu64 src64;\n \n \t\tswitch (priv->op) {\n \t\tcase NFT_BYTEORDER_NTOH:\n \t\t\tfor (i = 0; i < priv->len / 8; i++) {\n \t\t\t\tsrc64 = nft_reg_load64(&src[i]);\n-\t\t\t\tnft_reg_store64(&dst[i], be64_to_cpu(src64));\n+\t\t\t\tnft_reg_store64(&dst64[i], be64_to_cpu(src64));\n \t\t\t}\n \t\t\tbreak;\n \t\tcase NFT_BYTEORDER_HTON:\n \t\t\tfor (i = 0; i < priv->len / 8; i++) {\n \t\t\t\tsrc64 = (__force __u64)\n \t\t\t\t\tcpu_to_be64(nft_reg_load64(&src[i]));\n-\t\t\t\tnft_reg_store64(&dst[i], src64);\n+\t\t\t\tnft_reg_store64(&dst64[i], src64);\n \t\t\t}\n \t\t\tbreak;\n \t\t}\ndiff --git a/net/netfilter/nft_meta.c b/net/netfilter/nft_meta.c\nindex 44d9b38e5f90..cb5bb0e21b66 100644\n--- a/net/netfilter/nft_meta.c\n+++ b/net/netfilter/nft_meta.c\n@@ -63,7 +63,7 @@ nft_meta_get_eval_time(enum nft_meta_keys key,\n {\n \tswitch (key) {\n \tcase NFT_META_TIME_NS:\n-\t\tnft_reg_store64(dest, ktime_get_real_ns());\n+\t\tnft_reg_store64((u64 *)dest, ktime_get_real_ns());\n \t\tbreak;\n \tcase NFT_META_TIME_DAY:\n \t\tnft_reg_store8(dest, nft_meta_weekday());\n"
+  },
+  "trace_file": "trace.jsonl"
+}

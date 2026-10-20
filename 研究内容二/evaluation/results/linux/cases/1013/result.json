@@ -1,0 +1,25 @@
+{
+  "dataset": "linux",
+  "case_id": "1013",
+  "candidate_sha256": "ecca8950c31c2ff8ff6bf247e3b56c04475a3f213ffd8faf3f047433062ff4e2",
+  "oracle_sha256": "cc80caf3c60b165b116442124dc9ba7d4b1d5876a27866cdf0be28d64991e932",
+  "candidate_nonempty": true,
+  "target_ref": "76e7e98e229ae8fa7f4b30a6fd2bb3cd2ad26a67",
+  "baseline_tree": "df55081eba814ad92ffc5e884d6a20fb1fc9ca46",
+  "candidate_tree": "8b84bc65736c0c3de0b14ee86b141bb635c8eb09",
+  "oracle_tree": "8b84bc65736c0c3de0b14ee86b141bb635c8eb09",
+  "candidate_apply_passed": true,
+  "historical_verdict": "correct",
+  "case_path": "cases/1013",
+  "generation_trace_available": true,
+  "verdict": "correct",
+  "correct": true,
+  "decision_basis": "result_tree_identical",
+  "review_trace_available": false,
+  "candidate_patch": {
+    "format": "unified_diff",
+    "sha256": "ecca8950c31c2ff8ff6bf247e3b56c04475a3f213ffd8faf3f047433062ff4e2",
+    "text": "diff --git a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/core.c b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/core.c\nindex ecfe056d7643..349cc5cb9e80 100644\n--- a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/core.c\n+++ b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/core.c\n@@ -339,7 +339,8 @@ void brcmf_rx_frame(struct device *dev, struct sk_buff *skb, bool handle_event)\n \t} else {\n \t\t/* Process special event packets */\n \t\tif (handle_event)\n-\t\t\tbrcmf_fweh_process_skb(ifp->drvr, skb);\n+\t\t\tbrcmf_fweh_process_skb(ifp->drvr, skb,\n+\t\t\t\t\t       BCMILCP_SUBTYPE_VENDOR_LONG);\n \n \t\tbrcmf_netif_rx(ifp, skb);\n \t}\n@@ -356,7 +357,7 @@ void brcmf_rx_event(struct device *dev, struct sk_buff *skb)\n \tif (brcmf_rx_hdrpull(drvr, skb, &ifp))\n \t\treturn;\n \n-\tbrcmf_fweh_process_skb(ifp->drvr, skb);\n+\tbrcmf_fweh_process_skb(ifp->drvr, skb, 0);\n \tbrcmu_pkt_buf_free_skb(skb);\n }\n \ndiff --git a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/fweh.h b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/fweh.h\nindex 26ff5a9648f3..9cd112ef87d7 100644\n--- a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/fweh.h\n+++ b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/fweh.h\n@@ -181,7 +181,7 @@ enum brcmf_fweh_event_code {\n  */\n #define BRCM_OUI\t\t\t\t\"\\x00\\x10\\x18\"\n #define BCMILCP_BCM_SUBTYPE_EVENT\t\t1\n-\n+#define BCMILCP_SUBTYPE_VENDOR_LONG\t\t32769\n \n /**\n  * struct brcm_ethhdr - broadcom specific ether header.\n@@ -302,10 +302,10 @@ void brcmf_fweh_process_event(struct brcmf_pub *drvr,\n void brcmf_fweh_p2pdev_setup(struct brcmf_if *ifp, bool ongoing);\n \n static inline void brcmf_fweh_process_skb(struct brcmf_pub *drvr,\n-\t\t\t\t\t  struct sk_buff *skb)\n+\t\t\t\t\t  struct sk_buff *skb, u16 stype)\n {\n \tstruct brcmf_event *event_packet;\n-\tu16 usr_stype;\n+\tu16 subtype, usr_stype;\n \n \t/* only process events when protocol matches */\n \tif (skb->protocol != cpu_to_be16(ETH_P_LINK_CTL))\n@@ -314,8 +314,16 @@ static inline void brcmf_fweh_process_skb(struct brcmf_pub *drvr,\n \tif ((skb->len + ETH_HLEN) < sizeof(*event_packet))\n \t\treturn;\n \n-\t/* check for BRCM oui match */\n \tevent_packet = (struct brcmf_event *)skb_mac_header(skb);\n+\n+\t/* check subtype if needed */\n+\tif (unlikely(stype)) {\n+\t\tsubtype = get_unaligned_be16(&event_packet->hdr.subtype);\n+\t\tif (subtype != stype)\n+\t\t\treturn;\n+\t}\n+\n+\t/* check for BRCM oui match */\n \tif (memcmp(BRCM_OUI, &event_packet->hdr.oui[0],\n \t\t   sizeof(event_packet->hdr.oui)))\n \t\treturn;\ndiff --git a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/msgbuf.c b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/msgbuf.c\nindex 2b9a2bc429d6..ab9f136c1593 100644\n--- a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/msgbuf.c\n+++ b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/msgbuf.c\n@@ -1114,7 +1114,7 @@ static void brcmf_msgbuf_process_event(struct brcmf_msgbuf *msgbuf, void *buf)\n \n \tskb->protocol = eth_type_trans(skb, ifp->ndev);\n \n-\tbrcmf_fweh_process_skb(ifp->drvr, skb);\n+\tbrcmf_fweh_process_skb(ifp->drvr, skb, 0);\n \n exit:\n \tbrcmu_pkt_buf_free_skb(skb);\n"
+  },
+  "trace_file": "trace.jsonl"
+}
