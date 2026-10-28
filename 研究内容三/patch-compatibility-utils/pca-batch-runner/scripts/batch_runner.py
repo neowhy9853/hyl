@@ -624,6 +624,7 @@ def extract_test_info(summary_path: Path) -> Dict[str, Any]:
         "coverage_rate": rate,
         "coverage_gate_met": gate_met,
         "backward_compatibility": conclusion_value,
+        "has_coverage_report": data.get("coverage_report") is not None,
         "summary": (
             f"test_status={status}; coverage_rate={rate}; "
             f"gate_met={gate_met}; compatibility={conclusion_value}"
@@ -1429,7 +1430,7 @@ class Runner:
             if not ok:
                 return CaseOutcome(rc=rc, error_category="invalid_test_artifact",
                                    error_detail=f"finalize_test_report.py --validate-only: {err}")
-            for report_name in ("TEST_REPORT.md", "COVERAGE_REPORT.md"):
+            for report_name in ("TEST_REPORT.md",):
                 if not (test_dir / report_name).is_file():
                     return CaseOutcome(rc=rc, error_category="missing_test_artifact",
                                        error_detail=f"{TEST_RESULT_SUBDIR}/{report_name} 不存在")
@@ -1438,6 +1439,12 @@ class Runner:
             except (OSError, json.JSONDecodeError) as exc:
                 return CaseOutcome(rc=rc, error_category="invalid_test_artifact",
                                    error_detail=f"test-summary.json 解析失败: {exc}")
+            # COVERAGE_REPORT.md 仅在产生覆盖率报告时必需：测试失败时
+            # test-summary.json 的 coverage_report=null，不生成覆盖率报告。
+            if test_info is None or test_info.get("has_coverage_report", True):
+                if not (test_dir / "COVERAGE_REPORT.md").is_file():
+                    return CaseOutcome(rc=rc, error_category="missing_test_artifact",
+                                       error_detail=f"{TEST_RESULT_SUBDIR}/COVERAGE_REPORT.md 不存在")
         return CaseOutcome(ok=True, rc=rc, analysis_info=info, test_info=test_info)
 
     def _collect(self, future: concurrent.futures.Future) -> None:

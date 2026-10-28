@@ -307,6 +307,18 @@ def coverage_count_fields(item: dict[str, Any], path: str, errors: list[str]) ->
 def validate_coverage_report(data: dict[str, Any], errors: list[str]) -> None:
     path = "coverage_report"
     section = data.get(path)
+    if section is None:
+        if data.get("status") == "passed":
+            errors.append(
+                f"{path}: must be an object when status is `passed`; "
+                "use null only when the test run failed or produced no coverage"
+            )
+        return
+    if data.get("status") == "failed":
+        errors.append(
+            f"{path}: must be null when status is `failed`; "
+            "a failed test run must not emit a coverage report"
+        )
     require_fields(
         section,
         [
@@ -498,6 +510,30 @@ def validate_coverage_report(data: dict[str, Any], errors: list[str]) -> None:
                     f"{path}.files: uncovered_lines count must match summary.patch_lines_uncovered"
                 )
 
+    # Coverage scope guard: every reported file must be a patch-changed source
+    # file from the findings, never a generated test script or harness.
+    patch_source_files: set[str] = set()
+    if isinstance(finding_results, list):
+        for finding in finding_results:
+            if not isinstance(finding, dict):
+                continue
+            location = finding.get("target_location")
+            if isinstance(location, dict) and isinstance(location.get("file"), str):
+                patch_source_files.add(location["file"])
+    if patch_source_files:
+        for index, item in enumerate(files_list):
+            item_path = f"{path}.files[{index}]"
+            reported_file = item.get("file") if isinstance(item, dict) else None
+            if (
+                isinstance(reported_file, str)
+                and reported_file not in patch_source_files
+            ):
+                errors.append(
+                    f"{item_path}.file: `{reported_file}` is not a patch-changed "
+                    "source file; the coverage report must only cover patch source "
+                    "code (test scripts and generated harnesses are excluded)"
+                )
+
     analysis_entries = section.get("uncovered_line_analysis")
     if not isinstance(analysis_entries, list):
         errors.append(f"{path}.uncovered_line_analysis: expected array")
@@ -675,8 +711,8 @@ def validate_result(data: dict[str, Any]) -> list[str]:
     require_fields(artifacts, ARTIFACT_FIELDS, "artifacts", errors)
     if isinstance(artifacts, dict):
         for key, value in artifacts.items():
-            if not isinstance(value, str):
-                errors.append(f"artifacts.{key}: expected string path")
+            if value is not None and not isinstance(value, str):
+                errors.append(f"artifacts.{key}: expected string path or null")
     conclusion = data.get("conclusion")
     require_fields(
         conclusion,
@@ -1183,10 +1219,17 @@ def main() -> int:
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(render_report(data), encoding="utf-8")
-    coverage_output_path.parent.mkdir(parents=True, exist_ok=True)
-    coverage_output_path.write_text(render_coverage_report(data), encoding="utf-8")
     print(f"Report written to: {output_path}")
-    print(f"Coverage report written to: {coverage_output_path}")
+
+    if data.get("coverage_report") is None:
+        print(
+            "coverage_report is null; skipping COVERAGE_REPORT.md "
+            "(test run failed or produced no coverage)"
+        )
+    else:
+        coverage_output_path.parent.mkdir(parents=True, exist_ok=True)
+        coverage_output_path.write_text(render_coverage_report(data), encoding="utf-8")
+        print(f"Coverage report written to: {coverage_output_path}")
     return 0
 
 

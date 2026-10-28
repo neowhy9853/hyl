@@ -118,17 +118,24 @@ if scenario != "no_scope":
     (out_dir / "affected-scope.json").write_text(
         json.dumps({"schema_version": "1.0", "findings": {}}), encoding="utf-8")
 
-if scenario in ("test_ok", "no_coverage_report", "bad_summary"):
+if scenario in ("test_ok", "no_coverage_report", "bad_summary", "test_failed_null_coverage"):
     test_dir = out_dir / "compatibility-testing"
     test_dir.mkdir(exist_ok=True)
-    summary = {"status": "passed", "patch_line_coverage_rate": 100.0,
-               "conclusion": {"backward_compatibility": "compatible",
-                              "coverage_gate_met": True},
-               "coverage_report": {"gate": {"threshold": 80, "rate": 100.0, "met": True}},
-               "mock_valid": scenario != "bad_summary"}
+    if scenario == "test_failed_null_coverage":
+        summary = {"status": "failed", "patch_line_coverage_rate": 0.0,
+                   "conclusion": {"backward_compatibility": "inconclusive",
+                                  "coverage_gate_met": False},
+                   "coverage_report": None,
+                   "mock_valid": True}
+    else:
+        summary = {"status": "passed", "patch_line_coverage_rate": 100.0,
+                   "conclusion": {"backward_compatibility": "compatible",
+                                  "coverage_gate_met": True},
+                   "coverage_report": {"gate": {"threshold": 80, "rate": 100.0, "met": True}},
+                   "mock_valid": scenario != "bad_summary"}
     (test_dir / "test-summary.json").write_text(json.dumps(summary), encoding="utf-8")
     (test_dir / "TEST_REPORT.md").write_text("# test report", encoding="utf-8")
-    if scenario != "no_coverage_report":
+    if scenario not in ("no_coverage_report", "test_failed_null_coverage"):
         (test_dir / "COVERAGE_REPORT.md").write_text("# coverage report", encoding="utf-8")
 
 print("mock done")
@@ -336,6 +343,17 @@ def scenario_analysis_test_missing_coverage_report(root: Path, fixture: dict) ->
     expect("COVERAGE_REPORT.md" in (state["error"] or ""), f"error={state['error']}")
 
 
+def scenario_analysis_test_failed_null_coverage(root: Path, fixture: dict) -> None:
+    manifest = make_manifest(root / "t8", fixture, mode="analysis-test", env_authorized=True)
+    result = run_runner(manifest, env_extra={"MOCK_SCENARIO": "test_failed_null_coverage"},
+                        opencode_bin=fixture["opencode_bin"])
+    state = case_state(manifest)
+    expect(result.returncode == 0, fail_context(result))
+    expect(state["status"] == "done", f"status={state['status']} error={state['error']}")
+    expect((state.get("test") or {}).get("status") == "failed",
+           f"test info missing: {state.get('test')}")
+
+
 def main() -> int:
     root = Path(tempfile.mkdtemp(prefix="pca-batch-runner-tests-"))
     scenarios = [
@@ -346,6 +364,7 @@ def main() -> int:
         scenario_bad_analysis_rejected,
         scenario_analysis_test_complete,
         scenario_analysis_test_missing_coverage_report,
+        scenario_analysis_test_failed_null_coverage,
     ]
     failures = []
     print(f"fixture: {root}")

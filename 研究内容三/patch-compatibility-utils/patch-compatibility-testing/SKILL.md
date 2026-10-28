@@ -286,6 +286,8 @@ legacy library; type routing is owned by `scripts/compatibility_types.py` and
 
 **CRITICAL: Always use `-O0` optimization.** Without `-O0`, the compiler may inline functions, reorder code, or eliminate branches, causing gcov to report misleading line numbers and false "uncovered" results. A line showing as uncovered under `-O2` may actually have been executed but reported at a different line number due to optimization.
 
+**CRITICAL: Instrument only the patched project source code.** Apply the coverage flags to the project under test (`analysis_repo`). Test scripts, synthetic harnesses, contract probes, and entry artifacts generated under `<TEST_RESULT_DIR>/test-entry-work/` are test *tooling*, not patch source; their coverage must never enter the final coverage report. When collecting coverage, pass only patch-changed source files (from `patch.diff` and each finding's `file` + `new_lines`) to `scripts/collect_coverage.py --file`. Never pass generated harness or test-script files.
+
 If `-O0` causes build failures in some subsystems (common in kernel code), try `-Og` as a fallback. Document the optimization level used in the coverage report so line number accuracy caveats are clear.
 
 **GCC (gcov) — user-space projects:**
@@ -363,6 +365,8 @@ python3 "<TEST_SKILL_DIR>/scripts/collect_coverage.py" \
 - `#####: line` — 0 executions (NOT COVERED)
 - `-: line` — non-executable (macro, comment, string continuation)
 
+**Coverage scope guard: patch source only.** `collect_coverage.py` must receive only patch-changed source files and their changed lines. Coverage of test scripts, generated harnesses, contract probes, or any file under `test-entry-work/` is test-tooling coverage and is excluded from `coverage_data.json` and from the final coverage report. If no patch source coverage was collected because the tests failed before or during execution, set `coverage_report` to `null` and skip `COVERAGE_REPORT.md` (see Phase 5).
+
 ### Step 4c.5: Coverage Gate and Iteration Loop
 
 **Goal**: Evaluate whether patch-line coverage meets the ≥80% threshold. If not, automatically loop back to Phase 3 to generate new inputs targeting the uncovered lines.
@@ -439,6 +443,14 @@ Prefer `scripts/input_matrix.sh` with separately prepared before/after directori
 
 Treat `<TEST_RESULT_DIR>/test-summary.json` as the only final result source. Do not hand-write the Markdown reports. Populate the JSON from actual entry verification, input execution, contract, behavior-diff, and coverage artifacts, then run the deterministic formatter described below.
 
+### When the test run fails: no coverage report (use None)
+
+If the overall `status` is `failed` — an executed assertion, build, or contract failed — do **not** produce a coverage report. In `test-summary.json`, set `coverage_report` to `null` as the placeholder and do **not** generate `COVERAGE_REPORT.md`. The formatter skips coverage rendering when `coverage_report` is `null`. Summary coverage counts (`patch_executable_lines`, `patch_lines_covered`, `patch_lines_uncovered`, `patch_line_coverage_rate`) must then be `0`, and `conclusion.coverage_gate_met` must be `false`. Failed-run coverage numbers are meaningless and must not be reported.
+
+### Coverage scope: patch source code only
+
+The final coverage report is the coverage report of the **patch's changed source code** — the files and line ranges recorded in `patch.diff` and in each `analysis.json` finding's `file` + `new_lines`. Coverage of any test script, synthetic harness, contract probe, or entry artifact generated during the patch analysis/testing flow is **test-tooling** coverage and must never be counted into the final coverage report, `coverage_data.json`, `coverage_report.files[]`, or `coverage_report.findings[]`. If a generated harness happens to be compiled with coverage flags, ignore and discard its `.gcda`/`.gcov` data; only patch source files are reported. The formatter rejects any `coverage_report.files[]` entry whose `file` is not a patch-changed source file from the findings.
+
 ### Coverage Rate Calculation
 
 **Patch impact coverage** = `covered_executable_lines / total_executable_lines`
@@ -494,6 +506,8 @@ Status rules:
 
 Keep `conclusion.backward_compatibility` separate from execution status. Use `compatible` only with sufficient executed evidence; use `incompatible` for confirmed observable contract breaches; otherwise use `inconclusive`. Coverage alone never proves compatibility.
 
+When `status` is `failed`, set `coverage_report` to `null` (JSON `null`) as a placeholder and omit `COVERAGE_REPORT.md`. Do not populate an empty coverage object or report test-tooling coverage in its place.
+
 After writing JSON, always run:
 
 ```bash
@@ -524,3 +538,7 @@ At completion, report the paths to `test-summary.json`, `TEST_REPORT.md`, and th
 5. **Coverage-guided refinement.** If Phase 4 reveals uncovered lines, go back to Phase 3 and generate new inputs targeting those specific lines. Iterate until no more lines can be covered with available environments.
 
 6. **Document input diversity contribution.** For each input, document which previously-uncovered lines it newly covers. This shows the value of having diverse test inputs.
+
+7. **A failed test run has no coverage report.** If `status` is `failed`, set `coverage_report` to `null` and skip `COVERAGE_REPORT.md`; never emit coverage numbers from a failed or aborted run.
+
+8. **Coverage reports cover patch source code, never test tooling.** The final `COVERAGE_REPORT.md` and `coverage_data.json` must reflect only the patch-changed source files/lines. Generated harnesses, contract probes, and test scripts are excluded from coverage accounting.

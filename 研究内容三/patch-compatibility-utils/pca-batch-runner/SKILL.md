@@ -100,8 +100,9 @@ LLM 不参与进度的事实计算。
   `<output_base>/<id>/affected-scope.json` 存在。不信任子进程退出码
   （LLM 会话可能"成功退出但没干活"）。
 - **analysis-test 附加判据**：`<output_base>/<id>/compatibility-testing/test-summary.json`
-  存在且通过 `finalize_test_report.py --validate-only` 校验，且 `TEST_REPORT.md` /
-  `COVERAGE_REPORT.md` 存在；否则用例记 failed（测试产物缺失不再静默通过）。
+  存在且通过 `finalize_test_report.py --validate-only` 校验，且 `TEST_REPORT.md` 存在，且
+  当 `test-summary.json` 的 `coverage_report` 非 null 时 `COVERAGE_REPORT.md` 存在（测试失败
+  时 `coverage_report=null`、不生成覆盖率报告，不要求该文件）；否则用例记 failed（测试产物缺失不再静默通过）。
 - **predicted 一律从 `analysis.json` 派生**（findings 非空）；子 Agent 结尾输出的
   `SUMMARY json` 行仅供 run.log 速览，与产物矛盾时在报告标注 `summary_mismatch`。
 - 指标（Accuracy/Precision/Recall/Specificity/F1 + TP/TN/FP/FN）仅对清单提供

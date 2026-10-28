@@ -212,13 +212,13 @@ Agent 会执行以下步骤：
 |`<TEST_RESULT_DIR>/phase3_contracts/contract_summary.json`|契约通过、违约、跳过数量及总体状态|
 |`<TEST_RESULT_DIR>/phase3_contracts/contract_verification.json`|契约汇总、逐条结果和 breach 清单|
 |`<TEST_RESULT_DIR>/TEST_REPORT.md`|从 `test-summary.json` 确定性渲染的总体测试报告|
-|`<TEST_RESULT_DIR>/COVERAGE_REPORT.md`|从 `test-summary.json` 确定性渲染的专门覆盖率报告（门槛、按 finding/文件覆盖率、未覆盖行分析、迭代历史）|
+|`<TEST_RESULT_DIR>/COVERAGE_REPORT.md`|从 `test-summary.json` 确定性渲染的专门覆盖率报告（门槛、按 finding/文件覆盖率、未覆盖行分析、迭代历史）；当测试失败（`status=failed`）时 `coverage_report=null`，此文件不生成|
 
 `test-summary.json` 的状态分类：
 
 - `passed`：所有请求测试完成，零契约违约，无阻塞，覆盖率达标
 
-- `failed`：有执行断言、构建或契约失败
+- `failed`：有执行断言、构建或契约失败；此时 `coverage_report` 置为 `null`（JSON null）占位，不生成 `COVERAGE_REPORT.md`，汇总覆盖率计数全部为 `0`，`conclusion.coverage_gate_met=false`
 
 - `partial`：部分测试执行，但仍有未完成项
 
@@ -706,13 +706,17 @@ gcov 行标记含义：
 
 `test-summary.json` 是唯一最终结果源，由确定性格式化器渲染两份报告：总体测试报告 `TEST_REPORT.md` 和专门的覆盖率报告 `COVERAGE_REPORT.md`（门槛、总览、按 finding/文件覆盖率、未覆盖行分析、迭代历史、方法与注意事项）。
 
+**测试失败时不输出覆盖率报告**：若整体 `status=failed`（有断言/构建/契约执行失败），`test-summary.json` 中 `coverage_report` 置为 `null` 占位，不生成 `COVERAGE_REPORT.md`；汇总覆盖率计数（`patch_executable_lines`、`patch_lines_covered`、`patch_lines_uncovered`、`patch_line_coverage_rate`）全部为 `0`，`conclusion.coverage_gate_met=false`。
+
+**覆盖率报告只统计补丁源码**：最终覆盖率报告必须是补丁变更源码（`patch.diff` 及各 finding 的 `file`+`new_lines`）的覆盖率；补丁分析/测试过程中生成的测试脚本、synthetic harness、契约探针、入口产物等测试工具代码的覆盖率一律不得计入最终覆盖率报告、`coverage_data.json`、`coverage_report.files[]` 或 `coverage_report.findings[]`。
+
 **字段要求**（须符合 `schemas/test_output_schema.json`）：
 
 - `patch_line_coverage_rate`：补丁行覆盖率（`[0, 100]` 百分比）
 
 - `coverage_gate`：默认 `80`
 
-- `coverage_report`：专门的覆盖率数据集（必填），包含 `tool`、`optimization`、`coverage_data`、`gate`、`findings[]`、`files[]`、`uncovered_line_analysis[]`、`iterations[]`、`caveats[]`；每条未覆盖行必须有分类与原因，文件与 finding 汇总必须与 summary 补丁计数一致
+- `coverage_report`：专门的覆盖率数据集（`status=failed` 时允许 `null` 占位，其余情况为对象），包含 `tool`、`optimization`、`coverage_data`、`gate`、`findings[]`、`files[]`、`uncovered_line_analysis[]`、`iterations[]`、`caveats[]`；`files[]` 中每个 `file` 必须是补丁变更源码文件（不得是测试脚本/harness）；每条未覆盖行必须有分类与原因，文件与 finding 汇总必须与 summary 补丁计数一致
 
 - 每个 finding 的 `coverage.rate`、entry 验证状态、合同结果、行为差异、blocker 和产物路径
 
