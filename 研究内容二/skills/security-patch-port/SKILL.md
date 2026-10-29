@@ -1,11 +1,11 @@
 ---
 name: security-patch-port
-description: 编排安全补丁跨版本或无共同历史的跨仓库迁移，依次调用 patch-port-analysis、patch-port-apply 和 patch-port-validation，并执行阶段门禁。用于补丁合入、backport、跨分支及跨仓库语义适配。
+description: 编排安全补丁跨版本或无共同历史的跨仓库迁移，先尝试严格直接应用，成功即返回；失败再调用 patch-port-analysis、patch-port-apply 和 patch-port-validation。用于补丁合入、backport、跨分支及跨仓库语义适配。
 ---
 
 # 安全补丁迁移总控
 
-将补丁迁移拆成分析、实施和验证三个阶段，传递统一输入、检查阶段产物、执行质量门禁并汇总结果。
+先检查原补丁能否严格应用到目标版本，能应用则直接合入并返回；需要适配时再执行分析、实施和独立验证。
 
 ## 输入
 
@@ -25,13 +25,13 @@ description: 编排安全补丁跨版本或无共同历史的跨仓库迁移，�
 
 ## 子 Skill
 
-按顺序使用：
+严格直接应用失败后，按顺序使用：
 
 1. `$patch-port-analysis`：只读分析，输出 `port-analysis.json`。
 2. `$patch-port-apply`：消费分析结果，输出 `generated.patch` 和 `application.json`。
 3. `$patch-port-validation`：独立验证候选补丁，输出 `validation.json` 和 `VALIDATION_REPORT.md`。
 
-如果 Harness 不能自动调用其他 Skill，停止并报告缺少相应能力，不要在总控中临时重写三个阶段。
+适配分支中，如果 Harness 不能自动调用其他 Skill，停止并报告缺少相应能力，不要在总控中临时重写三个阶段。
 
 ## 产物布局与精简
 
@@ -67,7 +67,9 @@ description: 编排安全补丁跨版本或无共同历史的跨仓库迁移，�
 
 ```text
 INPUT_READY
-  -> ANALYZED
+  -> STRICT_APPLY_CHECK
+     -> 通过：直接应用原补丁 -> SUCCESS (direct_apply)
+     -> 不通过：ANALYZED
   -> ANALYSIS_GATE_PASSED
   -> APPLIED
   -> APPLICATION_GATE_PASSED
@@ -85,7 +87,29 @@ INPUT_READY
 4. 禁止提交、推送、改写历史或修改调用者现有 checkout。
 5. 跨仓库时参考仓库只读，输出和候选工作树均放在参考仓库之外；实施和验证脚本的 `--repo` 均指向目标仓库。
 
-## Phase 1：迁移分析
+## 严格直接应用：优先分支
+
+完成输入检查后，先调用本 Skill 的 [scripts/direct_apply.py](scripts/direct_apply.py)：
+
+```bash
+python3 <本Skill目录>/scripts/direct_apply.py \
+  --repo <目标仓库> \
+  --target-ref <目标SHA> \
+  --patch <参考补丁绝对路径> --output <output_dir> \
+  --port-mode <history或cross_repo_semantic>
+```
+
+脚本先用独立索引检查目标提交，再在隔离工作树中执行严格 `git apply --check --index` 和 `git apply --index`，不会修改调用者 checkout。仅严格应用属于此快速分支；忽略空白、recount、3-way 等处理仍属于适配分支。
+
+- 退出码 `0`：直接返回脚本生成的 `final.json`，结束内容二。不再调用分析、依赖发现、独立验证，也不执行构建或测试，不补写语义报告。`generated.patch` 保持原补丁的完整字节。
+- 退出码 `10`：原补丁不能严格应用，进入下面 Phase 1–3。预检记录保存在 `details/direct-apply.json`，不将预检失败当作最终迁移失败。
+- 其他退出码：执行异常，保留日志并报告失败，不能把异常当作可适配信号。
+
+如果入口已完成本次预检，且 `details/direct-apply.json` 的 `target_commit` 与参考补丁 SHA-256 均匹配当前输入、`status=not_applicable`，直接进入 Phase 1，不重复调用脚本。不要覆盖已有候选或旧运行结果。
+
+直接合入的最终状态是 `success`，`completion_mode=direct_apply`、`verification_scope=patch_application`；门禁记录为 analysis=`not_run`、application=`passed`、validation=`not_run`。这表示原补丁已应用，不表示独立语义评审或项目测试通过。只保存实际生成的产物，不创建 `port-analysis.json`、验证产物或空报告。
+
+## Phase 1：迁移分析（需要适配时）
 
 向 `$patch-port-analysis` 传递全部输入，由模型从参考语义开始逐步查询历史、判断映射并选择上下文。随调查记录 `<output_dir>/details/analysis-evidence.json`，完成后写出顶层 `port-analysis.json`。
 
@@ -188,4 +212,4 @@ INPUT_READY
 }
 ```
 
-只有三个门禁全部通过时才能返回 `success`。
+适配分支只有三个门禁全部通过时才能返回 `success`。严格直接应用分支使用前述脚本生成的精简结果契约，不伪造未执行阶段的 passed 状态。

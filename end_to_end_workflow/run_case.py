@@ -107,7 +107,7 @@ def intent_gate(result):
     return tag == "CVE"
 
 
-def port_gate(directory, target):
+def port_gate(directory, target, reference=None):
     result = read(artifact(directory, "final.json"))
     status = result.get("status")
     if status not in {"success", "no_change", "blocked", "failed"}:
@@ -116,6 +116,27 @@ def port_gate(directory, target):
         return status, result, None
     if result.get("target_commit") != target:
         raise ValueError("补丁合入目标 SHA 与本 case 不一致")
+    if result.get("completion_mode") == "direct_apply":
+        patch = artifact(directory, "generated.patch")
+        application = read(artifact(directory, "details/application.json"))
+        evidence = read(artifact(directory, "details/direct-apply.json"))
+        if (reference is None or not patch.read_bytes().strip()
+                or digest(patch) != digest(reference)
+                or result.get("strategy") != "direct-apply"
+                or result.get("verification_scope") != "patch_application"
+                or result.get("gates") != {"analysis": "not_run", "application": "passed", "validation": "not_run"}
+                or application.get("application_status") != "candidate_ready"
+                or application.get("target_commit") != target
+                or application.get("generated_patch_sha256") != digest(patch)
+                or evidence.get("status") != "applied"
+                or evidence.get("target_commit") != target
+                or evidence.get("reference_patch_sha256") != digest(reference)
+                or evidence.get("strict_check_exit_code") != 0
+                or evidence.get("apply_exit_code") != 0
+                or not evidence.get("candidate_tree")
+                or evidence.get("candidate_tree") != application.get("candidate_tree")):
+            raise ValueError("直接合入产物未绑定本 case 的原始补丁、目标或应用证据")
+        return status, result, patch
     if any(result.get("gates", {}).get(k) != "passed"
            for k in ("analysis", "application", "validation")):
         raise ValueError("补丁合入声称 success，但三个门禁未全部通过")
@@ -142,6 +163,33 @@ def port_gate(directory, target):
             or evidence.get("inputs", {}).get("application_sha256") != digest(directory / "details/application.json")):
         raise ValueError("补丁合入门禁与阶段证据、目标版本或补丁哈希不一致")
     return status, result, patch
+
+
+def run_port(runner, inputs, model):
+    """Try strict application before starting any content-two model session."""
+    directory = Path(inputs["output_dir"])
+    directory.mkdir(exist_ok=True)
+    start = time.monotonic()
+    command = [sys.executable, str(SKILLS["security-patch-port"] / "scripts/direct_apply.py"),
+               "--repo", inputs["repo"], "--target-ref", inputs["target_ref"],
+               "--patch", inputs["reference_patch"], "--output", str(directory),
+               "--port-mode", inputs["port_mode"]]
+    checked = subprocess.run(command, capture_output=True, text=True, env=environment())
+    (directory / "direct-apply.log").write_text(checked.stdout + checked.stderr)
+    if checked.returncode == 0:
+        save(directory / "execution.json", {"exit_code": 0, "mode": "direct_apply",
+             "model_called": False, "elapsed_seconds": round(time.monotonic() - start, 3)})
+    elif checked.returncode == 10:
+        runner.run("port", "使用 $security-patch-port，通过 skill 工具加载。"
+                   "原补丁的严格应用预检未通过，证据位于 details/direct-apply.json；"
+                   "按分析、实施、独立验证分支执行。输入如下：\n" + json.dumps(inputs, ensure_ascii=False)
+                   + "\n候选工作树保留在 output_dir 内。禁止修改参考源码或调用者仓库。"
+                   "按 Skill 契约保存 final.json、generated.patch 和实际执行阶段的产物。"
+                   "没有构建/测试证据不得编造通过。blocked、failed、no_change 均写入 final.json 后退出。",
+                   model, "security-patch-port")
+    else:
+        raise ValueError("直接合入执行出错；见 port/direct-apply.log，未继续调用模型")
+    return port_gate(directory, inputs["target_ref"], Path(inputs["reference_patch"]))
 
 
 def compatibility_gate(directory, target, patch):
@@ -292,7 +340,7 @@ def main(argv=None):
     parser.add_argument("--profile", default="auto")
     parser.add_argument("--timeout", type=int, default=3600, help="每个研究内容最大运行秒数")
     parser.add_argument("--rg", type=Path, help="已有 ripgrep 可执行文件，供隔离运行环境复用")
-    parser.add_argument("--validation-command", action="append", default=[], help="内容二构建/测试命令，可重复")
+    parser.add_argument("--validation-command", action="append", default=[], help="内容二适配分支的构建/测试命令，可重复；直接合入不执行")
     parser.add_argument("--dry-run", action="store_true", help="只解析输入、输出执行计划，不调用模型")
     parser.add_argument("--local", action="store_true", help="使用已准备好的本地仓库和原生 OpenCode；默认自动准备并使用 Docker")
     parser.add_argument("--target-bundle", help="额外目标基线 Git bundle 的本地路径或 HTTP(S) URL")
@@ -397,21 +445,16 @@ def main(argv=None):
         current = "port"
         result["stages"][current] = {"status": "running"}
         save(args.output / "pipeline-result.json", result)
-        print("[2/3] 补丁合入与独立验证", flush=True)
+        print("[2/3] 补丁合入（严格应用失败时进入分析与验证）", flush=True)
         port_dir = args.output / "port"
         inputs = {"repo": str(target_repo), "target_repo": str(target_repo),
                   "reference_repo": str(source), "reference_fix": commit,
                   "reference_parent": parents[0], "reference_patch": str(reference),
                   "target_ref": target, "port_mode": args.port_mode, "output_dir": str(port_dir),
                   "validation_commands": args.validation_command}
-        runner.run(current, "使用 $security-patch-port 及其分析、实施、独立验证子 Skill，"
-                   "通过 skill 工具加载并执行全部门禁。输入如下：\n" + json.dumps(inputs, ensure_ascii=False)
-                   + "\n候选工作树保留在 output_dir 内。禁止修改参考源码或调用者仓库。"
-                   "final.json、generated.patch、port-analysis.json 及 details 下阶段产物按 Skill 契约写入。"
-                   "没有构建/测试证据不得编造通过。blocked、failed、no_change 均写入 final.json 后退出。",
-                   models[current], "security-patch-port")
-        status, port_result, patch = port_gate(port_dir, target)
+        status, port_result, patch = run_port(runner, inputs, models[current])
         result["stages"][current] = {"status": status, "artifact": "port/final.json"}
+        result["stages"][current]["completion_mode"] = port_result.get("completion_mode", "analyzed_migration")
         if status != "success":
             return finish(status, "补丁合入未成功，终止后续兼容性阶段：" + str(port_result.get("summary", status)),
                           {"failed": 1, "blocked": 2, "no_change": 0}[status])
@@ -420,7 +463,8 @@ def main(argv=None):
         snapshot(args.target_repo, replay, target)
         git(replay, "apply", "--check", str(patch))
         git(replay, "apply", "--index", str(patch))
-        git(replay, "diff", "--cached", "--check")
+        if port_result.get("completion_mode") != "direct_apply":
+            git(replay, "diff", "--cached", "--check")
         candidate_hash = digest(patch)
         result["stages"][current]["patch_sha256"] = candidate_hash
         current = "compatibility"

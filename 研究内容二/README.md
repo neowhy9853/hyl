@@ -1,6 +1,6 @@
 # 安全补丁合入与迁移
 
-将参考安全修复迁移到指定 Git 版本，支持同仓库跨版本迁移和跨仓库语义适配。Agent 按分析、实施、验证三个阶段执行，并保存补丁及结构化证据。
+将参考安全修复迁移到指定 Git 版本，支持同仓库跨版本迁移和跨仓库语义适配。先尝试严格直接应用；成功即合入并返回，不调用迁移分析、语义评审或构建测试。需要适配时，Agent 再按分析、实施、验证三个阶段执行。
 
 ## 组件
 
@@ -12,7 +12,7 @@
 | `patch-port-validation` | 重放候选补丁，检查结构、安全语义及项目验证结果 |
 | `patch-dependency-discovery` | 查找前置提交，核对目标所需能力与依赖关系 |
 
-总控依次调用三个阶段 Skill；发现能力缺口时调用依赖发现 Skill，再返回迁移分析。所有阶段门禁通过后返回 `success`。
+总控先运行 `security-patch-port/scripts/direct_apply.py`。严格应用成功后返回 `success`；失败才调用三个阶段 Skill，并按需发现依赖。适配分支仍要求分析、实施和独立验证门禁全部通过。
 
 ## 目录结构
 
@@ -52,7 +52,7 @@ cp -r skills/* ~/.opencode/skills/
 使用 $security-patch-port，将 <reference-patch> 的安全修复迁移到
 <repo> 仓库的 <target-ref>。
 参考修复提交为 <reference-fix>，阶段产物写入 <output-dir>。
-保留经过验证的未提交修改，并执行分析、实施和验证门禁。
+先尝试严格直接应用；成功即返回，需要适配时执行分析、实施和验证门禁。保留未提交的候选修改。
 ```
 
 | 输入 | 说明 |
@@ -77,16 +77,18 @@ target_repo=<目标仓库>，target_ref=<目标版本>，output_dir=<输出目�
 
 ## 输出
 
-产物根目录保留 `generated.patch`、`final.json`、`port-analysis.json` 和 `VALIDATION_REPORT.md`；查询证据、实施和验证记录统一放入 `details/`，候选源码放入 `candidate-worktree/`。默认不生成重复的验证证据 Markdown 摘要，保留必要历史映射、检查事实和未验证项。
+直接合入保存 `generated.patch`、`final.json`、`details/application.json` 和 `details/direct-apply.json`，不生成分析或验证报告；`completion_mode=direct_apply` 表示仅完成原补丁应用，未执行的分析和验证记为 `not_run`。
+
+适配分支的产物根目录保留 `generated.patch`、`final.json`、`port-analysis.json` 和 `VALIDATION_REPORT.md`；查询证据、实施和验证记录统一放入 `details/`，候选源码放入 `candidate-worktree/`。默认不生成重复的验证证据 Markdown 摘要，保留必要历史映射、检查事实和未验证项。
 
 | 最终状态 | 含义 |
 |---|---|
-| `success` | 分析、实施和独立验证门禁均通过 |
+| `success` | 原补丁严格直接合入成功，或适配分支的分析、实施和独立验证门禁均通过 |
 | `no_change` | 分析已证明目标不受影响或已有等价修复 |
 | `blocked` | 必要输入、证据、授权范围或关键验证条件不足，暂不能继续放行 |
 | `failed` | 已确认候选存在错误、漏改或构建与测试失败 |
 
-验证阶段的 `partial` 表示仍有关键验证未完成，总控汇总为 `blocked`，并保留具体缺项。脚本输出的 `structurally_ready`、`structurally_valid` 仅表示机械检查通过；Agent 还需完成阶段契约要求的语义审核。
+适配分支中，验证阶段的 `partial` 表示仍有关键验证未完成，总控汇总为 `blocked`，并保留具体缺项。脚本输出的 `structurally_ready`、`structurally_valid` 仅表示机械检查通过；Agent 还需完成阶段契约要求的语义审核。
 
 ## Docker
 

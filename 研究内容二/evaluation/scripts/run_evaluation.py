@@ -105,8 +105,9 @@ def model_preflight(image, output, generator, reviewer):
 
 
 def generation_prompt(case, prepared):
-    return f'''Use the installed security-patch-port coordinator and its analysis, dependency
- discovery, application and validation Skills to port this supplied upstream fix.
+    return f'''Use the installed security-patch-port coordinator to port this supplied upstream fix.
+Follow its strict direct-apply fast path first; only use analysis, dependency discovery,
+application and validation Skills if strict application needs adaptation.
 repo: /workspace/repo
 case_id: {case['case_id']}
 reference_fix: {prepared['reference_fix']}
@@ -117,13 +118,14 @@ port_mode: history
 output_dir: /workspace/repo/.patch-port/results
 The complete original ancestry of reference_fix and target_ref is provided. Some project
 targets contain explicit prepared release/prior-patch commits. Preserve actual tree identity.
-Investigate source and prerequisites using native tools; read all applicable Skill contracts.
-Use candidate_workspace.py and validate_candidate.py. Save the FINAL candidate patch at
+If strict direct application succeeds, return immediately without semantic analysis, review
+or builds/tests. Otherwise investigate source and prerequisites, read applicable Skill
+contracts, and use candidate_workspace.py and validate_candidate.py. Save the FINAL candidate patch at
 /workspace/repo/.patch-port/results/generated.patch and retain structured phase evidence.
 Exclude .patch-port and test artifacts from the candidate diff. Do not modify installed Skills.
 Only use the supplied repository and task outputs; do not consult other cases, external fix
 lookups, saved answers, runtime credentials or databases. The oracle is not mounted here.
-Use focused tests where available, record actual commands/results and missing dependencies.
+On the adaptation branch, use focused tests where available; record commands/results and missing dependencies.
 Use at most two build jobs. Do not claim unexecuted tests passed. Keep any local fixtures local.
 Do not push, install packages, or modify system/runtime configuration. On a blocker, save
 concrete evidence and structured status rather than inventing a successful patch.

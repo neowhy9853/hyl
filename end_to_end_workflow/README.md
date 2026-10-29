@@ -83,7 +83,7 @@ python3 end_to_end_workflow/run_case.py \
 3. 必要时导入目标基线包，校验其 SHA-256、目标提交和源码树。
 4. 构建或复用与 Dockerfile 哈希对应的运行镜像；需要构建时先检查 Docker Buildx，并显式启用 BuildKit。随后将本次实际 Skill 和入口复制到隔离运行目录。
 5. 启动隔离容器，执行内容一。只有分类为 `CVE` 才继续，这是现有流程门槛。
-6. 执行内容二分析、实施和独立验证；三个门禁全部通过后，编排层再独立重放实际候选补丁。
+6. 内容二先严格检查原补丁能否应用；成功则直接合入，不调用内容二模型、语义评审或构建测试。失败才进入分析、实施和独立验证。两条分支成功后，编排层均重放实际补丁确认基线一致。
 7. 将实际候选补丁和指定下游基线交给内容三，执行兼容性分析与定向测试，保存总状态及阶段证据。
 
 容器不挂载宿主 Docker 套接字；输入对象库只读，源码变更、编译及测试在本次输出目录内完成。流程不会提交或推送原仓库。
@@ -97,7 +97,7 @@ python3 end_to_end_workflow/run_case.py \
 --validation-command 'make check'
 ```
 
-这些命令在隔离候选代码中执行，结果及退出码写入验证证据。省略时，编排器不自动补充项目专属构建/测试命令；Agent 仍可按 Skill 调查和执行检查，但不能据此保证已完成项目测试。它不控制内容三的定向测试。缺少重要依赖或证据时应输出 blocked/partial，不能将未执行测试当成通过。
+这些命令仅在内容二需要适配的分支中执行，结果及退出码写入验证证据。严格直接合入分支跳过这些命令。省略时，编排器不自动补充项目专属构建/测试命令；Agent 仍可按 Skill 调查和执行检查，但不能据此保证已完成项目测试。它不控制内容三的定向测试。缺少重要依赖或证据时应输出 blocked/partial，不能将未执行测试当成通过。
 
 ### 目标基线不在上游仓库时
 
@@ -172,7 +172,7 @@ python3 end_to_end_workflow/run_case.py \
     ├── port/
     │   ├── final.json
     │   ├── generated.patch
-    │   ├── port-analysis.json
+    │   ├── port-analysis.json    # 仅适配分支生成
     │   └── details/             # 分析、实施、验证及其证据
     ├── compatibility/
     │   ├── analysis.json
@@ -185,6 +185,8 @@ python3 end_to_end_workflow/run_case.py \
     ├── replay-check/            # 编排层独立补丁重放
     └── agent-workspace/
 ```
+
+内容二严格直接合入时，`port/final.json` 记录 `completion_mode=direct_apply`，分析与独立验证门禁为 `not_run`；`port/details/direct-apply.json` 保存目标、补丁哈希和应用记录。此分支成功后仍进入内容三。
 
 先看 `bootstrap.json` 是否完成准备及启动，再看 `run/pipeline-result.json`。`success` 表示三个阶段门禁均通过；`skipped_non_cve` 表示分类后按规则停止；`blocked` 表示证据或环境不足；`failed` 表示迁移或兼容性检查失败；`error` 表示输入、运行或产物契约错误。退出码 0 也可能是正常筛出或 no_change，不能代替检查最终状态。
 
